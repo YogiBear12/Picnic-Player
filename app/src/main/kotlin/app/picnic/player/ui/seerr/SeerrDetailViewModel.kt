@@ -18,6 +18,7 @@ import app.picnic.player.data.seerr.castRow
 import app.picnic.player.data.seerr.seasonsForTvRequest
 import app.picnic.player.data.seerr.shouldOpenJellyfinDetail
 import app.picnic.player.data.seerr.toCatalogItem
+import app.picnic.player.data.settings.SettingsStore
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
@@ -43,6 +44,7 @@ enum class SeerrPrimaryAction {
 
 enum class SeerrActionFocusTarget {
     Primary,
+    Trailer,
     Cancel,
     Summary
 }
@@ -59,6 +61,7 @@ data class SeerrActionRow(
 @HiltViewModel(assistedFactory = SeerrDetailViewModel.Factory::class)
 class SeerrDetailViewModel @AssistedInject constructor(
     private val seerrRepository: SeerrRepository,
+    private val settingsStore: SettingsStore,
     @Assisted private val tmdbId: Int,
     @Assisted private val mediaType: SeerrMediaType
 ) : ViewModel() {
@@ -79,6 +82,7 @@ class SeerrDetailViewModel @AssistedInject constructor(
         val user: SeerrUser? = null,
         val serverUrl: String? = null,
         val cacheImages: Boolean = false,
+        val trailerYouTubePackage: String? = null,
         val error: String? = null,
         val actionError: String? = null,
         val busy: Boolean = false,
@@ -99,6 +103,11 @@ class SeerrDetailViewModel @AssistedInject constructor(
                         cacheImages = seerr.cacheImages
                     )
                 }
+            }
+        }
+        viewModelScope.launch {
+            settingsStore.settings.collect { settings ->
+                _state.update { it.copy(trailerYouTubePackage = settings.trailerYouTubePackage) }
             }
         }
     }

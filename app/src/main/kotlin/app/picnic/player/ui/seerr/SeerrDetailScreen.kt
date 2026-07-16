@@ -27,6 +27,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
@@ -45,6 +46,7 @@ import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -69,6 +71,7 @@ import app.picnic.player.ui.common.CircularPersonCard
 import app.picnic.player.ui.common.ScrollableTextDialog
 import app.picnic.player.ui.common.rememberRowFocusState
 import app.picnic.player.ui.common.requestFocusWhenAttached
+import app.picnic.player.ui.detail.launchRemoteTrailer
 import app.picnic.player.ui.theme.PicnicColors
 
 @Composable
@@ -156,10 +159,14 @@ private fun SeerrDetailContent(
     val listState = rememberLazyListState()
     var showSummaryDialog by remember { mutableStateOf(false) }
     var showInfoDialog by remember { mutableStateOf(false) }
+    val context = LocalContext.current
     val primaryFocus = remember { FocusRequester() }
+    val trailerFocus = remember { FocusRequester() }
     val cancelFocus = remember { FocusRequester() }
     val summaryFocus = remember { FocusRequester() }
     val hasSummary = !catalog.overview.isNullOrBlank()
+    val trailerUrl = catalog.trailerUrl
+    val showTrailer = !trailerUrl.isNullOrBlank()
     val cast = state.cast
     val recommended = state.recommended
 
@@ -171,6 +178,7 @@ private fun SeerrDetailContent(
 
     fun actionFocusRequester(): FocusRequester = when (lastActionFocus) {
         SeerrActionFocusTarget.Cancel -> if (actionRow.showCancel) cancelFocus else primaryFocus
+        SeerrActionFocusTarget.Trailer -> if (showTrailer) trailerFocus else primaryFocus
         SeerrActionFocusTarget.Summary -> if (hasSummary) summaryFocus else primaryFocus
         SeerrActionFocusTarget.Primary -> primaryFocus
     }
@@ -188,12 +196,21 @@ private fun SeerrDetailContent(
     }
 
     var focusRestored by remember { mutableStateOf(false) }
-    LaunchedEffect(cast, recommended, actionRow.initialFocus, actionRow.primary, actionRow.showCancel) {
+    LaunchedEffect(
+        cast,
+        recommended,
+        actionRow.initialFocus,
+        actionRow.primary,
+        actionRow.showCancel,
+        showTrailer
+    ) {
         if (focusRestored) return@LaunchedEffect
         if (lastSection == SeerrDetailSection.Actions) {
             focusRestored = true
             val target = when (actionRow.initialFocus) {
                 SeerrActionFocusTarget.Primary -> primaryFocus
+                SeerrActionFocusTarget.Trailer ->
+                    if (showTrailer) trailerFocus else primaryFocus
                 SeerrActionFocusTarget.Cancel ->
                     if (actionRow.showCancel) cancelFocus else primaryFocus
                 SeerrActionFocusTarget.Summary ->
@@ -318,6 +335,26 @@ private fun SeerrDetailContent(
                                     }
                                 }
                         )
+                        trailerUrl?.let { url ->
+                            SeerrActionButton(
+                                title = "Watch trailer",
+                                icon = Icons.Default.Movie,
+                                onClick = {
+                                    context.launchRemoteTrailer(
+                                        url,
+                                        state.trailerYouTubePackage
+                                    )
+                                },
+                                modifier = Modifier
+                                    .focusRequester(trailerFocus)
+                                    .onFocusChanged {
+                                        if (it.isFocused) {
+                                            lastActionFocus = SeerrActionFocusTarget.Trailer
+                                            lastSection = SeerrDetailSection.Actions
+                                        }
+                                    }
+                            )
+                        }
                         if (actionRow.showCancel) {
                             SeerrActionButton(
                                 title = actionRow.cancelLabel,

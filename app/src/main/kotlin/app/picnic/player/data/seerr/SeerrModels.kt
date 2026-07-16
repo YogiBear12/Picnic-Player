@@ -308,6 +308,17 @@ data class SeerrCastMember(
     val order: Int? = null
 )
 
+/** TMDB video mapped by Seerr (`relatedVideos` on movie/TV detail). */
+@Serializable
+data class SeerrRelatedVideo(
+    val url: String? = null,
+    val key: String? = null,
+    val name: String? = null,
+    val size: Int? = null,
+    val type: String? = null,
+    val site: String? = null
+)
+
 @Serializable
 data class SeerrMovieDetails(
     val id: Int,
@@ -321,6 +332,7 @@ data class SeerrMovieDetails(
     val genres: List<SeerrGenre> = emptyList(),
     val releases: SeerrMovieReleases? = null,
     val credits: SeerrCredits? = null,
+    val relatedVideos: List<SeerrRelatedVideo> = emptyList(),
     val mediaInfo: SeerrMediaInfo? = null
 )
 
@@ -342,6 +354,7 @@ data class SeerrTvDetails(
     val contentRatings: SeerrContentRatings? = null,
     val seasons: List<SeerrTvSeason> = emptyList(),
     val credits: SeerrCredits? = null,
+    val relatedVideos: List<SeerrRelatedVideo> = emptyList(),
     val mediaInfo: SeerrMediaInfo? = null
 )
 
@@ -410,7 +423,9 @@ data class SeerrCatalogItem(
     /** Hybrid Person Known for: cast character or crew job. */
     val creditRole: String? = null,
     /** Hybrid Person Known for: Seerr combined_credits episode count (TV metaline). */
-    val episodeCount: Int? = null
+    val episodeCount: Int? = null,
+    /** YouTube trailer URL from Seerr `relatedVideos`, when present (#128). */
+    val trailerUrl: String? = null
 )
 
 data class SeerrDiscoverRow(
@@ -457,6 +472,20 @@ fun SeerrMovieDetails.castRow(): List<SeerrCastMember> = credits?.cast.orEmpty()
 
 fun SeerrTvDetails.castRow(): List<SeerrCastMember> = credits?.cast.orEmpty().orderedCast()
 
+/**
+ * Overseerr/Seerr web UI pick: type Trailer, highest [SeerrRelatedVideo.size],
+ * then its YouTube [SeerrRelatedVideo.url] (or built from [SeerrRelatedVideo.key]).
+ */
+fun List<SeerrRelatedVideo>.youtubeTrailerUrl(): String? {
+    val trailer = asSequence()
+        .filter { it.type.equals("Trailer", ignoreCase = true) }
+        .maxByOrNull { it.size ?: 0 }
+        ?: return null
+    trailer.url?.takeIf { it.isNotBlank() }?.let { return it }
+    val key = trailer.key?.takeIf { it.isNotBlank() } ?: return null
+    return "https://www.youtube.com/watch?v=$key"
+}
+
 fun SeerrMovieDetails.toCatalogItem(): SeerrCatalogItem = SeerrCatalogItem(
     tmdbId = id,
     mediaType = SeerrMediaType.MOVIE,
@@ -472,7 +501,8 @@ fun SeerrMovieDetails.toCatalogItem(): SeerrCatalogItem = SeerrCatalogItem(
     genreNames = genres.mapNotNull { it.name?.takeIf(String::isNotBlank) }.take(3),
     runtimeMinutes = runtime?.takeIf { it > 0 },
     certificate = movieCertificate(releases),
-    detailEnriched = true
+    detailEnriched = true,
+    trailerUrl = relatedVideos.youtubeTrailerUrl()
 )
 
 /** TMDB `numberOfSeasons`, else count of seasons with `seasonNumber > 0`. */
@@ -500,7 +530,8 @@ fun SeerrTvDetails.toCatalogItem(): SeerrCatalogItem = SeerrCatalogItem(
     runtimeMinutes = episodeRunTime.firstOrNull()?.takeIf { it > 0 },
     seasonCount = derivedSeasonCount(),
     certificate = tvCertificate(contentRatings),
-    detailEnriched = true
+    detailEnriched = true,
+    trailerUrl = relatedVideos.youtubeTrailerUrl()
 )
 
 /**
