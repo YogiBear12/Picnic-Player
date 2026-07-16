@@ -43,6 +43,7 @@ import app.picnic.player.ui.common.rememberIdentityBrush
 import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.theme.PicnicColors
 import coil3.compose.AsyncImage
+import coil3.compose.AsyncImagePainter
 
 /**
  * Settings → Account: the active profile (avatar + name) with the Seerr
@@ -126,6 +127,8 @@ internal fun AccountSettingsPanel(
 /** Identity-gradient avatar circle; the profile image covers it once loaded. */
 @Composable
 private fun ProfileAvatar(name: String, imageUrl: String?) {
+    // Match Who's watching? / nav drawer (#131): no initial under a successful PNG load.
+    var avatarFailed by remember(imageUrl) { mutableStateOf(false) }
     Box(
         modifier = Modifier
             .size(140.dp)
@@ -133,18 +136,20 @@ private fun ProfileAvatar(name: String, imageUrl: String?) {
             .background(rememberIdentityBrush(name.ifBlank { "?" })),
         contentAlignment = Alignment.Center
     ) {
-        if (imageUrl == null) {
+        if (imageUrl == null || avatarFailed) {
             Text(
                 name.firstOrNull()?.uppercase().orEmpty(),
                 style = MaterialTheme.typography.displaySmall,
                 fontWeight = FontWeight.SemiBold,
                 color = PicnicColors.OnDark
             )
-        } else {
+        }
+        if (imageUrl != null) {
             AsyncImage(
                 model = imageUrl,
                 contentDescription = name,
                 contentScale = ContentScale.Crop,
+                onState = { avatarFailed = it is AsyncImagePainter.State.Error },
                 modifier = Modifier.fillMaxSize()
             )
         }

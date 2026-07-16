@@ -34,6 +34,9 @@ import androidx.compose.material.icons.outlined.Tv
 import androidx.compose.material.icons.outlined.VideoLibrary
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -59,6 +62,7 @@ import androidx.tv.material3.Text
 import app.picnic.player.data.auth.UserSession
 import app.picnic.player.ui.common.rememberIdentityBrush
 import coil3.compose.AsyncImage
+import coil3.compose.AsyncImagePainter
 import org.jellyfin.sdk.model.api.BaseItemKind
 
 private val DrawerHPad = 12.dp
@@ -227,6 +231,9 @@ private fun androidx.tv.material3.NavigationDrawerScope.PicnicDrawerItem(
 @Composable
 private fun DrawerAvatar(session: UserSession) {
     val imageUrl = "${session.server.baseUrl.trimEnd('/')}/Users/${session.userId}/Images/Primary?fillWidth=80&quality=90"
+    // Same layering as the Who's watching? picker: gradient underlay always, initial
+    // only when the load fails — so transparent PNG avatars do not show a letter (#131).
+    var avatarFailed by remember(session.userId) { mutableStateOf(false) }
     Box(
         Modifier
             .size(DrawerAvatarSize)
@@ -234,16 +241,19 @@ private fun DrawerAvatar(session: UserSession) {
             .background(rememberIdentityBrush(session.username.ifBlank { "?" })),
         contentAlignment = Alignment.Center
     ) {
-        Text(
-            session.username.firstOrNull()?.uppercase() ?: "?",
-            color = Color.White,
-            fontWeight = FontWeight.Bold,
-            style = MaterialTheme.typography.labelMedium
-        )
+        if (avatarFailed) {
+            Text(
+                session.username.firstOrNull()?.uppercase() ?: "?",
+                color = Color.White,
+                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.labelMedium
+            )
+        }
         AsyncImage(
             model = imageUrl,
             contentDescription = session.username,
             contentScale = ContentScale.Crop,
+            onState = { avatarFailed = it is AsyncImagePainter.State.Error },
             modifier = Modifier.fillMaxSize().clip(CircleShape)
         )
     }
