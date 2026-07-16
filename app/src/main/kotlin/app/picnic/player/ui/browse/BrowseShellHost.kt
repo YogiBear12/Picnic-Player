@@ -1,0 +1,319 @@
+@file:OptIn(ExperimentalTvMaterial3Api::class, ExperimentalComposeUiApi::class)
+
+package app.picnic.player.ui.browse
+
+import androidx.activity.compose.BackHandler
+import androidx.activity.compose.LocalActivity
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.tv.material3.DrawerState
+import androidx.tv.material3.ExperimentalTvMaterial3Api
+import androidx.tv.material3.Text
+import app.picnic.player.data.jellyfin.JellyfinImages
+import app.picnic.player.data.seerr.SeerrCatalogItem
+import app.picnic.player.data.seerr.SeerrImages
+import app.picnic.player.ui.ambient.BackdropSpec
+import app.picnic.player.ui.ambient.LocalCapBadgeCount
+import app.picnic.player.ui.ambient.LocalColouredFocus
+import app.picnic.player.ui.ambient.PublishBackdrop
+import app.picnic.player.ui.common.RefreshOnResume
+import app.picnic.player.ui.discover.DiscoverPane
+import app.picnic.player.ui.discover.DiscoverViewModel
+import app.picnic.player.ui.home.HomeBrowsePane
+import app.picnic.player.ui.home.HomeViewModel
+import app.picnic.player.ui.library.ForYouViewModel
+import app.picnic.player.ui.library.LibraryPane
+import app.picnic.player.ui.library.LibraryPaneViewModel
+import app.picnic.player.ui.library.LibraryTab
+import app.picnic.player.ui.library.forYouVmKey
+import app.picnic.player.ui.library.libraryPaneVmKey
+import app.picnic.player.ui.search.SearchPane
+import app.picnic.player.ui.search.SearchViewModel
+import app.picnic.player.ui.theme.PicnicColors
+import org.jellyfin.sdk.model.api.BaseItemDto
+
+/**
+ * Single browse shell: Search, Home, Discover, and one pane per video library.
+ */
+@Composable
+fun BrowseShellHost(
+    onItem: (BaseItemDto, String?, String?) -> Unit,
+    onSeerrItem: (SeerrCatalogItem, String?, String?) -> Unit,
+    onGenre: (BaseItemDto) -> Unit,
+    onLibraryGenre: (BaseItemDto, BrowseDest.Library) -> Unit,
+    onCollection: (BaseItemDto) -> Unit,
+    onSessionExpired: (String) -> Unit,
+    onSettings: () -> Unit,
+    onSwapUser: () -> Unit,
+    drawerState: DrawerState,
+    homeViewModel: HomeViewModel = hiltViewModel(),
+    searchViewModel: SearchViewModel = hiltViewModel(),
+    discoverViewModel: DiscoverViewModel = hiltViewModel(),
+    railViewModel: NavRailViewModel = hiltViewModel()
+) {
+    val rail = railViewModel.rail
+    val selectedKey by rail.selectedKey.collectAsStateWithLifecycle()
+    val navChromeFocused by rail.chromeFocused.collectAsStateWithLifecycle()
+    // Focus-ownership state machine (see [PaneFocusRequest]). Plain remember ON PURPOSE:
+    // navigating away disposes this composition, so returning from Detail/Settings restarts
+    // at WhenIdle and the active pane re-seeds focus onto its saved card (scroll state and
+    // the ViewModel survive; composition-local focus does not).
+    var paneFocusRequest by remember { mutableStateOf(PaneFocusRequest.WhenIdle) }
+    val homeState by homeViewModel.state.collectAsStateWithLifecycle()
+    val searchState by searchViewModel.state.collectAsStateWithLifecycle()
+    val discoverState by discoverViewModel.state.collectAsStateWithLifecycle()
+    val colouredFocus by homeViewModel.colouredFocus.collectAsStateWithLifecycle()
+    val capBadgeCount by homeViewModel.capBadgeCount.collectAsStateWithLifecycle()
+
+    val session = homeState.session
+
+    // Search, Home, then one destination per video library (published with the home rows).
+    val destinations by rail.destinations.collectAsStateWithLifecycle()
+    val selected = destinations.firstOrNull { it.key == selectedKey } ?: BrowseDest.Home
+
+    // A rail activation (possibly made while a pushed screen was on top) awaits its pane:
+    // fulfil it with the Commit request once this host is composing.
+    val pendingCommit by rail.pendingCommit.collectAsStateWithLifecycle()
+    LaunchedEffect(pendingCommit) {
+        if (pendingCommit && rail.consumeCommit()) {
+            paneFocusRequest = PaneFocusRequest.Commit
+        }
+    }
+
+    // The LibraryChangeBus covers changes this app made; returning to the foreground also needs a
+    // re-query to catch content added on the server (or by another client) while we were away.
+    RefreshOnResume { homeViewModel.refresh() }
+
+    // Search resets when the user explicitly LEAVES it (another destination, settings, user
+    // swap) — never on drill-forward (result → detail → Back keeps everything).
+    var lastSelectedKey by remember { mutableStateOf(selectedKey) }
+    LaunchedEffect(selectedKey) {
+        if (lastSelectedKey == BrowseDest.Search.key && selectedKey != BrowseDest.Search.key) {
+            searchViewModel.clearSearch()
+        }
+        lastSelectedKey = selectedKey
+    }
+
+    LaunchedEffect(homeState.sessionExpiredServerId) {
+        homeState.sessionExpiredServerId?.let {
+            homeViewModel.consumeSessionExpired()
+            onSessionExpired(it)
+        }
+    }
+
+    val activity = LocalActivity.current
+
+    // Standard TV / Material back ladder for top-level (drawer) destinations: only one copy of
+    // a top-level destination lives on the stack, so Back always returns to the START
+    // destination (Home), then exits — never a deep tab-by-tab history.
+    //  - content focused → open the drawer on the active tab (focus moves in → it opens)
+    //  - drawer, tab != Home → go Home (rail.select seeds Home's content focus → drawer closes)
+    //  - drawer, tab == Home → exit the app
+    BackHandler {
+        if (!navChromeFocused) {
+            runCatching { rail.requesterFor(selectedKey).requestFocus() }
+        } else if (selectedKey != BrowseDest.Home.key) {
+            rail.select(BrowseDest.Home)
+        } else {
+            activity?.finish()
+        }
+    }
+
+    if (session == null && homeState.loading) {
+        Box(Modifier.fillMaxSize(), Alignment.Center) {
+            CircularProgressIndicator(color = PicnicColors.Accent)
+        }
+        return
+    }
+
+    if (session == null) {
+        Box(Modifier.fillMaxSize(), Alignment.Center) {
+            Text(homeState.error ?: "No session")
+        }
+        return
+    }
+
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        CompositionLocalProvider(
+            LocalColouredFocus provides colouredFocus,
+            LocalCapBadgeCount provides capBadgeCount
+        ) {
+            val metrics = browseLayoutMetrics(maxWidth, maxHeight)
+            val onHome = selectedKey == BrowseDest.Home.key
+            val onDiscover = selectedKey == BrowseDest.Discover.key
+            val homeFocus = rememberHomeBrowseFocus(
+                rowCount = homeState.rows.size,
+                focusedRowIndex = homeState.focusedRowIndex,
+                scrollEnabled = onHome
+            )
+            val discoverFocus = rememberHomeBrowseFocus(
+                rowCount = discoverState.rows.size,
+                focusedRowIndex = discoverState.focusedRowIndex,
+                scrollEnabled = onDiscover
+            )
+
+            // Drawer Right must RETURN this requester (not requestFocus) so the in-flight
+            // focus transaction isn't rolled back — same contract as MediaGridPane rail exits.
+            // Fresh read at exit time so Settings → content lands on the saved Home/Discover
+            // card, not a spatial neighbour lower on the sheet (#90).
+            val contentFocusOnRight: () -> FocusRequester = {
+                when (selectedKey) {
+                    BrowseDest.Home.key ->
+                        homeFocus.rowCardFocus.getOrNull(homeState.focusedRowIndex)
+                            ?: homeFocus.rowFocusRequesters.getOrNull(homeState.focusedRowIndex)
+                            ?: FocusRequester.Default
+                    BrowseDest.Discover.key ->
+                        discoverFocus.rowCardFocus.getOrNull(discoverState.focusedRowIndex)
+                            ?: discoverFocus.rowFocusRequesters.getOrNull(discoverState.focusedRowIndex)
+                            ?: FocusRequester.Default
+                    else -> FocusRequester.Default
+                }
+            }
+
+            // Backdrop owned here so tab switches always clear: Home / Discover (and a
+            // library's For-you tab) publish focused artwork; Search / the other library
+            // tabs publish null → ocean wash (no stale Discover wash when leaving
+            // Discover — panes must not PublishBackdrop themselves).
+            val homeFocused = homeViewModel.focusedItem(homeState)
+            val discoverFocused = discoverViewModel.focusedItem(discoverState)
+            val seerr = discoverState.seerr
+            // The selected library's chrome + For-you ViewModels — the same Hilt keys
+            // LibraryPane uses, so this reads the pane's live state.
+            val selectedLibrary = selected as? BrowseDest.Library
+            val forYouFocused: BaseItemDto? = if (selectedLibrary != null) {
+                val paneViewModel: LibraryPaneViewModel =
+                    hiltViewModel(key = libraryPaneVmKey(selectedLibrary.key))
+                val forYouViewModel: ForYouViewModel =
+                    hiltViewModel(key = forYouVmKey(selectedLibrary.key))
+                val paneState by paneViewModel.state.collectAsStateWithLifecycle()
+                val forYouState by forYouViewModel.state.collectAsStateWithLifecycle()
+                if (paneState.selectedTab == LibraryTab.FOR_YOU) {
+                    forYouViewModel.focusedItem(forYouState)
+                } else {
+                    null
+                }
+            } else {
+                null
+            }
+            PublishBackdrop(
+                when {
+                    onHome ->
+                        homeFocused
+                            ?.let { JellyfinImages.navImages(session, it) }
+                            .let { BackdropSpec(backdropUrl = it?.bgUrl, ambientUrl = it?.ambUrl) }
+                    onDiscover ->
+                        discoverFocused
+                            ?.let { SeerrImages.navImages(seerr.serverUrl, it, seerr.cacheImages) }
+                            .let { BackdropSpec(backdropUrl = it?.bgUrl, ambientUrl = it?.ambUrl) }
+                    forYouFocused != null ->
+                        JellyfinImages.navImages(session, forYouFocused)
+                            .let { BackdropSpec(backdropUrl = it.bgUrl, ambientUrl = it.ambUrl) }
+                    else -> null
+                }
+            )
+
+            val onPaneSeeded = { paneFocusRequest = PaneFocusRequest.None }
+            // Panes sit right of the collapsed drawer already; only a small breathing inset
+            // remains on the left. The right edge keeps the design-canvas inset.
+            val paneInset = BrowsePaneStartInset
+            // The persistent nav drawer lives here, wrapping the tab content. One instance for
+            // the whole shell — switching tabs never remounts it, so it can't flicker open.
+            val railRequesters = remember(destinations) {
+                destinations.associate { it.key to rail.requesterFor(it.key) }
+            }
+            BrowseSideNavDrawer(
+                session = session,
+                destinations = destinations,
+                selectedKey = selectedKey,
+                itemFocusRequesters = railRequesters,
+                contentFocusOnRight = contentFocusOnRight,
+                drawerState = drawerState,
+                onSelect = { dest -> rail.select(dest) },
+                onSwapUser = onSwapUser,
+                onSettings = onSettings,
+                onChromeFocusedChange = rail::setChromeFocused
+            ) {
+                BrowseShellScaffold {
+                    AnimatedContent(
+                        targetState = selected,
+                        transitionSpec = { fadeIn(tween(260)) togetherWith fadeOut(tween(260)) },
+                        label = "browseTabContent"
+                    ) { dest ->
+                        // Only the TARGET pane may fulfil the focus request — during the slide
+                        // both panes compose, and the exiting one must not grab focus.
+                        val seedPaneFocus = dest.key == selectedKey &&
+                            when (paneFocusRequest) {
+                                PaneFocusRequest.Commit -> true
+                                PaneFocusRequest.WhenIdle -> !navChromeFocused
+                                PaneFocusRequest.None -> false
+                            }
+                        when (dest) {
+                            BrowseDest.Search -> SearchPane(
+                                state = searchState,
+                                viewModel = searchViewModel,
+                                metrics = metrics,
+                                horizontalInset = paneInset,
+                                seedContentFocus = seedPaneFocus,
+                                onContentFocusSeeded = onPaneSeeded,
+                                onItem = onItem,
+                                onSeerrItem = onSeerrItem,
+                                onGenre = onGenre
+                            )
+                            BrowseDest.Home -> HomeBrowsePane(
+                                state = homeState,
+                                viewModel = homeViewModel,
+                                metrics = metrics,
+                                horizontalInset = paneInset,
+                                focus = homeFocus,
+                                seedContentFocus = seedPaneFocus,
+                                onContentFocusSeeded = onPaneSeeded,
+                                onItem = onItem
+                            )
+                            BrowseDest.Discover -> DiscoverPane(
+                                state = discoverState,
+                                viewModel = discoverViewModel,
+                                metrics = metrics,
+                                horizontalInset = paneInset,
+                                focus = discoverFocus,
+                                seedContentFocus = seedPaneFocus,
+                                onContentFocusSeeded = onPaneSeeded,
+                                onSeerrItem = onSeerrItem
+                            )
+                            is BrowseDest.Library -> LibraryPane(
+                                dest = dest,
+                                metrics = metrics,
+                                horizontalInset = paneInset,
+                                seedContentFocus = seedPaneFocus,
+                                onContentFocusSeeded = onPaneSeeded,
+                                onItem = onItem,
+                                onGenre = { genre -> onLibraryGenre(genre, dest) },
+                                onCollection = onCollection,
+                                onSessionExpired = onSessionExpired
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

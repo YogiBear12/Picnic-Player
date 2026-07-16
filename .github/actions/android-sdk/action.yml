@@ -1,0 +1,50 @@
+name: Set up Android SDK
+description: Install SDK packages required for Picnic Player Android TV builds.
+
+runs:
+  using: composite
+  steps:
+    - name: Install command-line tools and SDK packages
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        SDK_ROOT="${ANDROID_SDK_ROOT:-${RUNNER_TEMP:-/tmp}/android-sdk}"
+        mkdir -p "${SDK_ROOT}/cmdline-tools"
+
+        if [ ! -x "${SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager" ]; then
+          CMD_TOOLS_ZIP="commandlinetools-linux-11076708_latest.zip"
+          curl -fsSL -o "/tmp/${CMD_TOOLS_ZIP}" \
+            "https://dl.google.com/android/repository/${CMD_TOOLS_ZIP}"
+          rm -rf /tmp/android-cmdline-tools
+          mkdir -p /tmp/android-cmdline-tools
+          unzip -q "/tmp/${CMD_TOOLS_ZIP}" -d /tmp/android-cmdline-tools
+          rm -rf "${SDK_ROOT}/cmdline-tools/latest"
+          mv /tmp/android-cmdline-tools/cmdline-tools "${SDK_ROOT}/cmdline-tools/latest"
+        fi
+
+        export ANDROID_HOME="${SDK_ROOT}"
+        export ANDROID_SDK_ROOT="${SDK_ROOT}"
+        export PATH="${SDK_ROOT}/cmdline-tools/latest/bin:${SDK_ROOT}/platform-tools:${PATH}"
+
+        if [ ! -f "${SDK_ROOT}/platforms/android-35/android.jar" ] \
+          || [ ! -d "${SDK_ROOT}/build-tools/35.0.0" ] \
+          || [ ! -x "${SDK_ROOT}/platform-tools/adb" ]; then
+          set +o pipefail
+          yes | sdkmanager --sdk_root="${SDK_ROOT}" --licenses
+          set -o pipefail
+
+          sdkmanager --sdk_root="${SDK_ROOT}" \
+            "platform-tools" \
+            "platforms;android-35" \
+            "build-tools;35.0.0"
+        fi
+
+        echo "ANDROID_HOME=${SDK_ROOT}" >> "${GITHUB_ENV}"
+        echo "ANDROID_SDK_ROOT=${SDK_ROOT}" >> "${GITHUB_ENV}"
+
+        # Persist the tool bin dirs to PATH for later steps (each step is a
+        # fresh shell, so the export above is not enough). Without this the
+        # decoder build step cannot find sdkmanager.
+        echo "${SDK_ROOT}/cmdline-tools/latest/bin" >> "${GITHUB_PATH}"
+        echo "${SDK_ROOT}/platform-tools" >> "${GITHUB_PATH}"

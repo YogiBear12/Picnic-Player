@@ -1,0 +1,222 @@
+package app.picnic.player.ui.settings
+
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.tv.material3.MaterialTheme
+import androidx.tv.material3.Text
+import app.picnic.player.data.seerr.SeerrLinkState
+import app.picnic.player.ui.common.rememberIdentityBrush
+import app.picnic.player.ui.common.requestFocusWhenAttached
+import app.picnic.player.ui.theme.PicnicColors
+import coil3.compose.AsyncImage
+
+/**
+ * Settings → Account: the active profile (avatar + name) with the Seerr
+ * connection and sign-out actions below it. Connecting to Seerr happens in a
+ * dialog — the panel itself stays to three focusable rows at most.
+ */
+@Composable
+internal fun AccountSettingsPanel(
+    viewModel: SettingsViewModel,
+    onSignedOut: () -> Unit,
+    enterFr: FocusRequester,
+    leftFocus: FocusRequester,
+    onFocusChanged: (Boolean) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val seerr by viewModel.seerrState.collectAsStateWithLifecycle()
+    val connecting by viewModel.seerrConnecting.collectAsStateWithLifecycle()
+    val connectError by viewModel.seerrConnectError.collectAsStateWithLifecycle()
+    val username by viewModel.activeUsername.collectAsStateWithLifecycle()
+    val avatarUrl by viewModel.activeUserImageUrl.collectAsStateWithLifecycle()
+    val linked = seerr.linkState == SeerrLinkState.Linked
+    var showConnectDialog by remember { mutableStateOf(false) }
+
+    // A successful connect closes the dialog on its own and puts focus back on
+    // the Seerr row — without this, the dialog's focus owner disappearing lets
+    // focus fall onto the rail's first item (Requests) and switch category.
+    LaunchedEffect(linked) {
+        if (linked && showConnectDialog) {
+            showConnectDialog = false
+            enterFr.requestFocusWhenAttached(maxFrames = 20)
+        }
+    }
+
+    Column(
+        modifier = modifier.onFocusChanged { onFocusChanged(it.hasFocus) },
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(bottom = 24.dp)
+        ) {
+            ProfileAvatar(name = username, imageUrl = avatarUrl)
+            Spacer(Modifier.height(16.dp))
+            Text(
+                username,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = PicnicColors.OnDark
+            )
+        }
+        // One row for both link states — keeping the node alive across the
+        // connect/disconnect transition preserves D-pad focus on it.
+        ActionRow(
+            label = if (linked) "Disconnect Seerr" else "Connect to Seerr",
+            leftFocus = leftFocus,
+            focusRequester = enterFr,
+            blockUp = true,
+            onActivate = {
+                if (linked) viewModel.disconnectSeerr() else showConnectDialog = true
+            }
+        )
+        ActionRow(
+            label = "Sign out",
+            leftFocus = leftFocus,
+            blockDown = true,
+            onActivate = { viewModel.signOut(onSignedOut) }
+        )
+    }
+
+    if (showConnectDialog) {
+        SeerrConnectDialog(
+            initialUrl = seerr.serverUrl.orEmpty(),
+            connecting = connecting,
+            error = connectError,
+            onConnect = viewModel::connectSeerr,
+            onDismiss = { showConnectDialog = false }
+        )
+    }
+}
+
+/** Identity-gradient avatar circle; the profile image covers it once loaded. */
+@Composable
+private fun ProfileAvatar(name: String, imageUrl: String?) {
+    Box(
+        modifier = Modifier
+            .size(140.dp)
+            .clip(CircleShape)
+            .background(rememberIdentityBrush(name.ifBlank { "?" })),
+        contentAlignment = Alignment.Center
+    ) {
+        if (imageUrl == null) {
+            Text(
+                name.firstOrNull()?.uppercase().orEmpty(),
+                style = MaterialTheme.typography.displaySmall,
+                fontWeight = FontWeight.SemiBold,
+                color = PicnicColors.OnDark
+            )
+        } else {
+            AsyncImage(
+                model = imageUrl,
+                contentDescription = name,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+        }
+    }
+}
+
+/** Align with OptionPickerDialog / LanguagePreferenceDialog glass chrome. */
+private val DialogGlassFill = Color(0xEA181E24)
+
+/** Seerr URL + Jellyfin password in the standard glass dialog. */
+@Composable
+private fun SeerrConnectDialog(
+    initialUrl: String,
+    connecting: Boolean,
+    error: String?,
+    onConnect: (url: String, password: String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    BackHandler { onDismiss() }
+    var url by remember(initialUrl) { mutableStateOf(initialUrl) }
+    var password by remember { mutableStateOf("") }
+    val urlFieldFr = remember { FocusRequester() }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Column(
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            modifier = Modifier
+                .width(440.dp)
+                .shadow(8.dp, RoundedCornerShape(20.dp))
+                .clip(RoundedCornerShape(20.dp))
+                .background(DialogGlassFill)
+                .padding(28.dp)
+        ) {
+            Text(
+                "Connect to Seerr",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = Color.White
+            )
+            SettingsTextField(
+                value = url,
+                onValueChange = { url = it },
+                label = "Seerr URL",
+                focusRequester = urlFieldFr,
+                modifier = Modifier.fillMaxWidth()
+            )
+            SettingsTextField(
+                value = password,
+                onValueChange = { password = it },
+                label = "Jellyfin password",
+                password = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            if (error != null) {
+                Text(error, color = PicnicColors.Error, style = MaterialTheme.typography.bodyMedium)
+            }
+            ActionRow(
+                label = if (connecting) "Connecting…" else "Connect",
+                leftFocus = null,
+                enabled = !connecting && url.isNotBlank() && password.isNotBlank(),
+                blockDown = true,
+                onActivate = { onConnect(url, password) }
+            )
+            if (connecting) {
+                CircularProgressIndicator(color = PicnicColors.Accent, modifier = Modifier.padding(4.dp))
+            }
+        }
+    }
+    LaunchedEffect(Unit) {
+        urlFieldFr.requestFocusWhenAttached(maxFrames = 20)
+    }
+}

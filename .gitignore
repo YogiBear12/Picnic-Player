@@ -1,0 +1,50 @@
+# build
+.gradle/
+build/
+.cxx/
+captures/
+*.apk
+*.aab
+local.properties
+.kotlin/
+.media3-build/
+
+# ide
+.idea/
+*.iml
+.vscode/
+.claude/
+*.swp
+*.swo
+.editorconfig
+
+# docs
+.agents/
+.cursor/
+.githooks/
+.github/pull_request_template.md
+AGENTS.md
+INTENT.md
+CONTRIBUTING.md
+CONTEXT.md
+/docs/
+
+# os
+.DS_Store
+Thumbs.db
+
+# secrets
+.env
+.env.*
+*.keystore
+*.jks
+key.properties
+**/google-services.json
+**/GoogleService-Info.plist
+
+# scratch
+.scratch/
+logcat*.txt
+*.log
+/test_*.kt
+/test_*.java
