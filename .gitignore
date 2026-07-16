@@ -16,7 +16,6 @@ local.properties
 .claude/
 *.swp
 *.swo
-.editorconfig
 
 # docs
 .agents/

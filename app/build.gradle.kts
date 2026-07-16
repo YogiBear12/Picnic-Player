@@ -20,12 +20,17 @@ plugins {
 // Version name is derived from the latest git tag (e.g. `v0.1.0` -> `0.1.0`).
 // The build is triggered manually, but always stamps the most recent tag.
 // Falls back to a default when there are no tags / no git (e.g. source archive).
-val versionNameFromTag: String = runCatching {
-    providers.exec {
-        commandLine("git", "describe", "--tags", "--abbrev=0")
-        isIgnoreExitValue = true
-    }.standardOutput.asText.get().trim().removePrefix("v")
-}.getOrNull()?.ifBlank { null } ?: "0.1.0"
+val versionNameFromTag: String =
+    runCatching {
+        providers.exec {
+            commandLine("git", "describe", "--tags", "--abbrev=0")
+            isIgnoreExitValue = true
+        }.standardOutput
+            .asText
+            .get()
+            .trim()
+            .removePrefix("v")
+    }.getOrNull()?.ifBlank { null } ?: "0.1.0"
 
 // Human-readable build date shown on the About page (e.g. "14 Jul 2026").
 val buildDate: String = SimpleDateFormat("d MMM yyyy", Locale.US).format(Date())
@@ -69,7 +74,10 @@ android {
                                 "ANDROID_KEYSTORE_PASSWORD / ANDROID_KEY_ALIAS / ANDROID_KEY_PASSWORD is missing."
                         )
                     }
-                    val keystoreFile = layout.buildDirectory.file("release.keystore").get().asFile
+                    val keystoreFile = layout.buildDirectory
+                        .file("release.keystore")
+                        .get()
+                        .asFile
                     keystoreFile.parentFile.mkdirs()
                     keystoreFile.writeBytes(Base64.getDecoder().decode(releaseKeystoreBase64.trim()))
                     storeFile = keystoreFile
