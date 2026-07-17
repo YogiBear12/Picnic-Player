@@ -5,7 +5,7 @@ import org.jellyfin.sdk.model.api.BaseItemKind
 
 /**
  * A top-level browse destination shown in the side navigation drawer. Search and Home are
- * fixed; libraries are built dynamically from the server's video libraries.
+ * fixed; libraries (+ Discover when Seerr is linked) are customisable via pin/reorder (#88).
  */
 sealed interface BrowseDest {
     /** Stable identity — drives saved selection and per-destination focus requesters. */
@@ -19,7 +19,7 @@ sealed interface BrowseDest {
         override val key = "home"
     }
 
-    /** Seerr Discover — only published when linked and Show Discover is on. */
+    /** Seerr Discover — published when Seerr is linked; pin/unpin like a library (#88). */
     data object Discover : BrowseDest {
         override val key = "discover"
     }

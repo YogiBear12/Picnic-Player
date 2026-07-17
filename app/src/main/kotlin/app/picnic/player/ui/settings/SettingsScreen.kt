@@ -93,7 +93,6 @@ class SettingsViewModel @Inject constructor(
     private val authRepository: AuthRepository,
     private val mediaRepository: MediaRepository,
     private val seerrRepository: app.picnic.player.data.seerr.SeerrRepository,
-    private val navRail: app.picnic.player.ui.browse.NavRailState,
     private val pictureInPictureSupport: app.picnic.player.data.device.PictureInPictureSupport,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
@@ -226,7 +225,6 @@ class SettingsViewModel @Inject constructor(
         _seerrConnectError.value = null
         seerrRepository.connect(url, password)
             .onSuccess {
-                navRail.setDiscoverVisible(seerrRepository.isDiscoverVisible)
                 refreshMyRequests()
             }
             .onFailure { e ->
@@ -237,15 +235,8 @@ class SettingsViewModel @Inject constructor(
 
     fun disconnectSeerr() = viewModelScope.launch {
         seerrRepository.disconnect()
-        navRail.setDiscoverVisible(false)
         _myRequests.value = emptyList()
         _focusedRequestId.value = null
-    }
-
-    fun toggleShowDiscover() = viewModelScope.launch {
-        val next = !seerrState.value.showDiscover
-        seerrRepository.setShowDiscover(next)
-        navRail.setDiscoverVisible(seerrRepository.isDiscoverVisible)
     }
 
     /**
@@ -454,8 +445,6 @@ private fun sectionsFor(
     context: Context,
     viewModel: SettingsViewModel,
     youtubeApps: List<YouTubeAppInfo>,
-    seerrLinked: Boolean,
-    showDiscover: Boolean,
     pictureInPictureSupported: Boolean,
     showPicker: (ActivePicker) -> Unit,
     onShowAudioLanguagePicker: () -> Unit,
@@ -476,16 +465,6 @@ private fun sectionsFor(
                         viewModel::toggleAutoLoginLastUser
                     )
                 )
-                if (seerrLinked) {
-                    add(
-                        SettingItem(
-                            "Show Discover tab",
-                            if (showDiscover) "On" else "Off",
-                            "Browse and discover new media from outside your libraries",
-                            viewModel::toggleShowDiscover
-                        )
-                    )
-                }
                 add(
                     SettingItem(
                         "Ambient backgrounds",
@@ -1061,8 +1040,6 @@ private fun DetailPanel(
         context,
         viewModel,
         youtubeApps,
-        seerr.linkState == SeerrLinkState.Linked,
-        seerr.showDiscover,
         viewModel.pictureInPictureSupported,
         showPicker,
         onShowAudioLanguagePicker,

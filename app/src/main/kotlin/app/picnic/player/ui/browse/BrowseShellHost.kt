@@ -87,9 +87,12 @@ fun BrowseShellHost(
 
     val session = homeState.session
 
-    // Search, Home, then one destination per video library (published with the home rows).
-    val destinations by rail.destinations.collectAsStateWithLifecycle()
-    val selected = destinations.firstOrNull { it.key == selectedKey } ?: BrowseDest.Home
+    val destinations by rail.drawerDestinations.collectAsStateWithLifecycle()
+    val drawerPage by rail.drawerPage.collectAsStateWithLifecycle()
+    val moreVisible by rail.moreVisible.collectAsStateWithLifecycle()
+    val layout by rail.layout.collectAsStateWithLifecycle()
+    val reorderKey by rail.reorderKey.collectAsStateWithLifecycle()
+    val selected = rail.destinationFor(selectedKey) ?: BrowseDest.Home
 
     // A rail activation (possibly made while a pushed screen was on top) awaits its pane:
     // fulfil it with the Commit request once this host is composing.
@@ -127,15 +130,21 @@ fun BrowseShellHost(
     // a top-level destination lives on the stack, so Back always returns to the START
     // destination (Home), then exits — never a deep tab-by-tab history.
     //  - content focused → open the drawer on the active tab (focus moves in → it opens)
+    //  - drawer More page → Primary page (#88)
     //  - drawer, tab != Home → go Home (rail.select seeds Home's content focus → drawer closes)
     //  - drawer, tab == Home → exit the app
     BackHandler {
-        if (!navChromeFocused) {
-            runCatching { rail.requesterFor(selectedKey).requestFocus() }
-        } else if (selectedKey != BrowseDest.Home.key) {
-            rail.select(BrowseDest.Home)
-        } else {
-            activity?.finish()
+        when {
+            !navChromeFocused ->
+                runCatching { rail.requesterFor(selectedKey).requestFocus() }
+            reorderKey != null ->
+                rail.exitReorder()
+            drawerPage == NavDrawerPage.More ->
+                rail.openPrimaryPage()
+            selectedKey != BrowseDest.Home.key ->
+                rail.select(BrowseDest.Home)
+            else ->
+                activity?.finish()
         }
     }
 
@@ -238,7 +247,7 @@ fun BrowseShellHost(
             val paneInset = BrowsePaneStartInset
             // The persistent nav drawer lives here, wrapping the tab content. One instance for
             // the whole shell — switching tabs never remounts it, so it can't flicker open.
-            val railRequesters = remember(destinations) {
+            val railRequesters = remember(destinations, drawerPage) {
                 destinations.associate { it.key to rail.requesterFor(it.key) }
             }
             val updateViewModel: app.picnic.player.ui.settings.UpdateViewModel = hiltViewModel()
@@ -250,10 +259,24 @@ fun BrowseShellHost(
                 itemFocusRequesters = railRequesters,
                 contentFocusOnRight = contentFocusOnRight,
                 drawerState = drawerState,
+                drawerPage = drawerPage,
+                moreVisible = moreVisible,
+                layout = layout,
+                reorderKey = reorderKey,
                 onSelect = { dest -> rail.select(dest) },
+                onOpenMore = { rail.openMorePage() },
+                onBackFromMore = { rail.openPrimaryPage() },
                 onSwapUser = onSwapUser,
                 onSettings = onSettings,
                 onChromeFocusedChange = rail::setChromeFocused,
+                onPin = railViewModel::pin,
+                onUnpin = railViewModel::unpin,
+                onEnterReorder = { dest ->
+                    rail.enterReorder(dest.key)
+                    runCatching { rail.requesterFor(dest.key).requestFocus() }
+                },
+                onExitReorder = rail::exitReorder,
+                onMoveReorder = railViewModel::moveReorder,
                 settingsBadge = updateBadge
             ) {
                 BrowseShellScaffold {

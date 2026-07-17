@@ -4,12 +4,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.picnic.player.data.seerr.SeerrCatalogItem
 import app.picnic.player.data.seerr.SeerrDiscoverRow
-import app.picnic.player.data.seerr.SeerrLinkState
 import app.picnic.player.data.seerr.SeerrMediaType
 import app.picnic.player.data.seerr.SeerrRepository
 import app.picnic.player.data.seerr.SeerrSessionState
 import app.picnic.player.ui.ambient.AmbientPaletteLoader
-import app.picnic.player.ui.browse.NavRailState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.FlowPreview
@@ -30,7 +28,6 @@ import kotlinx.coroutines.sync.withPermit
 @HiltViewModel
 class DiscoverViewModel @Inject constructor(
     private val seerrRepository: SeerrRepository,
-    private val navRail: NavRailState,
     val ambientLoader: AmbientPaletteLoader
 ) : ViewModel() {
 
@@ -54,9 +51,6 @@ class DiscoverViewModel @Inject constructor(
         viewModelScope.launch {
             seerrRepository.state.collect { seerr ->
                 _state.update { it.copy(seerr = seerr) }
-                navRail.setDiscoverVisible(
-                    seerr.linkState == SeerrLinkState.Linked && seerr.showDiscover
-                )
             }
         }
         viewModelScope.launch {

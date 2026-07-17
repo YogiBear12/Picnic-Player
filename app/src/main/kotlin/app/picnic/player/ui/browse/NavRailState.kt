@@ -3,13 +3,21 @@ package app.picnic.player.ui.browse
 import androidx.compose.ui.focus.FocusRequester
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import app.picnic.player.data.auth.AuthRepository
 import app.picnic.player.data.auth.UserSession
+import app.picnic.player.data.nav.NavLayout
+import app.picnic.player.data.nav.NavLayoutResolver
+import app.picnic.player.data.nav.NavLayoutStore
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+
+/** Which page of the side nav drawer is showing. */
+enum class NavDrawerPage { Primary, More }
 
 /**
  * App-scoped state for the persistent navigation rail. The rail outlives any one
@@ -17,10 +25,8 @@ import kotlinx.coroutines.launch
  * (Detail/Collection/Genre) — so its selection, destinations, and focus targets live here
  * rather than in [BrowseShellHost].
  *
- * Producers: [app.picnic.player.ui.home.HomeViewModel] publishes the session + video
- * libraries when the home rows load; the nav host clears everything on sign-out/user swap.
- * Consumer: the nav host renders the drawer from this state; the browse shell reads
- * [selectedKey]/[destinations] to switch panes and consumes [pendingCommit] to seed focus.
+ * Customisable destinations (libraries + Discover) are split into pinned (primary page)
+ * and unpinned (More page) via [NavLayout] (#88).
  */
 @Singleton
 class NavRailState @Inject constructor() {
@@ -28,68 +34,124 @@ class NavRailState @Inject constructor() {
     private val _session = MutableStateFlow<UserSession?>(null)
     val session = _session.asStateFlow()
 
-    private val _destinations = MutableStateFlow<List<BrowseDest>>(
+    /** Destinations shown on the current drawer page (excludes Settings / avatar / More chrome). */
+    private val _drawerDestinations = MutableStateFlow<List<BrowseDest>>(
         listOf(BrowseDest.Search, BrowseDest.Home)
     )
-    val destinations = _destinations.asStateFlow()
+    val drawerDestinations = _drawerDestinations.asStateFlow()
+
+    /** Every browsable destination (for pane resolution), including unpinned. */
+    private val _allDestinations = MutableStateFlow<List<BrowseDest>>(
+        listOf(BrowseDest.Search, BrowseDest.Home)
+    )
+    val allDestinations = _allDestinations.asStateFlow()
+
+    private val _layout = MutableStateFlow(NavLayout())
+    val layout = _layout.asStateFlow()
+
+    private val _drawerPage = MutableStateFlow(NavDrawerPage.Primary)
+    val drawerPage = _drawerPage.asStateFlow()
+
+    /** True when More should appear on the primary page. */
+    private val _moreVisible = MutableStateFlow(false)
+    val moreVisible = _moreVisible.asStateFlow()
+
+    /** Key currently in reorder mode, or null. */
+    private val _reorderKey = MutableStateFlow<String?>(null)
+    val reorderKey = _reorderKey.asStateFlow()
+
+    /** Bumps when layout changes so Home can rebuild rows without a network round-trip. */
+    private val _layoutEpoch = MutableStateFlow(0)
+    val layoutEpoch = _layoutEpoch.asStateFlow()
 
     private var lastLibraries: List<BrowseDest.Library> = emptyList()
-    private var discoverEnabled: Boolean = false
+    private var discoverAvailable: Boolean = false
+    private var customById: Map<String, BrowseDest> = emptyMap()
 
     private val _selectedKey = MutableStateFlow(BrowseDest.Home.key)
     val selectedKey = _selectedKey.asStateFlow()
 
-    /** True while a rail activation awaits the target pane taking focus (Commit). */
     private val _pendingCommit = MutableStateFlow(false)
     val pendingCommit = _pendingCommit.asStateFlow()
 
-    /** Whether any rail item currently holds focus — the shell's back-ladder reads this. */
     private val _chromeFocused = MutableStateFlow(false)
     val chromeFocused = _chromeFocused.asStateFlow()
 
-    // One permanent requester per destination key: shared by the drawer items (attach) and
-    // the shell's back-ladder (request). getOrPut so late-arriving library keys just work.
     private val requesters = mutableMapOf<String, FocusRequester>()
     fun requesterFor(key: String): FocusRequester = requesters.getOrPut(key) { FocusRequester() }
 
+    fun destinationFor(key: String): BrowseDest? = _allDestinations.value.firstOrNull { it.key == key }
+
+    /** Pinned library destinations in pin order — drives Home "Recently added" rows. */
+    fun pinnedLibraries(): List<BrowseDest.Library> = _layout.value.pinnedIds.mapNotNull { customById[it] as? BrowseDest.Library }
+
+    fun lastPublishedLibraries(): List<BrowseDest.Library> = lastLibraries
+
+    fun isDiscoverAvailable(): Boolean = discoverAvailable
+
+    /**
+     * Publish session + libraries + whether Discover exists (Seerr linked).
+     * [layout] is the reconciled persisted layout for this user.
+     */
     fun publish(
         session: UserSession,
         libraries: List<BrowseDest.Library>,
-        showDiscover: Boolean = discoverEnabled
+        discoverAvailable: Boolean,
+        layout: NavLayout
     ) {
         _session.value = session
         lastLibraries = libraries
-        discoverEnabled = showDiscover
-        _destinations.value = buildDestinations(libraries, showDiscover)
-        // If Discover was selected and is now hidden, fall back to Home.
-        if (!showDiscover && _selectedKey.value == BrowseDest.Discover.key) {
-            _selectedKey.value = BrowseDest.Home.key
+        this.discoverAvailable = discoverAvailable
+        customById = buildCustomMap(libraries, discoverAvailable)
+        _layout.value = layout
+        rebuildDestinations()
+        ensureSelectionValid()
+        _layoutEpoch.update { it + 1 }
+    }
+
+    fun applyLayout(layout: NavLayout) {
+        _layout.value = layout
+        rebuildDestinations()
+        if (_drawerPage.value == NavDrawerPage.More && !_moreVisible.value) {
+            _drawerPage.value = NavDrawerPage.Primary
+            rebuildDestinations()
         }
+        ensureSelectionValid()
+        _layoutEpoch.update { it + 1 }
     }
 
-    /** Update Discover visibility without reloading libraries (Settings toggle / Seerr link). */
-    fun setDiscoverVisible(visible: Boolean) {
-        val session = _session.value ?: return
-        publish(session, lastLibraries, showDiscover = visible)
+    fun openMorePage() {
+        if (!_moreVisible.value) return
+        _drawerPage.value = NavDrawerPage.More
+        _reorderKey.value = null
+        rebuildDestinations()
     }
 
-    private fun buildDestinations(
-        libraries: List<BrowseDest.Library>,
-        showDiscover: Boolean
-    ): List<BrowseDest> = buildList {
-        add(BrowseDest.Search)
-        add(BrowseDest.Home)
-        if (showDiscover) add(BrowseDest.Discover)
-        addAll(libraries)
+    fun openPrimaryPage() {
+        _drawerPage.value = NavDrawerPage.Primary
+        _reorderKey.value = null
+        rebuildDestinations()
     }
 
-    /** Rail item activated: switch destination and ask the pane to take focus when ready. */
+    fun enterReorder(key: String) {
+        _reorderKey.value = key
+    }
+
+    fun exitReorder() {
+        _reorderKey.value = null
+    }
+
     fun select(dest: BrowseDest) {
         _selectedKey.value = dest.key
         _pendingCommit.value = true
+        val onUnpinnedPage = dest.key in _layout.value.unpinnedIds
+        if (onUnpinnedPage) {
+            if (_drawerPage.value != NavDrawerPage.More) openMorePage()
+        } else if (_drawerPage.value != NavDrawerPage.Primary) {
+            openPrimaryPage()
+        }
     }
 
-    /** Selection change without the focus hand-off (the shell's Back-ladder Home jump). */
     fun setSelected(key: String) {
         _selectedKey.value = key
     }
@@ -100,15 +162,66 @@ class NavRailState @Inject constructor() {
         _chromeFocused.value = focused
     }
 
-    /** Sign-out / user swap: the next user gets a fresh rail. */
     fun clear() {
         _session.value = null
         lastLibraries = emptyList()
-        discoverEnabled = false
-        _destinations.value = listOf(BrowseDest.Search, BrowseDest.Home)
+        discoverAvailable = false
+        customById = emptyMap()
+        _layout.value = NavLayout()
+        _drawerDestinations.value = listOf(BrowseDest.Search, BrowseDest.Home)
+        _allDestinations.value = listOf(BrowseDest.Search, BrowseDest.Home)
+        _moreVisible.value = false
+        _drawerPage.value = NavDrawerPage.Primary
+        _reorderKey.value = null
         _selectedKey.value = BrowseDest.Home.key
         _pendingCommit.value = false
         _chromeFocused.value = false
+    }
+
+    private fun ensureSelectionValid() {
+        if (!discoverAvailable && _selectedKey.value == BrowseDest.Discover.key) {
+            _selectedKey.value = BrowseDest.Home.key
+            if (_drawerPage.value == NavDrawerPage.More) {
+                _drawerPage.value = NavDrawerPage.Primary
+                rebuildDestinations()
+            }
+        }
+        if (_allDestinations.value.none { it.key == _selectedKey.value }) {
+            _selectedKey.value = BrowseDest.Home.key
+            if (_drawerPage.value == NavDrawerPage.More) {
+                _drawerPage.value = NavDrawerPage.Primary
+                rebuildDestinations()
+            }
+        }
+    }
+
+    private fun rebuildDestinations() {
+        val layout = _layout.value
+        val pinned = layout.pinnedIds.mapNotNull { customById[it] }
+        val unpinned = layout.unpinnedIds.mapNotNull { customById[it] }
+        _moreVisible.value = unpinned.isNotEmpty()
+        _allDestinations.value = buildList {
+            add(BrowseDest.Search)
+            add(BrowseDest.Home)
+            addAll(pinned)
+            addAll(unpinned)
+        }
+        _drawerDestinations.value = when (_drawerPage.value) {
+            NavDrawerPage.Primary -> buildList {
+                add(BrowseDest.Search)
+                add(BrowseDest.Home)
+                addAll(pinned)
+            }
+            NavDrawerPage.More -> unpinned
+        }
+    }
+
+    private fun buildCustomMap(
+        libraries: List<BrowseDest.Library>,
+        discoverAvailable: Boolean
+    ): Map<String, BrowseDest> = buildMap {
+        libraries.forEach { put(it.key, it) }
+        if (discoverAvailable) put(BrowseDest.Discover.key, BrowseDest.Discover)
     }
 }
 
@@ -116,10 +229,46 @@ class NavRailState @Inject constructor() {
 @HiltViewModel
 class NavRailViewModel @Inject constructor(
     val rail: NavRailState,
-    private val authRepository: app.picnic.player.data.auth.AuthRepository
+    private val authRepository: AuthRepository,
+    private val navLayoutStore: NavLayoutStore
 ) : ViewModel() {
-    /** Drawer's switch-user action: drop the session; the caller navigates to the picker. */
+
     fun softLogout() {
         viewModelScope.launch { authRepository.logout() }
+    }
+
+    fun pin(dest: BrowseDest) {
+        mutateLayout { NavLayoutResolver.pin(it, dest.key) }
+        if (rail.selectedKey.value == dest.key) {
+            rail.openPrimaryPage()
+        }
+    }
+
+    fun unpin(dest: BrowseDest) {
+        mutateLayout { NavLayoutResolver.unpin(it, dest.key) }
+        if (rail.selectedKey.value == dest.key) {
+            rail.openMorePage()
+        }
+    }
+
+    fun moveReorder(delta: Int) {
+        val key = rail.reorderKey.value ?: return
+        val session = rail.session.value ?: return
+        val next = NavLayoutResolver.move(rail.layout.value, key, delta)
+        // Apply synchronously so the focused row identity ([key]) stays under focus
+        // before the next D-pad event; persist off the UI path.
+        rail.applyLayout(next)
+        viewModelScope.launch {
+            navLayoutStore.save(session.server.id, session.userId, next)
+        }
+    }
+
+    private fun mutateLayout(transform: (NavLayout) -> NavLayout) {
+        viewModelScope.launch {
+            val session = rail.session.value ?: return@launch
+            val next = transform(rail.layout.value)
+            navLayoutStore.save(session.server.id, session.userId, next)
+            rail.applyLayout(next)
+        }
     }
 }

@@ -52,19 +52,31 @@ object HomeContent {
 
     /**
      * Assembles the home rows: Continue Watching (when non-empty) followed by a
-     * "Recently added in {library}" row per library that has items.
+     * "Recently added in {library}" row per **pinned** library that has items,
+     * in [pinnedLibraryIds] order (#88). Libraries absent from that list (unpinned)
+     * contribute no home row.
+     *
+     * When [pinnedLibraryIds] is null, every library in [latestByLibrary] is included
+     * in the given order (legacy / tests).
      */
     fun buildHomeRows(
         resume: List<BaseItemDto>,
         nextUp: List<BaseItemDto>,
-        latestByLibrary: List<Pair<BaseItemDto, List<BaseItemDto>>>
+        latestByLibrary: List<Pair<BaseItemDto, List<BaseItemDto>>>,
+        pinnedLibraryIds: List<UUID>? = null
     ): List<HomeRow> {
         val rows = ArrayList<HomeRow>()
         val continueWatching = combineContinueWatching(resume, nextUp)
         if (continueWatching.isNotEmpty()) {
             rows += HomeRow("Continue watching", continueWatching, continueWatching = true)
         }
-        for ((view, items) in latestByLibrary) {
+        val byId = latestByLibrary.associateBy { it.first.id }
+        val ordered = if (pinnedLibraryIds == null) {
+            latestByLibrary
+        } else {
+            pinnedLibraryIds.mapNotNull { byId[it] }
+        }
+        for ((view, items) in ordered) {
             if (items.isNotEmpty()) {
                 rows += HomeRow(
                     title = "Recently added in ${view.name.orEmpty()}",

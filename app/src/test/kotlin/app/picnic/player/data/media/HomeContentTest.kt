@@ -94,4 +94,25 @@ class HomeContentTest {
         assertEquals(1, rows.size)
         assertEquals("Recently added in B", rows.first().title)
     }
+
+    @Test
+    fun pinnedOrder_filtersAndOrdersLibraryRows() {
+        val libA = item(name = "A", kind = BaseItemKind.COLLECTION_FOLDER)
+        val libB = item(name = "B", kind = BaseItemKind.COLLECTION_FOLDER)
+        val libC = item(name = "C", kind = BaseItemKind.COLLECTION_FOLDER)
+        val rows = HomeContent.buildHomeRows(
+            resume = emptyList(),
+            nextUp = emptyList(),
+            latestByLibrary = listOf(
+                libA to listOf(item(kind = BaseItemKind.MOVIE)),
+                libB to listOf(item(kind = BaseItemKind.MOVIE)),
+                libC to listOf(item(kind = BaseItemKind.MOVIE))
+            ),
+            pinnedLibraryIds = listOf(libC.id, libA.id) // B unpinned; C before A
+        )
+        assertEquals(
+            listOf("Recently added in C", "Recently added in A"),
+            rows.map { it.title }
+        )
+    }
 }

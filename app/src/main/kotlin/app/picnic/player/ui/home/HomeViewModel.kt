@@ -14,6 +14,9 @@ import app.picnic.player.data.media.LibraryChangeBus
 import app.picnic.player.data.media.MediaRepository
 import app.picnic.player.data.media.planHeroStreamPrefetch
 import app.picnic.player.data.media.seriesNeedingSeasonCount
+import app.picnic.player.data.nav.NAV_ID_DISCOVER
+import app.picnic.player.data.nav.NavLayoutStore
+import app.picnic.player.data.seerr.SeerrLinkState
 import app.picnic.player.data.seerr.SeerrRepository
 import app.picnic.player.data.settings.SettingsStore
 import app.picnic.player.data.tvprovider.TvChannelReceiver
@@ -34,6 +37,8 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -56,7 +61,8 @@ class HomeViewModel @Inject constructor(
     settingsStore: SettingsStore,
     val ambientLoader: AmbientPaletteLoader,
     private val navRail: NavRailState,
-    private val seerrRepository: SeerrRepository
+    private val seerrRepository: SeerrRepository,
+    private val navLayoutStore: NavLayoutStore
 ) : ViewModel() {
 
     data class UiState(
@@ -94,6 +100,11 @@ class HomeViewModel @Inject constructor(
     /** One immediate channel publish per Home session; periodic work covers later refreshes. */
     private var channelSyncRequested = false
 
+    /** Last network fetch of per-library latest items — reused when only pin/order changes. */
+    private var latestByLibrary: List<Pair<BaseItemDto, List<BaseItemDto>>> = emptyList()
+    private var lastResume: List<BaseItemDto> = emptyList()
+    private var lastNextUp: List<BaseItemDto> = emptyList()
+
     init {
         load()
         // Any library change (watched/favorite/progress here or in another screen, plus broad
@@ -105,6 +116,29 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             focusChangedFlow.debounce(200).collectLatest { prefetchStreamsAhead() }
         }
+        // Pin/reorder/unpin: rebuild home rows from the cached latest fetch (#88).
+        viewModelScope.launch {
+            navRail.layoutEpoch.drop(1).collectLatest { rebuildRowsFromCache() }
+        }
+        // Seerr link/unlink mid-session: add/remove Discover without a full home reload.
+        viewModelScope.launch {
+            seerrRepository.state
+                .map { it.linkState == SeerrLinkState.Linked }
+                .distinctUntilChanged()
+                .drop(1)
+                .collectLatest { linked -> republishNavLayout(linked) }
+        }
+    }
+
+    private suspend fun republishNavLayout(discoverAvailable: Boolean) {
+        val session = _state.value.session ?: return
+        val libraries = _state.value.libraries
+        val availableIds = buildList {
+            addAll(libraries.map { it.key })
+            if (discoverAvailable) add(NAV_ID_DISCOVER)
+        }
+        val layout = navLayoutStore.resolve(session.server.id, session.userId, availableIds)
+        navRail.publish(session, libraries, discoverAvailable, layout)
     }
 
     /** Re-fetch home rows without tearing down state (covers app-foreground returns). */
@@ -231,13 +265,24 @@ class HomeViewModel @Inject constructor(
                     val resume = resumeDeferred.await()
                     val nextUp = nextUpDeferred.await()
                     val latest = latestDeferred.awaitAll()
+                    lastResume = resume
+                    lastNextUp = nextUp
+                    latestByLibrary = latest
 
-                    navRail.publish(
-                        session,
-                        libraries,
-                        showDiscover = seerrRepository.isDiscoverVisible
+                    val discoverAvailable =
+                        seerrRepository.state.value.linkState == SeerrLinkState.Linked
+                    val availableIds = buildList {
+                        addAll(libraries.map { it.key })
+                        if (discoverAvailable) add(NAV_ID_DISCOVER)
+                    }
+                    val layout = navLayoutStore.resolve(
+                        session.server.id,
+                        session.userId,
+                        availableIds
                     )
-                    val rows = HomeContent.buildHomeRows(resume, nextUp, latest)
+                    navRail.publish(session, libraries, discoverAvailable, layout)
+                    val pinnedIds = navRail.pinnedLibraries().map { it.id }
+                    val rows = HomeContent.buildHomeRows(resume, nextUp, latest, pinnedIds)
                     val firstItem = rows.firstOrNull()?.items?.firstOrNull()
                     _state.update { current ->
                         val rowIds = current.rowFocusedItemIds.ifEmpty {
@@ -284,6 +329,19 @@ class HomeViewModel @Inject constructor(
                     _state.update { it.copy(loading = false, error = "Could not load home") }
                 }
             }
+        }
+    }
+
+    /** Re-apply pin order to the last fetched home payload (no network). */
+    private fun rebuildRowsFromCache() {
+        if (latestByLibrary.isEmpty() && lastResume.isEmpty() && lastNextUp.isEmpty()) return
+        val pinnedIds = navRail.pinnedLibraries().map { it.id }
+        val rows = HomeContent.buildHomeRows(lastResume, lastNextUp, latestByLibrary, pinnedIds)
+        _state.update { current ->
+            current.copy(
+                rows = rows,
+                error = if (rows.isEmpty()) "Nothing to watch yet." else null
+            )
         }
     }
 

@@ -2,6 +2,7 @@
 
 package app.picnic.player.ui.browse
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
@@ -12,31 +13,38 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material.icons.outlined.Explore
 import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material.icons.outlined.Movie
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Tv
 import androidx.compose.material.icons.outlined.VideoLibrary
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -48,6 +56,11 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -60,7 +73,9 @@ import androidx.tv.material3.NavigationDrawerItem
 import androidx.tv.material3.NavigationDrawerItemDefaults
 import androidx.tv.material3.Text
 import app.picnic.player.data.auth.UserSession
+import app.picnic.player.data.nav.NavLayout
 import app.picnic.player.ui.common.rememberIdentityBrush
+import app.picnic.player.ui.theme.PicnicColors
 import coil3.compose.AsyncImage
 import coil3.compose.AsyncImagePainter
 import org.jellyfin.sdk.model.api.BaseItemKind
@@ -74,17 +89,10 @@ private val DrawerIconSize = 22.dp
 private val DrawerAvatarSize = 28.dp
 
 /**
- * Vertical TV navigation drawer on tv-material [NavigationDrawer]. The
- * component owns open/close — it opens while any drawer item has focus and closes when
- * focus leaves. Standard (non-modal) variant per the TV component guidance: expanding
- * pushes the content right and off screen; the content keeps its size (no reflow).
- *
- * @param contentFocusOnRight Resolved at exit time for D-pad Right — must be the
- *  destination pane's saved card/row requester (same contract as [MediaGridPane] rail
- *  exits). Returning [FocusRequester.Default] keeps spatial search.
- * @param drawerState Hoisted above the NavHost so the open/closed value survives back-nav:
- *  returning to the shell restores the last state (resting Closed) instead of the component
- *  reconstructing a default state and replaying its open→close animation (#106).
+ * Vertical TV navigation drawer on tv-material [NavigationDrawer]. Supports
+ * pin/unpin/reorder of customisable destinations and a More page for unpinned
+ * items (#88). Long-press a customisable row ([NavigationDrawerItem]'s
+ * [onLongClick]) to open Actions — drawer width stays unchanged.
  */
 @Composable
 internal fun BrowseSideNavDrawer(
@@ -94,16 +102,75 @@ internal fun BrowseSideNavDrawer(
     itemFocusRequesters: Map<String, FocusRequester>,
     contentFocusOnRight: () -> FocusRequester,
     drawerState: DrawerState,
+    drawerPage: NavDrawerPage,
+    moreVisible: Boolean,
+    layout: NavLayout,
+    reorderKey: String?,
     onSelect: (BrowseDest) -> Unit,
+    onOpenMore: () -> Unit,
+    onBackFromMore: () -> Unit,
     onSwapUser: () -> Unit,
     onSettings: () -> Unit,
     onChromeFocusedChange: (Boolean) -> Unit,
+    onPin: (BrowseDest) -> Unit,
+    onUnpin: (BrowseDest) -> Unit,
+    onEnterReorder: (BrowseDest) -> Unit,
+    onExitReorder: () -> Unit,
+    onMoveReorder: (Int) -> Unit,
     settingsBadge: Boolean = false,
     content: @Composable () -> Unit
 ) {
     if (session == null) {
         Box(Modifier.fillMaxSize()) { content() }
         return
+    }
+
+    var actionsDest by remember { mutableStateOf<BrowseDest?>(null) }
+    val inReorder = reorderKey != null
+    val moreItemFocus = remember { FocusRequester() }
+    val moreBackFocus = remember { FocusRequester() }
+    var previousPage by remember { mutableStateOf(drawerPage) }
+
+    if (inReorder) {
+        BackHandler { onExitReorder() }
+    }
+
+    // Page swaps dispose the focused row (More / Back). Re-seed inside the drawer on the
+    // next frame so NavigationDrawer never sees an empty focus owner and closes itself.
+    LaunchedEffect(drawerPage) {
+        val from = previousPage
+        previousPage = drawerPage
+        if (from == drawerPage) return@LaunchedEffect
+        kotlinx.coroutines.yield()
+        when (drawerPage) {
+            NavDrawerPage.More -> runCatching { moreBackFocus.requestFocus() }
+            NavDrawerPage.Primary -> {
+                if (moreVisible) {
+                    runCatching { moreItemFocus.requestFocus() }
+                } else {
+                    itemFocusRequesters[selectedKey]?.let { runCatching { it.requestFocus() } }
+                }
+            }
+        }
+    }
+
+    // Keep focus glued to the row being reordered across list moves (same idea as
+    // EditablePickerRow after ←/→ swap).
+    LaunchedEffect(reorderKey, destinations) {
+        val key = reorderKey ?: return@LaunchedEffect
+        repeat(2) { withFrameNanos { } }
+        itemFocusRequesters[key]?.let { runCatching { it.requestFocus() } }
+    }
+
+    actionsDest?.let { dest ->
+        NavDestActionsDialog(
+            dest = dest,
+            pinned = layout.isPinned(dest.key),
+            onPin = { onPin(dest) },
+            onUnpin = { onUnpin(dest) },
+            onReorder = { onEnterReorder(dest) },
+            onDismiss = { actionsDest = null }
+        )
     }
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
@@ -138,52 +205,101 @@ internal fun BrowseSideNavDrawer(
                         .padding(horizontal = DrawerHPad, vertical = 14.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    PicnicDrawerItem(
-                        selected = false,
-                        onClick = onSwapUser,
-                        label = session.username,
-                        leadingContent = { DrawerAvatar(session) }
-                    )
-                    Spacer(Modifier.height(10.dp))
+                    when (drawerPage) {
+                        NavDrawerPage.Primary -> {
+                            PicnicDrawerItem(
+                                selected = false,
+                                onClick = onSwapUser,
+                                label = session.username,
+                                leadingContent = { DrawerAvatar(session) }
+                            )
+                            Spacer(Modifier.height(10.dp))
 
-                    destinations.forEach { dest ->
-                        val (filled, outlined) = iconsFor(dest)
-                        val selected = dest.key == selectedKey
-                        PicnicDrawerItem(
-                            selected = selected,
-                            onClick = { onSelect(dest) },
-                            label = labelFor(dest),
-                            modifier = itemFocusRequesters[dest.key]
-                                ?.let { Modifier.focusRequester(it) } ?: Modifier,
-                            leadingContent = {
-                                Icon(
-                                    imageVector = if (selected) filled else outlined,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(DrawerIconSize)
+                            destinations.forEach { dest ->
+                                key(dest.key) {
+                                    CustomisableDrawerRow(
+                                        dest = dest,
+                                        selected = dest.key == selectedKey,
+                                        customisable = dest.isCustomisable(),
+                                        reorderKey = reorderKey,
+                                        itemFocusRequester = itemFocusRequesters[dest.key],
+                                        onSelect = { onSelect(dest) },
+                                        onOpenActions = { actionsDest = dest },
+                                        onMoveReorder = onMoveReorder,
+                                        onExitReorder = onExitReorder
+                                    )
+                                }
+                            }
+
+                            if (moreVisible) {
+                                PicnicDrawerItem(
+                                    selected = false,
+                                    onClick = onOpenMore,
+                                    label = "More",
+                                    modifier = Modifier.focusRequester(moreItemFocus),
+                                    leadingContent = {
+                                        Icon(
+                                            imageVector = Icons.Outlined.MoreHoriz,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(DrawerIconSize)
+                                        )
+                                    }
                                 )
                             }
-                        )
-                    }
 
-                    Spacer(Modifier.weight(1f))
+                            Spacer(Modifier.weight(1f))
 
-                    PicnicDrawerItem(
-                        selected = false,
-                        onClick = onSettings,
-                        label = "Settings",
-                        leadingContent = {
-                            Box {
-                                Icon(
-                                    imageVector = Icons.Outlined.Settings,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(DrawerIconSize)
-                                )
-                                if (settingsBadge) {
-                                    UpdateBadgeDot(Modifier.align(Alignment.TopEnd))
+                            PicnicDrawerItem(
+                                selected = false,
+                                onClick = onSettings,
+                                label = "Settings",
+                                leadingContent = {
+                                    Box {
+                                        Icon(
+                                            imageVector = Icons.Outlined.Settings,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(DrawerIconSize)
+                                        )
+                                        if (settingsBadge) {
+                                            UpdateBadgeDot(Modifier.align(Alignment.TopEnd))
+                                        }
+                                    }
+                                }
+                            )
+                        }
+                        NavDrawerPage.More -> {
+                            PicnicDrawerItem(
+                                selected = false,
+                                onClick = onBackFromMore,
+                                label = "Back",
+                                modifier = Modifier.focusRequester(moreBackFocus),
+                                leadingContent = {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(DrawerIconSize)
+                                    )
+                                }
+                            )
+                            Spacer(Modifier.height(10.dp))
+
+                            destinations.forEach { dest ->
+                                key(dest.key) {
+                                    CustomisableDrawerRow(
+                                        dest = dest,
+                                        selected = dest.key == selectedKey,
+                                        customisable = true,
+                                        reorderKey = reorderKey,
+                                        itemFocusRequester = itemFocusRequesters[dest.key],
+                                        onSelect = { onSelect(dest) },
+                                        onOpenActions = { actionsDest = dest },
+                                        onMoveReorder = onMoveReorder,
+                                        onExitReorder = onExitReorder
+                                    )
                                 }
                             }
                         }
-                    )
+                    }
                 }
             }
         ) {
@@ -199,6 +315,101 @@ internal fun BrowseSideNavDrawer(
     }
 }
 
+/**
+ * Same footprint as a plain [PicnicDrawerItem] when idle. In reorder mode: Plex-style
+ * accent chevrons are drawn *over* the row (no extra layout height) so neighbours do
+ * not shift. Up/Down swap; Select confirms via KeyUp consumption.
+ */
+@Composable
+private fun androidx.tv.material3.NavigationDrawerScope.CustomisableDrawerRow(
+    dest: BrowseDest,
+    selected: Boolean,
+    customisable: Boolean,
+    reorderKey: String?,
+    itemFocusRequester: FocusRequester?,
+    onSelect: () -> Unit,
+    onOpenActions: () -> Unit,
+    onMoveReorder: (Int) -> Unit,
+    onExitReorder: () -> Unit
+) {
+    val (filled, outlined) = iconsFor(dest)
+    val inReorder = reorderKey == dest.key
+
+    Box(contentAlignment = Alignment.Center) {
+        PicnicDrawerItem(
+            selected = selected || inReorder,
+            onClick = if (inReorder) {
+                {}
+            } else {
+                onSelect
+            },
+            onLongClick = when {
+                inReorder -> null
+                customisable -> onOpenActions
+                else -> null
+            },
+            label = drawerLabelFor(dest),
+            modifier = Modifier
+                .then(itemFocusRequester?.let { Modifier.focusRequester(it) } ?: Modifier)
+                .then(
+                    if (inReorder) {
+                        Modifier
+                            .focusProperties {
+                                up = FocusRequester.Cancel
+                                down = FocusRequester.Cancel
+                            }
+                            .onPreviewKeyEvent { event ->
+                                when (event.key) {
+                                    Key.DirectionUp -> {
+                                        if (event.type == KeyEventType.KeyDown) onMoveReorder(-1)
+                                        true
+                                    }
+                                    Key.DirectionDown -> {
+                                        if (event.type == KeyEventType.KeyDown) onMoveReorder(1)
+                                        true
+                                    }
+                                    Key.DirectionCenter, Key.Enter, Key.Back -> {
+                                        if (event.type == KeyEventType.KeyUp) onExitReorder()
+                                        true
+                                    }
+                                    else -> false
+                                }
+                            }
+                    } else {
+                        Modifier
+                    }
+                ),
+            leadingContent = {
+                Icon(
+                    imageVector = if (selected || inReorder) filled else outlined,
+                    contentDescription = null,
+                    modifier = Modifier.size(DrawerIconSize)
+                )
+            }
+        )
+        if (inReorder) {
+            Icon(
+                imageVector = Icons.Filled.KeyboardArrowUp,
+                contentDescription = null,
+                tint = PicnicColors.Cyan,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .offset(y = (-16).dp)
+                    .size(18.dp)
+            )
+            Icon(
+                imageVector = Icons.Filled.KeyboardArrowDown,
+                contentDescription = null,
+                tint = PicnicColors.Cyan,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .offset(y = 16.dp)
+                    .size(18.dp)
+            )
+        }
+    }
+}
+
 /** One drawer entry: tv-material item with the Picnic focus palette (white pill on focus). */
 @Composable
 private fun androidx.tv.material3.NavigationDrawerScope.PicnicDrawerItem(
@@ -206,12 +417,14 @@ private fun androidx.tv.material3.NavigationDrawerScope.PicnicDrawerItem(
     onClick: () -> Unit,
     label: String,
     leadingContent: @Composable () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onLongClick: (() -> Unit)? = null
 ) {
     NavigationDrawerItem(
         selected = selected,
         onClick = onClick,
         leadingContent = leadingContent,
+        onLongClick = onLongClick,
         colors = NavigationDrawerItemDefaults.colors(
             containerColor = Color.Transparent,
             contentColor = Color.White.copy(alpha = 0.6f),
@@ -240,7 +453,7 @@ internal fun UpdateBadgeDot(modifier: Modifier = Modifier) {
         modifier
             .size(7.dp)
             .clip(CircleShape)
-            .background(app.picnic.player.ui.theme.PicnicColors.Cyan)
+            .background(PicnicColors.Cyan)
     )
 }
 
@@ -276,12 +489,14 @@ private fun DrawerAvatar(session: UserSession) {
     }
 }
 
-private fun labelFor(dest: BrowseDest): String = when (dest) {
+internal fun drawerLabelFor(dest: BrowseDest): String = when (dest) {
     BrowseDest.Search -> "Search"
     BrowseDest.Home -> "Home"
     BrowseDest.Discover -> "Discover"
     is BrowseDest.Library -> dest.title
 }
+
+private fun BrowseDest.isCustomisable(): Boolean = this is BrowseDest.Library || this == BrowseDest.Discover
 
 /** Filled + outlined icon pair for a destination. */
 private fun iconsFor(dest: BrowseDest): Pair<ImageVector, ImageVector> = when (dest) {
