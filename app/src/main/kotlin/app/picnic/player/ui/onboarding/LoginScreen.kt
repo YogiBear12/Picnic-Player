@@ -23,7 +23,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -72,10 +71,6 @@ fun LoginScreen(
     val passwordOptionFocus = remember { FocusRequester() }
     val usernameFocus = remember { FocusRequester() }
     val passwordFocus = remember { FocusRequester() }
-    // While a TV field shell swaps to the real TextField, focus can briefly escape to
-    // Quick Connect — ignore that auto-select so the Password pane stays mounted.
-    var fieldsEditing by remember { mutableIntStateOf(0) }
-    val suppressMethodAutoSelect = fieldsEditing > 0
     // Default focus on the Quick Connect option (method follows focus).
     LaunchedEffect(Unit) { runCatching { quickConnectFocus.requestFocus() } }
 
@@ -105,7 +100,6 @@ fun LoginScreen(
                     label = "Sign in with Quick Connect",
                     selected = state.method == Method.QuickConnect,
                     onSelect = { viewModel.selectMethod(Method.QuickConnect) },
-                    suppressAutoSelect = suppressMethodAutoSelect,
                     modifier = Modifier
                         .focusRequester(quickConnectFocus)
                         .focusProperties { down = passwordOptionFocus }
@@ -116,7 +110,6 @@ fun LoginScreen(
                     label = "Username + password",
                     selected = state.method == Method.Password,
                     onSelect = { viewModel.selectMethod(Method.Password) },
-                    suppressAutoSelect = suppressMethodAutoSelect,
                     modifier = Modifier
                         .focusRequester(passwordOptionFocus)
                         .focusProperties {
@@ -146,10 +139,7 @@ fun LoginScreen(
                         leftTarget = passwordOptionFocus,
                         onUsername = viewModel::setUsername,
                         onPassword = viewModel::setPassword,
-                        onSubmit = viewModel::login,
-                        onEditingChange = { editing ->
-                            fieldsEditing = (fieldsEditing + if (editing) 1 else -1).coerceAtLeast(0)
-                        }
+                        onSubmit = viewModel::login
                     )
                 }
             }
@@ -163,17 +153,15 @@ private fun MethodOption(
     label: String,
     selected: Boolean,
     onSelect: () -> Unit,
-    suppressAutoSelect: Boolean = false,
     modifier: Modifier = Modifier
 ) {
-    // Focusing an option selects it (unless a password-field edit transition is in
-    // flight — see [suppressAutoSelect]). During normal D-pad use the focused option
-    // is therefore the selected (white) one.
+    // Focusing an option selects it — during normal D-pad use the focused option is
+    // therefore the selected (white) one.
     Surface(
         onClick = onSelect,
         modifier = modifier
             .fillMaxWidth()
-            .onFocusChanged { if (it.isFocused && !suppressAutoSelect) onSelect() },
+            .onFocusChanged { if (it.isFocused) onSelect() },
         shape = ClickableSurfaceDefaults.shape(MaterialTheme.shapes.medium),
         scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
         colors = ClickableSurfaceDefaults.colors(
@@ -270,8 +258,7 @@ private fun PasswordPane(
     leftTarget: FocusRequester,
     onUsername: (String) -> Unit,
     onPassword: (String) -> Unit,
-    onSubmit: () -> Unit,
-    onEditingChange: (Boolean) -> Unit
+    onSubmit: () -> Unit
 ) {
     // Idle shells never open the IME; Select does (TV practice).
     // Right from the method option enters the username shell.
@@ -285,7 +272,6 @@ private fun PasswordPane(
             placeholder = "Username",
             imeAction = ImeAction.Next,
             onImeAction = { runCatching { passwordFocus.requestFocus() } },
-            onEditingChange = onEditingChange,
             modifier = Modifier
                 .fillMaxWidth()
                 .focusRequester(usernameFocus)
@@ -301,7 +287,6 @@ private fun PasswordPane(
             password = true,
             imeAction = ImeAction.Done,
             onImeAction = onSubmit,
-            onEditingChange = onEditingChange,
             modifier = Modifier
                 .fillMaxWidth()
                 .focusRequester(passwordFocus)
