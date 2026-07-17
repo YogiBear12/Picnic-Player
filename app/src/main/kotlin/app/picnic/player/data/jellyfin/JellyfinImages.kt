@@ -22,6 +22,17 @@ object JellyfinImages {
         }
     }
 
+    /**
+     * Server-admin splashscreen art (Dashboard > Branding > Splashscreen). Public
+     * endpoint, no auth and no image tag. Returns a URL unconditionally — the server
+     * 404s when no splashscreen was ever uploaded, so callers must fall back on load
+     * failure rather than trust the URL's existence.
+     */
+    fun splashscreen(session: UserSession, fillWidth: Int = 1920): String {
+        val base = session.server.baseUrl.trimEnd('/')
+        return "$base/Branding/Splashscreen?fillWidth=$fillWidth&quality=90"
+    }
+
     fun personPrimary(session: UserSession, personId: String, tag: String?, fillWidth: Int = 480): String? {
         if (tag == null) return null
         return url(session, personId, ImageType.PRIMARY, tag, fillWidth)
