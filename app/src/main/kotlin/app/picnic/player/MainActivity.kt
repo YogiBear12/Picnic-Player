@@ -66,10 +66,19 @@ class MainActivity : ComponentActivity() {
 
     @Inject lateinit var remoteControlBus: RemoteControlBus
 
+    @Inject lateinit var updateRepository: app.picnic.player.data.update.UpdateRepository
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         handleIntent(intent)
         observeRemoteControl()
+
+        // In-app updater (#111): sweep the APK cache (post-update self-clean) then
+        // run the throttled release check. Both are no-ops when no host is configured.
+        lifecycleScope.launch {
+            updateRepository.bootCleanup()
+            runCatching { updateRepository.check() }
+        }
 
         // Draw edge-to-edge so the IME reports as a Compose inset: screens apply
         // imePadding() to lift content above the keyboard while the root Surface

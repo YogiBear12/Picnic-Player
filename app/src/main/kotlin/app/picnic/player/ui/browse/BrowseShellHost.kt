@@ -241,6 +241,8 @@ fun BrowseShellHost(
             val railRequesters = remember(destinations) {
                 destinations.associate { it.key to rail.requesterFor(it.key) }
             }
+            val updateViewModel: app.picnic.player.ui.settings.UpdateViewModel = hiltViewModel()
+            val updateBadge by updateViewModel.updateAvailable.collectAsStateWithLifecycle()
             BrowseSideNavDrawer(
                 session = session,
                 destinations = destinations,
@@ -251,7 +253,8 @@ fun BrowseShellHost(
                 onSelect = { dest -> rail.select(dest) },
                 onSwapUser = onSwapUser,
                 onSettings = onSettings,
-                onChromeFocusedChange = rail::setChromeFocused
+                onChromeFocusedChange = rail::setChromeFocused,
+                settingsBadge = updateBadge
             ) {
                 BrowseShellScaffold {
                     AnimatedContent(

@@ -98,6 +98,7 @@ internal fun BrowseSideNavDrawer(
     onSwapUser: () -> Unit,
     onSettings: () -> Unit,
     onChromeFocusedChange: (Boolean) -> Unit,
+    settingsBadge: Boolean = false,
     content: @Composable () -> Unit
 ) {
     if (session == null) {
@@ -171,11 +172,16 @@ internal fun BrowseSideNavDrawer(
                         onClick = onSettings,
                         label = "Settings",
                         leadingContent = {
-                            Icon(
-                                imageVector = Icons.Outlined.Settings,
-                                contentDescription = null,
-                                modifier = Modifier.size(DrawerIconSize)
-                            )
+                            Box {
+                                Icon(
+                                    imageVector = Icons.Outlined.Settings,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(DrawerIconSize)
+                                )
+                                if (settingsBadge) {
+                                    UpdateBadgeDot(Modifier.align(Alignment.TopEnd))
+                                }
+                            }
                         }
                     )
                 }
@@ -225,6 +231,17 @@ private fun androidx.tv.material3.NavigationDrawerScope.PicnicDrawerItem(
             maxLines = 1
         )
     }
+}
+
+/** Small cyan dot marking "update available" on chrome items (#111). */
+@Composable
+internal fun UpdateBadgeDot(modifier: Modifier = Modifier) {
+    Box(
+        modifier
+            .size(7.dp)
+            .clip(CircleShape)
+            .background(app.picnic.player.ui.theme.PicnicColors.Cyan)
+    )
 }
 
 /** Passive circular avatar (the enclosing drawer item owns focus + click). */

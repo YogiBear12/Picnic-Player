@@ -10,6 +10,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -18,6 +22,8 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import app.picnic.player.BuildConfig
@@ -25,11 +31,15 @@ import app.picnic.player.R
 import app.picnic.player.ui.theme.PicnicColors
 
 /**
- * Settings → About: the app identity (logo, name, version, tagline) with a
- * single action opening the open-source licenses page. Mirrors the Account
+ * Settings → About: the app identity (logo, name, version, tagline), the in-app
+ * update row (#111) and the open-source licenses page. Mirrors the Account
  * panel's centred-header + [ActionRow] structure. The licenses browser itself
  * is a full-screen page hosted by [SettingsScreen] (not a dialog), reached via
  * [onOpenLicenses].
+ *
+ * The update row is stateful: "Check for updates" normally, "Install update"
+ * once a newer release is known (startup check or manual). It is absent
+ * entirely when no release host is configured (blank UPDATE_REPO).
  */
 @Composable
 internal fun AboutSettingsPanel(
@@ -37,8 +47,12 @@ internal fun AboutSettingsPanel(
     leftFocus: FocusRequester,
     onFocusChanged: (Boolean) -> Unit,
     onOpenLicenses: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    updateViewModel: UpdateViewModel = hiltViewModel()
 ) {
+    val phase by updateViewModel.phase.collectAsStateWithLifecycle()
+    val updateAvailable by updateViewModel.updateAvailable.collectAsStateWithLifecycle()
+    var showUpdateDialog by remember { mutableStateOf(false) }
     Column(
         modifier = modifier.onFocusChanged { onFocusChanged(it.hasFocus) },
         verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -72,13 +86,41 @@ internal fun AboutSettingsPanel(
                 color = PicnicColors.OnDarkMuted
             )
         }
+        if (updateViewModel.enabled) {
+            ActionRow(
+                label = if (updateAvailable) "Install update" else "Check for updates",
+                value = (phase as? UpdateViewModel.Phase.Available)
+                    ?.release?.version?.let { "v$it" } ?: "",
+                leftFocus = leftFocus,
+                focusRequester = enterFr,
+                blockUp = true,
+                onActivate = {
+                    if (!updateAvailable) updateViewModel.check()
+                    showUpdateDialog = true
+                }
+            )
+        }
         ActionRow(
             label = stringResource(R.string.about_licenses_title),
             leftFocus = leftFocus,
-            focusRequester = enterFr,
-            blockUp = true,
+            focusRequester = if (updateViewModel.enabled) null else enterFr,
+            blockUp = !updateViewModel.enabled,
             blockDown = true,
             onActivate = onOpenLicenses
+        )
+    }
+
+    if (showUpdateDialog) {
+        UpdateDialog(
+            phase = phase,
+            onInstall = {
+                (phase as? UpdateViewModel.Phase.Available)
+                    ?.let { updateViewModel.downloadAndInstall(it.release) }
+            },
+            onDismiss = {
+                updateViewModel.dismiss()
+                showUpdateDialog = false
+            }
         )
     }
 }

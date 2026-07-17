@@ -4,6 +4,7 @@ import java.text.SimpleDateFormat
 import java.util.Base64
 import java.util.Date
 import java.util.Locale
+import java.util.Properties
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -35,6 +36,32 @@ val versionNameFromTag: String =
 // Human-readable build date shown on the About page (e.g. "14 Jul 2026").
 val buildDate: String = SimpleDateFormat("d MMM yyyy", Locale.US).format(Date())
 
+// versionCode derived from the same tag so updates install as proper upgrades
+// (equal versionCode is a reinstall; downgrade protection needs it increasing).
+val versionCodeFromTag: Int = versionNameFromTag
+    .split(".")
+    .mapNotNull { it.takeWhile(Char::isDigit).toIntOrNull() }
+    .takeIf { it.size == 3 }
+    ?.let { (major, minor, patch) -> major * 10000 + minor * 100 + patch }
+    ?: 1
+
+// In-app updater release host (#111): a GitHub/Gitea releases API base URL, e.g.
+// "https://api.github.com/repos/<owner>/<repo>". Resolved from the UPDATE_REPO
+// environment variable (CI injects a repo secret), falling back to an
+// `updateRepo=` entry in local.properties (device testing; gitignored). Blank
+// disables the updater entirely, so ad-hoc builds never phone anywhere.
+val updateRepo: String = run {
+    val fromEnv: String? = System.getenv("UPDATE_REPO")
+    val fromLocal: String? = rootProject.file("local.properties")
+        .takeIf { it.exists() }
+        ?.let { file ->
+            val props = Properties()
+            file.inputStream().use { props.load(it) }
+            props.getProperty("updateRepo")
+        }
+    fromEnv?.takeIf { it.isNotBlank() } ?: fromLocal?.takeIf { it.isNotBlank() } ?: ""
+}
+
 android {
     namespace = "app.picnic.player"
     compileSdk = 37
@@ -43,9 +70,10 @@ android {
         applicationId = "app.picnic.player"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
+        versionCode = versionCodeFromTag
         versionName = versionNameFromTag
         buildConfigField("String", "BUILD_DATE", "\"$buildDate\"")
+        buildConfigField("String", "UPDATE_REPO", "\"$updateRepo\"")
         // Launcher label (product name for release; the debug build overrides it so
         // both APKs are distinguishable side by side). About screen uses R.string.app_name.
         manifestPlaceholders["appLabel"] = "Picnic Player"

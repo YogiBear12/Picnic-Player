@@ -842,12 +842,15 @@ fun SettingsScreen(
         )
         Spacer(Modifier.height(32.dp))
         Row(Modifier.fillMaxSize()) {
+            val updateViewModel: UpdateViewModel = hiltViewModel()
+            val updateBadge by updateViewModel.updateAvailable.collectAsStateWithLifecycle()
             CategoryRail(
                 categories = visibleCategories,
                 selected = selected,
                 onSelect = viewModel::selectCategory,
                 focusRequesters = categoryFocusRequesters,
                 detailEnterFr = detailEnterFr,
+                badgedCategory = if (updateBadge) SettingsCategory.ABOUT else null,
                 modifier = Modifier.fillMaxHeight().width(IntrinsicSize.Max)
             )
             Spacer(Modifier.width(48.dp))
@@ -908,6 +911,7 @@ private fun CategoryRail(
     onSelect: (SettingsCategory) -> Unit,
     focusRequesters: Map<SettingsCategory, FocusRequester>,
     detailEnterFr: FocusRequester,
+    badgedCategory: SettingsCategory? = null,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -922,6 +926,7 @@ private fun CategoryRail(
                 detailEnterFr = detailEnterFr,
                 isFirst = index == 0,
                 isLast = index == categories.lastIndex,
+                badge = category == badgedCategory,
                 onFocused = { onSelect(category) }
             )
         }
@@ -936,6 +941,7 @@ private fun CategoryRailItem(
     detailEnterFr: FocusRequester,
     isFirst: Boolean,
     isLast: Boolean,
+    badge: Boolean = false,
     onFocused: () -> Unit
 ) {
     var focused by remember { mutableStateOf(false) }
@@ -982,6 +988,10 @@ private fun CategoryRailItem(
             style = MaterialTheme.typography.titleMedium,
             color = if (focused || selected) PicnicColors.OnDark else PicnicColors.OnDarkMuted
         )
+        if (badge) {
+            Spacer(Modifier.width(8.dp))
+            app.picnic.player.ui.browse.UpdateBadgeDot()
+        }
     }
 }
 

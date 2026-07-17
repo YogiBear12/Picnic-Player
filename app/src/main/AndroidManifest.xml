@@ -21,6 +21,9 @@
     <uses-permission android:name="com.android.providers.tv.permission.READ_EPG_DATA" />
     <uses-permission android:name="com.android.providers.tv.permission.WRITE_EPG_DATA" />
 
+    <!-- In-app updater (#111): install downloaded release APKs. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
     <queries>
         <intent>
             <action android:name="android.intent.action.VIEW" />
@@ -52,6 +55,10 @@
             android:theme="@style/Theme.PicnicPlayer">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
+                <!-- LAUNCHER alongside LEANBACK_LAUNCHER: the package installer's
+                     "Open" button (and its icon header) resolve the plain LAUNCHER
+                     launch intent — leanback-only apps get a greyed-out Open. -->
+                <category android:name="android.intent.category.LAUNCHER" />
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
             <intent-filter>
@@ -84,6 +91,17 @@
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </receiver>
+
+        <!-- Serves the downloaded update APK from cacheDir/updates to the installer (#111). -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.updates"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/update_file_paths" />
+        </provider>
 
         <provider
             android:name="androidx.startup.InitializationProvider"
