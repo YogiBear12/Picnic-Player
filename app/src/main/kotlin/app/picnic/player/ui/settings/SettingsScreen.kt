@@ -459,7 +459,8 @@ private fun sectionsFor(
     pictureInPictureSupported: Boolean,
     showPicker: (ActivePicker) -> Unit,
     onShowAudioLanguagePicker: () -> Unit,
-    onShowSubtitleLanguagePicker: () -> Unit
+    onShowSubtitleLanguagePicker: () -> Unit,
+    onOpenSubtitleAppearance: () -> Unit
 ): List<SettingSection> = when (category) {
     // Account, Requests and About render dedicated panels, not generic rows.
     SettingsCategory.ACCOUNT, SettingsCategory.REQUESTS, SettingsCategory.ABOUT -> emptyList()
@@ -559,6 +560,11 @@ private fun sectionsFor(
                     "Always display subtitles",
                     if (settings.alwaysDisplaySubtitles) "On" else "Off",
                     onActivate = viewModel::toggleAlwaysDisplaySubtitles
+                ),
+                SettingItem(
+                    "Subtitle appearance",
+                    "",
+                    onActivate = onOpenSubtitleAppearance
                 )
             )
         ),
@@ -796,6 +802,14 @@ fun SettingsScreen(
         return
     }
 
+    // Subtitle appearance is a full-screen page too — its live preview needs the
+    // whole panel, not a dialog.
+    var showSubtitleAppearance by remember { mutableStateOf(false) }
+    if (showSubtitleAppearance) {
+        SubtitleAppearanceScreen(onBack = { showSubtitleAppearance = false })
+        return
+    }
+
     // First open → Account (default selected). After Detail pop with a pending request
     // restore, do not focus the rail — RequestsSettingsPanel seeds the card (or Requests
     // rail if empty). Incidental Account focus is ignored by selectCategory while pending.
@@ -849,6 +863,7 @@ fun SettingsScreen(
                 showPicker = { activePicker = it },
                 onShowAudioLanguagePicker = { languagePickerKind = LanguagePickerKind.AUDIO },
                 onShowSubtitleLanguagePicker = { languagePickerKind = LanguagePickerKind.SUBTITLE },
+                onOpenSubtitleAppearance = { showSubtitleAppearance = true },
                 onOpenSeerrDetail = onOpenSeerrDetail,
                 onOpenLicenses = { showLicenses = true },
                 modifier = Modifier.weight(1f).fillMaxHeight()
@@ -983,6 +998,7 @@ private fun DetailPanel(
     showPicker: (ActivePicker) -> Unit,
     onShowAudioLanguagePicker: () -> Unit,
     onShowSubtitleLanguagePicker: () -> Unit,
+    onOpenSubtitleAppearance: () -> Unit,
     onOpenSeerrDetail: ((app.picnic.player.data.seerr.SeerrMediaRequest) -> Unit)?,
     onOpenLicenses: () -> Unit,
     modifier: Modifier = Modifier
@@ -1040,7 +1056,8 @@ private fun DetailPanel(
         viewModel.pictureInPictureSupported,
         showPicker,
         onShowAudioLanguagePicker,
-        onShowSubtitleLanguagePicker
+        onShowSubtitleLanguagePicker,
+        onOpenSubtitleAppearance
     )
     val lastSection = sections.lastIndex
     // Keyed on category: switching categories starts the new panel at the top

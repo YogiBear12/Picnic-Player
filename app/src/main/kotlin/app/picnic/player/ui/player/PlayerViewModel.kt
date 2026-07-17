@@ -373,7 +373,10 @@ class PlayerViewModel @Inject constructor(
     }
 
     /** Wire libass overlay (call from [SubtitleView] [AndroidView] update). */
-    fun attachSubtitleView(subtitleView: SubtitleView) = engine.attachSubtitleView(subtitleView)
+    fun attachSubtitleView(subtitleView: SubtitleView) = engine.attachSubtitleView(
+        subtitleView,
+        settings.value.subtitleAppearance
+    )
 
     fun setPictureInPicture(pip: Boolean) {
         viewModelScope.launch {

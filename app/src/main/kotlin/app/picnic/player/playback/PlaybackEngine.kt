@@ -4,11 +4,9 @@ package app.picnic.player.playback
 
 import android.content.Context
 import android.graphics.Color
-import android.graphics.Typeface
 import android.media.audiofx.DynamicsProcessing
 import android.media.audiofx.LoudnessEnhancer
 import android.os.Build
-import androidx.annotation.Dimension
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.okhttp.OkHttpDataSource
@@ -17,8 +15,8 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.extractor.DefaultExtractorsFactory
-import androidx.media3.ui.CaptionStyleCompat
 import androidx.media3.ui.SubtitleView
+import app.picnic.player.data.settings.SubtitleAppearance
 import io.github.peerless2012.ass.media.AssHandler
 import io.github.peerless2012.ass.media.AssHandlerConfig
 import io.github.peerless2012.ass.media.factory.AssRenderersFactory
@@ -82,13 +80,10 @@ class PlaybackEngine(context: Context) {
     }
 
     /** Wire libass overlay into [subtitleView] (idempotent). Video surface is separate. */
-    fun attachSubtitleView(subtitleView: SubtitleView) {
+    fun attachSubtitleView(subtitleView: SubtitleView, appearance: SubtitleAppearance) {
         subtitleView.setBackgroundColor(Color.TRANSPARENT)
-        // Text cues (SRT/VTT/…): Picnic default style. ASS/SSA still use libass.
-        subtitleView.setApplyEmbeddedStyles(false)
-        subtitleView.setStyle(DefaultTextSubtitleStyle)
-        subtitleView.setFixedTextSize(Dimension.SP, DefaultTextSubtitleSizeSp)
-        subtitleView.setBottomPaddingFraction(DefaultTextSubtitleBottomPaddingFraction)
+        // Text cues (SRT/VTT/…): user-tunable style (#54). ASS/SSA still use libass.
+        appearance.applyTo(subtitleView)
         if (!subtitleWired) {
             subtitleView.withAssSupport(assHandler)
             subtitleWired = true
@@ -180,27 +175,6 @@ class PlaybackEngine(context: Context) {
     }
 
     companion object {
-        /** Default text-cue size in sp. */
-        const val DefaultTextSubtitleSizeSp = 24f
-
-        /** Bottom margin as a fraction of the view height (8%). */
-        const val DefaultTextSubtitleBottomPaddingFraction = 0.08f
-
-        /**
-         * Default style for text-based cues (SRT/VTT/…): white opaque fill, no
-         * background/window box, black outline, regular typeface. Media3 does not
-         * expose outline thickness publicly, so edge width is left to the painter
-         * default. Future subtitle customisation replaces these defaults.
-         */
-        val DefaultTextSubtitleStyle = CaptionStyleCompat(
-            /* foregroundColor= */ Color.WHITE,
-            /* backgroundColor= */ Color.TRANSPARENT,
-            /* windowColor= */ Color.TRANSPARENT,
-            CaptionStyleCompat.EDGE_TYPE_OUTLINE,
-            /* edgeColor= */ Color.BLACK,
-            Typeface.DEFAULT
-        )
-
         fun jellyfinDataSourceFactory(context: Context): DataSource.Factory {
             val upstream = OkHttpDataSource.Factory(OkHttpClient.Builder().build())
                 .setUserAgent("Picnic Player")

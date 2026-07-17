@@ -28,6 +28,29 @@ enum class ThemeMusicVolume { DISABLED, QUIET, LOW, MEDIUM, HIGH, LOUD }
  *  DO_NOT_SKIP shows no button and never seeks. */
 enum class SegmentAction { ASK_TO_SKIP, SKIP_AUTOMATICALLY, DO_NOT_SKIP }
 
+/** Text-cue size for rendered subtitles (SRT/VTT/…). Mapped to sp in the playback layer. */
+enum class SubtitleSize { SMALLER, STANDARD, LARGER }
+
+/** Text-cue colour for rendered subtitles. Mapped to ARGB in the playback layer. */
+enum class SubtitleColour { WHITE, YELLOW, CYAN, GREEN }
+
+/** Fill of the subtitle background box: see-through black or fully opaque black. */
+enum class SubtitleBackgroundStyle { TRANSLUCENT, SOLID }
+
+/**
+ * How text-based subtitle cues are drawn (#54). ASS/SSA cues keep their authored
+ * styling via libass and are untouched by these preferences.
+ *
+ * [background] draws a single black box behind the whole caption block;
+ * [backgroundStyle] only applies while it is on.
+ */
+data class SubtitleAppearance(
+    val size: SubtitleSize = SubtitleSize.STANDARD,
+    val colour: SubtitleColour = SubtitleColour.WHITE,
+    val background: Boolean = false,
+    val backgroundStyle: SubtitleBackgroundStyle = SubtitleBackgroundStyle.TRANSLUCENT
+)
+
 data class PlaybackSettings(
     val osdStyle: OsdStyle = OsdStyle.MODERN,
     val seekMode: SeekMode = SeekMode.CONFIRM,
@@ -81,7 +104,9 @@ data class PlaybackSettings(
      */
     val preferredSubtitleLanguage: String? = null,
     /** When true, Always show subtitles; when false, Smart (audio vs sub language). */
-    val alwaysDisplaySubtitles: Boolean = false
+    val alwaysDisplaySubtitles: Boolean = false,
+    /** Style for rendered text subtitle cues (#54). */
+    val subtitleAppearance: SubtitleAppearance = SubtitleAppearance()
 )
 
 /** User-tunable playback settings persisted in DataStore. */
@@ -119,7 +144,14 @@ class SettingsStore @Inject constructor(
             trailerYouTubePackage = p[TRAILER_YOUTUBE_PACKAGE],
             preferredAudioLanguage = p[PREFERRED_AUDIO_LANGUAGE],
             preferredSubtitleLanguage = p[PREFERRED_SUBTITLE_LANGUAGE],
-            alwaysDisplaySubtitles = p[ALWAYS_DISPLAY_SUBTITLES] ?: false
+            alwaysDisplaySubtitles = p[ALWAYS_DISPLAY_SUBTITLES] ?: false,
+            subtitleAppearance = SubtitleAppearance(
+                size = p[SUBTITLE_SIZE]?.let { enumOrNull<SubtitleSize>(it) } ?: SubtitleSize.STANDARD,
+                colour = p[SUBTITLE_COLOUR]?.let { enumOrNull<SubtitleColour>(it) } ?: SubtitleColour.WHITE,
+                background = p[SUBTITLE_BACKGROUND] ?: false,
+                backgroundStyle = p[SUBTITLE_BACKGROUND_STYLE]?.let { enumOrNull<SubtitleBackgroundStyle>(it) }
+                    ?: SubtitleBackgroundStyle.TRANSLUCENT
+            )
         )
     }
 
@@ -175,6 +207,13 @@ class SettingsStore @Inject constructor(
         it[ALWAYS_DISPLAY_SUBTITLES] = value
     }
 
+    suspend fun setSubtitleSize(value: SubtitleSize) = put { it[SUBTITLE_SIZE] = value.name }
+    suspend fun setSubtitleColour(value: SubtitleColour) = put { it[SUBTITLE_COLOUR] = value.name }
+    suspend fun setSubtitleBackground(value: Boolean) = put { it[SUBTITLE_BACKGROUND] = value }
+    suspend fun setSubtitleBackgroundStyle(value: SubtitleBackgroundStyle) = put {
+        it[SUBTITLE_BACKGROUND_STYLE] = value.name
+    }
+
     private suspend fun put(block: (androidx.datastore.preferences.core.MutablePreferences) -> Unit) {
         dataStore.edit(block)
     }
@@ -208,6 +247,10 @@ class SettingsStore @Inject constructor(
         val PREFERRED_AUDIO_LANGUAGE = stringPreferencesKey("playback.preferredAudioLanguage")
         val PREFERRED_SUBTITLE_LANGUAGE = stringPreferencesKey("playback.preferredSubtitleLanguage")
         val ALWAYS_DISPLAY_SUBTITLES = booleanPreferencesKey("playback.alwaysDisplaySubtitles")
+        val SUBTITLE_SIZE = stringPreferencesKey("playback.subtitleSize")
+        val SUBTITLE_COLOUR = stringPreferencesKey("playback.subtitleColour")
+        val SUBTITLE_BACKGROUND = booleanPreferencesKey("playback.subtitleBackground")
+        val SUBTITLE_BACKGROUND_STYLE = stringPreferencesKey("playback.subtitleBackgroundStyle")
 
         inline fun <reified T : Enum<T>> enumOrNull(name: String): T? = runCatching { enumValueOf<T>(name) }.getOrNull()
     }
