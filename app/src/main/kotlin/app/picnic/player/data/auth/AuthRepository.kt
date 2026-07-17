@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import org.jellyfin.sdk.api.client.extensions.quickConnectApi
+import org.jellyfin.sdk.api.client.extensions.sessionApi
 import org.jellyfin.sdk.api.client.extensions.userApi
 import org.jellyfin.sdk.discovery.RecommendedServerInfoScore
 import org.jellyfin.sdk.discovery.RecommendedServerIssue
@@ -253,6 +254,26 @@ class AuthRepository @Inject constructor(
     /** Soft user logout: drop the active session, keep the active server so cold
      *  start resumes on that server's Profile Picker. Seerr secrets stay (soft logout). */
     suspend fun logout() = credentials.clearActive()
+
+    /**
+     * Deliberate sign-out from Settings > Account (#135) — a true logout. Unlike [logout]
+     * (which only drops the active pointer), this best-effort revokes the access token on
+     * the server (`POST /Sessions/Logout`), then [forgetUser]s the profile entirely: token,
+     * stored session, seerr link and picker row all removed. The active server is kept, so
+     * navigation lands on that server's Profile Picker with this user gone. Signing back in
+     * requires the username and password.
+     */
+    suspend fun signOut() {
+        val session = credentials.activeSession()
+        if (session == null) {
+            credentials.clearActive()
+            return
+        }
+        // Best-effort server-side revoke; local sign-out proceeds regardless (offline,
+        // token already invalid, etc.).
+        onIo { runCatching { jellyfin.api(session.server.baseUrl, session.accessToken).sessionApi.reportSessionEnded() } }
+        forgetUser(session.server.id, session.userId)
+    }
 
     /** Which server cold start resumes to when no session is active (null = show
      *  the Server Picker after a "change server"). */

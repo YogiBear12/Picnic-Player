@@ -216,7 +216,7 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun signOut(onDone: () -> Unit) = viewModelScope.launch {
-        authRepository.logout()
+        authRepository.signOut()
         onDone()
     }
 
