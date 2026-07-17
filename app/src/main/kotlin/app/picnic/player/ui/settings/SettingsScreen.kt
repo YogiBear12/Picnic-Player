@@ -1126,17 +1126,20 @@ private fun SettingRow(
             )
             .then(if (rowFocus != null) Modifier.focusRequester(rowFocus) else Modifier)
             // D-pad Left from any row returns to the selected rail item; Up/Down stop
-            // at the panel edges instead of escaping into off-panel chrome.
+            // at the panel edges instead of escaping into off-panel chrome. Nothing
+            // sits to the right of a row, so Right is a dead end rather than an escape.
             .focusProperties {
                 left = leftFocus
+                right = FocusRequester.Cancel
                 if (blockUp) up = FocusRequester.Cancel
                 if (blockDown) down = FocusRequester.Cancel
             }
             .padding(horizontal = 20.dp, vertical = 16.dp)
+            // Only Select activates — Right is a direction, not a second Select (#138).
             .onKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
                 when (event.key) {
-                    Key.DirectionCenter, Key.Enter, Key.DirectionRight -> {
+                    Key.DirectionCenter, Key.Enter -> {
                         onActivate()
                         true
                     }

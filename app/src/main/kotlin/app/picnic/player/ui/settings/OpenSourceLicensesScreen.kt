@@ -158,13 +158,15 @@ private fun LicenseListRow(
             )
             .then(if (rowFocus != null) Modifier.focusRequester(rowFocus) else Modifier)
             .focusProperties {
+                right = FocusRequester.Cancel
                 if (blockUp) up = FocusRequester.Cancel
                 if (blockDown) down = FocusRequester.Cancel
             }
+            // Only Select opens the library — Right is a direction, not a second Select (#138).
             .onKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
                 when (event.key) {
-                    Key.DirectionCenter, Key.Enter, Key.DirectionRight -> {
+                    Key.DirectionCenter, Key.Enter -> {
                         onActivate()
                         true
                     }

@@ -417,16 +417,15 @@ private fun RequestRow(
             .then(if (enterFr != null) Modifier.focusRequester(enterFr) else Modifier)
             .focusProperties {
                 left = leftFocus
+                right = FocusRequester.Cancel
                 if (blockUp) up = FocusRequester.Cancel
                 if (blockDown) down = FocusRequester.Cancel
             }
             .padding(horizontal = 16.dp, vertical = 12.dp)
+            // Only Select opens the request — Right is a direction, not a second
+            // Select, and must not push a detail page off the Settings screen (#138).
             .onKeyEvent { event ->
                 val isCenter = event.key == Key.DirectionCenter || event.key == Key.Enter
-                if (event.key == Key.DirectionRight && event.type == KeyEventType.KeyDown) {
-                    onActivate()
-                    return@onKeyEvent true
-                }
                 if (!isCenter) return@onKeyEvent false
                 when (event.key) {
                     Key.DirectionCenter, Key.Enter -> {

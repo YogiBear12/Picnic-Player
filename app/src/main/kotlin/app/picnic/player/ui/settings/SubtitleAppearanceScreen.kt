@@ -206,10 +206,12 @@ private fun AppearanceRow(
             .background(
                 if (focused) Color.White.copy(alpha = 0.14f) else Color.White.copy(alpha = 0.04f)
             )
+            .focusProperties { right = FocusRequester.Cancel }
+            // Only Select activates — Right is a direction, not a second Select (#138).
             .onKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
                 when (event.key) {
-                    Key.DirectionCenter, Key.Enter, Key.DirectionRight -> {
+                    Key.DirectionCenter, Key.Enter -> {
                         if (enabled) onActivate()
                         true
                     }

@@ -67,14 +67,16 @@ internal fun ActionRow(
             .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
             .focusProperties {
                 leftFocus?.let { left = it }
+                right = FocusRequester.Cancel
                 if (blockUp) up = FocusRequester.Cancel
                 if (blockDown) down = FocusRequester.Cancel
             }
             .padding(horizontal = 20.dp, vertical = 16.dp)
+            // Only Select activates — Right is a direction, not a second Select (#138).
             .onKeyEvent { event ->
                 if (!enabled || event.type != KeyEventType.KeyDown) return@onKeyEvent false
                 when (event.key) {
-                    Key.DirectionCenter, Key.Enter, Key.DirectionRight -> {
+                    Key.DirectionCenter, Key.Enter -> {
                         onActivate()
                         true
                     }
