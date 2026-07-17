@@ -43,6 +43,9 @@ import app.picnic.player.ui.theme.PicnicColors
  * Focusable settings action row shared by the Account and Requests panels.
  * [blockUp]/[blockDown] pin D-pad focus at panel edges so it cannot escape
  * into off-panel chrome.
+ *
+ * [enterFr] marks this row as the panel's entry target for D-pad Right / Select
+ * from the category rail — pass it to whichever row is first on screen.
  */
 @Composable
 internal fun ActionRow(
@@ -51,6 +54,7 @@ internal fun ActionRow(
     value: String = "",
     enabled: Boolean = true,
     focusRequester: FocusRequester? = null,
+    enterFr: FocusRequester? = null,
     blockUp: Boolean = false,
     blockDown: Boolean = false,
     onActivate: () -> Unit
@@ -65,6 +69,7 @@ internal fun ActionRow(
                 if (focused) Color.White.copy(alpha = 0.14f) else Color.White.copy(alpha = 0.04f)
             )
             .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
+            .then(if (enterFr != null) Modifier.focusRequester(enterFr) else Modifier)
             .focusProperties {
                 leftFocus?.let { left = it }
                 right = FocusRequester.Cancel

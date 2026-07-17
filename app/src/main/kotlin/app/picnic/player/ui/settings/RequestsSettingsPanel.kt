@@ -133,6 +133,7 @@ internal fun RequestsSettingsPanel(
     val completedHeaderFr = remember { FocusRequester() }
     var completedExpanded by remember { mutableStateOf(false) }
     var contextRequest by remember { mutableStateOf<SeerrRequestDisplay?>(null) }
+    val panelScope = rememberCoroutineScope()
 
     // Refresh then seed in one effect so Cancel→Back awaits the post-cancel list (#44).
     // Keyed on linkState (not Unit alone): Linked enter refreshes; rememberFocusedRequest on
@@ -194,7 +195,9 @@ internal fun RequestsSettingsPanel(
     val hasAnyRequest = sections.active.isNotEmpty() || sections.completed.isNotEmpty()
 
     // Empty states centre in the panel (no scrolling needed); the populated
-    // panel owns its vertical scroll.
+    // panel owns its vertical scroll. Nothing here is focusable and [enterFr] is
+    // deliberately left unattached, so Right from the rail cannot enter a panel
+    // with no content to land on — focus stays put on the rail (#140).
     if (seerr.linkState != SeerrLinkState.Linked || !hasAnyRequest) {
         Box(
             modifier = modifier.fillMaxSize().onFocusChanged { onFocusChanged(it.hasFocus) },
@@ -263,6 +266,10 @@ internal fun RequestsSettingsPanel(
                 value = if (completedExpanded) "Hide" else "Show",
                 leftFocus = leftFocus,
                 focusRequester = completedHeaderFr,
+                // With no active requests this header is the first focusable thing
+                // in the panel, so it must own the rail's entry target — otherwise
+                // Right from the rail lands on the non-focusable empty-state text (#140).
+                enterFr = if (sections.active.isEmpty()) enterFr else null,
                 blockUp = sections.active.isEmpty(),
                 blockDown = !completedExpanded,
                 onActivate = { completedExpanded = !completedExpanded }
@@ -311,8 +318,37 @@ internal fun RequestsSettingsPanel(
                 onOpenSeerrDetail?.invoke(row.request)
             },
             onCancel = {
+                // Cancelling drops the row from the refreshed list, disposing the
+                // focused node — without an explicit target focus falls back to the
+                // rail. Re-home to the top of the section the row came from, and
+                // only fall back to the rail when the panel has nothing left.
+                val fromCompleted = sections.completed.any { it.request.id == row.request.id }
                 contextRequest = null
-                viewModel.cancelRequest(row.request)
+                panelScope.launch {
+                    viewModel.cancelRequest(row.request).join()
+                    val after = partitionSettingsRequestSections(viewModel.myRequests.value)
+
+                    suspend fun focusTopOf(
+                        list: List<SeerrRequestDisplay>,
+                        listState: LazyListState
+                    ): Boolean {
+                        listState.scrollToItem(0)
+                        val fr = rowFocusRequesters.getOrPut(list.first().request.id) { FocusRequester() }
+                        return fr.requestFocusWhenAttached(maxFrames = 20)
+                    }
+
+                    val restored = when {
+                        fromCompleted && after.completed.isNotEmpty() -> {
+                            completedExpanded = true
+                            focusTopOf(after.completed, completedListState)
+                        }
+                        after.active.isNotEmpty() -> focusTopOf(after.active, activeListState)
+                        after.completed.isNotEmpty() ->
+                            completedHeaderFr.requestFocusWhenAttached(maxFrames = 20)
+                        else -> false
+                    }
+                    if (!restored) leftFocus.requestFocusWhenAttached()
+                }
             }
         )
     }
