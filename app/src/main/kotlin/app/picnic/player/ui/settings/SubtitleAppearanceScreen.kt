@@ -60,6 +60,7 @@ import app.picnic.player.data.auth.AuthRepository
 import app.picnic.player.data.jellyfin.JellyfinImages
 import app.picnic.player.data.settings.SettingsStore
 import app.picnic.player.data.settings.SubtitleAppearance
+import app.picnic.player.data.settings.SubtitleBackgroundFill
 import app.picnic.player.data.settings.SubtitleBackgroundStyle
 import app.picnic.player.data.settings.SubtitleColour
 import app.picnic.player.data.settings.SubtitleSize
@@ -105,6 +106,10 @@ class SubtitleAppearanceViewModel @Inject constructor(
         store.setSubtitleBackground(!appearance.value.background)
     }
 
+    fun cycleBackgroundFill(forward: Boolean) = viewModelScope.launch {
+        store.setSubtitleBackgroundFill(appearance.value.backgroundFill.step(forward))
+    }
+
     fun cycleBackgroundStyle(forward: Boolean) = viewModelScope.launch {
         store.setSubtitleBackgroundStyle(appearance.value.backgroundStyle.step(forward))
     }
@@ -114,7 +119,9 @@ class SubtitleAppearanceViewModel @Inject constructor(
 
 private fun SubtitleSize.display(): String = when (this) {
     SubtitleSize.SMALLER -> "Smaller"
+    SubtitleSize.SMALL -> "Small"
     SubtitleSize.STANDARD -> "Standard"
+    SubtitleSize.LARGE -> "Large"
     SubtitleSize.LARGER -> "Larger"
 }
 
@@ -125,9 +132,14 @@ private fun SubtitleColour.display(): String = when (this) {
     SubtitleColour.GREEN -> "Green"
 }
 
+private fun SubtitleBackgroundFill.display(): String = when (this) {
+    SubtitleBackgroundFill.TRANSLUCENT -> "Translucent"
+    SubtitleBackgroundFill.SOLID -> "Solid"
+}
+
 private fun SubtitleBackgroundStyle.display(): String = when (this) {
-    SubtitleBackgroundStyle.TRANSLUCENT -> "Translucent"
-    SubtitleBackgroundStyle.SOLID -> "Solid"
+    SubtitleBackgroundStyle.BOXED -> "Boxed"
+    SubtitleBackgroundStyle.WRAPPED -> "Wrapped"
 }
 
 // Shared floating-panel language (matches GridFilterPanel / PlayerSettingsPanel).
@@ -252,14 +264,20 @@ internal fun SubtitleAppearanceScreen(
                     value = if (appearance.background) "On" else "Off",
                     onStep = viewModel::toggleBackground
                 )
-                // Stays mounted while background is off (removing a focused row
-                // disposes the focused node — see OnboardingTextField / #130);
-                // it just mutes and ignores Left/Right/Select.
+                // Fill and style rows stay mounted while background is off (removing a
+                // focused row disposes the focused node — see OnboardingTextField / #130);
+                // they just mute and ignore Left/Right/Select.
                 AppearanceRow(
                     label = "Background style",
                     value = appearance.backgroundStyle.display(),
                     enabled = appearance.background,
-                    onStep = viewModel::cycleBackgroundStyle,
+                    onStep = viewModel::cycleBackgroundStyle
+                )
+                AppearanceRow(
+                    label = "Background fill",
+                    value = appearance.backgroundFill.display(),
+                    enabled = appearance.background,
+                    onStep = viewModel::cycleBackgroundFill,
                     modifier = Modifier.focusProperties { down = FocusRequester.Cancel }
                 )
             }

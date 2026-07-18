@@ -8,6 +8,7 @@ import androidx.annotation.Dimension
 import androidx.media3.ui.CaptionStyleCompat
 import androidx.media3.ui.SubtitleView
 import app.picnic.player.data.settings.SubtitleAppearance
+import app.picnic.player.data.settings.SubtitleBackgroundFill
 import app.picnic.player.data.settings.SubtitleBackgroundStyle
 import app.picnic.player.data.settings.SubtitleColour
 import app.picnic.player.data.settings.SubtitleSize
@@ -24,7 +25,9 @@ import app.picnic.player.data.settings.SubtitleSize
 /** Cue text size in sp. STANDARD matches the pre-#54 fixed default. */
 fun SubtitleSize.toSp(): Float = when (this) {
     SubtitleSize.SMALLER -> 18f
+    SubtitleSize.SMALL -> 22f
     SubtitleSize.STANDARD -> 24f
+    SubtitleSize.LARGE -> 26f
     SubtitleSize.LARGER -> 30f
 }
 
@@ -39,24 +42,27 @@ fun SubtitleColour.toArgb(): Int = when (this) {
 const val SubtitleBottomPaddingFraction = 0.08f
 
 /**
- * The background box is the caption window (one rectangle behind the whole cue
- * block), not a per-line wrap. The black outline is kept even with the box on —
- * it is invisible against black and keeps edge handling in one state.
+ * The same black fill goes to a different Media3 slot depending on style:
+ * BOXED uses windowColor (one rectangle behind the whole cue block), WRAPPED uses
+ * backgroundColor (fill hugs each line of text). The black outline is kept even
+ * with the fill on — it is invisible against black and keeps edge handling in one
+ * state.
  */
 fun SubtitleAppearance.toCaptionStyle(): CaptionStyleCompat {
-    val window = if (background) {
-        val alpha = when (backgroundStyle) {
-            SubtitleBackgroundStyle.TRANSLUCENT -> 128
-            SubtitleBackgroundStyle.SOLID -> 255
+    val fill = if (background) {
+        val alpha = when (backgroundFill) {
+            SubtitleBackgroundFill.TRANSLUCENT -> 128
+            SubtitleBackgroundFill.SOLID -> 255
         }
         (alpha shl 24) or (Color.BLACK and 0x00FFFFFF)
     } else {
         Color.TRANSPARENT
     }
+    val boxed = backgroundStyle == SubtitleBackgroundStyle.BOXED
     return CaptionStyleCompat(
         /* foregroundColor= */ colour.toArgb(),
-        /* backgroundColor= */ Color.TRANSPARENT,
-        /* windowColor= */ window,
+        /* backgroundColor= */ if (boxed) Color.TRANSPARENT else fill,
+        /* windowColor= */ if (boxed) fill else Color.TRANSPARENT,
         CaptionStyleCompat.EDGE_TYPE_OUTLINE,
         /* edgeColor= */ Color.BLACK,
         Typeface.DEFAULT

@@ -29,26 +29,33 @@ enum class ThemeMusicVolume { DISABLED, QUIET, LOW, MEDIUM, HIGH, LOUD }
 enum class SegmentAction { ASK_TO_SKIP, SKIP_AUTOMATICALLY, DO_NOT_SKIP }
 
 /** Text-cue size for rendered subtitles (SRT/VTT/…). Mapped to sp in the playback layer. */
-enum class SubtitleSize { SMALLER, STANDARD, LARGER }
+enum class SubtitleSize { SMALLER, SMALL, STANDARD, LARGE, LARGER }
 
 /** Text-cue colour for rendered subtitles. Mapped to ARGB in the playback layer. */
 enum class SubtitleColour { WHITE, YELLOW, CYAN, GREEN }
 
-/** Fill of the subtitle background box: see-through black or fully opaque black. */
-enum class SubtitleBackgroundStyle { TRANSLUCENT, SOLID }
+/** Fill of the subtitle background: see-through black or fully opaque black. */
+enum class SubtitleBackgroundFill { TRANSLUCENT, SOLID }
+
+/**
+ * Shape of the subtitle background. BOXED draws one rectangle behind the whole
+ * cue block; WRAPPED fills only behind each line of text (Media3's default).
+ */
+enum class SubtitleBackgroundStyle { BOXED, WRAPPED }
 
 /**
  * How text-based subtitle cues are drawn (#54). ASS/SSA cues keep their authored
  * styling via libass and are untouched by these preferences.
  *
- * [background] draws a single black box behind the whole caption block;
- * [backgroundStyle] only applies while it is on.
+ * [background] turns the fill on/off; [backgroundFill] and [backgroundStyle] only
+ * apply while it is on — fill sets the opacity, style sets box vs per-line wrap.
  */
 data class SubtitleAppearance(
     val size: SubtitleSize = SubtitleSize.STANDARD,
     val colour: SubtitleColour = SubtitleColour.WHITE,
     val background: Boolean = false,
-    val backgroundStyle: SubtitleBackgroundStyle = SubtitleBackgroundStyle.TRANSLUCENT
+    val backgroundFill: SubtitleBackgroundFill = SubtitleBackgroundFill.TRANSLUCENT,
+    val backgroundStyle: SubtitleBackgroundStyle = SubtitleBackgroundStyle.BOXED
 )
 
 data class PlaybackSettings(
@@ -149,8 +156,10 @@ class SettingsStore @Inject constructor(
                 size = p[SUBTITLE_SIZE]?.let { enumOrNull<SubtitleSize>(it) } ?: SubtitleSize.STANDARD,
                 colour = p[SUBTITLE_COLOUR]?.let { enumOrNull<SubtitleColour>(it) } ?: SubtitleColour.WHITE,
                 background = p[SUBTITLE_BACKGROUND] ?: false,
+                backgroundFill = p[SUBTITLE_BACKGROUND_FILL]?.let { enumOrNull<SubtitleBackgroundFill>(it) }
+                    ?: SubtitleBackgroundFill.TRANSLUCENT,
                 backgroundStyle = p[SUBTITLE_BACKGROUND_STYLE]?.let { enumOrNull<SubtitleBackgroundStyle>(it) }
-                    ?: SubtitleBackgroundStyle.TRANSLUCENT
+                    ?: SubtitleBackgroundStyle.BOXED
             )
         )
     }
@@ -210,6 +219,9 @@ class SettingsStore @Inject constructor(
     suspend fun setSubtitleSize(value: SubtitleSize) = put { it[SUBTITLE_SIZE] = value.name }
     suspend fun setSubtitleColour(value: SubtitleColour) = put { it[SUBTITLE_COLOUR] = value.name }
     suspend fun setSubtitleBackground(value: Boolean) = put { it[SUBTITLE_BACKGROUND] = value }
+    suspend fun setSubtitleBackgroundFill(value: SubtitleBackgroundFill) = put {
+        it[SUBTITLE_BACKGROUND_FILL] = value.name
+    }
     suspend fun setSubtitleBackgroundStyle(value: SubtitleBackgroundStyle) = put {
         it[SUBTITLE_BACKGROUND_STYLE] = value.name
     }
@@ -250,7 +262,10 @@ class SettingsStore @Inject constructor(
         val SUBTITLE_SIZE = stringPreferencesKey("playback.subtitleSize")
         val SUBTITLE_COLOUR = stringPreferencesKey("playback.subtitleColour")
         val SUBTITLE_BACKGROUND = booleanPreferencesKey("playback.subtitleBackground")
-        val SUBTITLE_BACKGROUND_STYLE = stringPreferencesKey("playback.subtitleBackgroundStyle")
+
+        // Legacy key name kept so a saved fill (TRANSLUCENT/SOLID) survives the rename to "fill".
+        val SUBTITLE_BACKGROUND_FILL = stringPreferencesKey("playback.subtitleBackgroundStyle")
+        val SUBTITLE_BACKGROUND_STYLE = stringPreferencesKey("playback.subtitleBackgroundShape")
 
         inline fun <reified T : Enum<T>> enumOrNull(name: String): T? = runCatching { enumValueOf<T>(name) }.getOrNull()
     }
