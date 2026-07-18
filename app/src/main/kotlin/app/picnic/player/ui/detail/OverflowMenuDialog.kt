@@ -52,7 +52,7 @@ import kotlinx.coroutines.delay
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
 
-private val ContextMenuGlassFill = Color(0xEA181E24)
+private val ContextMenuGlassFill = PicnicColors.GlassFill
 private val SynopsisBackground = Color(0xFF181E24)
 
 @OptIn(ExperimentalTvMaterial3Api::class)

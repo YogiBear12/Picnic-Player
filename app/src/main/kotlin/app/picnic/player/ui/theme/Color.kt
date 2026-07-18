@@ -25,6 +25,12 @@ object PicnicColors {
     val Surface = Color(0xFF0E151B)
     val SurfaceVariant = Color(0xFF18242E)
 
+    /**
+     * Dark glass fill shared by dialogs, context menus, notices, and resting action
+     * buttons — the app's translucent-panel language. Focus states stay brighter.
+     */
+    val GlassFill = Color(0xEA181E24)
+
     /** Deep ocean ambient for grid screens. */
     val OceanDeep = Color(0xFF021824)
     val OceanMid = Color(0xFF04324A)

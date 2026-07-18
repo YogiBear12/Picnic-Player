@@ -18,6 +18,7 @@ import androidx.tv.material3.ButtonDefaults
 import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import app.picnic.player.ui.theme.PicnicColors
 
 @Composable
 fun ExpandableButton(
@@ -33,8 +34,8 @@ fun ExpandableButton(
         modifier = modifier.height(40.dp),
         contentPadding = if (isFocused) PaddingValues(start = 12.dp, end = 16.dp) else PaddingValues(horizontal = 12.dp),
         colors = ButtonDefaults.colors(
-            // Slightly translucent at rest so the backdrop reads through; focus stays solid.
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f)
+            // Dark glass at rest to match dialogs/context menus; focus stays solid.
+            containerColor = PicnicColors.GlassFill
         ),
         // No focus scale: the default 1.1 scales around the centre, which drags the left edge
         // outward and fights the width expansion. The expanding label is the focus affordance.

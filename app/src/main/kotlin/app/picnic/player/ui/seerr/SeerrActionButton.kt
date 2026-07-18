@@ -17,6 +17,7 @@ import androidx.tv.material3.ButtonDefaults
 import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import app.picnic.player.ui.theme.PicnicColors
 
 /** Seerr Detail action control with an always-visible label (10-foot readable at rest). */
 @Composable
@@ -31,7 +32,7 @@ fun SeerrActionButton(
         modifier = modifier.height(40.dp),
         contentPadding = PaddingValues(horizontal = 12.dp),
         colors = ButtonDefaults.colors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f)
+            containerColor = PicnicColors.GlassFill
         ),
         scale = ButtonDefaults.scale(focusedScale = 1f)
     ) {

@@ -45,6 +45,7 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.SurfaceDefaults
 import androidx.tv.material3.Text
+import app.picnic.player.ui.theme.PicnicColors
 import java.util.Locale
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.ChapterInfo
@@ -53,7 +54,7 @@ import org.jellyfin.sdk.model.api.MediaStream
 import org.jellyfin.sdk.model.api.MediaStreamType
 
 /** Translucent glass fill shared with the long-press context menus, so this dialog matches them. */
-private val ContextMenuGlassFill = Color(0xEA181E24)
+private val ContextMenuGlassFill = PicnicColors.GlassFill
 
 /**
  * "View media info" — a scrollable, Jellyfin-web-style breakdown of a movie/episode file's media

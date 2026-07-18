@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import app.picnic.player.data.socket.ServerNotice
+import app.picnic.player.ui.theme.PicnicColors
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.SharedFlow
 
@@ -35,7 +36,7 @@ private const val NOTICE_VISIBLE_MS = 5_000L
 
 /** Semi-transparent dark "glass" fill shared by the app's dialogs (SeasonRequestDialog,
  *  OverflowMenuDialog); the notice matches so it reads as one of them. */
-private val NoticeGlassFill = Color(0xEA181E24)
+private val NoticeGlassFill = PicnicColors.GlassFill
 private val NoticeCornerRadius = 12.dp
 
 /**

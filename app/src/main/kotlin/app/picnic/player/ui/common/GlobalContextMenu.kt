@@ -43,11 +43,12 @@ import androidx.tv.material3.ListItemDefaults
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import app.picnic.player.ui.common.requestFocusWhenAttached
+import app.picnic.player.ui.theme.PicnicColors
 import kotlinx.coroutines.delay
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
 
-private val ContextMenuGlassFill = Color(0xEA181E24)
+private val ContextMenuGlassFill = PicnicColors.GlassFill
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
