@@ -103,6 +103,13 @@ private const val NextUpPlayerScale = 0.35f
 private val NextUpPlayerInset = 56.dp
 
 /**
+ * How far past a segment's start playback may be for the skip pill to auto-appear. Natural
+ * playback crosses the boundary within one ~500ms tick; landing deeper than this means the
+ * user seeked into the middle of the segment, where skip lives only in the OSD.
+ */
+private const val SkipPillEntryWindowMs = 2_000L
+
+/**
  * Full-screen player. [PlayerSurface] uses SurfaceView for better performance;
  * libass ASS overlay is a transparent [SubtitleView].
  *
@@ -335,12 +342,19 @@ fun PlayerScreen(
         }
     }
     LaunchedEffect(state.currentSegment) {
-        if (state.currentSegment != null) {
-            if (osdVisible || panel != Panel.NONE) {
+        val segment = state.currentSegment
+        if (segment != null) {
+            // The pill auto-appears only when playback entered the segment at its start (natural
+            // boundary crossing). Seeking into the middle of a segment keeps it dismissed — skip
+            // then lives only in the OSD.
+            val enteredAtStart = state.positionMs - segment.startMs <= SkipPillEntryWindowMs
+            if (osdVisible || panel != Panel.NONE || !enteredAtStart) {
                 skipPillDismissed = true
             } else {
                 skipPillDismissed = false
-                skipFocus.requestFocusWhenAttached()
+                // Focus is requested from inside the pill's AnimatedVisibility content (below),
+                // once its node has actually composed — requesting here races the pill's layout and
+                // loses on a janky cold start (the node isn't attached yet, so the request times out).
             }
         } else {
             skipPillDismissed = false
@@ -603,6 +617,12 @@ fun PlayerScreen(
             exit = fadeOut()
         ) {
             state.currentSegment?.let { segment ->
+                // Request focus once the pill is actually in composition. Keyed on kind so a
+                // back-to-back segment change (intro -> recap without the pill hiding) re-grabs
+                // focus. Runs late-but-correct if cold-start jank delays this subtree's layout.
+                LaunchedEffect(segment.kind) {
+                    skipFocus.requestFocusWhenAttached()
+                }
                 SkipSegmentButton(
                     kind = segment.kind,
                     onClick = { viewModel.skipCurrentSegment() },
