@@ -66,21 +66,34 @@ jobs:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          # Baked into BuildConfig.UPDATE_REPO — the release host the in-app updater
+          # checks. Blank (secret unset) disables the updater in the built APK.
+          UPDATE_REPO: ${{ secrets.UPDATE_REPO }}
         run: |
           set -euo pipefail
           chmod +x ./gradlew
+          # Mirror app/build.gradle.kts versionNameFromTag: nearest tag, no "v".
+          VERSION_NAME="$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || true)"
+          VERSION_NAME="${VERSION_NAME:-0.1.0}"
           if [ "${{ inputs.build_type }}" = "release" ]; then
             ./gradlew --no-daemon :app:assembleRelease
-            echo "BUILT_APK=app/build/outputs/apk/release/app-release.apk" >> "$GITHUB_ENV"
+            SRC=app/build/outputs/apk/release/app-release.apk
           else
             ./gradlew --no-daemon :app:assembleDebug
-            echo "BUILT_APK=app/build/outputs/apk/debug/app-debug.apk" >> "$GITHUB_ENV"
+            SRC=app/build/outputs/apk/debug/app-debug.apk
           fi
+          # Descriptive asset name the updater's picker prefers
+          # (Picnic-Player-v<versionName>-<type>.apk); it falls back to any .apk,
+          # so hand-cut releases still work if this ever changes.
+          APK_NAME="Picnic-Player-v${VERSION_NAME}-${{ inputs.build_type }}.apk"
+          mv "$SRC" "$(dirname "$SRC")/$APK_NAME"
+          echo "BUILT_APK=$(dirname "$SRC")/$APK_NAME" >> "$GITHUB_ENV"
+          echo "ARTIFACT_NAME=Picnic-Player-v${VERSION_NAME}-${{ inputs.build_type }}" >> "$GITHUB_ENV"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v3
         with:
-          name: picnic-tv-${{ inputs.build_type }}-${{ github.run_number }}
+          name: ${{ env.ARTIFACT_NAME }}
           path: ${{ env.BUILT_APK }}
           retention-days: 30
           if-no-files-found: error
