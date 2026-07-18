@@ -13,6 +13,9 @@
   other streaming app.
 </p>
 
+## AI Usage
+AI is used heavily in the development of this client. This is slop.
+
 ## Features
 
 ### All the usual suspects including, but not limited to
@@ -55,6 +58,11 @@
     </td>
   </tr>
 </table>
+
+## Acknowledgements
+
+* Shoutout to the Jellyfin team for everything they do and provide for the community
+* Shoutout to the wider Jellyfin community and contributors, especially the client devs who help showcase the very best Jellyfin has to offer
 
 ## License
 
