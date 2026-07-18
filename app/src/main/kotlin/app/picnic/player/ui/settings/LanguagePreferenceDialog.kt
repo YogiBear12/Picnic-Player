@@ -61,19 +61,20 @@ private val RowCornerRadius = 10.dp
 private val ListViewportHeight = 280.dp
 
 /**
- * Scrollable culture picker for Preferred audio / subtitle language.
- * Unspecified is always first; remaining rows are Jellyfin DisplayNames.
+ * Scrollable culture picker for Preferred audio / subtitle language. The pinned block
+ * (Unspecified + device language) sits above a divider drawn after [separatorAfterIndex];
+ * the remaining rows are Jellyfin DisplayNames, A–Z.
  */
 @Composable
 internal fun LanguagePreferenceDialog(
     title: String,
     options: List<CulturePickerOption>,
+    separatorAfterIndex: Int,
     selectedLanguageCode: String?,
     onSelect: (String?) -> Unit,
     onDismiss: () -> Unit
 ) {
     BackHandler { onDismiss() }
-    val listState = rememberLazyListState()
     val seedFocus = remember { FocusRequester() }
     val selectedIndex = remember(options, selectedLanguageCode) {
         options.indexOfFirst { option ->
@@ -84,6 +85,12 @@ internal fun LanguagePreferenceDialog(
             }
         }.takeIf { it >= 0 } ?: 0
     }
+    // Open already scrolled to the selected row so the list never paints from the top
+    // then jumps to the checked row (#149). But when the selection is a pinned quick-pick
+    // (Unspecified / system language) the list is already at its natural top — keep it
+    // there so those rows stay visible instead of scrolling them off.
+    val startIndex = if (selectedIndex <= separatorAfterIndex) 0 else selectedIndex
+    val listState = rememberLazyListState(initialFirstVisibleItemIndex = startIndex)
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -121,13 +128,19 @@ internal fun LanguagePreferenceDialog(
                         blockUp = index == 0,
                         blockDown = index == options.lastIndex
                     )
+                    // Divider between the pinned quick-picks and the full A–Z list.
+                    if (index == separatorAfterIndex && index < options.lastIndex) {
+                        LanguageListDivider()
+                    }
                 }
             }
         }
     }
     LaunchedEffect(selectedIndex) {
         if (options.isNotEmpty()) {
-            listState.scrollToItem(selectedIndex)
+            // Deep A–Z selections start off-screen; bring the row in so focus can attach.
+            // Pinned selections are already visible at the top — don't scroll them away.
+            if (selectedIndex > separatorAfterIndex) listState.scrollToItem(selectedIndex)
             seedFocus.requestFocusWhenAttached(maxFrames = 20)
         }
     }
@@ -156,6 +169,17 @@ private fun LanguagePickerHeader(title: String) {
         )
         Spacer(Modifier.height(12.dp))
     }
+}
+
+@Composable
+private fun LanguageListDivider() {
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = RowInnerPadding, vertical = 6.dp)
+            .height(1.dp)
+            .background(Color.White.copy(alpha = 0.14f))
+    )
 }
 
 @Composable

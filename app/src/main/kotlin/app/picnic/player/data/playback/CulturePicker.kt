@@ -30,6 +30,42 @@ fun culturePickerOptions(cultures: List<CultureDto>): List<CulturePickerOption> 
     return listOf(CulturePickerOption(languageCode = null, displayName = "Unspecified")) + sorted
 }
 
+/**
+ * The language actually in effect: a local app override wins; otherwise the server's
+ * configured preference (#149). Blank strings count as "not set" and drop through.
+ * null = neither is set, i.e. genuinely Unspecified.
+ */
+fun effectiveLanguageCode(appPreference: String?, serverPreference: String?): String? = appPreference?.takeIf { it.isNotBlank() } ?: serverPreference?.takeIf { it.isNotBlank() }
+
+/** Picker rows plus where the pinned block ends, once the device language is lifted up. */
+data class PinnedLanguageOptions(
+    val options: List<CulturePickerOption>,
+    /** A divider is drawn directly after this row index (the last pinned row). */
+    val separatorAfterIndex: Int
+)
+
+/**
+ * Reorders [base] (Unspecified + A–Z) so the device language sits directly under
+ * Unspecified and is removed from the A–Z body below — the two likeliest picks stay
+ * above a divider (#149). When the device language is absent from the cultures, only
+ * Unspecified is pinned.
+ */
+fun pinnedLanguageOptions(
+    base: List<CulturePickerOption>,
+    deviceLanguage: String
+): PinnedLanguageOptions {
+    val unspecified = base.firstOrNull { it.languageCode == null }
+        ?: return PinnedLanguageOptions(base, separatorAfterIndex = 0)
+    val languages = base.filter { it.languageCode != null }
+    val system = deviceLanguage.takeIf { it.isNotBlank() }
+        ?.let { device -> languages.firstOrNull { languageMatches(it.languageCode, device) } }
+        ?: return PinnedLanguageOptions(listOf(unspecified) + languages, separatorAfterIndex = 0)
+    return PinnedLanguageOptions(
+        options = listOf(unspecified, system) + languages.filter { it != system },
+        separatorAfterIndex = 1
+    )
+}
+
 /** Label for a stored preference code using the culture list; falls back to [fallback]. */
 fun cultureDisplayName(
     languageCode: String?,

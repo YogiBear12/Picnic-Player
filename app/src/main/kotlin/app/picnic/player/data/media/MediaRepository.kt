@@ -21,6 +21,7 @@ import org.jellyfin.sdk.api.client.extensions.studiosApi
 import org.jellyfin.sdk.api.client.extensions.suggestionsApi
 import org.jellyfin.sdk.api.client.extensions.tvShowsApi
 import org.jellyfin.sdk.api.client.extensions.universalAudioApi
+import org.jellyfin.sdk.api.client.extensions.userApi
 import org.jellyfin.sdk.api.client.extensions.userLibraryApi
 import org.jellyfin.sdk.api.client.extensions.userViewsApi
 import org.jellyfin.sdk.model.api.BaseItemDto
@@ -32,6 +33,7 @@ import org.jellyfin.sdk.model.api.ItemSortBy
 import org.jellyfin.sdk.model.api.MediaStream
 import org.jellyfin.sdk.model.api.MediaType
 import org.jellyfin.sdk.model.api.SortOrder
+import org.jellyfin.sdk.model.api.UserConfiguration
 import org.jellyfin.sdk.model.api.request.GetSimilarItemsRequest
 
 internal const val MEDIA_GRID_PAGE_SIZE = 100
@@ -65,6 +67,15 @@ class MediaRepository @Inject constructor(
     /** Jellyfin `/Localization/Cultures` — display names for the Languages settings picker. */
     suspend fun cultures(session: UserSession): List<CultureDto> = onIo {
         api(session).localizationApi.getCultures().content
+    }
+
+    /**
+     * The signed-in user's server-side config. Its `audioLanguagePreference` /
+     * `subtitleLanguagePreference` are the server defaults shown in Settings when the
+     * app holds no local override (#149). Blank string = the user set no preference.
+     */
+    suspend fun userConfiguration(session: UserSession): UserConfiguration? = onIo {
+        api(session).userApi.getCurrentUser().content.configuration
     }
 
     suspend fun resumeItems(session: UserSession, limit: Int = LATEST_ROW_LIMIT): List<BaseItemDto> = onIo {

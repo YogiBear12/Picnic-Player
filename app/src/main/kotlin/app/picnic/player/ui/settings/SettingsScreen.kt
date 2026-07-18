@@ -57,6 +57,8 @@ import app.picnic.player.data.media.MediaRepository
 import app.picnic.player.data.playback.CulturePickerOption
 import app.picnic.player.data.playback.cultureDisplayName
 import app.picnic.player.data.playback.culturePickerOptions
+import app.picnic.player.data.playback.effectiveLanguageCode
+import app.picnic.player.data.playback.pinnedLanguageOptions
 import app.picnic.player.data.seerr.SeerrLinkState
 import app.picnic.player.data.settings.PlaybackSettings
 import app.picnic.player.data.settings.SeekMode
@@ -132,6 +134,16 @@ class SettingsViewModel @Inject constructor(
     )
     val cultureOptions: StateFlow<List<CulturePickerOption>> = _cultureOptions
 
+    /** Server-side per-user language defaults (#149); null until loaded, blank = user set none. */
+    private val _serverAudioLanguage = MutableStateFlow<String?>(null)
+    val serverAudioLanguage: StateFlow<String?> = _serverAudioLanguage
+
+    private val _serverSubtitleLanguage = MutableStateFlow<String?>(null)
+    val serverSubtitleLanguage: StateFlow<String?> = _serverSubtitleLanguage
+
+    /** Device locale language, pinned to the top of the language pickers. */
+    val deviceLanguage: String = java.util.Locale.getDefault().language
+
     /** Survives Detail/Seerr Detail push while Settings stays on the back stack. */
     private val _selectedCategory = MutableStateFlow(SettingsCategory.EXPERIENCE)
     val selectedCategory: StateFlow<SettingsCategory> = _selectedCategory
@@ -162,6 +174,9 @@ class SettingsViewModel @Inject constructor(
             if (cultures.isNotEmpty()) {
                 _cultureOptions.value = culturePickerOptions(cultures)
             }
+            val config = runCatching { mediaRepository.userConfiguration(session) }.getOrNull()
+            _serverAudioLanguage.value = config?.audioLanguagePreference
+            _serverSubtitleLanguage.value = config?.subtitleLanguagePreference
         }
         // The Requests category exists only while Seerr is linked — losing the link
         // while it is selected must not leave the detail panel orphaned.
@@ -446,6 +461,8 @@ private fun sectionsFor(
     viewModel: SettingsViewModel,
     youtubeApps: List<YouTubeAppInfo>,
     pictureInPictureSupported: Boolean,
+    serverAudioLanguage: String?,
+    serverSubtitleLanguage: String?,
     showPicker: (ActivePicker) -> Unit,
     onShowAudioLanguagePicker: () -> Unit,
     onShowSubtitleLanguagePicker: () -> Unit,
@@ -527,12 +544,16 @@ private fun sectionsFor(
             listOf(
                 SettingItem(
                     "Preferred audio language",
-                    viewModel.languageLabel(settings.preferredAudioLanguage),
+                    viewModel.languageLabel(
+                        effectiveLanguageCode(settings.preferredAudioLanguage, serverAudioLanguage)
+                    ),
                     onActivate = onShowAudioLanguagePicker
                 ),
                 SettingItem(
                     "Preferred subtitle language",
-                    viewModel.languageLabel(settings.preferredSubtitleLanguage),
+                    viewModel.languageLabel(
+                        effectiveLanguageCode(settings.preferredSubtitleLanguage, serverSubtitleLanguage)
+                    ),
                     onActivate = onShowSubtitleLanguagePicker
                 ),
                 SettingItem(
@@ -772,6 +793,8 @@ fun SettingsScreen(
     var languagePickerKind by remember { mutableStateOf<LanguagePickerKind?>(null) }
     val youtubeApps by viewModel.launcherApps.collectAsStateWithLifecycle()
     val cultureOptions by viewModel.cultureOptions.collectAsStateWithLifecycle()
+    val serverAudioLanguage by viewModel.serverAudioLanguage.collectAsStateWithLifecycle()
+    val serverSubtitleLanguage by viewModel.serverSubtitleLanguage.collectAsStateWithLifecycle()
 
     // Open source licenses render as a full-screen page over Settings (its own
     // focus/scroll and Back handling), not a dialog.
@@ -854,16 +877,26 @@ fun SettingsScreen(
     }
 
     languagePickerKind?.let { kind ->
+        val appCode = when (kind) {
+            LanguagePickerKind.AUDIO -> settings.preferredAudioLanguage
+            LanguagePickerKind.SUBTITLE -> settings.preferredSubtitleLanguage
+        }
+        val serverCode = when (kind) {
+            LanguagePickerKind.AUDIO -> serverAudioLanguage
+            LanguagePickerKind.SUBTITLE -> serverSubtitleLanguage
+        }
+        val picker = remember(cultureOptions) {
+            pinnedLanguageOptions(cultureOptions, viewModel.deviceLanguage)
+        }
         LanguagePreferenceDialog(
             title = when (kind) {
                 LanguagePickerKind.AUDIO -> "Preferred audio language"
                 LanguagePickerKind.SUBTITLE -> "Preferred subtitle language"
             },
-            options = cultureOptions,
-            selectedLanguageCode = when (kind) {
-                LanguagePickerKind.AUDIO -> settings.preferredAudioLanguage
-                LanguagePickerKind.SUBTITLE -> settings.preferredSubtitleLanguage
-            },
+            options = picker.options,
+            separatorAfterIndex = picker.separatorAfterIndex,
+            // No local override → show the server's default as the checked row (#149).
+            selectedLanguageCode = effectiveLanguageCode(appCode, serverCode),
             onSelect = { code ->
                 when (kind) {
                     LanguagePickerKind.AUDIO -> viewModel.setPreferredAudioLanguage(code)
@@ -1033,6 +1066,8 @@ private fun DetailPanel(
     }
 
     val seerr by viewModel.seerrState.collectAsStateWithLifecycle()
+    val serverAudioLanguage by viewModel.serverAudioLanguage.collectAsStateWithLifecycle()
+    val serverSubtitleLanguage by viewModel.serverSubtitleLanguage.collectAsStateWithLifecycle()
     val sections = sectionsFor(
         category,
         settings,
@@ -1041,6 +1076,8 @@ private fun DetailPanel(
         viewModel,
         youtubeApps,
         viewModel.pictureInPictureSupported,
+        serverAudioLanguage,
+        serverSubtitleLanguage,
         showPicker,
         onShowAudioLanguagePicker,
         onShowSubtitleLanguagePicker,
