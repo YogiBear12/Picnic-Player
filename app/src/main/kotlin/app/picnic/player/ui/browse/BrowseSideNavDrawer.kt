@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Explore
@@ -424,11 +425,24 @@ private fun androidx.tv.material3.NavigationDrawerScope.PicnicDrawerItem(
     modifier: Modifier = Modifier,
     onLongClick: (() -> Unit)? = null
 ) {
+    // Rounded rectangle instead of tv-material's default pill; applied to every state so the
+    // focus highlight, selection and press all share the same corner radius.
+    val rowShape = RoundedCornerShape(10.dp)
     NavigationDrawerItem(
         selected = selected,
         onClick = onClick,
         leadingContent = leadingContent,
         onLongClick = onLongClick,
+        shape = NavigationDrawerItemDefaults.shape(
+            shape = rowShape,
+            focusedShape = rowShape,
+            pressedShape = rowShape,
+            selectedShape = rowShape,
+            disabledShape = rowShape,
+            focusedSelectedShape = rowShape,
+            focusedDisabledShape = rowShape,
+            pressedSelectedShape = rowShape
+        ),
         colors = NavigationDrawerItemDefaults.colors(
             containerColor = Color.Transparent,
             contentColor = Color.White.copy(alpha = 0.6f),
