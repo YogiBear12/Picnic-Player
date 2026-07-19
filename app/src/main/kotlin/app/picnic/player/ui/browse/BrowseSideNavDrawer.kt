@@ -88,6 +88,10 @@ internal val DrawerCollapsedWidth = 56.dp + DrawerHPad * 2 // 80dp
 private val DrawerIconSize = 22.dp
 private val DrawerAvatarSize = 28.dp
 
+/** Compact rows: overrides tv-material's 56dp one-line item height so more rows fit on screen. */
+private val DrawerRowHeight = 40.dp
+private val DrawerRowSpacing = 4.dp
+
 /**
  * Vertical TV navigation drawer on tv-material [NavigationDrawer]. Supports
  * pin/unpin/reorder of customisable destinations and a More page for unpinned
@@ -203,7 +207,7 @@ internal fun BrowseSideNavDrawer(
                         }
                         .focusGroup()
                         .padding(horizontal = DrawerHPad, vertical = 14.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                    verticalArrangement = Arrangement.spacedBy(DrawerRowSpacing)
                 ) {
                     when (drawerPage) {
                         NavDrawerPage.Primary -> {
@@ -435,7 +439,8 @@ private fun androidx.tv.material3.NavigationDrawerScope.PicnicDrawerItem(
             focusedSelectedContainerColor = Color.White,
             focusedSelectedContentColor = Color.Black
         ),
-        modifier = modifier
+        // Outer height constraint wins over the item's internal 56dp one-line height.
+        modifier = modifier.height(DrawerRowHeight)
     ) {
         Text(
             label,
