@@ -61,6 +61,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.paging.LoadState
 import androidx.paging.Pager
 import androidx.paging.PagingConfig
 import androidx.paging.PagingData
@@ -70,6 +71,7 @@ import androidx.paging.compose.itemContentType
 import androidx.paging.compose.itemKey
 import androidx.paging.map
 import androidx.tv.material3.Border
+import androidx.tv.material3.Button
 import androidx.tv.material3.Card
 import androidx.tv.material3.CardDefaults
 import androidx.tv.material3.ExperimentalTvMaterial3Api
@@ -85,6 +87,7 @@ import app.picnic.player.data.media.LibraryChange
 import app.picnic.player.data.media.LibraryChangeBus
 import app.picnic.player.data.media.MediaRepository
 import app.picnic.player.data.paging.EpisodePagingSource
+import app.picnic.player.di.IoDispatcher
 import app.picnic.player.playback.LocalThemeMusicPlayer
 import app.picnic.player.ui.ambient.BackdropSpec
 import app.picnic.player.ui.ambient.CardFocusBorderWidth
@@ -104,6 +107,7 @@ import coil3.compose.AsyncImage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.util.UUID
 import javax.inject.Inject
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -123,7 +127,8 @@ class SeriesEpisodesViewModel @Inject constructor(
     private val authRepository: AuthRepository,
     private val mediaRepository: MediaRepository,
     private val jellyfin: JellyfinFactory,
-    private val changeBus: LibraryChangeBus
+    private val changeBus: LibraryChangeBus,
+    @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) : ViewModel() {
     var seasons by mutableStateOf<List<BaseItemDto>>(emptyList())
         private set
@@ -159,6 +164,7 @@ class SeriesEpisodesViewModel @Inject constructor(
                         val api = jellyfin.api(currentSession.server.baseUrl, currentSession.accessToken)
                         EpisodePagingSource(
                             api = api,
+                            ioDispatcher = ioDispatcher,
                             seriesId = seriesId,
                             seasonId = seasonId,
                             userId = currentSession.userId,
@@ -492,6 +498,12 @@ fun SeriesEpisodesScreen(
         delay(5000)
         initialLoadComplete = true
     }
+    // A load error drops the spinner immediately so the error state underneath is visible.
+    LaunchedEffect(Unit) {
+        snapshotFlow { episodes.loadState.refresh }.collect {
+            if (it is LoadState.Error) initialLoadComplete = true
+        }
+    }
 
     // When episodes (re)load: restore focus to the episode we came back from, otherwise scroll
     // to the first in-progress/unwatched episode only when the season actually changed.
@@ -701,6 +713,24 @@ fun SeriesEpisodesScreen(
 
             // Episode list
             Box(Modifier.fillMaxSize()) {
+                // A failed page load must surface, not render a silently blank pane.
+                val refreshError = episodes.loadState.refresh as? LoadState.Error
+                if (refreshError != null) {
+                    Column(
+                        modifier = Modifier.align(Alignment.Center).padding(horizontal = 40.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text("Couldn't load episodes", color = PicnicColors.OnDark)
+                        Text(
+                            refreshError.error.message ?: refreshError.error.javaClass.simpleName,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = PicnicColors.OnDarkMuted,
+                            maxLines = 3
+                        )
+                        Button(onClick = { episodes.retry() }) { Text("Retry") }
+                    }
+                }
                 LazyColumn(
                     state = episodeListState,
                     modifier = Modifier
