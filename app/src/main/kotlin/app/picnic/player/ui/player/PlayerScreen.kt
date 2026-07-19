@@ -507,8 +507,18 @@ fun PlayerScreen(
                     presentationState.videoSizeDp
                 )
             )
+            // libass overlay, sized exactly to the video display rect (libass maps frame
+            // coordinates onto its bounds). Tracks pillar/letterboxing and the next-up shrink.
+            AndroidView(
+                factory = { context -> viewModel.assOverlayView(context) },
+                modifier = Modifier.resizeWithContentScale(
+                    ContentScale.Fit,
+                    presentationState.videoSizeDp
+                )
+            )
         }
 
+        // Full screen: SRT/VTT text cues stay screen-relative, not bound to the picture.
         AndroidView(
             factory = { context -> SubtitleView(context) },
             update = { subtitleView ->

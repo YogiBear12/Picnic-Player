@@ -378,6 +378,9 @@ class PlayerViewModel @Inject constructor(
         settings.value.subtitleAppearance
     )
 
+    /** libass overlay view; host it sized to the video display rect. */
+    fun assOverlayView(context: Context) = engine.assOverlayView(context)
+
     fun setPictureInPicture(pip: Boolean) {
         viewModelScope.launch {
             settingsStore.setPictureInPicture(pip)

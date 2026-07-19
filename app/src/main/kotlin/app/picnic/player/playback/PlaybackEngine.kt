@@ -7,6 +7,7 @@ import android.graphics.Color
 import android.media.audiofx.DynamicsProcessing
 import android.media.audiofx.LoudnessEnhancer
 import android.os.Build
+import android.view.ViewGroup
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.okhttp.OkHttpDataSource
@@ -21,9 +22,9 @@ import io.github.peerless2012.ass.media.AssHandler
 import io.github.peerless2012.ass.media.AssHandlerConfig
 import io.github.peerless2012.ass.media.factory.AssRenderersFactory
 import io.github.peerless2012.ass.media.kt.withAssMkvSupport
-import io.github.peerless2012.ass.media.kt.withAssSupport
 import io.github.peerless2012.ass.media.parser.AssSubtitleParserFactory
 import io.github.peerless2012.ass.media.type.AssRenderType
+import io.github.peerless2012.ass.media.widget.AssSubtitleView
 import java.util.concurrent.atomic.AtomicLong
 import okhttp3.OkHttpClient
 
@@ -36,7 +37,7 @@ class PlaybackEngine(context: Context) {
     val assHandler: AssHandler
     val player: ExoPlayer
 
-    private var subtitleWired = false
+    private var assOverlay: AssSubtitleView? = null
 
     /** Shared subtitle offset (µs). Read each frame by every text/ASS renderer. */
     private val subtitleDelayUs = AtomicLong(0L)
@@ -79,15 +80,20 @@ class PlaybackEngine(context: Context) {
         assHandler.init(player)
     }
 
-    /** Wire libass overlay into [subtitleView] (idempotent). Video surface is separate. */
+    /** Style the text-cue view (SRT/VTT/…). ASS renders in [assOverlayView], not here. */
     fun attachSubtitleView(subtitleView: SubtitleView, appearance: SubtitleAppearance) {
         subtitleView.setBackgroundColor(Color.TRANSPARENT)
-        // Text cues (SRT/VTT/…): user-tunable style (#54). ASS/SSA still use libass.
         appearance.applyTo(subtitleView)
-        if (!subtitleWired) {
-            subtitleView.withAssSupport(assHandler)
-            subtitleWired = true
-        }
+    }
+
+    /**
+     * The libass overlay. The host must size it to exactly the video display rect: libass maps
+     * its frame coordinates onto this view's bounds.
+     */
+    fun assOverlayView(context: Context): AssSubtitleView {
+        val view = assOverlay ?: AssSubtitleView(context, assHandler).also { assOverlay = it }
+        (view.parent as? ViewGroup)?.removeView(view)
+        return view
     }
 
     /** Set the subtitle offset in ms (positive = later, negative = earlier). Session-only. */
