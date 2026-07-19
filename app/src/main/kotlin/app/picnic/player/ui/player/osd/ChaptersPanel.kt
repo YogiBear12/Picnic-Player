@@ -17,6 +17,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.dp
 import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.player.ChapterMark
@@ -52,6 +57,17 @@ fun ChaptersPanel(
                 .background(PanelGlassFill)
                 .padding(vertical = 8.dp)
                 .focusGroup()
+                // Up/Down escape back to the OSD (the row only navigates horizontally).
+                .onKeyEvent { event ->
+                    if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
+                    when (event.key) {
+                        Key.DirectionUp, Key.DirectionDown -> {
+                            onClose()
+                            true
+                        }
+                        else -> false
+                    }
+                }
         ) {
             ChapterRow(
                 chapters = chapters,
