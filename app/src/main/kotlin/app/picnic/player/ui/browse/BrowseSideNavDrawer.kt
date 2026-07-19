@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -18,8 +19,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Explore
@@ -64,6 +67,7 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.DrawerState
 import androidx.tv.material3.ExperimentalTvMaterial3Api
@@ -72,10 +76,12 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.NavigationDrawer
 import androidx.tv.material3.NavigationDrawerItem
 import androidx.tv.material3.NavigationDrawerItemDefaults
+import androidx.tv.material3.NavigationDrawerItemScale
 import androidx.tv.material3.Text
 import app.picnic.player.data.auth.UserSession
 import app.picnic.player.data.nav.NavLayout
 import app.picnic.player.ui.common.rememberIdentityBrush
+import app.picnic.player.ui.common.verticalFadingEdges
 import app.picnic.player.ui.theme.PicnicColors
 import coil3.compose.AsyncImage
 import coil3.compose.AsyncImagePainter
@@ -91,6 +97,9 @@ private val DrawerAvatarSize = 28.dp
 
 /** Compact rows: overrides tv-material's 56dp one-line item height so more rows fit on screen. */
 private val DrawerRowHeight = 40.dp
+
+/** Header (profile) + footer (Settings) chrome rows sit a little shorter than the nav rows. */
+private val DrawerChromeRowHeight = 34.dp
 private val DrawerRowSpacing = 4.dp
 
 /**
@@ -212,52 +221,58 @@ internal fun BrowseSideNavDrawer(
                 ) {
                     when (drawerPage) {
                         NavDrawerPage.Primary -> {
+                            // Avatar pinned at the top; destinations scroll between it and the
+                            // Settings row pinned at the bottom, so both chrome rows stay visible.
                             PicnicDrawerItem(
                                 selected = false,
                                 onClick = onSwapUser,
                                 label = session.username,
-                                leadingContent = { DrawerAvatar(session) }
+                                leadingContent = { DrawerAvatar(session) },
+                                height = DrawerChromeRowHeight
                             )
-                            Spacer(Modifier.height(10.dp))
+                            Spacer(Modifier.height(6.dp))
 
-                            destinations.forEach { dest ->
-                                key(dest.key) {
-                                    CustomisableDrawerRow(
-                                        dest = dest,
-                                        selected = dest.key == selectedKey,
-                                        customisable = dest.isCustomisable(),
-                                        reorderKey = reorderKey,
-                                        itemFocusRequester = itemFocusRequesters[dest.key],
-                                        onSelect = { onSelect(dest) },
-                                        onOpenActions = { actionsDest = dest },
-                                        onMoveReorder = onMoveReorder,
-                                        onExitReorder = onExitReorder
+                            ScrollingRows(Modifier.weight(1f)) {
+                                destinations.forEach { dest ->
+                                    key(dest.key) {
+                                        CustomisableDrawerRow(
+                                            dest = dest,
+                                            selected = dest.key == selectedKey,
+                                            customisable = dest.isCustomisable(),
+                                            reorderKey = reorderKey,
+                                            itemFocusRequester = itemFocusRequesters[dest.key],
+                                            onSelect = { onSelect(dest) },
+                                            onOpenActions = { actionsDest = dest },
+                                            onMoveReorder = onMoveReorder,
+                                            onExitReorder = onExitReorder
+                                        )
+                                    }
+                                }
+
+                                if (moreVisible) {
+                                    PicnicDrawerItem(
+                                        selected = false,
+                                        onClick = onOpenMore,
+                                        label = "More",
+                                        modifier = Modifier.focusRequester(moreItemFocus),
+                                        leadingContent = {
+                                            Icon(
+                                                imageVector = Icons.Outlined.MoreHoriz,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(DrawerIconSize)
+                                            )
+                                        }
                                     )
                                 }
                             }
 
-                            if (moreVisible) {
-                                PicnicDrawerItem(
-                                    selected = false,
-                                    onClick = onOpenMore,
-                                    label = "More",
-                                    modifier = Modifier.focusRequester(moreItemFocus),
-                                    leadingContent = {
-                                        Icon(
-                                            imageVector = Icons.Outlined.MoreHoriz,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(DrawerIconSize)
-                                        )
-                                    }
-                                )
-                            }
-
-                            Spacer(Modifier.weight(1f))
+                            Spacer(Modifier.height(DrawerRowSpacing))
 
                             PicnicDrawerItem(
                                 selected = false,
                                 onClick = onSettings,
                                 label = "Settings",
+                                height = DrawerChromeRowHeight,
                                 leadingContent = {
                                     Box {
                                         Icon(
@@ -288,19 +303,21 @@ internal fun BrowseSideNavDrawer(
                             )
                             Spacer(Modifier.height(10.dp))
 
-                            destinations.forEach { dest ->
-                                key(dest.key) {
-                                    CustomisableDrawerRow(
-                                        dest = dest,
-                                        selected = dest.key == selectedKey,
-                                        customisable = true,
-                                        reorderKey = reorderKey,
-                                        itemFocusRequester = itemFocusRequesters[dest.key],
-                                        onSelect = { onSelect(dest) },
-                                        onOpenActions = { actionsDest = dest },
-                                        onMoveReorder = onMoveReorder,
-                                        onExitReorder = onExitReorder
-                                    )
+                            ScrollingRows(Modifier.weight(1f)) {
+                                destinations.forEach { dest ->
+                                    key(dest.key) {
+                                        CustomisableDrawerRow(
+                                            dest = dest,
+                                            selected = dest.key == selectedKey,
+                                            customisable = true,
+                                            reorderKey = reorderKey,
+                                            itemFocusRequester = itemFocusRequesters[dest.key],
+                                            onSelect = { onSelect(dest) },
+                                            onOpenActions = { actionsDest = dest },
+                                            onMoveReorder = onMoveReorder,
+                                            onExitReorder = onExitReorder
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -318,6 +335,33 @@ internal fun BrowseSideNavDrawer(
             ) { content() }
         }
     }
+}
+
+/**
+ * Vertically scrolling list of drawer rows with faded top/bottom edges. Native [verticalScroll]:
+ * focus-driven scrolling (bringIntoView) is automatic for the focusable rows, so D-pad moving onto
+ * an off-screen row scrolls it into view. The fade signals more rows above/below.
+ */
+@Composable
+private fun ScrollingRows(
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    val scrollState = rememberScrollState()
+    Column(
+        modifier = modifier
+            .verticalFadingEdges(
+                topFade = scrollState.canScrollBackward,
+                bottomFade = scrollState.canScrollForward
+            )
+            .verticalScroll(scrollState)
+            // Content padding (inside the scroll): keeps an edge row's highlight off the viewport
+            // clip when bringIntoView aligns it flush, so its rounded corners stay whole and it
+            // never touches the pinned header/footer.
+            .padding(vertical = DrawerRowSpacing),
+        verticalArrangement = Arrangement.spacedBy(DrawerRowSpacing),
+        content = content
+    )
 }
 
 /**
@@ -423,7 +467,8 @@ private fun androidx.tv.material3.NavigationDrawerScope.PicnicDrawerItem(
     label: String,
     leadingContent: @Composable () -> Unit,
     modifier: Modifier = Modifier,
-    onLongClick: (() -> Unit)? = null
+    onLongClick: (() -> Unit)? = null,
+    height: Dp = DrawerRowHeight
 ) {
     // Rounded rectangle instead of tv-material's default pill; applied to every state so the
     // focus highlight, selection and press all share the same corner radius.
@@ -443,6 +488,9 @@ private fun androidx.tv.material3.NavigationDrawerScope.PicnicDrawerItem(
             focusedDisabledShape = rowShape,
             pressedSelectedShape = rowShape
         ),
+        // No focus scale: the flat rounded-rect highlight is the focus cue, and an overscaled
+        // pill would be clipped by the scroll viewport / pinned header + footer edges.
+        scale = NavigationDrawerItemScale.None,
         colors = NavigationDrawerItemDefaults.colors(
             containerColor = Color.Transparent,
             contentColor = Color.White.copy(alpha = 0.6f),
@@ -454,7 +502,7 @@ private fun androidx.tv.material3.NavigationDrawerScope.PicnicDrawerItem(
             focusedSelectedContentColor = Color.Black
         ),
         // Outer height constraint wins over the item's internal 56dp one-line height.
-        modifier = modifier.height(DrawerRowHeight)
+        modifier = modifier.height(height)
     ) {
         Text(
             label,
