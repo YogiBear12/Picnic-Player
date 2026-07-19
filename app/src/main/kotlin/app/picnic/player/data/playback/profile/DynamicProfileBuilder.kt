@@ -14,6 +14,8 @@ import org.jellyfin.sdk.model.deviceprofile.buildDeviceProfile
 
 object DynamicProfileBuilder {
     fun build(androidContext: Context, settings: PlaybackSettings): DeviceProfile {
+        if (settings.forceDirectPlay) return forceDirectPlayProfile()
+
         val mediaCodecList = MediaCodecList(MediaCodecList.REGULAR_CODECS)
         val query = MediaCodecQuery(mediaCodecList)
         val capabilities = DeviceCapabilities(query)
@@ -122,5 +124,38 @@ object DynamicProfileBuilder {
             subtitleProfile("pgssub", SubtitleDeliveryMethod.EMBED)
             subtitleProfile("vtt", SubtitleDeliveryMethod.EXTERNAL)
         }
+    }
+
+    /**
+     * Expert override ("Force direct play"): announce full compatibility so the server always
+     * returns a direct-play source. No transcoding profile, no codec conditions, bitrate cap
+     * lifted; downmix / DoVi settings are intentionally ignored. Genuinely unsupported media may
+     * fail to play — that's the accepted trade-off of the Advanced toggle.
+     */
+    private fun forceDirectPlayProfile(): DeviceProfile = buildDeviceProfile {
+        name = "Picnic Player (Direct)"
+        maxStreamingBitrate = 1_000_000_000
+        maxStaticBitrate = 1_000_000_000
+
+        directPlayProfile {
+            type = DlnaProfileType.VIDEO
+            container(
+                "mp4", "mkv", "webm", "ts", "m2ts", "mov", "avi", "flv", "m4v",
+                "asf", "wmv", "3gp", "ogv", "mpg", "mpeg", "vob"
+            )
+        }
+        directPlayProfile {
+            type = DlnaProfileType.AUDIO
+            container(
+                "mp3", "flac", "aac", "m4a", "m4b", "ogg", "oga", "opus", "wav", "wma", "ac3", "eac3", "dts"
+            )
+        }
+
+        subtitleProfile("ass", SubtitleDeliveryMethod.EMBED)
+        subtitleProfile("ssa", SubtitleDeliveryMethod.EMBED)
+        subtitleProfile("srt", SubtitleDeliveryMethod.EMBED)
+        subtitleProfile("subrip", SubtitleDeliveryMethod.EMBED)
+        subtitleProfile("pgssub", SubtitleDeliveryMethod.EMBED)
+        subtitleProfile("vtt", SubtitleDeliveryMethod.EXTERNAL)
     }
 }

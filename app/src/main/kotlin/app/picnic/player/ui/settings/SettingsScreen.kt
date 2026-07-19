@@ -375,6 +375,10 @@ class SettingsViewModel @Inject constructor(
         store.setForceDoviProfile7(!settings.value.forceDoviProfile7)
     }
 
+    fun toggleForceDirectPlay() = viewModelScope.launch {
+        store.setForceDirectPlay(!settings.value.forceDirectPlay)
+    }
+
     companion object {
         val SKIP_FORWARD_OPTIONS = listOf(10, 15, 30, 45, 60)
         val SKIP_BACKWARD_OPTIONS = listOf(5, 10, 15, 30)
@@ -399,7 +403,9 @@ private data class SettingItem(
     val label: String,
     val value: String,
     val description: String? = null,
-    val onActivate: () -> Unit
+    val onActivate: () -> Unit,
+    /** When false the row is greyed out and cannot be activated (still focusable). */
+    val enabled: Boolean = true
 )
 
 /** A group of rows within a category's detail panel. [title] draws a section
@@ -706,13 +712,21 @@ private fun sectionsFor(
                     onActivate = viewModel::toggleMatchResolution
                 ),
                 SettingItem(
+                    "Force direct play",
+                    if (settings.forceDirectPlay) "On" else "Off",
+                    onActivate = viewModel::toggleForceDirectPlay
+                ),
+                SettingItem(
                     "Downmix to stereo",
                     if (settings.downmixStereo) "On" else "Off",
+                    // Force direct play announces full compatibility, so this has no effect.
+                    enabled = !settings.forceDirectPlay,
                     onActivate = viewModel::toggleDownmixStereo
                 ),
                 SettingItem(
                     "Force DoVi Profile 7 support",
                     if (settings.forceDoviProfile7) "On" else "Off",
+                    enabled = !settings.forceDirectPlay,
                     onActivate = viewModel::toggleForceDoviProfile7
                 ),
                 SettingItem(
@@ -1102,6 +1116,7 @@ private fun DetailPanel(
                     label = item.label,
                     value = item.value,
                     description = item.description,
+                    enabled = item.enabled,
                     // The very first row is the entry target for D-pad Right / Enter from the rail.
                     rowFocus = if (si == 0 && ii == 0) enterFr else null,
                     leftFocus = leftFocus,
@@ -1133,6 +1148,7 @@ private fun SettingRow(
     label: String,
     value: String,
     description: String?,
+    enabled: Boolean = true,
     rowFocus: FocusRequester?,
     leftFocus: FocusRequester,
     blockUp: Boolean,
@@ -1164,7 +1180,7 @@ private fun SettingRow(
                 if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
                 when (event.key) {
                     Key.DirectionCenter, Key.Enter -> {
-                        onActivate()
+                        if (enabled) onActivate()
                         true
                     }
                     else -> false
@@ -1176,7 +1192,11 @@ private fun SettingRow(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(label, style = MaterialTheme.typography.titleMedium, color = PicnicColors.OnDark)
+            Text(
+                label,
+                style = MaterialTheme.typography.titleMedium,
+                color = if (enabled) PicnicColors.OnDark else PicnicColors.OnDarkMuted
+            )
             if (description != null) {
                 Text(
                     description,
@@ -1188,7 +1208,11 @@ private fun SettingRow(
         Text(
             value,
             style = MaterialTheme.typography.titleMedium,
-            color = if (value.isEmpty()) PicnicColors.OnDarkMuted else PicnicColors.Cyan
+            color = when {
+                !enabled -> PicnicColors.OnDarkMuted
+                value.isEmpty() -> PicnicColors.OnDarkMuted
+                else -> PicnicColors.Cyan
+            }
         )
     }
 }
