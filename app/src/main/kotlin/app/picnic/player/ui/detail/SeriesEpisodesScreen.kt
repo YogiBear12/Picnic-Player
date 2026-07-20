@@ -120,6 +120,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.jellyfin.sdk.api.client.extensions.tvShowsApi
 import org.jellyfin.sdk.model.api.BaseItemDto
 
@@ -229,14 +230,18 @@ class SeriesEpisodesViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 seasonsError = null
-                val api = jellyfin.api(currentSession.server.baseUrl, currentSession.accessToken)
-
-                // Fast path: load seasons instantly without expensive CHILD_COUNT
-                val fastResponse = api.tvShowsApi.getSeasons(
-                    seriesId = UUID.fromString(seriesId),
-                    userId = UUID.fromString(currentSession.userId),
-                    fields = emptyList() // Removed CHILD_COUNT to optimize load time
-                )
+                // On IO: the SDK reads the response body on the calling dispatcher, and
+                // viewModelScope is Main — a blocking socket read there throws
+                // NetworkOnMainThreadException (blank season panel) and janks release builds.
+                val fastResponse = withContext(ioDispatcher) {
+                    val api = jellyfin.api(currentSession.server.baseUrl, currentSession.accessToken)
+                    // Fast path: load seasons instantly without expensive CHILD_COUNT
+                    api.tvShowsApi.getSeasons(
+                        seriesId = UUID.fromString(seriesId),
+                        userId = UUID.fromString(currentSession.userId),
+                        fields = emptyList()
+                    )
+                }
                 val fetchedSeasons = fastResponse.content.items ?: emptyList()
 
                 // Preserve any counts we already have in case this is a reload (e.g. from changeBus)
