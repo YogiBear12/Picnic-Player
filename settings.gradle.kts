@@ -22,3 +22,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "picnic-player"
 include(":app")
+include(":baselineprofile")

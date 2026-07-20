@@ -16,6 +16,7 @@ plugins {
     alias(libs.plugins.hilt)
     alias(libs.plugins.ktlint)
     alias(libs.plugins.aboutlibraries)
+    alias(libs.plugins.androidx.baselineprofile)
 }
 
 // Version name is derived from the latest git tag (e.g. `v0.1.0` -> `0.1.0`).
@@ -86,7 +87,16 @@ android {
     // release key). Debug builds are unaffected: the throw only fires when a
     // release task is actually requested.
     val releaseKeystoreBase64: String? = System.getenv("ANDROID_KEYSTORE_BASE64")
-    val releaseBuildRequested = gradle.startParameter.taskNames.any { it.contains("Release") }
+    // Only a genuine shipping-release task must fail without the release key. The
+    // androidx.baselineprofile plugin builds throwaway release-type variants
+    // (nonMinifiedRelease / benchmarkRelease) to capture the profile on a local device —
+    // those are non-shipping and are debug-signed below, so they must not trip the guard.
+    val releaseBuildRequested = gradle.startParameter.taskNames.any { name ->
+        name.contains("Release") &&
+            !name.contains("NonMinified", ignoreCase = true) &&
+            !name.contains("Benchmark", ignoreCase = true) &&
+            !name.contains("BaselineProfile", ignoreCase = true)
+    }
     signingConfigs {
         create("release") {
             when {
@@ -117,6 +127,18 @@ android {
                     "Release build requested but ANDROID_KEYSTORE_BASE64 is not set. Release APKs must be " +
                         "signed with the release key; refusing to fall back to the debug key."
                 )
+                else -> {
+                    // No release secrets and no shipping-release task: the only release-type
+                    // build that can run here is the baseline-profile plugin's local variant.
+                    // Sign it with the standard debug key so it installs on the test device.
+                    val debugStore = file("${System.getProperty("user.home")}/.android/debug.keystore")
+                    if (debugStore.exists()) {
+                        storeFile = debugStore
+                        storePassword = "android"
+                        keyAlias = "androiddebugkey"
+                        keyPassword = "android"
+                    }
+                }
             }
         }
     }
@@ -138,13 +160,9 @@ android {
             // Always the release key — never debug. Missing secrets fail above.
             signingConfig = signingConfigs.getByName("release")
         }
-        create("benchmark") {
-            initWith(getByName("release"))
-            matchingFallbacks += listOf("release")
-            signingConfig = signingConfigs.getByName("debug")
-            isDebuggable = false
-            proguardFiles("benchmark-rules.pro")
-        }
+        // The androidx.baselineprofile plugin creates the nonMinifiedRelease /
+        // benchmarkRelease variants it needs to capture the profile — no hand-rolled
+        // benchmark build type required.
     }
 
     compileOptions {
@@ -245,6 +263,10 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.tooling)
 
     implementation(libs.androidx.profileinstaller)
+
+    // Merges the generated baseline profile (from the :baselineprofile module) into the
+    // release APK; profileinstaller above installs it at first run.
+    baselineProfile(project(":baselineprofile"))
 
     testImplementation(libs.junit)
 }
