@@ -2,6 +2,7 @@
 
 package app.picnic.player.ui.detail
 
+import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -122,6 +123,8 @@ import kotlinx.coroutines.launch
 import org.jellyfin.sdk.api.client.extensions.tvShowsApi
 import org.jellyfin.sdk.model.api.BaseItemDto
 
+private const val TAG = "SeriesEpisodes"
+
 @HiltViewModel
 class SeriesEpisodesViewModel @Inject constructor(
     private val authRepository: AuthRepository,
@@ -135,6 +138,8 @@ class SeriesEpisodesViewModel @Inject constructor(
     var session by mutableStateOf<UserSession?>(null)
         private set
     var seriesItem by mutableStateOf<BaseItemDto?>(null)
+        private set
+    var seasonsError by mutableStateOf<Throwable?>(null)
         private set
 
     // The series/season currently on screen — so the change bus can reload the right episodes
@@ -219,9 +224,11 @@ class SeriesEpisodesViewModel @Inject constructor(
         viewModelScope.launch {
             runCatching { mediaRepository.item(currentSession, UUID.fromString(seriesId)) }
                 .onSuccess { seriesItem = it }
+                .onFailure { Log.w(TAG, "Series item load failed (series=$seriesId)", it) }
         }
         viewModelScope.launch {
             try {
+                seasonsError = null
                 val api = jellyfin.api(currentSession.server.baseUrl, currentSession.accessToken)
 
                 // Fast path: load seasons instantly without expensive CHILD_COUNT
@@ -240,7 +247,11 @@ class SeriesEpisodesViewModel @Inject constructor(
                 }
 
                 seasons = mergedSeasons.sortedWith(compareBy({ it.indexNumber == 0 }, { it.indexNumber }))
-            } catch (_: Exception) {}
+            } catch (e: Exception) {
+                // A swallowed failure here renders as a silently blank season panel.
+                Log.e(TAG, "Season list load failed (series=$seriesId)", e)
+                seasonsError = e
+            }
         }
     }
 
@@ -504,6 +515,9 @@ fun SeriesEpisodesScreen(
             if (it is LoadState.Error) initialLoadComplete = true
         }
     }
+    LaunchedEffect(viewModel.seasonsError) {
+        if (viewModel.seasonsError != null) initialLoadComplete = true
+    }
 
     // When episodes (re)load: restore focus to the episode we came back from, otherwise scroll
     // to the first in-progress/unwatched episode only when the season actually changed.
@@ -543,8 +557,14 @@ fun SeriesEpisodesScreen(
     }
 
     // Back from episodes → focus selected season; Back from seasons → nav pop (default).
+    // With no seasons to land on (empty/failed season load) fall through to leaving the
+    // screen — otherwise Back is consumed as a no-op and focus is trapped in the episode list.
     BackHandler(enabled = episodeListHasFocus) {
-        selectedSeasonFr?.requestFocus()
+        if (selectedSeasonFr != null && viewModel.seasons.isNotEmpty()) {
+            selectedSeasonFr.requestFocus()
+        } else {
+            onBack()
+        }
     }
 
     Box(Modifier.fillMaxSize()) {
@@ -626,6 +646,29 @@ fun SeriesEpisodesScreen(
                             val targetForLeadingEdge = size * 3f
                             return offset - targetForLeadingEdge
                         }
+                    }
+                }
+
+                // A failed season fetch must surface here, not render a silently blank panel.
+                val seasonsError = viewModel.seasonsError
+                if (viewModel.seasons.isEmpty() && seasonsError != null) {
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                            .padding(top = 24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text("Couldn't load seasons", color = PicnicColors.OnDark, textAlign = TextAlign.Center)
+                        Text(
+                            seasonsError.message ?: seasonsError.javaClass.simpleName,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = PicnicColors.OnDarkMuted,
+                            textAlign = TextAlign.Center,
+                            maxLines = 4
+                        )
+                        Button(onClick = { viewModel.loadSeasons(seriesId) }) { Text("Retry") }
                     }
                 }
 
