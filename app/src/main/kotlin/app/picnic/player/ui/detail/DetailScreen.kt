@@ -23,8 +23,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Movie
@@ -350,9 +348,9 @@ private fun DetailContent(
                     }
 
                     val hasVersions = (item.mediaSources?.size ?: 0) > 1
-                    // Movies/episodes always expose the overflow menu now — it carries "View media info".
-                    val hasMediaInfo = item.type == BaseItemKind.MOVIE || item.type == BaseItemKind.EPISODE
-                    val showMoreButton = requestMoreVisible || hasVersions || hasMediaInfo
+                    // The overflow always shows now — it's the home for the Add-to actions
+                    // (favorites, playlist) plus media info / versions / request more.
+                    val showMoreButton = true
                     val remoteTrailersCount = item.remoteTrailers?.size ?: 0
                     val localTrailersCount = localTrailers.size
                     val totalTrailersCount = remoteTrailersCount + localTrailersCount
@@ -360,7 +358,6 @@ private fun DetailContent(
                     val playButtonIndex = nextButtonIndex++
                     val episodesButtonIndex = if (isSeries) nextButtonIndex++ else -1
                     val watchedButtonIndex = nextButtonIndex++
-                    val favoriteButtonIndex = nextButtonIndex++
                     val trailersButtonIndex = if (totalTrailersCount > 0) nextButtonIndex++ else -1
                     val moreButtonIndex = if (showMoreButton) nextButtonIndex++ else -1
 
@@ -404,13 +401,6 @@ private fun DetailContent(
                             icon = Icons.Default.Check,
                             onClick = viewModel::toggleWatched,
                             modifier = Modifier.actionButton(watchedButtonIndex)
-                        )
-
-                        ExpandableButton(
-                            title = if (item.userData?.isFavorite == true) "Remove Favorite" else "Favorite",
-                            icon = if (item.userData?.isFavorite == true) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                            onClick = viewModel::toggleFavorite,
-                            modifier = Modifier.actionButton(favoriteButtonIndex)
                         )
 
                         if (totalTrailersCount > 0) {
@@ -595,6 +585,7 @@ private fun DetailContent(
                 onPlay(item.id.toString(), null, sourceId)
             },
             onDismiss = { showOverflowMenu = false },
+            onToggleFavorite = { viewModel.toggleFavorite() },
             showRequestMore = requestMoreVisible,
             requestMoreBusy = state.requestMoreBusy,
             onRequestMore = { viewModel.showSeasonPicker() }

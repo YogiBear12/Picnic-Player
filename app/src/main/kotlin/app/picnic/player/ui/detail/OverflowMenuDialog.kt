@@ -12,6 +12,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Article
@@ -48,6 +49,7 @@ import androidx.tv.material3.ListItem
 import androidx.tv.material3.ListItemDefaults
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import app.picnic.player.ui.common.LocalAddToPlaylist
 import app.picnic.player.ui.common.MediaInfoDialog
 import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.theme.PicnicColors
@@ -69,6 +71,7 @@ fun SeasonContextMenu(
 ) {
     val played = season.userData?.played ?: false
     val isFavorite = season.userData?.isFavorite ?: false
+    val addToPlaylist = LocalAddToPlaylist.current
 
     // Disable items for ~1s after opening from long-press so the held key can't fire the first item.
     var enabled by remember { mutableStateOf(false) }
@@ -106,6 +109,12 @@ fun SeasonContextMenu(
                 }
             )
         }
+        add(
+            MenuItem("Add to playlist", Icons.AutoMirrored.Filled.PlaylistAdd) {
+                addToPlaylist(season)
+                onDismiss()
+            }
+        )
     }
 
     val focusRequesters = remember(items.size) { List(items.size) { FocusRequester() } }
@@ -118,9 +127,11 @@ fun SeasonContextMenu(
             verticalArrangement = Arrangement.spacedBy(2.dp),
             modifier = Modifier
                 .width(380.dp)
+                .heightIn(max = 460.dp)
                 .shadow(8.dp, RoundedCornerShape(28.dp))
                 .clip(RoundedCornerShape(28.dp))
                 .background(ContextMenuGlassFill)
+                .verticalScroll(rememberScrollState())
                 .padding(24.dp)
                 .onKeyEvent { event ->
                     if (event.type == KeyEventType.KeyUp &&
@@ -177,6 +188,7 @@ fun EpisodeContextMenu(
     val played = episode.userData?.played ?: false
     val isFavorite = episode.userData?.isFavorite ?: false
     val resumeTicks = episode.userData?.playbackPositionTicks?.takeIf { it > 0L }
+    val addToPlaylist = LocalAddToPlaylist.current
 
     var showSynopsis by remember { mutableStateOf(false) }
     var showMediaInfo by remember { mutableStateOf(false) }
@@ -240,6 +252,13 @@ fun EpisodeContextMenu(
             )
         }
 
+        add(
+            MenuItem("Add to playlist", Icons.AutoMirrored.Filled.PlaylistAdd) {
+                addToPlaylist(episode)
+                onDismiss()
+            }
+        )
+
         add(MenuItem("View media info", Icons.Default.Info) { showMediaInfo = true })
     }
 
@@ -253,9 +272,11 @@ fun EpisodeContextMenu(
             verticalArrangement = Arrangement.spacedBy(2.dp),
             modifier = Modifier
                 .width(380.dp)
+                .heightIn(max = 460.dp)
                 .shadow(8.dp, RoundedCornerShape(28.dp))
                 .clip(RoundedCornerShape(28.dp))
                 .background(ContextMenuGlassFill)
+                .verticalScroll(rememberScrollState())
                 .padding(24.dp)
                 .onKeyEvent { event ->
                     if (event.type == KeyEventType.KeyUp &&
@@ -312,6 +333,7 @@ fun OverflowMenuDialog(
     item: BaseItemDto,
     onPlayVersion: (String) -> Unit,
     onDismiss: () -> Unit,
+    onToggleFavorite: (Boolean) -> Unit = {},
     showRequestMore: Boolean = false,
     requestMoreBusy: Boolean = false,
     onRequestMore: () -> Unit = {}
@@ -320,6 +342,8 @@ fun OverflowMenuDialog(
     var showMediaInfo by remember { mutableStateOf(false) }
     val mediaSources = item.mediaSources.orEmpty()
     val hasVersions = mediaSources.size > 1
+    val isFavorite = item.userData?.isFavorite ?: false
+    val addToPlaylist = LocalAddToPlaylist.current
 
     if (showMediaInfo) {
         MediaInfoDialog(item = item, onDismiss = { showMediaInfo = false })
@@ -367,6 +391,26 @@ fun OverflowMenuDialog(
                 )
             )
         }
+        add(
+            GlassMenuItem(
+                label = if (isFavorite) "Remove favorite" else "Add to favorites",
+                icon = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                onClick = {
+                    onToggleFavorite(!isFavorite)
+                    onDismiss()
+                }
+            )
+        )
+        add(
+            GlassMenuItem(
+                label = "Add to playlist",
+                icon = Icons.AutoMirrored.Filled.PlaylistAdd,
+                onClick = {
+                    addToPlaylist(item)
+                    onDismiss()
+                }
+            )
+        )
         if (item.type == BaseItemKind.MOVIE || item.type == BaseItemKind.EPISODE) {
             add(
                 GlassMenuItem(

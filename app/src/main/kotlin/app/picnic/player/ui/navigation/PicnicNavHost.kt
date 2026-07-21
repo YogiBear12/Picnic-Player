@@ -35,6 +35,7 @@ import app.picnic.player.ui.collection.CollectionScreen
 import app.picnic.player.ui.common.ContextMenuHandler
 import app.picnic.player.ui.common.GlobalContextMenuDialog
 import app.picnic.player.ui.common.GlobalContextMenuViewModel
+import app.picnic.player.ui.common.LocalAddToPlaylist
 import app.picnic.player.ui.common.LocalContextMenuHandler
 import app.picnic.player.ui.detail.DetailScreen
 import app.picnic.player.ui.detail.SeriesEpisodesScreen
@@ -146,7 +147,12 @@ fun PicnicNavHost(
         }
     }
 
-    CompositionLocalProvider(LocalContextMenuHandler provides contextMenuHandler) {
+    val addToPlaylistHandler: (BaseItemDto) -> Unit = { item -> addToPlaylistItem = item }
+
+    CompositionLocalProvider(
+        LocalContextMenuHandler provides contextMenuHandler,
+        LocalAddToPlaylist provides addToPlaylistHandler
+    ) {
         Box(Modifier.fillMaxSize()) {
             // App-level backdrop (artwork + ambient wash) shared across screens; drawn once here
             // so Home → Detail with the same artwork redraws nothing (see BackdropController).
