@@ -637,7 +637,7 @@ private fun sectionsFor(
             }
         ),
         SettingSection(
-            "Next up behaviour",
+            "Next up behavior",
             listOf(
                 SettingItem(
                     "Display next up during outro",

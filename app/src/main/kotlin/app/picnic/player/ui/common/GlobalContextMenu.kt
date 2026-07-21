@@ -127,7 +127,7 @@ fun GlobalContextMenuDialog(
 
         add(
             MenuItem(
-                if (isFavorite) "Remove favourite" else "Add to favourites",
+                if (isFavorite) "Remove favorite" else "Add to favorites",
                 if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder
             ) {
                 onToggleFavorite(!isFavorite)

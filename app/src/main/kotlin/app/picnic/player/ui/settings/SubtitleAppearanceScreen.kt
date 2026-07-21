@@ -255,7 +255,7 @@ internal fun SubtitleAppearanceScreen(
                         .focusProperties { up = FocusRequester.Cancel }
                 )
                 AppearanceRow(
-                    label = "Colour",
+                    label = "Color",
                     value = appearance.colour.display(),
                     onStep = viewModel::cycleColour
                 )

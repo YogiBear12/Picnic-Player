@@ -101,7 +101,7 @@ internal enum class GridFilterSection(val label: String, val icon: ImageVector) 
     SORT_ORDER("Sort order", Icons.Filled.SwapVert),
     SORT_BY("Sort by", Icons.AutoMirrored.Filled.Sort),
     WATCHED("Watched status", Icons.Filled.CheckCircle),
-    FAVORITES("Favourites", Icons.Filled.Star),
+    FAVORITES("Favorites", Icons.Filled.Star),
     GENRES("Genres", Icons.Filled.Category),
     STUDIOS("Studios", Icons.Filled.Business),
     COMMUNITY_RATING("Community rating", Icons.Filled.StarHalf),
@@ -389,7 +389,7 @@ private fun buildSectionOptions(
     }
     GridFilterSection.FAVORITES -> listOf(
         PanelOption(
-            label = "Favourites only",
+            label = "Favorites only",
             selected = filter.favoritesOnly,
             onClick = { onFilterChange(filter.copy(favoritesOnly = !filter.favoritesOnly)) }
         )
