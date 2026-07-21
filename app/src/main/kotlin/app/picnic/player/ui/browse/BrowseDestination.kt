@@ -24,6 +24,11 @@ sealed interface BrowseDest {
         override val key = "discover"
     }
 
+    /** The user's playlists — published when the server has a playlists view; pin/unpin like a library. */
+    data object Playlists : BrowseDest {
+        override val key = "playlists"
+    }
+
     /**
      * One Jellyfin video library. [kinds] is the item types its grid queries
      * (movies → MOVIE, shows → SERIES, mixed → both).

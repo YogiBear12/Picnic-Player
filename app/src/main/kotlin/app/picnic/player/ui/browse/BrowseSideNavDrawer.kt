@@ -25,6 +25,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
+import androidx.compose.material.icons.automirrored.outlined.PlaylistPlay
 import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -560,16 +562,18 @@ internal fun drawerLabelFor(dest: BrowseDest): String = when (dest) {
     BrowseDest.Search -> "Search"
     BrowseDest.Home -> "Home"
     BrowseDest.Discover -> "Discover"
+    BrowseDest.Playlists -> "Playlists"
     is BrowseDest.Library -> dest.title
 }
 
-private fun BrowseDest.isCustomisable(): Boolean = this is BrowseDest.Library || this == BrowseDest.Discover
+private fun BrowseDest.isCustomisable(): Boolean = this is BrowseDest.Library || this == BrowseDest.Discover || this == BrowseDest.Playlists
 
 /** Filled + outlined icon pair for a destination. */
 private fun iconsFor(dest: BrowseDest): Pair<ImageVector, ImageVector> = when (dest) {
     BrowseDest.Search -> Icons.Filled.Search to Icons.Outlined.Search
     BrowseDest.Home -> Icons.Filled.Home to Icons.Outlined.Home
     BrowseDest.Discover -> Icons.Filled.Explore to Icons.Outlined.Explore
+    BrowseDest.Playlists -> Icons.AutoMirrored.Filled.PlaylistPlay to Icons.AutoMirrored.Outlined.PlaylistPlay
     is BrowseDest.Library -> when {
         dest.kinds == listOf(BaseItemKind.MOVIE) -> Icons.Filled.Movie to Icons.Outlined.Movie
         dest.kinds == listOf(BaseItemKind.SERIES) -> Icons.Filled.Tv to Icons.Outlined.Tv

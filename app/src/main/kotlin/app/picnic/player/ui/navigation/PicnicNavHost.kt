@@ -46,6 +46,8 @@ import app.picnic.player.ui.onboarding.ServerEntryScreen
 import app.picnic.player.ui.onboarding.ServerPickerScreen
 import app.picnic.player.ui.person.PersonScreen
 import app.picnic.player.ui.player.PlayerScreen
+import app.picnic.player.ui.playlist.AddToPlaylistDialog
+import app.picnic.player.ui.playlist.PlaylistScreen
 import app.picnic.player.ui.settings.SettingsScreen
 import app.picnic.player.ui.startup.StartupScreen
 import org.jellyfin.sdk.model.api.BaseItemDto
@@ -133,6 +135,7 @@ fun PicnicNavHost(
     }
 
     var contextMenuItem by remember { mutableStateOf<BaseItemDto?>(null) }
+    var addToPlaylistItem by remember { mutableStateOf<BaseItemDto?>(null) }
     val contextMenuViewModel: GlobalContextMenuViewModel = hiltViewModel()
 
     val contextMenuHandler = remember {
@@ -265,6 +268,11 @@ fun PicnicNavHost(
                                     CollectionKey(collection.id.toString(), collection.name)
                                 )
                             },
+                            onPlaylist = { playlist ->
+                                navViewModel.push(
+                                    PlaylistKey(playlist.id.toString(), playlist.name)
+                                )
+                            },
                             onSessionExpired = { serverId -> goProfilePicker(serverId) },
                             onSettings = { navViewModel.push(SettingsKey) },
                             onSwapUser = onSwapUser,
@@ -365,6 +373,16 @@ fun PicnicNavHost(
                             onSessionExpired = { serverId -> goProfilePicker(serverId) }
                         )
                     }
+                    entry<PlaylistKey> { key ->
+                        PlaylistScreen(
+                            playlistId = key.playlistId,
+                            playlistName = key.name,
+                            onPlay = { id, ticks -> navViewModel.push(PlayerKey(id, ticks)) },
+                            onGoToSeries = { seriesId -> navViewModel.push(DetailKey(seriesId)) },
+                            onAddToPlaylist = { item -> addToPlaylistItem = item },
+                            onBack = { navViewModel.pop() }
+                        )
+                    }
                     entry<PersonKey> { key ->
                         PersonScreen(
                             jellyfinPersonId = key.jellyfinPersonId,
@@ -402,8 +420,16 @@ fun PicnicNavHost(
                         }
                     } else {
                         null
+                    },
+                    onAddToPlaylist = {
+                        contextMenuItem = null
+                        addToPlaylistItem = item
                     }
                 )
+            }
+
+            addToPlaylistItem?.let { item ->
+                AddToPlaylistDialog(item = item, onDismiss = { addToPlaylistItem = null })
             }
         }
     }

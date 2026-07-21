@@ -66,6 +66,7 @@ class NavRailState @Inject constructor() {
 
     private var lastLibraries: List<BrowseDest.Library> = emptyList()
     private var discoverAvailable: Boolean = false
+    private var playlistsAvailable: Boolean = false
     private var customById: Map<String, BrowseDest> = emptyMap()
 
     private val _selectedKey = MutableStateFlow(BrowseDest.Home.key)
@@ -90,19 +91,21 @@ class NavRailState @Inject constructor() {
     fun isDiscoverAvailable(): Boolean = discoverAvailable
 
     /**
-     * Publish session + libraries + whether Discover exists (Seerr linked).
+     * Publish session + libraries + whether Discover (Seerr linked) and Playlists exist.
      * [layout] is the reconciled persisted layout for this user.
      */
     fun publish(
         session: UserSession,
         libraries: List<BrowseDest.Library>,
         discoverAvailable: Boolean,
+        playlistsAvailable: Boolean,
         layout: NavLayout
     ) {
         _session.value = session
         lastLibraries = libraries
         this.discoverAvailable = discoverAvailable
-        customById = buildCustomMap(libraries, discoverAvailable)
+        this.playlistsAvailable = playlistsAvailable
+        customById = buildCustomMap(libraries, discoverAvailable, playlistsAvailable)
         _layout.value = layout
         rebuildDestinations()
         ensureSelectionValid()
@@ -166,6 +169,7 @@ class NavRailState @Inject constructor() {
         _session.value = null
         lastLibraries = emptyList()
         discoverAvailable = false
+        playlistsAvailable = false
         customById = emptyMap()
         _layout.value = NavLayout()
         _drawerDestinations.value = listOf(BrowseDest.Search, BrowseDest.Home)
@@ -180,6 +184,13 @@ class NavRailState @Inject constructor() {
 
     private fun ensureSelectionValid() {
         if (!discoverAvailable && _selectedKey.value == BrowseDest.Discover.key) {
+            _selectedKey.value = BrowseDest.Home.key
+            if (_drawerPage.value == NavDrawerPage.More) {
+                _drawerPage.value = NavDrawerPage.Primary
+                rebuildDestinations()
+            }
+        }
+        if (!playlistsAvailable && _selectedKey.value == BrowseDest.Playlists.key) {
             _selectedKey.value = BrowseDest.Home.key
             if (_drawerPage.value == NavDrawerPage.More) {
                 _drawerPage.value = NavDrawerPage.Primary
@@ -218,9 +229,11 @@ class NavRailState @Inject constructor() {
 
     private fun buildCustomMap(
         libraries: List<BrowseDest.Library>,
-        discoverAvailable: Boolean
+        discoverAvailable: Boolean,
+        playlistsAvailable: Boolean
     ): Map<String, BrowseDest> = buildMap {
         libraries.forEach { put(it.key, it) }
+        if (playlistsAvailable) put(BrowseDest.Playlists.key, BrowseDest.Playlists)
         if (discoverAvailable) put(BrowseDest.Discover.key, BrowseDest.Discover)
     }
 }

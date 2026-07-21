@@ -17,6 +17,7 @@ import org.jellyfin.sdk.api.client.extensions.itemsApi
 import org.jellyfin.sdk.api.client.extensions.libraryApi
 import org.jellyfin.sdk.api.client.extensions.localizationApi
 import org.jellyfin.sdk.api.client.extensions.playStateApi
+import org.jellyfin.sdk.api.client.extensions.playlistsApi
 import org.jellyfin.sdk.api.client.extensions.studiosApi
 import org.jellyfin.sdk.api.client.extensions.suggestionsApi
 import org.jellyfin.sdk.api.client.extensions.tvShowsApi
@@ -704,6 +705,83 @@ class MediaRepository @Inject constructor(
             enableImageTypes = IMAGE_TYPES,
             enableTotalRecordCount = false
         ).content.items.orEmpty()
+    }
+
+    /** The user's playlists, newest first — the Playlists library grid. */
+    suspend fun playlists(session: UserSession): List<BaseItemDto> = onIo {
+        api(session).itemsApi.getItems(
+            userId = UUID.fromString(session.userId),
+            includeItemTypes = listOf(BaseItemKind.PLAYLIST),
+            recursive = true,
+            sortBy = listOf(ItemSortBy.DATE_CREATED),
+            sortOrder = listOf(SortOrder.DESCENDING),
+            fields = LATEST_FIELDS,
+            enableImageTypes = IMAGE_TYPES,
+            enableTotalRecordCount = false
+        ).content.items.orEmpty()
+    }
+
+    /**
+     * Items of one playlist in their stored order. Each carries a `playlistItemId` (the entry
+     * id, distinct from the media id since the same item may appear twice) — the handle for
+     * [removeFromPlaylist] and [movePlaylistItem].
+     */
+    suspend fun playlistItems(session: UserSession, playlistId: UUID): List<BaseItemDto> = onIo {
+        api(session).playlistsApi.getPlaylistItems(
+            playlistId = playlistId,
+            userId = UUID.fromString(session.userId),
+            fields = BROWSE_FIELDS,
+            enableImageTypes = IMAGE_TYPES
+        ).content.items.orEmpty()
+    }
+
+    /** Creates a playlist named [name] seeded with [itemIds]; returns the new playlist's id. */
+    suspend fun createPlaylist(session: UserSession, name: String, itemIds: List<UUID>): UUID? = onIo {
+        val result = api(session).playlistsApi.createPlaylist(
+            org.jellyfin.sdk.model.api.CreatePlaylistDto(
+                name = name,
+                ids = itemIds,
+                userId = UUID.fromString(session.userId),
+                mediaType = MediaType.VIDEO,
+                users = emptyList(),
+                isPublic = false
+            )
+        ).content
+        changeBus.emit(LibraryChange.LibraryContentChanged)
+        result.id?.let(UUID::fromString)
+    }
+
+    suspend fun addToPlaylist(session: UserSession, playlistId: UUID, itemIds: List<UUID>) = onIo {
+        api(session).playlistsApi.addItemToPlaylist(
+            playlistId = playlistId,
+            ids = itemIds,
+            userId = UUID.fromString(session.userId)
+        )
+        changeBus.emit(LibraryChange.ItemUpdated(playlistId.toString(), null))
+    }
+
+    /** [entryIds] are `playlistItemId`s (playlist entries), not media ids. */
+    suspend fun removeFromPlaylist(session: UserSession, playlistId: UUID, entryIds: List<String>) = onIo {
+        api(session).playlistsApi.removeItemFromPlaylist(
+            playlistId = playlistId.toString(),
+            entryIds = entryIds
+        )
+        changeBus.emit(LibraryChange.ItemUpdated(playlistId.toString(), null))
+    }
+
+    /** Moves the entry [playlistItemId] to [newIndex] (0-based) within the playlist. */
+    suspend fun movePlaylistItem(
+        session: UserSession,
+        playlistId: UUID,
+        playlistItemId: String,
+        newIndex: Int
+    ) = onIo {
+        api(session).playlistsApi.moveItem(
+            playlistId = playlistId.toString(),
+            itemId = playlistItemId,
+            newIndex = newIndex
+        )
+        changeBus.emit(LibraryChange.ItemUpdated(playlistId.toString(), null))
     }
 
     private companion object {

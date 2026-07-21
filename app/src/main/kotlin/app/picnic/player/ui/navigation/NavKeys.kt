@@ -63,6 +63,13 @@ data class CollectionKey(
     val name: String? = null
 ) : NavKey
 
+/** One playlist: its ordered items on the playlist detail screen. */
+@Serializable
+data class PlaylistKey(
+    val playlistId: String,
+    val name: String? = null
+) : NavKey
+
 /**
  * Genre grid — across all video libraries by default (search tab), or scoped to one
  * library when opened from that library's Genres tab.

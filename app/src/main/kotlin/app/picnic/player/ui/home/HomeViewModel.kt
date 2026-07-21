@@ -15,6 +15,7 @@ import app.picnic.player.data.media.MediaRepository
 import app.picnic.player.data.media.planHeroStreamPrefetch
 import app.picnic.player.data.media.seriesNeedingSeasonCount
 import app.picnic.player.data.nav.NAV_ID_DISCOVER
+import app.picnic.player.data.nav.NAV_ID_PLAYLISTS
 import app.picnic.player.data.nav.NavLayoutStore
 import app.picnic.player.data.seerr.SeerrLinkState
 import app.picnic.player.data.seerr.SeerrRepository
@@ -78,6 +79,8 @@ class HomeViewModel @Inject constructor(
         val seasonCounts: Map<UUID, Int> = emptyMap(),
         /** Video libraries surfaced as drawer destinations (movies / shows / mixed). */
         val libraries: List<BrowseDest.Library> = emptyList(),
+        /** Whether the server exposes a playlists view (drives the Playlists drawer destination). */
+        val playlistsAvailable: Boolean = false,
         val heroStreams: Map<UUID, List<MediaStream>> = emptyMap()
     )
 
@@ -133,12 +136,14 @@ class HomeViewModel @Inject constructor(
     private suspend fun republishNavLayout(discoverAvailable: Boolean) {
         val session = _state.value.session ?: return
         val libraries = _state.value.libraries
+        val playlistsAvailable = _state.value.playlistsAvailable
         val availableIds = buildList {
             addAll(libraries.map { it.key })
+            if (playlistsAvailable) add(NAV_ID_PLAYLISTS)
             if (discoverAvailable) add(NAV_ID_DISCOVER)
         }
         val layout = navLayoutStore.resolve(session.server.id, session.userId, availableIds)
-        navRail.publish(session, libraries, discoverAvailable, layout)
+        navRail.publish(session, libraries, discoverAvailable, playlistsAvailable, layout)
     }
 
     /** Re-fetch home rows without tearing down state (covers app-foreground returns). */
@@ -238,6 +243,7 @@ class HomeViewModel @Inject constructor(
             }
             try {
                 val views = mediaRepository.userViews(session)
+                val playlistsAvailable = views.any { it.collectionType == CollectionType.PLAYLISTS }
                 val libraries = views.mapNotNull { view ->
                     val kinds = when (view.collectionType) {
                         CollectionType.MOVIES -> listOf(BaseItemKind.MOVIE)
@@ -273,6 +279,7 @@ class HomeViewModel @Inject constructor(
                         seerrRepository.state.value.linkState == SeerrLinkState.Linked
                     val availableIds = buildList {
                         addAll(libraries.map { it.key })
+                        if (playlistsAvailable) add(NAV_ID_PLAYLISTS)
                         if (discoverAvailable) add(NAV_ID_DISCOVER)
                     }
                     val layout = navLayoutStore.resolve(
@@ -280,7 +287,7 @@ class HomeViewModel @Inject constructor(
                         session.userId,
                         availableIds
                     )
-                    navRail.publish(session, libraries, discoverAvailable, layout)
+                    navRail.publish(session, libraries, discoverAvailable, playlistsAvailable, layout)
                     val pinnedIds = navRail.pinnedLibraries().map { it.id }
                     val rows = HomeContent.buildHomeRows(resume, nextUp, latest, pinnedIds)
                     val firstItem = rows.firstOrNull()?.items?.firstOrNull()
@@ -293,6 +300,7 @@ class HomeViewModel @Inject constructor(
                             rows = rows,
                             session = session,
                             libraries = libraries,
+                            playlistsAvailable = playlistsAvailable,
                             error = if (rows.isEmpty()) "Nothing to watch yet." else null,
                             focusedItemId = current.focusedItemId ?: firstItem?.id,
                             focusedRowIndex = if (current.focusedItemId == null) 0 else current.focusedRowIndex,

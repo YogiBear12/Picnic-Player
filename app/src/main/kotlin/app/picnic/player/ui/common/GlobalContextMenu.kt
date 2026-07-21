@@ -4,10 +4,14 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Article
 import androidx.compose.material.icons.filled.Favorite
@@ -50,6 +54,13 @@ import org.jellyfin.sdk.model.api.BaseItemKind
 
 private val ContextMenuGlassFill = PicnicColors.GlassFill
 
+/** An extra, caller-supplied context-menu row (e.g. Reorder / Remove from playlist). */
+data class ContextMenuExtra(
+    val label: String,
+    val icon: ImageVector,
+    val onClick: () -> Unit
+)
+
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 fun GlobalContextMenuDialog(
@@ -58,7 +69,9 @@ fun GlobalContextMenuDialog(
     onPlay: (itemId: String, startTicks: Long?) -> Unit,
     onMarkWatched: (Boolean) -> Unit,
     onToggleFavorite: (Boolean) -> Unit,
-    onGoToSeries: ((String) -> Unit)?
+    onGoToSeries: ((String) -> Unit)?,
+    onAddToPlaylist: (() -> Unit)? = null,
+    extraActions: List<ContextMenuExtra> = emptyList()
 ) {
     val played = item.userData?.played ?: false
     val isFavorite = item.userData?.isFavorite ?: false
@@ -134,6 +147,24 @@ fun GlobalContextMenuDialog(
         if (item.type == BaseItemKind.MOVIE || item.type == BaseItemKind.EPISODE) {
             add(MenuItem("View media info", Icons.Default.Info) { showMediaInfo = true })
         }
+
+        if (onAddToPlaylist != null) {
+            add(
+                MenuItem("Add to playlist", Icons.AutoMirrored.Filled.PlaylistAdd) {
+                    onAddToPlaylist()
+                    onDismiss()
+                }
+            )
+        }
+
+        extraActions.forEach { extra ->
+            add(
+                MenuItem(extra.label, extra.icon) {
+                    extra.onClick()
+                    onDismiss()
+                }
+            )
+        }
     }
 
     val focusRequesters = remember(items.size) { List(items.size) { FocusRequester() } }
@@ -146,9 +177,11 @@ fun GlobalContextMenuDialog(
             verticalArrangement = Arrangement.spacedBy(2.dp),
             modifier = Modifier
                 .width(380.dp)
+                .heightIn(max = 460.dp)
                 .shadow(8.dp, RoundedCornerShape(28.dp))
                 .clip(RoundedCornerShape(28.dp))
                 .background(ContextMenuGlassFill)
+                .verticalScroll(rememberScrollState())
                 .padding(24.dp)
                 // Release the held key so it can't immediately click the first enabled item.
                 .onKeyEvent { event ->

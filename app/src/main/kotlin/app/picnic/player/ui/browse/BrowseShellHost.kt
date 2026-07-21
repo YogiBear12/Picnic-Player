@@ -47,6 +47,7 @@ import app.picnic.player.ui.library.LibraryPaneViewModel
 import app.picnic.player.ui.library.LibraryTab
 import app.picnic.player.ui.library.forYouVmKey
 import app.picnic.player.ui.library.libraryPaneVmKey
+import app.picnic.player.ui.playlist.PlaylistsPane
 import app.picnic.player.ui.search.SearchPane
 import app.picnic.player.ui.search.SearchViewModel
 import app.picnic.player.ui.theme.PicnicColors
@@ -62,6 +63,7 @@ fun BrowseShellHost(
     onGenre: (BaseItemDto) -> Unit,
     onLibraryGenre: (BaseItemDto, BrowseDest.Library) -> Unit,
     onCollection: (BaseItemDto) -> Unit,
+    onPlaylist: (BaseItemDto) -> Unit,
     onSessionExpired: (String) -> Unit,
     onSettings: () -> Unit,
     onSwapUser: () -> Unit,
@@ -324,6 +326,13 @@ fun BrowseShellHost(
                                 seedContentFocus = seedPaneFocus,
                                 onContentFocusSeeded = onPaneSeeded,
                                 onSeerrItem = onSeerrItem
+                            )
+                            BrowseDest.Playlists -> PlaylistsPane(
+                                metrics = metrics,
+                                horizontalInset = paneInset,
+                                seedContentFocus = seedPaneFocus,
+                                onContentFocusSeeded = onPaneSeeded,
+                                onPlaylist = onPlaylist
                             )
                             is BrowseDest.Library -> LibraryPane(
                                 dest = dest,

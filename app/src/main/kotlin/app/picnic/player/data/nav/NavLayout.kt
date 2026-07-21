@@ -5,6 +5,9 @@ import kotlinx.serialization.Serializable
 /** Stable id for the Discover destination in persisted nav layouts. */
 const val NAV_ID_DISCOVER = "discover"
 
+/** Stable id for the Playlists destination in persisted nav layouts. */
+const val NAV_ID_PLAYLISTS = "playlists"
+
 /**
  * Per-user sidebar layout: customisable destinations split into pinned (page 1)
  * and unpinned (More / page 2), each in user order.
