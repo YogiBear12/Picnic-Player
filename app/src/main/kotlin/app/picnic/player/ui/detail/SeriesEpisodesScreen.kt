@@ -490,6 +490,18 @@ fun SeriesEpisodesScreen(
         }
     }
 
+    // Season → Right: when the target episode is already on screen, let focusProperties move
+    // focus with no scroll (list stays put); only scroll it into view when it is off-screen.
+    // Returning false = "not consumed", so the declarative `right` target takes over.
+    fun rightToEpisodesConsumed(): Boolean {
+        val count = episodes.itemCount
+        if (count <= 0) return false
+        val idx = targetEpisodeIndex.coerceIn(0, count - 1)
+        if (episodeListState.layoutInfo.visibleItemsInfo.any { it.index == idx }) return false
+        focusTargetEpisode()
+        return true
+    }
+
     var contextMenuEpisode by remember { mutableStateOf<BaseItemDto?>(null) }
     var contextMenuSeason by remember { mutableStateOf<BaseItemDto?>(null) }
     // Tracks the season we last auto-scrolled, so refreshing the same season's episodes
@@ -740,8 +752,7 @@ fun SeriesEpisodesScreen(
                                     .focusProperties { right = episodeFocusRequesters[targetEpisodeIndex] }
                                     .onKeyEvent { event ->
                                         if (event.key == Key.DirectionRight && event.type == KeyEventType.KeyDown) {
-                                            focusTargetEpisode()
-                                            true
+                                            rightToEpisodesConsumed()
                                         } else {
                                             false
                                         }

@@ -5,9 +5,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowForward
@@ -404,9 +407,11 @@ private fun GlassContextMenu(
             verticalArrangement = Arrangement.spacedBy(2.dp),
             modifier = Modifier
                 .width(380.dp)
+                .heightIn(max = 460.dp)
                 .shadow(8.dp, RoundedCornerShape(28.dp))
                 .clip(RoundedCornerShape(28.dp))
                 .background(ContextMenuGlassFill)
+                .verticalScroll(rememberScrollState())
                 .padding(24.dp)
         ) {
             items.forEachIndexed { index, item ->
