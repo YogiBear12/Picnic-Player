@@ -452,6 +452,10 @@ class PlayerViewModel @Inject constructor(
                             player.currentPosition * TICKS_PER_MS
                         )
                     }
+                    // After the session exists, refine Transcode→Direct Stream when video is remuxed.
+                    if (info.playMethod == app.picnic.player.data.playback.PlayMethodKind.TRANSCODE) {
+                        refreshTranscodingInfoOnce(activeSession, info.mediaSourceId, info.playMethod)
+                    }
                 }
             } catch (e: Exception) {
                 _state.update { it.copy(error = "Could not start playback", buffering = false, isLoading = false) }
@@ -490,14 +494,21 @@ class PlayerViewModel @Inject constructor(
     }
 
     private fun updateTranscodingInfoJob() {
-        val currentState = _state.value
-        if (currentState.showStatsForNerds && currentState.playMethod == app.picnic.player.data.playback.PlayMethodKind.TRANSCODE) {
+        // Gate on the *resolved* stream method (not the refined UI label): remuxes start as
+        // TRANSCODE in PlaybackInfo and stay on the transcoding pipeline even after we display
+        // Direct Stream once isVideoDirect is known.
+        val pipelineTranscode = stream?.playMethod == app.picnic.player.data.playback.PlayMethodKind.TRANSCODE
+        if (_state.value.showStatsForNerds && pipelineTranscode) {
             if (transcodingInfoJob == null) {
                 transcodingInfoJob = viewModelScope.launch {
                     val session = authRepository.activeSession() ?: return@launch
                     while (isActive) {
-                        val info = playbackRepository.getTranscodingInfo(session)
-                        _state.update { it.copy(transcodingInfo = info) }
+                        refreshTranscodingInfoOnce(
+                            session,
+                            mediaSourceId = stream?.mediaSourceId,
+                            initialMethod = stream?.playMethod
+                                ?: app.picnic.player.data.playback.PlayMethodKind.TRANSCODE
+                        )
                         delay(2.seconds)
                     }
                 }
@@ -505,6 +516,20 @@ class PlayerViewModel @Inject constructor(
         } else {
             transcodingInfoJob?.cancel()
             transcodingInfoJob = null
+        }
+    }
+
+    private suspend fun refreshTranscodingInfoOnce(
+        session: UserSession,
+        mediaSourceId: String?,
+        initialMethod: app.picnic.player.data.playback.PlayMethodKind
+    ) {
+        val info = playbackRepository.getTranscodingInfo(session, mediaSourceId) ?: return
+        _state.update {
+            it.copy(
+                transcodingInfo = info,
+                playMethod = app.picnic.player.data.playback.refinePlayMethod(initialMethod, info)
+            )
         }
     }
 

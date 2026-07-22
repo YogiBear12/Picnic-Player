@@ -133,8 +133,16 @@ fun StatsForNerdsPanel(
                         "Playback" to playMethodLabel
                     )
 
-                    if (state.transcodingInfo?.transcodeReasons?.isNotEmpty() == true) {
-                        playbackInfoRows.add("Transcode reason" to state.transcodingInfo.transcodeReasons.joinToString(", "))
+                    val reasons = state.transcodingInfo?.transcodeReasons.orEmpty()
+                    if (reasons.isNotEmpty()) {
+                        val reasonLabel = if (
+                            state.playMethod == app.picnic.player.data.playback.PlayMethodKind.DIRECT_STREAM
+                        ) {
+                            "Remux reason"
+                        } else {
+                            "Transcode reason"
+                        }
+                        playbackInfoRows.add(reasonLabel to reasons.joinToString(", "))
                     }
                     playbackInfoRows.add("Dropped frames" to droppedFrames)
 

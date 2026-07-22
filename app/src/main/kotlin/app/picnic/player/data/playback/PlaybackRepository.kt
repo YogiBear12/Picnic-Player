@@ -272,13 +272,25 @@ class PlaybackRepository @Inject constructor(
         trickplayFromItem(item, maxWidth)
     }
 
-    suspend fun getTranscodingInfo(session: UserSession): TranscodingInfo? = onIo {
+    /**
+     * Live transcoding/remux stats for the current device session.
+     * Prefers a session whose [mediaSourceId] matches and that already has [TranscodingInfo].
+     */
+    suspend fun getTranscodingInfo(
+        session: UserSession,
+        mediaSourceId: String? = null
+    ): TranscodingInfo? = onIo {
         runCatching {
-            api(session).sessionApi
+            val sessions = api(session).sessionApi
                 .getSessions(deviceId = deviceIdentityStore.deviceId)
                 .content
-                .firstOrNull()
-                ?.transcodingInfo
+            val matched = sessions.firstOrNull { s ->
+                mediaSourceId != null &&
+                    s.playState?.mediaSourceId == mediaSourceId &&
+                    s.transcodingInfo != null
+            }
+            val withInfo = sessions.firstOrNull { it.transcodingInfo != null }
+            (matched ?: withInfo ?: sessions.firstOrNull())?.transcodingInfo
         }.getOrNull()
     }
 }

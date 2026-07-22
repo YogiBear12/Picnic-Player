@@ -5,6 +5,22 @@ import org.jellyfin.sdk.model.api.MediaStream
 /** How a resolved source is delivered. */
 enum class PlayMethodKind { DIRECT_PLAY, DIRECT_STREAM, TRANSCODE }
 
+/**
+ * Refine the PlaybackInfo play method using live [TranscodingInfo] from the session.
+ *
+ * Jellyfin often serves remuxes over a transcoding URL (`supportsDirectStream=false`),
+ * so the initial method is [PlayMethodKind.TRANSCODE] even when video is only remuxed.
+ * When [org.jellyfin.sdk.model.api.TranscodingInfo.isVideoDirect] is true, treat that as
+ * Direct Stream (container/metadata remux, video not re-encoded).
+ */
+fun refinePlayMethod(
+    initial: PlayMethodKind,
+    info: org.jellyfin.sdk.model.api.TranscodingInfo?
+): PlayMethodKind {
+    if (info == null || initial == PlayMethodKind.DIRECT_PLAY) return initial
+    return if (info.isVideoDirect) PlayMethodKind.DIRECT_STREAM else PlayMethodKind.TRANSCODE
+}
+
 /** A ready-to-play stream resolved from the server's PlaybackInfo. */
 data class StreamInfo(
     val url: String,

@@ -10,6 +10,7 @@ import org.jellyfin.sdk.model.api.EncodingContext
 import org.jellyfin.sdk.model.api.MediaStreamProtocol
 import org.jellyfin.sdk.model.api.ProfileConditionValue
 import org.jellyfin.sdk.model.api.SubtitleDeliveryMethod
+import org.jellyfin.sdk.model.deviceprofile.DeviceProfileBuilder
 import org.jellyfin.sdk.model.deviceprofile.buildDeviceProfile
 
 object DynamicProfileBuilder {
@@ -38,6 +39,19 @@ object DynamicProfileBuilder {
             "mpeg",
             "mpeg2video"
         ).toTypedArray()
+
+        val unsupportedHevcRanges = unsupportedHevcRangeTypes(
+            supportsHevcDolbyVision = capabilities.supportsHevcDolbyVision(),
+            supportsHevcDolbyVisionEL = capabilities.supportsHevcDolbyVisionEL(),
+            supportsHevcHDR10 = capabilities.supportsHevcHDR10(),
+            supportsHevcHDR10Plus = capabilities.supportsHevcHDR10Plus(),
+            forceDoviProfile7 = settings.forceDoviProfile7
+        )
+        val unsupportedAv1Ranges = unsupportedAv1RangeTypes(
+            supportsAV1DolbyVision = capabilities.supportsAV1DolbyVision(),
+            supportsAV1HDR10 = capabilities.supportsAV1HDR10(),
+            supportsAV1HDR10Plus = capabilities.supportsAV1HDR10Plus()
+        )
 
         return buildDeviceProfile {
             name = "Picnic Player"
@@ -75,7 +89,6 @@ object DynamicProfileBuilder {
                 audioCodec(*transcodeAudioCodecs)
             }
 
-            // Codec Profiles
             codecProfile {
                 type = CodecType.VIDEO
                 codec = "hevc"
@@ -84,12 +97,6 @@ object DynamicProfileBuilder {
                         ProfileConditionValue.VIDEO_PROFILE equals "none"
                     } else {
                         ProfileConditionValue.VIDEO_PROFILE notEquals "none"
-                    }
-                }
-
-                applyConditions {
-                    if (!settings.forceDoviProfile7 && !capabilities.supportsHevcDolbyVisionEL()) {
-                        ProfileConditionValue.VIDEO_RANGE_TYPE inCollection listOf("DOVIWithEL", "DOVIWithELHDR10Plus")
                     }
                 }
             }
@@ -105,6 +112,9 @@ object DynamicProfileBuilder {
                     }
                 }
             }
+
+            excludeUnsupportedVideoRanges("hevc", unsupportedHevcRanges)
+            excludeUnsupportedVideoRanges("av1", unsupportedAv1Ranges)
 
             codecProfile {
                 type = CodecType.VIDEO_AUDIO
@@ -157,5 +167,30 @@ object DynamicProfileBuilder {
         subtitleProfile("subrip", SubtitleDeliveryMethod.EMBED)
         subtitleProfile("pgssub", SubtitleDeliveryMethod.EMBED)
         subtitleProfile("vtt", SubtitleDeliveryMethod.EXTERNAL)
+    }
+}
+
+/**
+ * Ask the server to remux/transcode when [codec] media uses an unsupported [VideoRangeType].
+ *
+ * Jellyfin only applies a codec profile when [applyConditions] match. The failing
+ * `VIDEO_RANGE_TYPE notEquals …` condition then drives StreamBuilder away from Direct Play.
+ * A plain "not equals" without apply-conditions would never attach to the right titles.
+ */
+private fun DeviceProfileBuilder.excludeUnsupportedVideoRanges(
+    codec: String,
+    unsupportedRangeTypes: Set<String>
+) {
+    if (unsupportedRangeTypes.isEmpty()) return
+    val joined = unsupportedRangeTypes.joinToString("|")
+    codecProfile {
+        type = CodecType.VIDEO
+        this.codec = codec
+        conditions {
+            ProfileConditionValue.VIDEO_RANGE_TYPE notEquals joined
+        }
+        applyConditions {
+            ProfileConditionValue.VIDEO_RANGE_TYPE inCollection unsupportedRangeTypes.toList()
+        }
     }
 }
