@@ -1,6 +1,8 @@
 package app.picnic.player.data.auth
 
 import app.picnic.player.data.jellyfin.JellyfinFactory
+import app.picnic.player.data.jellyfin.isAuthFailure
+import app.picnic.player.data.jellyfin.serverErrorMessage
 import app.picnic.player.data.seerr.SeerrRepository
 import app.picnic.player.di.IoDispatcher
 import dagger.Lazy
@@ -19,6 +21,18 @@ import org.jellyfin.sdk.discovery.RecommendedServerIssue
 import org.jellyfin.sdk.model.api.AuthenticateUserByName
 import org.jellyfin.sdk.model.api.AuthenticationResult
 import org.jellyfin.sdk.model.api.QuickConnectDto
+
+/** Outcome of checking a stored session against its server. */
+sealed interface SessionCheck {
+    /** Token accepted — the session is usable. */
+    data object Valid : SessionCheck
+
+    /** Server rejected the token (401/403) — re-login required. */
+    data object AuthInvalid : SessionCheck
+
+    /** Server couldn't be reached or errored; [message] is the card/label text. */
+    data class Unreachable(val message: String) : SessionCheck
+}
 
 /**
  * Authentication + onboarded-server/session management, built on the
@@ -100,10 +114,23 @@ class AuthRepository @Inject constructor(
     }
 
     /** Lightweight check that the stored access token is still accepted by the server. */
-    suspend fun validateSession(session: UserSession): Boolean = onIo {
+    /**
+     * Checks the stored token against the server, distinguishing a rejected token from an
+     * unreachable server — so a transient network failure no longer expires a good session.
+     */
+    suspend fun validateSession(session: UserSession): SessionCheck = onIo {
         runCatching {
             jellyfin.api(session.server.baseUrl, session.accessToken).userApi.getCurrentUser()
-        }.isSuccess
+        }.fold(
+            onSuccess = { SessionCheck.Valid },
+            onFailure = { e ->
+                if (e.isAuthFailure()) {
+                    SessionCheck.AuthInvalid
+                } else {
+                    SessionCheck.Unreachable(e.serverErrorMessage())
+                }
+            }
+        )
     }
 
     suspend fun sessionAuthErrors(serverId: String): Map<String, String> = credentials.sessionAuthErrors(serverId)

@@ -101,6 +101,14 @@ fun PicnicNavHost(
         resetStackTo(ProfilePickerKey(serverId))
     }
 
+    // Server unreachable / erroring: tear the stack down to Select Server with the error flagged
+    // on that server's tile (mirrors goProfilePicker for the token-rejected case).
+    fun goServerPicker(serverId: String, errorText: String) {
+        backdropController.clear()
+        rail.clear()
+        resetStackTo(ServerPickerKey(serverId, errorText))
+    }
+
     // Sign-out / session-expiry tears the whole stack down — drop the backdrop and rail.
     fun goStartup() {
         backdropController.clear()
@@ -226,7 +234,7 @@ fun PicnicNavHost(
                             onBack = { navViewModel.pop() }
                         )
                     }
-                    entry<ServerPickerKey> {
+                    entry<ServerPickerKey> { key ->
                         ServerPickerScreen(
                             onServerSelected = { serverId ->
                                 navViewModel.push(ProfilePickerKey(serverId))
@@ -234,7 +242,9 @@ fun PicnicNavHost(
                             onAddServer = { navViewModel.push(ServerEntryKey) },
                             onNoServersLeft = {
                                 navViewModel.replaceTop(ServerEntryKey)
-                            }
+                            },
+                            unreachableServerId = key.unreachableServerId,
+                            errorText = key.errorText
                         )
                     }
                     entry<ProfilePickerKey> { key ->
@@ -247,7 +257,7 @@ fun PicnicNavHost(
                                 }
                             },
                             onNeedsLogin = { navViewModel.push(LoginKey) },
-                            onChangeServer = { navViewModel.push(ServerPickerKey) }
+                            onChangeServer = { navViewModel.push(ServerPickerKey()) }
                         )
                     }
                     entry<BrowseKey> {
@@ -280,6 +290,7 @@ fun PicnicNavHost(
                                 )
                             },
                             onSessionExpired = { serverId -> goProfilePicker(serverId) },
+                            onServerUnreachable = { serverId, msg -> goServerPicker(serverId, msg) },
                             onSettings = { navViewModel.push(SettingsKey) },
                             onSwapUser = onSwapUser,
                             drawerState = drawerState

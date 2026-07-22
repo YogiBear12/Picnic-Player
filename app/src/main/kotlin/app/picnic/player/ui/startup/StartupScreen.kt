@@ -14,6 +14,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import androidx.navigation3.runtime.NavKey
 import app.picnic.player.data.auth.AuthRepository
+import app.picnic.player.data.auth.SessionCheck
 import app.picnic.player.data.seerr.SeerrRepository
 import app.picnic.player.ui.navigation.BrowseKey
 import app.picnic.player.ui.navigation.ProfilePickerKey
@@ -31,6 +32,7 @@ import kotlinx.coroutines.launch
 class StartupViewModel @Inject constructor(
     private val authRepository: AuthRepository,
     private val seerrRepository: SeerrRepository,
+    private val homeLoader: app.picnic.player.data.media.HomeContentLoader,
     private val settingsStore: app.picnic.player.data.settings.SettingsStore,
     serverDiscovery: app.picnic.player.data.media.ServerDiscovery
 ) : ViewModel() {
@@ -54,22 +56,31 @@ class StartupViewModel @Inject constructor(
      * install starts the onboarding wizard at server entry.
      */
     private suspend fun resolveDestination(): NavKey {
-        // Active session → Home when the token still works AND auto-login is enabled.
-        // With auto-login off, land on the profile picker (Select User) instead of
-        // signing straight into the last-used profile. Invalid tokens always expire
-        // and fall through to the picker.
+        // Active session → Home when the token still works AND auto-login is enabled. With
+        // auto-login off, land on the profile picker (Select User). A REJECTED token expires and
+        // falls through to the picker; an UNREACHABLE server routes to Select Server with an error
+        // on its card and, crucially, does NOT expire the token — the server's just down.
         authRepository.activeSession()?.let { session ->
-            return if (authRepository.validateSession(session)) {
-                val autoLogin = settingsStore.settings.first().autoLoginLastUser
-                if (autoLogin) {
-                    seerrRepository.attach(session)
-                    BrowseKey
-                } else {
+            return when (val check = authRepository.validateSession(session)) {
+                SessionCheck.Valid -> {
+                    val autoLogin = settingsStore.settings.first().autoLoginLastUser
+                    if (autoLogin) {
+                        seerrRepository.attach(session)
+                        // Start the home fetch NOW so it overlaps the rest of the splash — Home
+                        // re-uses this in-flight work and usually lands on fresh rows immediately.
+                        // Fire-and-forget; the loader runs in the app scope.
+                        homeLoader.prefetch(session)
+                        BrowseKey
+                    } else {
+                        ProfilePickerKey(session.server.id)
+                    }
+                }
+                SessionCheck.AuthInvalid -> {
+                    authRepository.expireStoredSession(session.server.id, session.userId)
                     ProfilePickerKey(session.server.id)
                 }
-            } else {
-                authRepository.expireStoredSession(session.server.id, session.userId)
-                ProfilePickerKey(session.server.id)
+                is SessionCheck.Unreachable ->
+                    ServerPickerKey(session.server.id, check.message)
             }
         }
         val servers = authRepository.onboardedServers()
@@ -78,7 +89,7 @@ class StartupViewModel @Inject constructor(
         return if (activeServer != null && servers.any { it.id == activeServer }) {
             ProfilePickerKey(activeServer)
         } else {
-            ServerPickerKey
+            ServerPickerKey()
         }
     }
 }

@@ -65,6 +65,7 @@ fun BrowseShellHost(
     onCollection: (BaseItemDto) -> Unit,
     onPlaylist: (BaseItemDto) -> Unit,
     onSessionExpired: (String) -> Unit,
+    onServerUnreachable: (String, String) -> Unit,
     onSettings: () -> Unit,
     onSwapUser: () -> Unit,
     drawerState: DrawerState,
@@ -123,6 +124,13 @@ fun BrowseShellHost(
         homeState.sessionExpiredServerId?.let {
             homeViewModel.consumeSessionExpired()
             onSessionExpired(it)
+        }
+    }
+
+    LaunchedEffect(homeState.serverUnreachable) {
+        homeState.serverUnreachable?.let { (serverId, message) ->
+            homeViewModel.consumeServerUnreachable()
+            onServerUnreachable(serverId, message)
         }
     }
 

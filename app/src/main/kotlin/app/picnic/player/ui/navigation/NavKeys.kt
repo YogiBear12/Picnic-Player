@@ -21,8 +21,15 @@ data object ServerEntryKey : NavKey
 @Serializable
 data object LoginKey : NavKey
 
+/**
+ * Return-user server list. [unreachableServerId] + [errorText] flag a server that just failed
+ * to load (down / erroring) with an error state on its tile — null on a normal visit.
+ */
 @Serializable
-data object ServerPickerKey : NavKey
+data class ServerPickerKey(
+    val unreachableServerId: String? = null,
+    val errorText: String? = null
+) : NavKey
 
 @Serializable
 data class ProfilePickerKey(val serverId: String) : NavKey

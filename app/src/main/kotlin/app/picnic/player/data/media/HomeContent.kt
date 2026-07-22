@@ -8,8 +8,7 @@ import org.jellyfin.sdk.model.api.BaseItemDto
 /**
  * One home row — Continue watching, or "Recently added in {library}".
  *
- * [Serializable] so [HomeCache] can persist rows for stale-while-revalidate render;
- * [BaseItemDto] carries its own SDK serializer.
+ * [Serializable] via [BaseItemDto]'s own SDK serializer.
  */
 @Serializable
 @Immutable

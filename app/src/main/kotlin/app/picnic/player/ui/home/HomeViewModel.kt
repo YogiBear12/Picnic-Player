@@ -6,10 +6,11 @@ import androidx.lifecycle.viewModelScope
 import app.picnic.player.data.auth.AuthRepository
 import app.picnic.player.data.auth.UserSession
 import app.picnic.player.data.jellyfin.isAuthFailure
-import app.picnic.player.data.media.HomeCache
+import app.picnic.player.data.jellyfin.serverErrorMessage
 import app.picnic.player.data.media.HomeContent
+import app.picnic.player.data.media.HomeContentLoader
+import app.picnic.player.data.media.HomeResult
 import app.picnic.player.data.media.HomeRow
-import app.picnic.player.data.media.HomeSnapshot
 import app.picnic.player.data.media.LibraryChangeBus
 import app.picnic.player.data.media.MediaRepository
 import app.picnic.player.data.media.planHeroStreamPrefetch
@@ -47,8 +48,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import org.jellyfin.sdk.model.api.BaseItemDto
-import org.jellyfin.sdk.model.api.BaseItemKind
-import org.jellyfin.sdk.model.api.CollectionType
 import org.jellyfin.sdk.model.api.MediaStream
 
 @OptIn(FlowPreview::class)
@@ -57,7 +56,7 @@ class HomeViewModel @Inject constructor(
     @ApplicationContext private val appContext: Context,
     private val authRepository: AuthRepository,
     private val mediaRepository: MediaRepository,
-    private val homeCache: HomeCache,
+    private val homeLoader: HomeContentLoader,
     private val changeBus: LibraryChangeBus,
     settingsStore: SettingsStore,
     val ambientLoader: AmbientPaletteLoader,
@@ -72,6 +71,9 @@ class HomeViewModel @Inject constructor(
         val session: UserSession? = null,
         val error: String? = null,
         val sessionExpiredServerId: String? = null,
+        /** One-shot: (serverId, errorText) when a cold load failed to reach the server — the host
+         *  routes to Select Server. Distinct from [sessionExpiredServerId] (token rejected). */
+        val serverUnreachable: Pair<String, String>? = null,
         val focusedRowIndex: Int = 0,
         val focusedItemId: UUID? = null,
         /** Per-row last-focused card — survives vertical moves and tab switches. */
@@ -146,8 +148,17 @@ class HomeViewModel @Inject constructor(
         navRail.publish(session, libraries, discoverAvailable, playlistsAvailable, layout)
     }
 
-    /** Re-fetch home rows without tearing down state (covers app-foreground returns). */
-    fun refresh() = load()
+    /**
+     * Re-fetch home rows without tearing down state (covers app-foreground returns and library
+     * changes). Bypasses the prefetch memo — the rows are already on screen, so this always hits
+     * the network to re-check staleness, and keeps the current rows until fresh data lands.
+     */
+    fun refresh() {
+        viewModelScope.launch {
+            val session = _state.value.session ?: authRepository.activeSession() ?: return@launch
+            applyOrError(runCatching { homeLoader.fetch(session) }, session)
+        }
+    }
 
     fun focusedItem(state: UiState = _state.value): BaseItemDto? {
         val rows = state.rows
@@ -200,6 +211,10 @@ class HomeViewModel @Inject constructor(
         _state.update { it.copy(sessionExpiredServerId = null) }
     }
 
+    fun consumeServerUnreachable() {
+        _state.update { it.copy(serverUnreachable = null) }
+    }
+
     fun softLogout() {
         viewModelScope.launch { authRepository.logout() }
     }
@@ -217,127 +232,71 @@ class HomeViewModel @Inject constructor(
                 channelSyncRequested = true
                 TvChannelReceiver.enqueueImmediateSync(appContext)
             }
-            val cacheKey = "${session.server.id}|${session.userId}"
-            // Stale-while-revalidate: on a cold entry paint the last-known rows from disk
-            // instantly, then fall through to refresh from the network and swap in fresh data.
-            // Skipped on refresh (rows already on screen) so live content never flashes to cache.
-            if (_state.value.rows.isEmpty()) {
-                homeCache.read(cacheKey)?.let { snap ->
-                    if (_state.value.rows.isEmpty()) {
-                        val cachedFirst = snap.rows.firstOrNull()?.items?.firstOrNull()
-                        _state.update { current ->
-                            current.copy(
-                                loading = false,
-                                rows = snap.rows,
-                                session = session,
-                                seasonCounts = snap.seasonCounts.toUuidCounts(),
-                                focusedItemId = current.focusedItemId ?: cachedFirst?.id,
-                                rowFocusedItemIds = current.rowFocusedItemIds.ifEmpty {
-                                    cachedFirst?.let { mapOf(0 to it.id) } ?: emptyMap()
-                                },
-                                heroStreams = snap.heroStreams.toUuidStreams()
-                            )
-                        }
-                    }
-                }
-            }
-            try {
-                val views = mediaRepository.userViews(session)
-                val playlistsAvailable = views.any { it.collectionType == CollectionType.PLAYLISTS }
-                val libraries = views.mapNotNull { view ->
-                    val kinds = when (view.collectionType) {
-                        CollectionType.MOVIES -> listOf(BaseItemKind.MOVIE)
-                        CollectionType.TVSHOWS -> listOf(BaseItemKind.SERIES)
-                        // Mixed content libraries report no collection type.
-                        null, CollectionType.UNKNOWN -> listOf(BaseItemKind.MOVIE, BaseItemKind.SERIES)
-                        else -> return@mapNotNull null // music / photos / books / etc.
-                    }
-                    BrowseDest.Library(view.id, view.name.orEmpty(), kinds)
-                }
-                coroutineScope {
-                    val resumeDeferred = async {
-                        runCatching { mediaRepository.resumeItems(session) }.getOrDefault(emptyList())
-                    }
-                    val nextUpDeferred = async {
-                        runCatching { mediaRepository.nextUp(session) }.getOrDefault(emptyList())
-                    }
-                    val latestDeferred = views.map { view ->
-                        async {
-                            view to runCatching {
-                                mediaRepository.latestInLibrary(session, view.id)
-                            }.getOrDefault(emptyList())
-                        }
-                    }
-                    val resume = resumeDeferred.await()
-                    val nextUp = nextUpDeferred.await()
-                    val latest = latestDeferred.awaitAll()
-                    lastResume = resume
-                    lastNextUp = nextUp
-                    latestByLibrary = latest
+            // The startup splash already fired this fetch, so it's usually done by the time Home
+            // composes — awaiting it then lands fresh rows immediately. We await the whole fetch
+            // (no time gate): the spinner shows until fresh data is ready, so the pane never opens
+            // on stale content. The disk cache is a fallback for a FAILED fetch only (see below).
+            val deferred = homeLoader.prefetch(session)
+            applyOrError(runCatching { deferred.await() }, session)
+        }
+    }
 
-                    val discoverAvailable =
-                        seerrRepository.state.value.linkState == SeerrLinkState.Linked
-                    val availableIds = buildList {
-                        addAll(libraries.map { it.key })
-                        if (playlistsAvailable) add(NAV_ID_PLAYLISTS)
-                        if (discoverAvailable) add(NAV_ID_DISCOVER)
-                    }
-                    val layout = navLayoutStore.resolve(
-                        session.server.id,
-                        session.userId,
-                        availableIds
-                    )
-                    navRail.publish(session, libraries, discoverAvailable, playlistsAvailable, layout)
-                    val pinnedIds = navRail.pinnedLibraries().map { it.id }
-                    val rows = HomeContent.buildHomeRows(resume, nextUp, latest, pinnedIds)
-                    val firstItem = rows.firstOrNull()?.items?.firstOrNull()
-                    _state.update { current ->
-                        val rowIds = current.rowFocusedItemIds.ifEmpty {
-                            firstItem?.let { mapOf(0 to it.id) } ?: emptyMap()
-                        }
-                        current.copy(
-                            loading = false,
-                            rows = rows,
-                            session = session,
-                            libraries = libraries,
-                            playlistsAvailable = playlistsAvailable,
-                            error = if (rows.isEmpty()) "Nothing to watch yet." else null,
-                            focusedItemId = current.focusedItemId ?: firstItem?.id,
-                            focusedRowIndex = if (current.focusedItemId == null) 0 else current.focusedRowIndex,
-                            rowFocusedItemIds = rowIds
-                        )
-                    }
-                    // Season counts feed only the hero's "N seasons" line for the focused
-                    // series; resolve them off the critical path (count-only per-series
-                    // queries) so rows paint immediately, then patch labels in as they land.
-                    resolveSeasonCounts(session, rows)
-                    // Persist the fresh snapshot for the next cold start's instant render.
-                    homeCache.write(
-                        cacheKey,
-                        HomeSnapshot(
-                            rows = rows,
-                            seasonCounts = _state.value.seasonCounts.mapKeys { it.key.toString() },
-                            heroStreams = _state.value.heroStreams.mapKeys { it.key.toString() }
-                        )
-                    )
-                    focusChangedFlow.tryEmit(Unit)
-                }
-            } catch (e: Exception) {
-                val active = session
+    /** Applies a fetched result, or routes its failure through the session/error handling. */
+    private suspend fun applyOrError(result: Result<HomeResult>, session: UserSession) {
+        result
+            .onSuccess { applyFresh(it) }
+            .onFailure { e ->
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 if (e.isAuthFailure()) {
-                    authRepository.expireStoredSession(active.server.id, active.userId)
+                    authRepository.expireStoredSession(session.server.id, session.userId)
                     _state.update {
                         it.copy(
                             loading = true,
                             session = null,
-                            sessionExpiredServerId = active.server.id
+                            sessionExpiredServerId = session.server.id
                         )
                     }
-                } else {
-                    _state.update { it.copy(loading = false, error = "Could not load home") }
+                } else if (_state.value.rows.isEmpty()) {
+                    // Cold load with nothing on screen and the server errored/unreachable: route to
+                    // Select Server with the error flagged on its tile. Never a stale disk paint. A
+                    // failed REFRESH (rows already on screen) keeps those live rows and routes nowhere.
+                    _state.update {
+                        it.copy(
+                            loading = true,
+                            serverUnreachable = session.server.id to e.serverErrorMessage()
+                        )
+                    }
                 }
             }
+    }
+
+    /** Swaps fresh rows into state, then resolves season counts off the critical path. */
+    private suspend fun applyFresh(result: HomeResult) {
+        lastResume = result.resume
+        lastNextUp = result.nextUp
+        latestByLibrary = result.latestByLibrary
+        val firstItem = result.rows.firstOrNull()?.items?.firstOrNull()
+        _state.update { current ->
+            val rowIds = current.rowFocusedItemIds.ifEmpty {
+                firstItem?.let { mapOf(0 to it.id) } ?: emptyMap()
+            }
+            current.copy(
+                loading = false,
+                rows = result.rows,
+                session = result.session,
+                libraries = result.libraries,
+                playlistsAvailable = result.playlistsAvailable,
+                error = if (result.rows.isEmpty()) "Nothing to watch yet." else null,
+                focusedItemId = current.focusedItemId ?: firstItem?.id,
+                focusedRowIndex = if (current.focusedItemId == null) 0 else current.focusedRowIndex,
+                rowFocusedItemIds = rowIds
+            )
         }
+        // Season counts feed only the hero's "N seasons" line for the focused series; resolve
+        // them off the critical path (count-only per-series queries) so rows paint immediately,
+        // then patch labels in as they land.
+        resolveSeasonCounts(result.session, result.rows)
+        focusChangedFlow.tryEmit(Unit)
     }
 
     /** Re-apply pin order to the last fetched home payload (no network). */
@@ -352,15 +311,6 @@ class HomeViewModel @Inject constructor(
             )
         }
     }
-
-    /** Rebuilds the UUID-keyed season-count map from its string-keyed cached form. */
-    private fun Map<String, Int>.toUuidCounts(): Map<UUID, Int> = mapNotNull { (key, value) ->
-        runCatching { UUID.fromString(key) }.getOrNull()?.let { it to value }
-    }.toMap()
-
-    private fun Map<String, List<MediaStream>>.toUuidStreams(): Map<UUID, List<MediaStream>> = mapNotNull { (key, value) ->
-        runCatching { UUID.fromString(key) }.getOrNull()?.let { it to value }
-    }.toMap()
 
     private suspend fun prefetchStreamsAhead() {
         val stateSnapshot = _state.value

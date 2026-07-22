@@ -18,6 +18,7 @@ fun HomeScreen(
     onCollection: (BaseItemDto) -> Unit,
     onPlaylist: (BaseItemDto) -> Unit,
     onSessionExpired: (String) -> Unit,
+    onServerUnreachable: (String, String) -> Unit,
     onSettings: () -> Unit,
     onSwapUser: () -> Unit,
     drawerState: DrawerState
@@ -29,6 +30,7 @@ fun HomeScreen(
     onCollection = onCollection,
     onPlaylist = onPlaylist,
     onSessionExpired = onSessionExpired,
+    onServerUnreachable = onServerUnreachable,
     onSettings = onSettings,
     onSwapUser = onSwapUser,
     drawerState = drawerState

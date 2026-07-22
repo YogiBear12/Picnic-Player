@@ -89,7 +89,7 @@ fun ProfilePickerScreen(
                     id = it.userId,
                     label = it.name,
                     imageUrl = it.imageUrl,
-                    authError = it.authError
+                    errorText = it.authError
                 )
             },
             addTile = if (!state.loading) {

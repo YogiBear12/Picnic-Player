@@ -80,7 +80,8 @@ data class PickerEntry(
     val fallbackInitial: String? = null,
     val icon: ImageVector? = null,
     val editable: Boolean = true,
-    val authError: String? = null
+    /** Non-null flags this tile as errored (red border + warning icon); text is the reason. */
+    val errorText: String? = null
 )
 
 /** Outer slot so focus scale + glow are not clipped (matches browse card slots). */
@@ -291,13 +292,13 @@ private fun PickerTile(
     val focusAccent = rememberCardFocusAccent(entry.imageUrl)
     val tileShape = CircleShape
     val supportsLongPress = entry.editable && !editingThis
-    val hasAuthError = entry.authError != null
+    val hasError = entry.errorText != null
     val focusBorderColor = when {
-        hasAuthError -> PicnicColors.Error
+        hasError -> PicnicColors.Error
         else -> focusAccent.borderColor
     }
     val focusGlowColor = when {
-        hasAuthError -> PicnicColors.Error
+        hasError -> PicnicColors.Error
         else -> focusAccent.glowColor
     }
     var focused by remember { mutableStateOf(false) }
@@ -379,10 +380,10 @@ private fun PickerTile(
                             )
                         }
                     }
-                    if (hasAuthError) {
+                    if (hasError) {
                         Icon(
                             Icons.Rounded.Warning,
-                            contentDescription = entry.authError,
+                            contentDescription = entry.errorText,
                             tint = PicnicColors.Error,
                             modifier = Modifier
                                 .align(Alignment.TopEnd)
