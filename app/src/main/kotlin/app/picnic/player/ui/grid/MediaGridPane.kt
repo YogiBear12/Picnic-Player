@@ -81,7 +81,13 @@ internal fun MediaGridPane(
     title: String? = null,
     startInset: androidx.compose.ui.unit.Dp = GridStartInset,
     /** Where Up from the grid's top row lands (a host's tab row); null = default search. */
-    upExitFocus: FocusRequester? = null
+    upExitFocus: FocusRequester? = null,
+    /** Also attached to the zero-result Clear button so a host can make Down from its tab
+     *  land there (spatial search otherwise grabs the rail's filter icon). */
+    emptyStateFocus: FocusRequester? = null,
+    /** Reports whether the pane is showing the zero-result-with-active-filter state, so the
+     *  host can route its tab's Down to [emptyStateFocus] only while it's reachable. */
+    onEmptyFilteredChange: (Boolean) -> Unit = {}
 ) {
     when {
         // Initial load only. Refilter/re-sort reloads keep the body (and the open
@@ -119,7 +125,9 @@ internal fun MediaGridPane(
             showContentType = showContentType,
             title = title,
             startInset = startInset,
-            upExitFocus = upExitFocus
+            upExitFocus = upExitFocus,
+            emptyStateFocus = emptyStateFocus,
+            onEmptyFilteredChange = onEmptyFilteredChange
         )
     }
 }
@@ -162,7 +170,9 @@ private fun MediaGridBody(
     showContentType: Boolean,
     title: String?,
     startInset: androidx.compose.ui.unit.Dp,
-    upExitFocus: FocusRequester?
+    upExitFocus: FocusRequester?,
+    emptyStateFocus: FocusRequester?,
+    onEmptyFilteredChange: (Boolean) -> Unit
 ) {
     val gridState = rememberLazyGridState(cacheWindow = GridCacheWindow)
     val firstFocus = remember { FocusRequester() }
@@ -192,6 +202,21 @@ private fun MediaGridBody(
 
     LaunchedEffect(panelOpen) {
         if (panelOpen) onPanelOpened()
+    }
+
+    // Clearing filters from the zero-result state removes the button (its own composable) the
+    // moment the refilter starts — focus would fall to the chrome. Re-seed onto the first card
+    // once the cleared list lands (the nav-return effect above is gated on seedContentFocus and
+    // won't fire here).
+    var pendingClearSeed by remember { mutableStateOf(false) }
+    LaunchedEffect(pendingClearSeed, totalCount, refreshing) {
+        if (!pendingClearSeed || refreshing) return@LaunchedEffect
+        // The held button unmounts this same frame; re-request across a frame so the hand-off
+        // to the freshly-composed first card lands rather than falling to the drawer.
+        runCatching { firstFocus.requestFocus() }
+        withFrameNanos { }
+        runCatching { firstFocus.requestFocus() }
+        pendingClearSeed = false
     }
 
     // Returning from navigation (Detail): scroll state and [focusedIndex] survived, but the
@@ -413,17 +438,30 @@ private fun MediaGridBody(
             )
         }
 
-        if (totalCount == 0 && !refreshing) {
+        // Zero-result-with-active-filter: the host routes its tab's Down here (see
+        // emptyStateFocus). Clearing flips filter.isActive false at once, and a Clear-driven
+        // refilter (pendingClearSeed) then holds the button MOUNTED so focus can't fall out to
+        // the drawer while the grid reloads — it hands off to the first card once results land.
+        val emptyFiltered = totalCount == 0 && filter.isActive
+        LaunchedEffect(emptyFiltered) { onEmptyFilteredChange(emptyFiltered) }
+        if (totalCount == 0 && (!refreshing || pendingClearSeed)) {
             GridEmptyFilteredState(
-                filterActive = filter.isActive,
+                filterActive = filter.isActive || pendingClearSeed,
                 focusRequester = adjustFiltersFocus,
-                onAdjustFilters = openPanel
+                downEntryFocus = emptyStateFocus,
+                upExitFocus = upExitFocus,
+                clearing = pendingClearSeed && refreshing,
+                onClearFilters = {
+                    pendingClearSeed = true
+                    onApplyFilterSort(filter.clearUserFilters(), sort)
+                }
             )
         }
 
         // Refilter in flight: spinner OVER the (kept-mounted) grid — never a teardown,
-        // so focus stays wherever it is (usually inside the panel above this).
-        if (refreshing || isJumpingToLetter) {
+        // so focus stays wherever it is (usually inside the panel above this). Suppressed
+        // during a Clear hold, where the button (not a spinner) carries the transition.
+        if ((refreshing && !pendingClearSeed) || isJumpingToLetter) {
             Box(Modifier.fillMaxSize(), Alignment.Center) {
                 CircularProgressIndicator(color = PicnicColors.Accent)
             }

@@ -13,6 +13,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
@@ -37,6 +38,9 @@ internal fun LibraryTabRow(
     onSelect: (LibraryTab) -> Unit,
     /** Attached to the SELECTED tab — content's Up-exit lands on it. */
     selectedTabFocus: FocusRequester,
+    /** Where Down from the selected tab lands; null = default search (a populated grid enters
+     *  its first card spatially). Set to the zero-result Clear button so it stays reachable. */
+    contentDownFocus: FocusRequester? = null,
     onFocusedChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -60,7 +64,9 @@ internal fun LibraryTabRow(
                         selected = index == selectedIndex,
                         onFocus = { onSelect(tab) },
                         modifier = if (index == selectedIndex) {
-                            Modifier.focusRequester(selectedTabFocus)
+                            Modifier
+                                .focusRequester(selectedTabFocus)
+                                .focusProperties { down = contentDownFocus ?: FocusRequester.Default }
                         } else {
                             Modifier
                         }

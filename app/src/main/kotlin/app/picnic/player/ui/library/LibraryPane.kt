@@ -106,6 +106,18 @@ internal fun LibraryPane(
     val selectedTab = paneState.selectedTab
     val tabFocus = remember { FocusRequester() }
     var tabRowFocused by remember { mutableStateOf(false) }
+    // A grid tab whose active filter yields no results exposes only a centered Clear button;
+    // the selected tab's Down must land there (spatial search would grab the rail's filter
+    // icon). Each grid tab owns a Clear-button requester + an "empty-filtered" flag.
+    val libraryEmptyFocus = remember { FocusRequester() }
+    val collectionsEmptyFocus = remember { FocusRequester() }
+    var libraryEmptyFiltered by remember { mutableStateOf(false) }
+    var collectionsEmptyFiltered by remember { mutableStateOf(false) }
+    val contentDownFocus = when (selectedTab) {
+        LibraryTab.LIBRARY -> libraryEmptyFocus.takeIf { libraryEmptyFiltered }
+        LibraryTab.COLLECTIONS -> collectionsEmptyFocus.takeIf { collectionsEmptyFiltered }
+        else -> null
+    }
     // Grid tabs report their top-row-focused state via callback; the row-based tabs
     // derive it from their focused index. Focused-element based on purpose — a
     // scroll-offset toggle feeds the AnimatedVisibility relayout back into scroll
@@ -131,6 +143,7 @@ internal fun LibraryPane(
                 selected = selectedTab,
                 onSelect = paneViewModel::selectTab,
                 selectedTabFocus = tabFocus,
+                contentDownFocus = contentDownFocus,
                 onFocusedChange = { tabRowFocused = it },
                 modifier = Modifier.padding(top = 14.dp, bottom = 6.dp)
             )
@@ -163,7 +176,9 @@ internal fun LibraryPane(
                         onContentFocusSeeded = onContentFocusSeeded,
                         onItem = onItem,
                         onChromeVisibleChange = { libraryChromeVisible = it },
-                        upExitFocus = tabFocus
+                        upExitFocus = tabFocus,
+                        emptyStateFocus = libraryEmptyFocus,
+                        onEmptyFilteredChange = { libraryEmptyFiltered = it }
                     )
                     LibraryTab.FOR_YOU -> ForYouTabContent(
                         state = forYouState,
@@ -205,7 +220,9 @@ internal fun LibraryPane(
                             },
                             onChromeVisibleChange = { collectionsChromeVisible = it },
                             showGenres = false,
-                            upExitFocus = tabFocus
+                            upExitFocus = tabFocus,
+                            emptyStateFocus = collectionsEmptyFocus,
+                            onEmptyFilteredChange = { collectionsEmptyFiltered = it }
                         )
                     }
                 }

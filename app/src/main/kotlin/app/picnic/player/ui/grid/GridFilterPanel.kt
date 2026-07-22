@@ -697,7 +697,10 @@ private fun FilterRow(
 internal fun GridEmptyFilteredState(
     filterActive: Boolean,
     focusRequester: FocusRequester,
-    onAdjustFilters: () -> Unit
+    downEntryFocus: FocusRequester?,
+    upExitFocus: FocusRequester?,
+    clearing: Boolean,
+    onClearFilters: () -> Unit
 ) {
     Column(
         modifier = Modifier.fillMaxSize(),
@@ -717,24 +720,41 @@ internal fun GridEmptyFilteredState(
                     .background(if (focused) Color.White else Color.White.copy(alpha = 0.12f))
                     .padding(horizontal = 20.dp, vertical = 10.dp)
                     .focusRequester(focusRequester)
+                    // Second requester the host targets from its tab's Down (see emptyStateFocus).
+                    .then(downEntryFocus?.let { Modifier.focusRequester(it) } ?: Modifier)
+                    // Up escapes to the host's tab row (swap tabs without clearing), not the
+                    // filter button — this button is the only focusable on a zero-result pane.
+                    .focusProperties { up = upExitFocus ?: FocusRequester.Default }
                     .onFocusChanged { focused = it.isFocused }
                     .focusable()
                     .onKeyEvent { event ->
-                        if (event.type == KeyEventType.KeyDown &&
+                        if (
+                            !clearing &&
+                            event.type == KeyEventType.KeyDown &&
                             (event.key == Key.DirectionCenter || event.key == Key.Enter)
                         ) {
-                            onAdjustFilters()
+                            onClearFilters()
                             true
                         } else {
                             false
                         }
                     }
             ) {
-                Text(
-                    text = "Adjust filters",
-                    color = if (focused) Color.Black else Color.White,
-                    style = MaterialTheme.typography.titleSmall
-                )
+                // While the cleared list reloads the button keeps focus but shows a spinner in
+                // place of its label — the pane reads as busy, not frozen.
+                if (clearing) {
+                    CircularProgressIndicator(
+                        color = if (focused) Color.Black else Color.White,
+                        strokeWidth = 2.dp,
+                        modifier = Modifier.size(18.dp)
+                    )
+                } else {
+                    Text(
+                        text = "Clear filters",
+                        color = if (focused) Color.Black else Color.White,
+                        style = MaterialTheme.typography.titleSmall
+                    )
+                }
             }
         }
     }
