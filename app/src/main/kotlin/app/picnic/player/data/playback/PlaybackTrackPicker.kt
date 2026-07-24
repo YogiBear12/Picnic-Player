@@ -14,10 +14,13 @@ data class TrackPick(
  * Device-local track selection for #15 stage 1. Beats Jellyfin server defaults for this
  * install. Pure logic — no I/O — so JVM unit tests can cover Smart / Always fixtures.
  *
- * @param preferredAudioLanguage two-letter (or three-letter) ISO code, or null = Unspecified
- * @param preferredSubtitleLanguage two-letter (or three-letter) ISO code, or null = Unspecified
- *   (Unspecified subtitle preference resolves to [deviceSubtitleLanguage])
- * @param deviceSubtitleLanguage language from the device locale; used when subtitle pref is Unspecified
+ * Callers pass already-resolved codes (override → server → device); the null handling below is
+ * a defensive fallback for direct/pure-test use.
+ *
+ * @param preferredAudioLanguage two-letter (or three-letter) ISO code, or null = no preference
+ * @param preferredSubtitleLanguage two-letter (or three-letter) ISO code, or null = no preference
+ *   (a null subtitle preference resolves to [deviceSubtitleLanguage])
+ * @param deviceSubtitleLanguage language from the device locale; used when subtitle pref is null
  * @param alwaysDisplaySubtitles true = Always; false = Smart
  */
 fun pickTracks(

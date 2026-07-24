@@ -57,8 +57,8 @@ import app.picnic.player.data.media.MediaRepository
 import app.picnic.player.data.playback.CulturePickerOption
 import app.picnic.player.data.playback.cultureDisplayName
 import app.picnic.player.data.playback.culturePickerOptions
-import app.picnic.player.data.playback.effectiveLanguageCode
 import app.picnic.player.data.playback.pinnedLanguageOptions
+import app.picnic.player.data.playback.resolveLanguageCode
 import app.picnic.player.data.seerr.SeerrLinkState
 import app.picnic.player.data.settings.PlaybackSettings
 import app.picnic.player.data.settings.SegmentAction
@@ -128,9 +128,7 @@ class SettingsViewModel @Inject constructor(
     private val _activeUserImageUrl = MutableStateFlow<String?>(null)
     val activeUserImageUrl: StateFlow<String?> = _activeUserImageUrl
 
-    private val _cultureOptions = MutableStateFlow<List<CulturePickerOption>>(
-        listOf(CulturePickerOption(languageCode = null, displayName = "Unspecified"))
-    )
+    private val _cultureOptions = MutableStateFlow<List<CulturePickerOption>>(emptyList())
     val cultureOptions: StateFlow<List<CulturePickerOption>> = _cultureOptions
 
     /** Server-side per-user language defaults (#149); null until loaded, blank = user set none. */
@@ -211,7 +209,7 @@ class SettingsViewModel @Inject constructor(
         _selectedCategory.value = category
     }
 
-    fun languageLabel(code: String?): String = cultureDisplayName(
+    fun languageLabel(code: String): String = cultureDisplayName(
         languageCode = code,
         options = _cultureOptions.value,
         fallback = { LanguageDisplay.name(it) }
@@ -546,14 +544,22 @@ private fun sectionsFor(
                 SettingItem(
                     "Preferred audio language",
                     viewModel.languageLabel(
-                        effectiveLanguageCode(settings.preferredAudioLanguage, serverAudioLanguage)
+                        resolveLanguageCode(
+                            settings.preferredAudioLanguage,
+                            serverAudioLanguage,
+                            viewModel.deviceLanguage
+                        )
                     ),
                     onActivate = onShowAudioLanguagePicker
                 ),
                 SettingItem(
                     "Preferred subtitle language",
                     viewModel.languageLabel(
-                        effectiveLanguageCode(settings.preferredSubtitleLanguage, serverSubtitleLanguage)
+                        resolveLanguageCode(
+                            settings.preferredSubtitleLanguage,
+                            serverSubtitleLanguage,
+                            viewModel.deviceLanguage
+                        )
                     ),
                     onActivate = onShowSubtitleLanguagePicker
                 ),
@@ -904,8 +910,9 @@ fun SettingsScreen(
             },
             options = picker.options,
             separatorAfterIndex = picker.separatorAfterIndex,
-            // No local override → show the server's default as the checked row (#149).
-            selectedLanguageCode = effectiveLanguageCode(appCode, serverCode),
+            // Check the language actually in effect (override → server → device) so the pinned
+            // device row is highlighted on a fresh install with no local override.
+            selectedLanguageCode = resolveLanguageCode(appCode, serverCode, viewModel.deviceLanguage),
             onSelect = { code ->
                 when (kind) {
                     LanguagePickerKind.AUDIO -> viewModel.setPreferredAudioLanguage(code)

@@ -30,6 +30,7 @@ import app.picnic.player.data.playback.TrackMemoryKind
 import app.picnic.player.data.playback.TrickplayTiles
 import app.picnic.player.data.playback.pickTracksWithMemory
 import app.picnic.player.data.playback.playbackTick
+import app.picnic.player.data.playback.resolveLanguageCode
 import app.picnic.player.data.settings.PlaybackSettings
 import app.picnic.player.data.settings.SeriesTrackMemoryStore
 import app.picnic.player.data.settings.SettingsStore
@@ -573,12 +574,29 @@ class PlayerViewModel @Inject constructor(
         persistOsdTrackMemory(audio = false)
     }
 
+    // Jellyfin user-config language preferences, resolved behind the local app override
+    // (app > server > device). Fetched once per player session and memoised.
+    private var serverAudioLanguage: String? = null
+    private var serverSubtitleLanguage: String? = null
+    private var serverLanguagePrefsLoaded = false
+
+    private suspend fun ensureServerLanguagePrefs() {
+        if (serverLanguagePrefsLoaded) return
+        serverLanguagePrefsLoaded = true
+        val session = authRepository.activeSession() ?: return
+        val config = runCatching { mediaRepository.userConfiguration(session) }.getOrNull()
+        serverAudioLanguage = config?.audioLanguagePreference
+        serverSubtitleLanguage = config?.subtitleLanguagePreference
+    }
+
     /**
      * Initial track choice (#15): season → series memory when confident, else device-local
      * [PlaybackSettings] via [pickTracksWithMemory]. Movies stay on global prefs only.
      */
     private suspend fun initDefaultTrackIndices() {
         val prefs = settings.value
+        ensureServerLanguagePrefs()
+        val deviceLanguage = java.util.Locale.getDefault().language
         val memory = if (itemType == BaseItemKind.EPISODE) {
             seriesId?.let { sid ->
                 seriesTrackMemoryStore.effectiveMemory(sid.toString(), seasonId?.toString())
@@ -589,9 +607,17 @@ class PlayerViewModel @Inject constructor(
         val pick = pickTracksWithMemory(
             streams = mediaStreams,
             memory = memory,
-            preferredAudioLanguage = prefs.preferredAudioLanguage,
-            preferredSubtitleLanguage = prefs.preferredSubtitleLanguage,
-            deviceSubtitleLanguage = java.util.Locale.getDefault().language,
+            preferredAudioLanguage = resolveLanguageCode(
+                prefs.preferredAudioLanguage,
+                serverAudioLanguage,
+                deviceLanguage
+            ),
+            preferredSubtitleLanguage = resolveLanguageCode(
+                prefs.preferredSubtitleLanguage,
+                serverSubtitleLanguage,
+                deviceLanguage
+            ),
+            deviceSubtitleLanguage = deviceLanguage,
             alwaysDisplaySubtitles = prefs.alwaysDisplaySubtitles
         )
         selectedAudioIndex = pick.audioIndex

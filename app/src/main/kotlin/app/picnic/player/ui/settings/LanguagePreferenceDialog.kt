@@ -61,8 +61,8 @@ private val RowCornerRadius = 10.dp
 private val ListViewportHeight = 280.dp
 
 /**
- * Scrollable culture picker for Preferred audio / subtitle language. The pinned block
- * (Unspecified + device language) sits above a divider drawn after [separatorAfterIndex];
+ * Scrollable culture picker for Preferred audio / subtitle language. The device language is
+ * pinned at the top above a divider drawn after [separatorAfterIndex] (-1 = no pinned row);
  * the remaining rows are Jellyfin DisplayNames, A–Z.
  */
 @Composable
@@ -78,17 +78,14 @@ internal fun LanguagePreferenceDialog(
     val seedFocus = remember { FocusRequester() }
     val selectedIndex = remember(options, selectedLanguageCode) {
         options.indexOfFirst { option ->
-            when {
-                option.languageCode == null -> selectedLanguageCode.isNullOrBlank()
-                selectedLanguageCode.isNullOrBlank() -> false
-                else -> languageMatches(option.languageCode, selectedLanguageCode)
-            }
+            !selectedLanguageCode.isNullOrBlank() &&
+                languageMatches(option.languageCode, selectedLanguageCode)
         }.takeIf { it >= 0 } ?: 0
     }
     // Open already scrolled to the selected row so the list never paints from the top
-    // then jumps to the checked row (#149). But when the selection is a pinned quick-pick
-    // (Unspecified / system language) the list is already at its natural top — keep it
-    // there so those rows stay visible instead of scrolling them off.
+    // then jumps to the checked row (#149). But when the selection is the pinned device
+    // language the list is already at its natural top — keep it there so that row stays
+    // visible instead of scrolling it off.
     val startIndex = if (selectedIndex <= separatorAfterIndex) 0 else selectedIndex
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = startIndex)
 
@@ -115,7 +112,7 @@ internal fun LanguagePreferenceDialog(
                 contentPadding = PaddingValues(horizontal = ContentInset),
                 verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
-                itemsIndexed(options, key = { _, item -> item.languageCode ?: "unspecified" }) { index, option ->
+                itemsIndexed(options, key = { _, item -> item.languageCode }) { index, option ->
                     LanguagePickRow(
                         label = option.displayName,
                         selected = index == selectedIndex,

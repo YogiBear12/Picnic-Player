@@ -94,13 +94,14 @@ data class PlaybackSettings(
     /** Package name of the custom YouTube app to open trailers with */
     val trailerYouTubePackage: String? = null,
     /**
-     * Preferred audio language (ISO 639), or null = Unspecified.
-     * Device-local (#15); does not write Jellyfin UserConfiguration.
+     * Local audio-language override (ISO 639), or null = no override (resolve to the Jellyfin
+     * server preference, else the device language). Device-local (#15); does not write Jellyfin
+     * UserConfiguration.
      */
     val preferredAudioLanguage: String? = null,
     /**
-     * Preferred subtitle language (ISO 639), or null = Unspecified
-     * (selection treats Unspecified as English).
+     * Local subtitle-language override (ISO 639), or null = no override (resolve to the Jellyfin
+     * server preference, else the device language).
      */
     val preferredSubtitleLanguage: String? = null,
     /** When true, Always show subtitles; when false, Smart (audio vs sub language). */
