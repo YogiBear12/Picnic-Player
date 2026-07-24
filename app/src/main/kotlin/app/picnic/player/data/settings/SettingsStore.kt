@@ -11,14 +11,6 @@ import javax.inject.Singleton
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
-/** OSD style. Modern only for now, but modelled as an enum + dispatcher so a new
- *  style can be added without touching call sites (per product direction). */
-enum class OsdStyle { MODERN }
-
-/** On-bar scrubbing behaviour. Confirm previews then seeks on Center; Instant
- *  seeks live as you scrub. */
-enum class SeekMode { CONFIRM, INSTANT }
-
 /** Volume for the theme music that plays while browsing an item's details.
  *  DISABLED turns the feature off entirely. */
 enum class ThemeMusicVolume { DISABLED, QUIET, LOW, MEDIUM, HIGH, LOUD }
@@ -59,8 +51,6 @@ data class SubtitleAppearance(
 )
 
 data class PlaybackSettings(
-    val osdStyle: OsdStyle = OsdStyle.MODERN,
-    val seekMode: SeekMode = SeekMode.CONFIRM,
     val skipForwardSeconds: Int = 30,
     val skipBackwardSeconds: Int = 10,
     val osdHideSeconds: Int = 3,
@@ -126,8 +116,6 @@ class SettingsStore @Inject constructor(
 ) {
     val settings: Flow<PlaybackSettings> = dataStore.data.map { p ->
         PlaybackSettings(
-            osdStyle = p[OSD_STYLE]?.let { enumOrNull<OsdStyle>(it) } ?: OsdStyle.MODERN,
-            seekMode = p[SEEK_MODE]?.let { enumOrNull<SeekMode>(it) } ?: SeekMode.CONFIRM,
             skipForwardSeconds = p[SKIP_FWD] ?: 30,
             skipBackwardSeconds = p[SKIP_BACK] ?: 10,
             osdHideSeconds = p[OSD_HIDE] ?: 3,
@@ -168,8 +156,6 @@ class SettingsStore @Inject constructor(
         )
     }
 
-    suspend fun setOsdStyle(value: OsdStyle) = put { it[OSD_STYLE] = value.name }
-    suspend fun setSeekMode(value: SeekMode) = put { it[SEEK_MODE] = value.name }
     suspend fun setSkipForwardSeconds(value: Int) = put { it[SKIP_FWD] = value }
     suspend fun setSkipBackwardSeconds(value: Int) = put { it[SKIP_BACK] = value }
     suspend fun setOsdHideSeconds(value: Int) = put { it[OSD_HIDE] = value }
@@ -236,8 +222,6 @@ class SettingsStore @Inject constructor(
     }
 
     private companion object {
-        val OSD_STYLE = stringPreferencesKey("playback.osdStyle")
-        val SEEK_MODE = stringPreferencesKey("playback.seekMode")
         val SKIP_FWD = intPreferencesKey("playback.skipForwardSeconds")
         val SKIP_BACK = intPreferencesKey("playback.skipBackwardSeconds")
         val OSD_HIDE = intPreferencesKey("playback.osdHideSeconds")

@@ -74,7 +74,7 @@ import app.picnic.player.playback.videoDisplayHints
 import app.picnic.player.ui.ambient.PublishBackdrop
 import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.player.osd.ChaptersPanel
-import app.picnic.player.ui.player.osd.PlayerOsd
+import app.picnic.player.ui.player.osd.ModernOsd
 import app.picnic.player.ui.player.osd.PlayerSettingsPanel
 import app.picnic.player.ui.player.osd.SkipIndicator
 import app.picnic.player.ui.player.osd.SkipIndicatorState
@@ -93,8 +93,8 @@ private enum class Panel { NONE, AUDIO, SUBTITLE, CHAPTERS, SETTINGS }
 private val OsdHorizontalPadding = 56.dp
 
 // Match the chapter card size (ChapterRow CardWidth × CardImageHeight, 16:9).
-private val TrickplayPreviewWidth = 150.dp
-private val TrickplayPreviewHeight = 84.dp
+private val TrickplayPreviewWidth = 180.dp
+private val TrickplayPreviewHeight = 101.dp
 private val TrickplayGapAboveScrubBar = 10.dp
 
 // Fraction of the screen the video shrinks to (top-left) while the next-up overlay is shown, plus
@@ -144,6 +144,8 @@ fun PlayerScreen(
     var pulsePlaying by remember { mutableStateOf(true) }
     var pulseVisible by remember { mutableStateOf(false) }
     var scrubPreview by remember { mutableStateOf<TrickplayPreview?>(null) }
+    var scrubbing by remember { mutableStateOf(false) }
+    var wasPlayingBeforeScrub by remember { mutableStateOf(false) }
     var scrubBarBottomInset by remember { mutableStateOf(0.dp) }
     val rootFocus = remember { FocusRequester() }
     val audioFocus = remember { FocusRequester() }
@@ -290,8 +292,21 @@ fun PlayerScreen(
         lastPanel = Panel.NONE
     }
 
-    LaunchedEffect(revealTick, osdVisible, panel, state.isPlaying) {
-        if (osdVisible && panel == Panel.NONE) {
+    // Pause on scrub start, restore the pre-scrub play state on commit or cancel. Driven off the
+    // scrubbing flag alone: commit vs cancel differ only in whether a seek fired (the OSD owns that).
+    LaunchedEffect(scrubbing) {
+        if (scrubbing) {
+            wasPlayingBeforeScrub = viewModel.player.isPlaying
+            viewModel.player.pause()
+        } else if (wasPlayingBeforeScrub) {
+            viewModel.player.play()
+        }
+    }
+
+    LaunchedEffect(revealTick, osdVisible, panel, state.isPlaying, scrubbing) {
+        // Hold the OSD open while an active scrub is in progress, else it would hide mid-scrub and
+        // strand a paused video with no controls.
+        if (osdVisible && panel == Panel.NONE && !scrubbing) {
             delay(settings.osdHideSeconds.toLong().coerceAtLeast(2) * 1000)
             osdVisible = false
             scrubPreview = null
@@ -393,6 +408,9 @@ fun PlayerScreen(
             showNextUpOverlay -> onNextUpBack()
             panel != Panel.NONE -> closePanel()
             osdVisible -> {
+                // Cancel any active scrub: keep the current position, drop the target. Clearing
+                // scrubbing lets the pause/resume effect restore the pre-scrub play state.
+                scrubbing = false
                 osdVisible = false
                 scrubPreview = null
             }
@@ -566,10 +584,8 @@ fun PlayerScreen(
             enter = slideInVertically { it } + fadeIn(),
             exit = slideOutVertically { it } + fadeOut()
         ) {
-            PlayerOsd(
-                style = settings.osdStyle,
+            ModernOsd(
                 state = state,
-                seekMode = settings.seekMode,
                 onPlayPause = { togglePlay() },
                 onSeek = { viewModel.seekTo(it) },
                 onAudio = { panel = Panel.AUDIO },
@@ -584,6 +600,7 @@ fun PlayerScreen(
                 },
                 onInteract = { revealTick++ },
                 onScrubPreviewChange = { scrubPreview = it },
+                onScrubbingChange = { scrubbing = it },
                 onScrubBarBottomInset = { scrubBarBottomInset = it },
                 trickplayFor = viewModel::trickplayFor,
                 audioFocusRequester = audioFocus,

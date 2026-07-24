@@ -61,7 +61,6 @@ import app.picnic.player.data.playback.effectiveLanguageCode
 import app.picnic.player.data.playback.pinnedLanguageOptions
 import app.picnic.player.data.seerr.SeerrLinkState
 import app.picnic.player.data.settings.PlaybackSettings
-import app.picnic.player.data.settings.SeekMode
 import app.picnic.player.data.settings.SegmentAction
 import app.picnic.player.data.settings.SettingsStore
 import app.picnic.player.data.settings.ThemeMusicVolume
@@ -281,10 +280,6 @@ class SettingsViewModel @Inject constructor(
         context.imageLoader.memoryCache?.clear()
         context.imageLoader.diskCache?.clear()
         _imageCacheSize.value = context.imageLoader.diskCache?.size ?: 0L
-    }
-
-    fun cycleSeekMode() = viewModelScope.launch {
-        store.setSeekMode(if (settings.value.seekMode == SeekMode.CONFIRM) SeekMode.INSTANT else SeekMode.CONFIRM)
     }
 
     fun setSkipForwardSeconds(seconds: Int) = viewModelScope.launch { store.setSkipForwardSeconds(seconds) }

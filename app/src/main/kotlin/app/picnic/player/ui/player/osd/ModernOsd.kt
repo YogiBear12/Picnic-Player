@@ -50,7 +50,6 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
-import app.picnic.player.data.settings.SeekMode
 import app.picnic.player.ui.player.PlayerUiState
 import app.picnic.player.ui.player.TrickplayFrame
 import app.picnic.player.ui.player.TrickplayPreview
@@ -63,7 +62,6 @@ import app.picnic.player.ui.player.TrickplayPreview
 @Composable
 fun ModernOsd(
     state: PlayerUiState,
-    seekMode: SeekMode,
     onPlayPause: () -> Unit,
     onSeek: (Long) -> Unit,
     onAudio: () -> Unit,
@@ -75,6 +73,7 @@ fun ModernOsd(
     onDismiss: () -> Unit,
     onInteract: () -> Unit,
     onScrubPreviewChange: (TrickplayPreview?) -> Unit,
+    onScrubbingChange: (Boolean) -> Unit,
     onScrubBarBottomInset: (Dp) -> Unit,
     trickplayFor: (Long) -> TrickplayFrame?,
     audioFocusRequester: FocusRequester,
@@ -99,6 +98,10 @@ fun ModernOsd(
     val shown = if (scrubbing) scrubTarget else state.positionMs
     val fraction = if (duration > 0) (shown.toFloat() / duration) else 0f
 
+    // Publish scrub state so PlayerScreen can pause/resume playback and hold the OSD open
+    // while an active scrub is in progress.
+    LaunchedEffect(scrubbing) { onScrubbingChange(scrubbing) }
+
     LaunchedEffect(scrubbing, scrubTarget, duration) {
         if (!scrubbing || duration <= 0) {
             onScrubPreviewChange(null)
@@ -120,7 +123,6 @@ fun ModernOsd(
         // Honour the user's configured skip seconds (asymmetric fwd/back).
         val magnitude = (if (direction > 0) skipForwardSeconds else skipBackwardSeconds) * 1000L
         scrubTarget = (scrubTarget + direction * magnitude).coerceIn(0, duration)
-        if (seekMode == SeekMode.INSTANT) onSeek(scrubTarget)
     }
 
     Column(
@@ -244,14 +246,20 @@ fun ModernOsd(
                                 true
                             }
                             Key.DirectionUp -> {
-                                audioFocusRequester.requestFocus()
+                                // Locked while actively scrubbing: can't escape to the OSD buttons
+                                // (which would strand the trickplay preview on screen). Commit or
+                                // cancel first.
+                                if (!scrubbing) audioFocusRequester.requestFocus()
                                 true
                             }
                             Key.DirectionDown -> {
-                                onChapters()
+                                if (!scrubbing) onChapters()
                                 true
                             }
                             Key.Back -> {
+                                // Dead branch in practice: Back is routed to the screen's
+                                // BackHandler (enableOnBackInvokedCallback bypasses focused nodes),
+                                // which owns scrub-cancel + play-state restore. Kept for parity.
                                 onDismiss()
                                 true
                             }
