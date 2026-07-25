@@ -82,7 +82,7 @@ class AmbientPaletteLoader @Inject constructor(
      * Final chrome colour for an accent drawn over [artwork]: boosted for punch, then held apart
      * from the artwork's own average so the indicator can't blend into what it sits on.
      */
-    private fun Color.forFocusChromeOver(artwork: Color): Color = boostForFocusChrome().ensureContrastAgainst(artwork)
+    private fun Color.forFocusChromeOver(artwork: Color): Color = asFocusChrome().ensureContrastAgainst(artwork)
 
     /** Full 4-corner ambient palette for the full-screen backdrop wash ([AMBIENT_SIZE] source). */
     suspend fun load(url: String): AmbientPalette? {
