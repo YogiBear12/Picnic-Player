@@ -1,5 +1,6 @@
 package app.picnic.player.data.update
 
+import android.util.Log
 import app.picnic.player.BuildConfig
 import dagger.Lazy
 import java.util.concurrent.TimeUnit
@@ -22,6 +23,9 @@ import okhttp3.Request
  * A blank UPDATE_REPO means "no release host configured": [latestRelease] returns
  * null and the updater stays inert.
  */
+/** Logcat tag for update-check diagnostics: `adb logcat -s PicnicUpdate`. */
+private const val UpdateLogTag = "PicnicUpdate"
+
 @Singleton
 class ReleaseSource @Inject constructor(
     private val json: Json,
@@ -36,18 +40,41 @@ class ReleaseSource @Inject constructor(
 
     val configured: Boolean = BuildConfig.UPDATE_REPO.isNotBlank()
 
-    /** Blocking network + parse — call off the main thread. Null on any failure. */
+    /**
+     * Blocking network + parse — call off the main thread. Null on any failure.
+     *
+     * Every outcome is logged under [UpdateLogTag]: a silent null is indistinguishable from
+     * "already up to date" at the call site, so a broken update check would otherwise look
+     * exactly like a working one.
+     */
     fun latestRelease(): UpdateRelease? = runCatching {
-        if (!configured) return null
+        if (!configured) {
+            Log.i(UpdateLogTag, "no release host configured; updater inert")
+            return null
+        }
         val request = Request.Builder()
             .url("${BuildConfig.UPDATE_REPO.trimEnd('/')}/releases/latest")
             .get()
             .build()
         http.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) return null
-            parseRelease(response.body?.string() ?: return null)
+            if (!response.isSuccessful) {
+                Log.w(UpdateLogTag, "release check failed: HTTP ${response.code}")
+                return null
+            }
+            val body = response.body?.string()
+            if (body == null) {
+                Log.w(UpdateLogTag, "release check returned an empty body")
+                return null
+            }
+            parseRelease(body).also {
+                if (it == null) Log.w(UpdateLogTag, "release response had no usable version or APK asset")
+            }
         }
-    }.getOrNull()
+    }.onFailure {
+        Log.w(UpdateLogTag, "release check failed", it)
+    }.getOrNull()?.also {
+        Log.i(UpdateLogTag, "latest release ${it.version} (running ${BuildConfig.VERSION_NAME})")
+    }
 
     /** Streams [url]; caller owns the response. Throws on HTTP failure. */
     fun download(url: String): okhttp3.Response {
