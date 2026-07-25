@@ -21,10 +21,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -35,7 +32,6 @@ import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -55,10 +51,8 @@ import app.picnic.player.ui.ambient.CardFocusBorderWidth
 import app.picnic.player.ui.ambient.rememberCardFocusAccent
 import app.picnic.player.ui.ambient.rememberCardFocusGlow
 import app.picnic.player.ui.browse.BrowseCardStyle
+import app.picnic.player.ui.common.ArtworkImage
 import app.picnic.player.ui.grid.gridCellHeight
-import coil3.compose.AsyncImage
-import coil3.compose.AsyncImagePainter
-import kotlinx.coroutines.delay
 
 private val LabelGap = 6.dp
 private val LabelGapFocused = 14.dp
@@ -216,7 +210,10 @@ private fun SeerrPosterFace(
     modifier: Modifier = Modifier
 ) {
     val imageUrl = SeerrImages.poster(seerrBaseUrl, item.posterPath, cacheImages)
-    val focusAccent = rememberCardFocusAccent(imageUrl)
+    // Accent comes from the smallest poster size so prefetching one per card stays cheap, and so
+    // its URL differs from the displayed poster's — a shared cache entry can be read mid-write.
+    val accentUrl = SeerrImages.poster(seerrBaseUrl, item.posterPath, cacheImages, size = AccentPosterSize)
+    val focusAccent = rememberCardFocusAccent(accentUrl)
     val shape = RoundedCornerShape(12.dp)
     var focused by remember { mutableStateOf(false) }
     val focusedGlow = rememberCardFocusGlow(focusAccent.glowColor, focused)
@@ -254,30 +251,12 @@ private fun SeerrPosterFace(
             // Same underlay pattern as BrowseMediaCard — never a blank/transparent card.
             SeerrPosterPlaceholder(item.title)
             if (imageUrl != null) {
-                var retryAttempt by remember(imageUrl) { mutableIntStateOf(0) }
-                var retryPending by remember(imageUrl) { mutableStateOf(false) }
-                LaunchedEffect(retryPending) {
-                    if (retryPending) {
-                        delay(RetryBackoffMs * (retryAttempt + 1))
-                        retryAttempt++
-                        retryPending = false
-                    }
-                }
-                key(retryAttempt) {
-                    AsyncImage(
-                        model = imageUrl,
-                        contentDescription = item.title,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize(),
-                        onState = { state ->
-                            if (state is AsyncImagePainter.State.Error &&
-                                retryAttempt < MaxImageRetries
-                            ) {
-                                retryPending = true
-                            }
-                        }
-                    )
-                }
+                ArtworkImage(
+                    url = imageUrl,
+                    contentDescription = item.title,
+                    label = "seerr='${item.title}'",
+                    modifier = Modifier.fillMaxSize()
+                )
             }
             // Poster only — no media-status overlay (Available / Pending / …).
             // Availability is clear on Detail after OK.
@@ -285,8 +264,8 @@ private fun SeerrPosterFace(
     }
 }
 
-private const val MaxImageRetries = 2
-private const val RetryBackoffMs = 400L
+/** Smallest TMDB poster rendition — plenty for picking a focus accent colour. */
+private const val AccentPosterSize = "w92"
 
 @Composable
 private fun SeerrPosterPlaceholder(name: String?) {

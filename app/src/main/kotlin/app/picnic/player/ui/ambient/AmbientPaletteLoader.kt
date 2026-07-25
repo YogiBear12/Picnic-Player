@@ -14,9 +14,15 @@ import coil3.toBitmap
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 
 /**
@@ -26,9 +32,16 @@ import kotlinx.coroutines.withContext
  * fan out into concurrent decodes) and cache hits return synchronously, so this
  * is safe to call on every focus change behind the caller's debounce.
  *
- * Card focus accents reuse the same cache — populated from the card's own
- * [coil.compose.AsyncImage] decode so border colour matches the poster with no
- * extra network fetch.
+ * Card focus accents share the cache but not the concurrency limit — every visible card
+ * prefetches its accent so the focus chrome is already coloured when focus lands, never white
+ * first. That prefetch is kept cheap by three things: callers pass an accent-sized artwork URL
+ * (a fraction of the poster's bytes), identical URLs share one in-flight fetch, and the fan-out
+ * is capped so a fast scroll cannot starve the posters themselves.
+ *
+ * Every request here carries its own [diskCacheKey]. Coil keys the disk cache on the URL alone,
+ * and an entry read while another request is still writing it decodes to garbage that Coil then
+ * keeps — poisoning that artwork until the cache is cleared. A private key makes that collision
+ * impossible even when a caller passes a URL a card is also displaying.
  */
 @Singleton
 class AmbientPaletteLoader @Inject constructor(
@@ -36,7 +49,14 @@ class AmbientPaletteLoader @Inject constructor(
 ) {
     private val cache = LruCache<String, AmbientPalette>(CACHE_ENTRIES)
     private val accentCache = LruCache<String, Color>(ACCENT_CACHE_ENTRIES)
+    private val failedAccents = LruCache<String, Unit>(ACCENT_CACHE_ENTRIES)
     private val mutex = Mutex()
+
+    /** Owns accent work so one caller's cancellation can't kill a fetch others are awaiting. */
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val accentGate = Semaphore(MAX_CONCURRENT_ACCENTS)
+    private val inFlightAccents = mutableMapOf<String, Deferred<Color?>>()
+    private val inFlightLock = Mutex()
 
     /** Cached backdrop wash palette for [url], or null. */
     fun cached(url: String): AmbientPalette? = cache.get(url)
@@ -58,21 +78,31 @@ class AmbientPaletteLoader @Inject constructor(
     /**
      * Single highlight colour for a card focus indicator. Uses a tiny [ACCENT_SIZE] source
      * and [extractFocusAccentColor] (full-image vivid pick — not the 4-corner wash palette).
+     *
+     * Callers prefetch this for every visible card, so repeat calls for a URL already being
+     * fetched join that fetch instead of starting another, and a URL that has already failed
+     * returns null without retrying — otherwise every recomposition during a scroll re-queues
+     * work that is known to be pointless.
      */
     suspend fun loadFocusAccent(url: String): Color? {
         accentCache.get(url)?.let { return it }
-        val color = runCatching { fetchAccent(url) }.getOrNull()
-        if (color != null) accentCache.put(url, color)
-        return color
+        if (failedAccents.get(url) != null) return null
+
+        val deferred = inFlightLock.withLock {
+            inFlightAccents[url] ?: scope.async {
+                val color = runCatching { accentGate.withPermit { fetchAccent(url) } }.getOrNull()
+                if (color != null) accentCache.put(url, color) else failedAccents.put(url, Unit)
+                inFlightLock.withLock { inFlightAccents.remove(url) }
+                color
+            }.also { inFlightAccents[url] = it }
+        }
+        // Awaited, not runCatching'd: the fetch itself can't throw, so the only exception here is
+        // the caller's own cancellation, which must keep propagating.
+        return deferred.await()
     }
 
     private suspend fun fetchAndExtract(url: String): AmbientPalette? {
-        val request = ImageRequest.Builder(context)
-            .data(url)
-            .size(AMBIENT_SIZE)
-            .allowHardware(false)
-            .build()
-        val result = context.imageLoader.execute(request)
+        val result = context.imageLoader.execute(paletteRequest(url, AMBIENT_SIZE))
         if (result !is SuccessResult) return null
         return withContext(Dispatchers.Default) {
             extractFromBitmap(result.image.toBitmap())
@@ -80,17 +110,20 @@ class AmbientPaletteLoader @Inject constructor(
     }
 
     private suspend fun fetchAccent(url: String): Color? {
-        val request = ImageRequest.Builder(context)
-            .data(url)
-            .size(ACCENT_SIZE)
-            .allowHardware(false)
-            .build()
-        val result = context.imageLoader.execute(request)
+        val result = context.imageLoader.execute(paletteRequest(url, ACCENT_SIZE))
         if (result !is SuccessResult) return null
         return withContext(Dispatchers.Default) {
             extractAccentColor(result.image.toBitmap())
         }
     }
+
+    /** Software decode at [size], on a disk cache entry no displayed image can share. */
+    private fun paletteRequest(url: String, size: Int) = ImageRequest.Builder(context)
+        .data(url)
+        .size(size)
+        .allowHardware(false)
+        .diskCacheKey("$url#palette$size")
+        .build()
 
     private fun extractAccentColor(bitmap: Bitmap): Color? {
         if (bitmap.width <= 0 || bitmap.height <= 0) return null
@@ -136,5 +169,8 @@ class AmbientPaletteLoader @Inject constructor(
         const val ACCENT_SIZE = 48 // px — card focus highlight only (no detail needed)
         const val CACHE_ENTRIES = 32
         const val ACCENT_CACHE_ENTRIES = 512
+
+        /** Accent prefetches run in parallel, but few enough to leave the posters bandwidth. */
+        const val MAX_CONCURRENT_ACCENTS = 4
     }
 }

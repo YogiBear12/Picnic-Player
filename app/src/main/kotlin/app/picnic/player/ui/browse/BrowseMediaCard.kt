@@ -49,8 +49,8 @@ import app.picnic.player.ui.ambient.CardFocusBorderWidth
 import app.picnic.player.ui.ambient.LocalCapBadgeCount
 import app.picnic.player.ui.ambient.rememberCardFocusAccent
 import app.picnic.player.ui.ambient.rememberCardFocusGlow
-import coil3.compose.AsyncImage
-import coil3.compose.AsyncImagePainter
+import app.picnic.player.ui.common.ArtworkImage
+import app.picnic.player.ui.common.ArtworkLogTag
 import org.jellyfin.sdk.model.api.BaseItemDto
 
 /**
@@ -83,17 +83,15 @@ internal fun BrowsePosterCard(
     } else {
         null
     }
-    val imageUrl = overrideImageUrl ?: if (style.landscape) {
-        thumbUrl ?: JellyfinImages.backdrop(session, item) ?: JellyfinImages.primary(session, item, fillWidth = widthPx)
-    } else {
-        JellyfinImages.rowPoster(session, item, fillWidth = widthPx)
-    }
+    val imageUrl = overrideImageUrl ?: cardArtworkUrl(session, item, style.landscape, widthPx)
     val showOverlay = style.landscape && overrideImageUrl == null && thumbUrl == null
     val progress = (item.userData?.playedPercentage ?: 0.0).toFloat() / 100f
     val shape = RoundedCornerShape(12.dp)
-    // Extract the palette as the card composes (small separate software fetch, cached) so the
-    // accent colour is ready when focus lands — no white flash. Display stays a hardware bitmap.
-    val focusAccent = rememberCardFocusAccent(imageUrl)
+    // Extract the palette as the card composes so the accent is ready when focus lands — no white
+    // flash. The same artwork at accent size: a fraction of the displayed image's bytes, and a URL
+    // of its own so the two fetches can never contend over one cache entry.
+    val accentUrl = overrideImageUrl ?: cardArtworkUrl(session, item, style.landscape, AccentSourceWidth)
+    val focusAccent = rememberCardFocusAccent(accentUrl)
     var focused by remember { mutableStateOf(false) }
     val focusedGlow = rememberCardFocusGlow(focusAccent.glowColor, focused)
 
@@ -132,53 +130,24 @@ internal fun BrowsePosterCard(
             // through every retry, and permanently when there is no artwork. The loaded
             // image is opaque and simply covers it — the card is never blank.
             PosterPlaceholder(item.name)
-            // A fast scroll bursts dozens of requests at once and a transient failure
-            // (timeout, connection reset, server busy) used to latch the placeholder for
-            // good. Retry a bounded number of times with backoff — key(attempt) discards
-            // the errored painter so Coil issues a fresh request.
-            var retryAttempt by remember(imageUrl) { androidx.compose.runtime.mutableIntStateOf(0) }
-            var retryPending by remember(imageUrl) { mutableStateOf(false) }
-            androidx.compose.runtime.LaunchedEffect(retryPending) {
-                if (retryPending) {
-                    kotlinx.coroutines.delay(RetryBackoffMs * (retryAttempt + 1))
-                    retryAttempt++
-                    retryPending = false
-                }
-            }
             if (imageUrl == null) {
                 // Diagnostic: a permanently blank card with artwork visible on the server
                 // means URL RESOLUTION failed, not loading — log what tags the item carried.
                 androidx.compose.runtime.LaunchedEffect(item.id) {
                     android.util.Log.w(
-                        ImageLogTag,
+                        ArtworkLogTag,
                         "no image URL resolved: item='${item.name}' type=${item.type} id=${item.id} " +
                             "landscape=${style.landscape} imageTags=${item.imageTags?.keys} " +
                             "seriesId=${item.seriesId} seriesPrimaryTag=${item.seriesPrimaryImageTag}"
                     )
                 }
             } else {
-                androidx.compose.runtime.key(retryAttempt) {
-                    AsyncImage(
-                        // Hardware bitmap (default) — GPU-backed, cheap to draw while scrolling. Small
-                        // (card-width) so the GPU-memory limit isn't hit. Palette comes from a separate
-                        // software fetch in rememberCardFocusAccent.
-                        model = imageUrl,
-                        contentDescription = item.name,
-                        contentScale = ContentScale.Crop,
-                        onState = { state ->
-                            if (state is AsyncImagePainter.State.Error) {
-                                android.util.Log.w(
-                                    ImageLogTag,
-                                    "load failed (attempt ${retryAttempt + 1}/${MaxImageRetries + 1}): " +
-                                        "item='${item.name}' type=${item.type} url=$imageUrl " +
-                                        "cause=${state.result.throwable}"
-                                )
-                                if (retryAttempt < MaxImageRetries) retryPending = true
-                            }
-                        },
-                        modifier = Modifier.fillMaxSize()
-                    )
-                }
+                ArtworkImage(
+                    url = imageUrl,
+                    contentDescription = item.name,
+                    label = "item='${item.name}' type=${item.type}",
+                    modifier = Modifier.fillMaxSize()
+                )
             }
 
             if (showOverlay) {
@@ -196,11 +165,12 @@ internal fun BrowsePosterCard(
                         .padding(start = 8.dp, end = 8.dp, top = 20.dp, bottom = 8.dp)
                 ) {
                     if (logoUrl != null) {
-                        AsyncImage(
-                            model = logoUrl,
+                        ArtworkImage(
+                            url = logoUrl,
                             contentDescription = item.seriesName ?: item.name,
                             contentScale = ContentScale.Fit,
                             alignment = Alignment.BottomStart,
+                            label = "logo item='${item.name}'",
                             modifier = Modifier.height(style.height * 0.35f)
                         )
                     } else {
@@ -248,12 +218,27 @@ internal fun BrowsePosterCard(
     }
 }
 
-/** Transient poster-load failures retry this many times before settling on the placeholder. */
-private const val MaxImageRetries = 2
-private const val RetryBackoffMs = 400L
+/** Source width for the focus-accent fetch — enough pixels to pick a colour, nothing more. */
+private const val AccentSourceWidth = 48
 
-/** Logcat tag for artwork resolution/load diagnostics: `adb logcat -s PicnicImage`. */
-private const val ImageLogTag = "PicnicImage"
+/**
+ * A card's artwork at [fillWidth] px: landscape cards prefer a thumb, then a backdrop, then the
+ * poster; portrait cards take the row poster. Card-sized throughout — the full-size backdrop is
+ * the hero's, not a card's. Resolving per width lets the accent read the same picture the card
+ * shows without re-fetching the displayed image.
+ */
+private fun cardArtworkUrl(
+    session: UserSession,
+    item: BaseItemDto,
+    landscape: Boolean,
+    fillWidth: Int
+): String? = if (landscape) {
+    JellyfinImages.thumb(session, item, fillWidth = fillWidth)
+        ?: JellyfinImages.backdrop(session, item, fillWidth = fillWidth)
+        ?: JellyfinImages.primary(session, item, fillWidth = fillWidth)
+} else {
+    JellyfinImages.rowPoster(session, item, fillWidth = fillWidth)
+}
 
 /** Shown when an item has no artwork (or it fails to load) — icon + title, never a blank card. */
 @Composable

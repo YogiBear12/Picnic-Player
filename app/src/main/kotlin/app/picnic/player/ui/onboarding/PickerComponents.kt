@@ -48,8 +48,6 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -64,12 +62,9 @@ import androidx.tv.material3.Text
 import app.picnic.player.ui.ambient.CardFocusBorderWidth
 import app.picnic.player.ui.ambient.rememberCardFocusAccent
 import app.picnic.player.ui.ambient.rememberCardFocusGlow
+import app.picnic.player.ui.common.ArtworkImage
 import app.picnic.player.ui.common.rememberIdentityBrush
 import app.picnic.player.ui.theme.PicnicColors
-import coil3.compose.AsyncImage
-import coil3.compose.AsyncImagePainter
-import coil3.request.ImageRequest
-import coil3.request.crossfade
 
 /** One entry in a picker row. [editable] tiles support long-press edit; the
  *  trailing "Add" tile is not editable. */
@@ -359,23 +354,16 @@ private fun PickerTile(
                             )
                         }
                         if (entry.imageUrl != null) {
-                            val context = LocalContext.current
-                            AsyncImage(
-                                model = remember(entry.imageUrl) {
-                                    ImageRequest.Builder(context)
-                                        .data(entry.imageUrl)
-                                        // Stable per-identity cache key: when a tag refresh
-                                        // changes the URL, the previous avatar stays up as
-                                        // the placeholder and the new one crossfades in —
-                                        // no blank flash on revisit.
-                                        .memoryCacheKey(PICKER_AVATAR_KEY_PREFIX + entry.id)
-                                        .placeholderMemoryCacheKey(PICKER_AVATAR_KEY_PREFIX + entry.id)
-                                        .crossfade(true)
-                                        .build()
-                                },
+                            ArtworkImage(
+                                url = entry.imageUrl,
                                 contentDescription = entry.label,
-                                contentScale = ContentScale.Crop,
-                                onState = { avatarFailed = it is AsyncImagePainter.State.Error },
+                                // Stable per-identity cache key: when a tag refresh changes the
+                                // URL, the previous avatar stays up as the placeholder and the
+                                // new one crossfades in — no blank flash on revisit.
+                                stableCacheKey = PICKER_AVATAR_KEY_PREFIX + entry.id,
+                                crossfade = true,
+                                label = "avatar='${entry.label}'",
+                                onSettled = { failed -> avatarFailed = failed },
                                 modifier = Modifier.fillMaxSize()
                             )
                         }
