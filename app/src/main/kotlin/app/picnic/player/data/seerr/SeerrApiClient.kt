@@ -1,5 +1,6 @@
 package app.picnic.player.data.seerr
 
+import dagger.Lazy
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -25,14 +26,17 @@ class SeerrHttpException(
  */
 @Singleton
 class SeerrApiClient @Inject constructor(
-    private val json: Json
+    private val json: Json,
+    private val httpClient: Lazy<OkHttpClient>
 ) {
     private val cookieJar = SeerrCookieJar()
-    private val client: OkHttpClient = OkHttpClient.Builder()
-        .cookieJar(cookieJar)
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
-        .build()
+    private val client: OkHttpClient by lazy {
+        httpClient.get().newBuilder()
+            .cookieJar(cookieJar)
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
+            .build()
+    }
 
     private val jsonMedia = "application/json; charset=utf-8".toMediaType()
 

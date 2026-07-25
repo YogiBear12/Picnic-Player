@@ -4,11 +4,13 @@ import android.content.Context
 import android.net.wifi.WifiManager
 import app.picnic.player.BuildConfig
 import app.picnic.player.data.device.DeviceIdentityStore
+import dagger.Lazy
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import okhttp3.OkHttpClient
 import org.jellyfin.sdk.api.client.ApiClient
 import org.jellyfin.sdk.api.okhttp.OkHttpFactory
 import org.jellyfin.sdk.createJellyfin
@@ -25,17 +27,24 @@ import org.jellyfin.sdk.model.api.ServerDiscoveryInfo
 @Singleton
 class JellyfinFactory @Inject constructor(
     @ApplicationContext private val appContext: Context,
-    deviceIdentity: DeviceIdentityStore
+    private val deviceIdentity: DeviceIdentityStore,
+    private val httpClient: Lazy<OkHttpClient>
 ) {
-    private val jellyfin = createJellyfin {
-        clientInfo = ClientInfo(name = "Picnic Player", version = BuildConfig.VERSION_NAME)
-        deviceInfo = DeviceInfo(id = deviceIdentity.deviceId, name = deviceIdentity.deviceName)
-        context = appContext
-        // The SDK's default factory builds a KtorClient, but the Android SDK ships
-        // the OkHttp engine (jellyfin-api-okhttp) — Ktor isn't on the classpath, so
-        // the default throws NoClassDefFoundError on every request. Wire OkHttp explicitly.
-        apiClientFactory = OkHttpFactory()
-        socketConnectionFactory = OkHttpFactory()
+    // Built on first use, not at injection: this reads the device identity off disk and brings up
+    // the shared HTTP client, and injection happens on the main thread during Activity create.
+    private val jellyfin by lazy {
+        val client = httpClient.get()
+        createJellyfin {
+            clientInfo = ClientInfo(name = "Picnic Player", version = BuildConfig.VERSION_NAME)
+            deviceInfo = DeviceInfo(id = deviceIdentity.deviceId, name = deviceIdentity.deviceName)
+            context = appContext
+            // The SDK's default factory builds a KtorClient, but the Android SDK ships
+            // the OkHttp engine (jellyfin-api-okhttp) — Ktor isn't on the classpath, so
+            // the default throws NoClassDefFoundError on every request. Wire OkHttp explicitly,
+            // both sharing the one client so neither builds its own SSLContext.
+            apiClientFactory = OkHttpFactory(client)
+            socketConnectionFactory = OkHttpFactory(client)
+        }
     }
 
     /** An API client for [baseUrl] (null for not-yet-resolved) with optional token. */

@@ -3,6 +3,7 @@ package app.picnic.player.data.plugin
 import app.picnic.player.BuildConfig
 import app.picnic.player.data.auth.UserSession
 import app.picnic.player.data.device.DeviceIdentityStore
+import dagger.Lazy
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -19,12 +20,15 @@ import okhttp3.Request
 @Singleton
 class PicnicPluginClient @Inject constructor(
     private val json: Json,
-    private val deviceIdentity: DeviceIdentityStore
+    private val deviceIdentity: DeviceIdentityStore,
+    private val httpClient: Lazy<OkHttpClient>
 ) {
-    private val http: OkHttpClient = OkHttpClient.Builder()
-        .connectTimeout(10, TimeUnit.SECONDS)
-        .readTimeout(15, TimeUnit.SECONDS)
-        .build()
+    private val http: OkHttpClient by lazy {
+        httpClient.get().newBuilder()
+            .connectTimeout(10, TimeUnit.SECONDS)
+            .readTimeout(15, TimeUnit.SECONDS)
+            .build()
+    }
 
     /** Blocking network + deserialize — call off the main thread. */
     fun info(session: UserSession): PicnicInfo? = runCatching {

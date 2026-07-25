@@ -1,6 +1,7 @@
 package app.picnic.player.data.update
 
 import app.picnic.player.BuildConfig
+import dagger.Lazy
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -23,12 +24,15 @@ import okhttp3.Request
  */
 @Singleton
 class ReleaseSource @Inject constructor(
-    private val json: Json
+    private val json: Json,
+    private val httpClient: Lazy<OkHttpClient>
 ) {
-    private val http: OkHttpClient = OkHttpClient.Builder()
-        .connectTimeout(10, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
-        .build()
+    private val http: OkHttpClient by lazy {
+        httpClient.get().newBuilder()
+            .connectTimeout(10, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
+            .build()
+    }
 
     val configured: Boolean = BuildConfig.UPDATE_REPO.isNotBlank()
 
