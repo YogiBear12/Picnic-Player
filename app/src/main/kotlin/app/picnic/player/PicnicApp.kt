@@ -1,6 +1,7 @@
 package app.picnic.player
 
 import android.app.Application
+import android.os.StrictMode
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
 import app.picnic.player.data.socket.WebSocketManager
@@ -32,6 +33,17 @@ class PicnicApp :
             .build()
 
     override fun onCreate() {
+        if (BuildConfig.DEBUG) {
+            StrictMode.setThreadPolicy(
+                StrictMode.ThreadPolicy.Builder()
+                    .detectDiskReads()
+                    .detectDiskWrites()
+                    .detectNetwork()
+                    .detectCustomSlowCalls()
+                    .penaltyLog()
+                    .build()
+            )
+        }
         // The Jellyfin SDK logs via kotlin-logging, whose Android build defaults to
         // an slf4j backend (org.slf4j.LoggerFactory) unless this system property is
         // set. We ship no slf4j, so without this the SDK's first logger init throws
