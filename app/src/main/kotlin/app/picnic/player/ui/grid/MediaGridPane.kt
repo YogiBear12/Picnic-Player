@@ -373,6 +373,10 @@ private fun MediaGridBody(
                                     // focused, so the target is always composed).
                                     androidx.compose.ui.focus.FocusDirection.Up ->
                                         upExitFocus ?: FocusRequester.Default
+                                    // Down past the last row has nowhere to go — the rail is a
+                                    // sibling to the right, so a focus search finds it sideways.
+                                    androidx.compose.ui.focus.FocusDirection.Down ->
+                                        FocusRequester.Cancel
                                     else -> FocusRequester.Default
                                 }
                             }
