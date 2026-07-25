@@ -16,9 +16,9 @@ import javax.inject.Singleton
  */
 @Singleton
 class DeviceIdentityStore @Inject constructor(
-    @ApplicationContext context: Context
+    @ApplicationContext private val context: Context
 ) {
-    private val prefs = context.getSharedPreferences("picnic.device", Context.MODE_PRIVATE)
+    private val prefs by lazy { context.getSharedPreferences("picnic.device", Context.MODE_PRIVATE) }
 
     val deviceId: String
         get() = prefs.getString(KEY_ID, null) ?: UUID.randomUUID().toString().also {
