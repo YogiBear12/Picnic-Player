@@ -1,6 +1,5 @@
 package app.picnic.player.ui.ambient
 
-import android.graphics.Color as AndroidColor
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
@@ -10,7 +9,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.dp
 
 val CardFocusBorderWidth = 1.5.dp
@@ -34,11 +32,24 @@ data class CardFocusAccent(
  * [LocalColouredFocus] is off.
  */
 @Composable
-fun rememberCardFocusAccent(imageUrl: String?, loadAccent: Boolean = true): CardFocusAccent {
+fun rememberCardFocusAccent(
+    imageUrl: String?,
+    blurHash: String? = null,
+    loadAccent: Boolean = true
+): CardFocusAccent {
     val coloured = LocalColouredFocus.current
     val loader = LocalAmbientPaletteLoader.current
-    var accent by remember(imageUrl) {
-        mutableStateOf(if (coloured) imageUrl?.let { loader.focusAccentCached(it) } else null)
+    // A BlurHash resolves here, synchronously, from data the item list already carries — the
+    // accent is coloured on the card's first frame, so focus can never outrun it. Callers with
+    // no hash (non-Jellyfin artwork) fall back to the prefetching fetch below.
+    var accent by remember(imageUrl, blurHash) {
+        mutableStateOf(
+            when {
+                !coloured -> null
+                blurHash != null -> loader.focusAccentFromBlurHash(blurHash)
+                else -> imageUrl?.let { loader.focusAccentCached(it) }
+            }
+        )
     }
 
     LaunchedEffect(imageUrl, coloured, loadAccent) {
@@ -47,7 +58,9 @@ fun rememberCardFocusAccent(imageUrl: String?, loadAccent: Boolean = true): Card
         }
     }
 
-    val target = if (coloured) accent?.boostForFocusChrome() else null
+    // Already boosted and contrast-corrected by the loader; null means the artwork is greyscale
+    // enough that no honest hue exists, so the chrome stays white.
+    val target = if (coloured) accent else null
     val borderColor by animateColorAsState(
         targetValue = target ?: Color.White,
         animationSpec = tween(AccentFadeMs),
@@ -58,12 +71,4 @@ fun rememberCardFocusAccent(imageUrl: String?, loadAccent: Boolean = true): Card
         borderColor = borderColor,
         glowColor = target ?: Color.White
     )
-}
-
-private fun Color.boostForFocusChrome(): Color {
-    val hsv = FloatArray(3)
-    AndroidColor.colorToHSV(toArgb(), hsv)
-    hsv[1] = (hsv[1] * 1.15f).coerceIn(0.4f, 1f)
-    hsv[2] = (hsv[2] * 1.05f).coerceIn(0.55f, 1f)
-    return Color(AndroidColor.HSVToColor(hsv))
 }

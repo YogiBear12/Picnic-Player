@@ -123,6 +123,32 @@ object JellyfinImages {
         ambUrl = ambient(session, item)
     )
 
+    /**
+     * BlurHashes for the images the card resolvers pick, mirroring their fallback order. The
+     * server sends these inline with the item, so an accent taken from one costs no request at
+     * all. Each is looked up by the same tag its URL is built from, so it stays correct when
+     * artwork is replaced.
+     */
+    fun rowPosterBlurHash(item: BaseItemDto): String? {
+        if (item.type == BaseItemKind.EPISODE) {
+            blurHash(item, ImageType.PRIMARY, item.seriesPrimaryImageTag)?.let { return it }
+        }
+        return blurHash(item, ImageType.PRIMARY, item.imageTags?.get(ImageType.PRIMARY))
+            ?: blurHash(item, ImageType.PRIMARY, item.seriesPrimaryImageTag)
+    }
+
+    fun thumbBlurHash(item: BaseItemDto): String? = blurHash(item, ImageType.THUMB, item.imageTags?.get(ImageType.THUMB))
+        ?: blurHash(item, ImageType.THUMB, item.seriesThumbImageTag)
+        ?: blurHash(item, ImageType.THUMB, item.parentThumbImageTag)
+
+    fun backdropBlurHash(item: BaseItemDto): String? = blurHash(item, ImageType.BACKDROP, item.backdropImageTags?.firstOrNull())
+        ?: blurHash(item, ImageType.BACKDROP, item.parentBackdropImageTags?.firstOrNull())
+
+    private fun blurHash(item: BaseItemDto, type: ImageType, tag: String?): String? {
+        if (tag == null) return null
+        return item.imageBlurHashes?.get(type)?.get(tag)
+    }
+
     private fun url(
         session: UserSession,
         itemId: String,

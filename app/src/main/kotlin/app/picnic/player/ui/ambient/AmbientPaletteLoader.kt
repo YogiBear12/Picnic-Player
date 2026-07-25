@@ -64,6 +64,26 @@ class AmbientPaletteLoader @Inject constructor(
     /** Cached card focus accent colour for [url], or null. */
     fun focusAccentCached(url: String): Color? = accentCache.get(url)
 
+    /**
+     * Focus accent straight from a server-supplied BlurHash — no network, no image decode, so it
+     * resolves during composition and the chrome is already coloured before focus can land.
+     */
+    fun focusAccentFromBlurHash(hash: String): Color? {
+        accentCache.get(hash)?.let { return it }
+        val pixels = BlurHash.decode(hash, BLURHASH_SIZE, BLURHASH_SIZE) ?: return null
+        // Blurred source: rank by chroma rather than frequency, or the pick lands on the blend.
+        val accent = extractVividAccentColor(pixels, BLURHASH_SIZE, BLURHASH_SIZE) ?: return null
+        val color = accent.forFocusChromeOver(averageColor(pixels, BLURHASH_SIZE, BLURHASH_SIZE))
+        accentCache.put(hash, color)
+        return color
+    }
+
+    /**
+     * Final chrome colour for an accent drawn over [artwork]: boosted for punch, then held apart
+     * from the artwork's own average so the indicator can't blend into what it sits on.
+     */
+    private fun Color.forFocusChromeOver(artwork: Color): Color = boostForFocusChrome().ensureContrastAgainst(artwork)
+
     /** Full 4-corner ambient palette for the full-screen backdrop wash ([AMBIENT_SIZE] source). */
     suspend fun load(url: String): AmbientPalette? {
         cache.get(url)?.let { return it }
@@ -133,7 +153,9 @@ class AmbientPaletteLoader @Inject constructor(
         val pixels = IntArray(sw * sh)
         source.getPixels(pixels, 0, sw, 0, 0, sw, sh)
         if (source !== bitmap) source.recycle()
-        return extractFocusAccentColor(pixels, sw, sh)
+        // Real artwork keeps the histogram pick — its vivid areas are large enough to be the mode.
+        val accent = extractFocusAccentColor(pixels, sw, sh) ?: return null
+        return accent.forFocusChromeOver(averageColor(pixels, sw, sh))
     }
 
     private fun extractFromBitmap(bitmap: Bitmap): AmbientPalette? {
@@ -172,5 +194,8 @@ class AmbientPaletteLoader @Inject constructor(
 
         /** Accent prefetches run in parallel, but few enough to leave the posters bandwidth. */
         const val MAX_CONCURRENT_ACCENTS = 4
+
+        /** A BlurHash holds no detail past a few components; this is already generous. */
+        const val BLURHASH_SIZE = 16
     }
 }

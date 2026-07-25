@@ -1,6 +1,10 @@
 package app.picnic.player.ui.ambient
 
+import android.graphics.Color as AndroidColor
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.toArgb
+import kotlin.math.abs
 import kotlin.math.floor
 import kotlin.math.sqrt
 
@@ -54,6 +58,96 @@ private fun colorVividness(color: Color): Float {
     val saturation = if (max == 0f) 0f else (max - min) / max
     return saturation * max
 }
+
+/**
+ * Accent for a low-frequency source such as a decoded BlurHash.
+ *
+ * A histogram picks the most *frequent* colour, which works on real artwork because its vivid areas
+ * are large and flat. A blurred source has no such areas — its common colours are the blends — so the
+ * same pick lands on the average and reads dull. Ranking every pixel by chroma and taking the
+ * [ACCENT_CHROMA_PERCENTILE] one recovers the punchiest region the source actually encodes, while
+ * staying off the single most extreme pixel.
+ *
+ * Returns null when the artwork is essentially greyscale, so the caller can stay neutral rather than
+ * amplify hue noise into a colour that isn't really there.
+ */
+fun extractVividAccentColor(pixels: IntArray, width: Int, height: Int): Color? {
+    if (width <= 0 || height <= 0 || pixels.size < width * height) return null
+    val count = width * height
+    val byChroma = (0 until count).sortedBy { pixelChroma(pixels[it]) }
+    val picked = pixels[byChroma[((count - 1) * ACCENT_CHROMA_PERCENTILE).toInt()]]
+    if (pixelChroma(picked) < MIN_ACCENT_CHROMA) return null
+    return Color(picked)
+}
+
+/** Mean colour of [pixels]; for a BlurHash source this is effectively its DC term. */
+fun averageColor(pixels: IntArray, width: Int, height: Int): Color {
+    val count = width * height
+    var r = 0L
+    var g = 0L
+    var b = 0L
+    for (i in 0 until count) {
+        val pixel = pixels[i]
+        r += pixel shr 16 and 255
+        g += pixel shr 8 and 255
+        b += pixel and 255
+    }
+    return Color(red = r / count / 255f, green = g / count / 255f, blue = b / count / 255f)
+}
+
+private fun pixelChroma(argb: Int): Float {
+    val r = argb shr 16 and 255
+    val g = argb shr 8 and 255
+    val b = argb and 255
+    return (maxOf(r, g, b) - minOf(r, g, b)) / 255f
+}
+
+private const val ACCENT_CHROMA_PERCENTILE = 0.90f
+
+/** Below this the artwork is grey enough that any hue would be noise — stay neutral instead. */
+private const val MIN_ACCENT_CHROMA = 0.12f
+
+/** Lifts a picked accent to focus-chrome punch. */
+fun Color.boostForFocusChrome(): Color {
+    val hsv = FloatArray(3)
+    AndroidColor.colorToHSV(toArgb(), hsv)
+    hsv[1] = (hsv[1] * 1.15f).coerceIn(0.4f, 1f)
+    hsv[2] = (hsv[2] * 1.05f).coerceIn(0.55f, 1f)
+    return Color(AndroidColor.HSVToColor(hsv))
+}
+
+/**
+ * Holds an accent apart in lightness from the artwork it sits on. A focus border is drawn directly
+ * over the poster, so an accent faithful to that poster can be perfectly vivid and still invisible.
+ * Hue is preserved — it is what reads as "matches the artwork" — and only lightness moves.
+ */
+fun Color.ensureContrastAgainst(background: Color): Color {
+    val backdrop = background.perceivedLightness()
+    if (abs(perceivedLightness() - backdrop) >= MIN_ACCENT_LIGHTNESS_GAP) return this
+    val hsv = FloatArray(3)
+    AndroidColor.colorToHSV(toArgb(), hsv)
+    // Only ever push further from the artwork — coercing rather than assigning means this can
+    // never walk a boosted accent back down and dull it.
+    hsv[2] = if (backdrop < 0.5f) {
+        (hsv[2] + LIGHTNESS_STEP).coerceAtMost(1f)
+    } else {
+        (hsv[2] - LIGHTNESS_STEP).coerceAtLeast(MIN_DARKENED_VALUE)
+    }
+    // Moving lightness washes the hue out; hold saturation up so the colour survives the move.
+    hsv[1] = hsv[1].coerceAtLeast(MIN_CONTRAST_SATURATION)
+    return Color(AndroidColor.HSVToColor(hsv))
+}
+
+/**
+ * Gamma-space luma. Deliberately not [luminance], which linearises sRGB and so reads mid-tones as
+ * far darker than they look — comparing that against an HSV value is a category error.
+ */
+private fun Color.perceivedLightness() = 0.299f * red + 0.587f * green + 0.114f * blue
+
+private const val MIN_ACCENT_LIGHTNESS_GAP = 0.22f
+private const val LIGHTNESS_STEP = 0.25f
+private const val MIN_DARKENED_VALUE = 0.30f
+private const val MIN_CONTRAST_SATURATION = 0.45f
 
 private const val HISTOGRAM_SIZE = 30
 private const val COLORS_PER_QUADRANT = 5

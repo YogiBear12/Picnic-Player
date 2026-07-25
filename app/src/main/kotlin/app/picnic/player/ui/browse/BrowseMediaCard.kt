@@ -91,7 +91,8 @@ internal fun BrowsePosterCard(
     // flash. The same artwork at accent size: a fraction of the displayed image's bytes, and a URL
     // of its own so the two fetches can never contend over one cache entry.
     val accentUrl = overrideImageUrl ?: cardArtworkUrl(session, item, style.landscape, AccentSourceWidth)
-    val focusAccent = rememberCardFocusAccent(accentUrl)
+    val accentBlurHash = if (overrideImageUrl == null) cardArtworkBlurHash(item, style.landscape) else null
+    val focusAccent = rememberCardFocusAccent(accentUrl, accentBlurHash)
     var focused by remember { mutableStateOf(false) }
     val focusedGlow = rememberCardFocusGlow(focusAccent.glowColor, focused)
 
@@ -238,6 +239,15 @@ private fun cardArtworkUrl(
         ?: JellyfinImages.primary(session, item, fillWidth = fillWidth)
 } else {
     JellyfinImages.rowPoster(session, item, fillWidth = fillWidth)
+}
+
+/** BlurHash for whatever [cardArtworkUrl] resolves to, in the same fallback order. */
+private fun cardArtworkBlurHash(item: BaseItemDto, landscape: Boolean): String? = if (landscape) {
+    JellyfinImages.thumbBlurHash(item)
+        ?: JellyfinImages.backdropBlurHash(item)
+        ?: JellyfinImages.rowPosterBlurHash(item)
+} else {
+    JellyfinImages.rowPosterBlurHash(item)
 }
 
 /** Shown when an item has no artwork (or it fails to load) — icon + title, never a blank card. */
