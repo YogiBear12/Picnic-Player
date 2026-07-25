@@ -61,7 +61,7 @@ class UpdateRepository @Inject constructor(
     private fun installedVersion(): UpdateVersion? = UpdateVersion.parse(BuildConfig.VERSION_NAME)
 
     /**
-     * Check the release host. [force] skips the 24h throttle (manual About check).
+     * Check the release host. [force] skips the [CHECK_INTERVAL_MS] throttle (manual About check).
      * Returns the newer release, or null (up to date / not configured / failed —
      * manual callers distinguish via [enabled] and their own error surface).
      */
@@ -154,7 +154,7 @@ class UpdateRepository @Inject constructor(
 
     private companion object {
         val LAST_CHECK_MS = longPreferencesKey("update.lastCheckMs")
-        const val CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000L
+        const val CHECK_INTERVAL_MS = 60 * 60 * 1000L
         const val APK_MIME_TYPE = "application/vnd.android.package-archive"
         const val APK_PREFIX = "picnic-"
     }
