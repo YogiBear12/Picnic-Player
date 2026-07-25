@@ -5,6 +5,7 @@ import android.content.ContentUris
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.SystemClock
 import android.util.Log
 import androidx.core.content.edit
 import androidx.core.content.res.ResourcesCompat
@@ -18,6 +19,7 @@ import androidx.tvprovider.media.tv.TvContractCompat
 import androidx.tvprovider.media.tv.WatchNextProgram
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
+import app.picnic.player.BuildConfig
 import app.picnic.player.MainActivity
 import app.picnic.player.R
 import app.picnic.player.data.auth.AuthRepository
@@ -65,53 +67,48 @@ class TvChannelSyncWorker @AssistedInject constructor(
             return Result.success()
         }
 
-        return try {
-            val resumeItems = mediaRepository.resumeItems(session, ROW_LIMIT)
-            val nextUpItems = mediaRepository.nextUp(session, ROW_LIMIT)
-            // Same merge as in-app Continue Watching — resume first, then next-up
-            // without duplicating the same item/series.
-            val watchNextItems = HomeContent.combineContinueWatching(resumeItems, nextUpItems)
-
-            // Server-wide latest (no parentId): globally sorted by date added, not
-            // concatenated per library (which stacks one view after another).
-            val latestMedia = mediaRepository.latestMedia(
+        // Each row is fetched independently: one slow or failing endpoint leaves its own channel
+        // untouched instead of taking the whole sync — and Watch Next — down with it.
+        val resumeItems = row("resumeItems") { mediaRepository.resumeItems(session, ROW_LIMIT) }
+        val nextUpItems = row("nextUp") { mediaRepository.nextUp(session, ROW_LIMIT) }
+        // Server-wide latest (no parentId): globally sorted by date added, not
+        // concatenated per library (which stacks one view after another).
+        val latestMedia = row("latestMedia") {
+            mediaRepository.latestMedia(
                 session,
                 includeItemTypes = listOf(BaseItemKind.MOVIE, BaseItemKind.SERIES),
                 limit = ROW_LIMIT,
                 groupItems = true
             )
-            val latestMovies = mediaRepository.latestMedia(
+        }
+        val latestMovies = row("latestMovies") {
+            mediaRepository.latestMedia(
                 session,
                 includeItemTypes = listOf(BaseItemKind.MOVIE),
                 limit = ROW_LIMIT
             )
-            // Recently updated *shows* (not raw episodes) so a new season doesn't
-            // flood the row with one series.
-            val newShows = mediaRepository.latestMedia(
-                session,
-                includeItemTypes = listOf(BaseItemKind.SERIES),
-                limit = ROW_LIMIT,
-                groupItems = true
-            )
-            val recommendations = runCatching {
-                mediaRepository.suggestions(session, ROW_LIMIT)
-            }.getOrDefault(emptyList())
+        }
+        val recommendations = row("suggestions") { mediaRepository.suggestions(session, ROW_LIMIT) }
 
-            updateWatchNext(session, watchNextItems)
+        return try {
+            // Same merge as in-app Continue Watching — resume first, then next-up
+            // without duplicating the same item/series. Skipped outright if either half is
+            // missing, so a failed fetch never clears the user's Watch Next row.
+            if (resumeItems != null && nextUpItems != null) {
+                updateWatchNext(session, HomeContent.combineContinueWatching(resumeItems, nextUpItems))
+            }
 
-            // Clear then re-insert preview programs for all channels.
-            context.contentResolver.delete(TvContractCompat.PreviewPrograms.CONTENT_URI, null, null)
+            // Channels are created even for an empty list — that registers the app as a source in
+            // the Android TV Channels picker — but a row we failed to fetch is left alone.
+            latestMedia?.let { updateChannel("latest_media", "Latest Media", session, it, defaultBrowsable = true) }
+            latestMovies?.let { updateChannel("latest_movies", "Latest Movies", session, it) }
+            recommendations?.let { updateChannel("recommendations", "Recommendations", session, it) }
+            removeChannel("latest_episodes")
 
-            // Always create/update channels — empty program lists still register
-            // the app as a channel source in the Android TV Channels picker.
-            updateChannel("latest_media", "Latest Media", session, latestMedia, defaultBrowsable = true)
-            updateChannel("latest_movies", "Latest Movies", session, latestMovies)
-            updateChannel("latest_episodes", "New Shows", session, newShows)
-            updateChannel("recommendations", "Recommendations", session, recommendations)
-
-            Result.success()
+            val failed = listOf(resumeItems, nextUpItems, latestMedia, latestMovies, recommendations).count { it == null }
+            if (failed > 0) Result.retry() else Result.success()
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to sync TV channels", e)
+            Log.e(TAG, "Failed to publish TV channels", e)
             Result.retry()
         }
     }
@@ -119,6 +116,15 @@ class TvChannelSyncWorker @AssistedInject constructor(
     private fun isTvProviderAvailable(): Boolean {
         if (!context.packageManager.hasSystemFeature("android.software.leanback")) return false
         return context.packageManager.resolveContentProvider(TvContractCompat.AUTHORITY, 0) != null
+    }
+
+    private suspend fun row(step: String, block: suspend () -> List<BaseItemDto>): List<BaseItemDto>? {
+        if (!BuildConfig.DEBUG) return runCatching { block() }.getOrNull()
+        val start = SystemClock.elapsedRealtime()
+        return runCatching { block() }
+            .onSuccess { Log.i(TAG, "$step took ${SystemClock.elapsedRealtime() - start}ms") }
+            .onFailure { Log.w(TAG, "$step failed after ${SystemClock.elapsedRealtime() - start}ms", it) }
+            .getOrNull()
     }
 
     /**
@@ -160,12 +166,26 @@ class TvChannelSyncWorker @AssistedInject constructor(
         defaultBrowsable: Boolean = false
     ) {
         val channelUri = getOrCreateChannel(channelKey, title, defaultBrowsable) ?: return
+        // Scoped to this channel, so re-publishing one row can't disturb another's programs.
+        context.contentResolver.delete(
+            TvContractCompat.buildPreviewProgramsUriForChannel(ContentUris.parseId(channelUri)),
+            null,
+            null
+        )
         if (items.isEmpty()) return
 
         val programs = items
             .map { buildPreviewProgram(channelUri, session, it).toContentValues() }
             .toTypedArray()
         context.contentResolver.bulkInsert(TvContractCompat.PreviewPrograms.CONTENT_URI, programs)
+    }
+
+    /** Drops a channel we no longer publish, so it can't linger in the launcher. */
+    private fun removeChannel(key: String) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val uri = prefs.getString(key, null)?.toUri() ?: return
+        runCatching { context.contentResolver.delete(uri, null, null) }
+        prefs.edit { remove(key) }
     }
 
     /**
