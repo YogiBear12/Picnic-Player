@@ -4,7 +4,6 @@ package app.picnic.player.playback
 
 import android.graphics.Color
 import android.graphics.Typeface
-import androidx.annotation.Dimension
 import androidx.media3.ui.CaptionStyleCompat
 import androidx.media3.ui.SubtitleView
 import app.picnic.player.data.settings.SubtitleAppearance
@@ -22,13 +21,17 @@ import app.picnic.player.data.settings.SubtitleSize
  * during playback.
  */
 
-/** Cue text size in sp. STANDARD matches the pre-#54 fixed default. */
-fun SubtitleSize.toSp(): Float = when (this) {
-    SubtitleSize.SMALLER -> 18f
-    SubtitleSize.SMALL -> 22f
-    SubtitleSize.STANDARD -> 24f
-    SubtitleSize.LARGE -> 26f
-    SubtitleSize.LARGER -> 30f
+/**
+ * Cue height as a fraction of the view, so text keeps its proportions when the surface shrinks —
+ * Picture-in-Picture otherwise renders subtitles at full size over a thumbnail. STANDARD is Media3's
+ * own default fraction, and the rest keep the sp ratios they replaced.
+ */
+fun SubtitleSize.toHeightFraction(): Float = when (this) {
+    SubtitleSize.SMALLER -> 0.0400f
+    SubtitleSize.SMALL -> 0.0489f
+    SubtitleSize.STANDARD -> 0.0533f
+    SubtitleSize.LARGE -> 0.0578f
+    SubtitleSize.LARGER -> 0.0667f
 }
 
 fun SubtitleColour.toArgb(): Int = when (this) {
@@ -72,6 +75,6 @@ fun SubtitleAppearance.toCaptionStyle(): CaptionStyleCompat {
 fun SubtitleAppearance.applyTo(view: SubtitleView) {
     view.setApplyEmbeddedStyles(false)
     view.setStyle(toCaptionStyle())
-    view.setFixedTextSize(Dimension.SP, size.toSp())
+    view.setFractionalTextSize(size.toHeightFraction())
     view.setBottomPaddingFraction(SubtitleBottomPaddingFraction)
 }
