@@ -49,12 +49,9 @@ data class SourceQuality(
 
     internal fun worthConverting(rung: QualityRung): Boolean {
         val comparison = comparisonBitrate
-        val belowSource = comparison == null ||
-            rung.videoBitrate <= (comparison * NEAR_SOURCE_FRACTION).roundToInt()
-        return savesBandwidth(rung) && belowSource
+        val doesNotExceedSource = comparison == null || rung.videoBitrate <= comparison
+        return savesBandwidth(rung) && doesNotExceedSource
     }
-
-    internal fun fitsUntouched(ceiling: QualityRung?): Boolean = ceiling == null || (totalBitrate ?: 0) <= ceiling.videoBitrate
 
     companion object {
         // Servers up to 10.11 report the container total as the video stream's bitrate when the
@@ -79,23 +76,18 @@ data class SourceQuality(
 // h264 output needs ~1.5x the bitrate of an HEVC/AV1/VP9 source for the same picture.
 private const val EFFICIENT_CODEC_FACTOR = 1.5
 
-private const val NEAR_SOURCE_FRACTION = 0.85
-
 private val EFFICIENT_CODECS = setOf("hevc", "h265", "av1", "vp9")
 
-private fun QualityRung.fitsUnder(ceiling: QualityRung?): Boolean = ceiling == null || videoBitrate <= ceiling.videoBitrate
+fun rungsFor(source: SourceQuality): List<QualityRung> = QualityRung.entries.filter { source.worthConverting(it) }
 
-fun rungsFor(source: SourceQuality, ceiling: QualityRung?): List<QualityRung> = QualityRung.entries.filter { it.fitsUnder(ceiling) && source.worthConverting(it) }
-
-fun qualityOptions(source: SourceQuality, ceiling: QualityRung?): List<QualityOption> = buildList {
-    if (source.fitsUntouched(ceiling)) add(QualityOption.Original)
-    rungsFor(source, ceiling).forEach { add(QualityOption.Transcode(it)) }
+fun qualityOptions(source: SourceQuality): List<QualityOption> = buildList {
+    add(QualityOption.Original)
+    rungsFor(source).forEach { add(QualityOption.Transcode(it)) }
 }
 
-fun automaticRung(source: SourceQuality, ceiling: QualityRung?): QualityRung = QualityRung.entries.firstOrNull { it.fitsUnder(ceiling) && source.savesBandwidth(it) }
-    ?: QualityRung.entries.last()
+fun automaticRung(source: SourceQuality): QualityRung = QualityRung.entries.firstOrNull { source.savesBandwidth(it) } ?: QualityRung.entries.last()
 
-fun qualityCeilingLabel(ceiling: QualityRung?): String = if (ceiling == null) "Maximum" else "${ceiling.label} · ${ceiling.bitrateLabel}"
+fun defaultQualityLabel(rung: QualityRung?): String = if (rung == null) "Original" else "${rung.label} · ${rung.bitrateLabel}"
 
 private fun formatMbps(bitrate: Int): String {
     val mbps = bitrate / 1_000_000.0

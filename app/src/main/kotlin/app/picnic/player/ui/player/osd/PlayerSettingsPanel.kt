@@ -82,7 +82,7 @@ fun PlayerSettingsPanel(
     qualityOptions: List<QualityOption>,
     selectedQuality: QualityRung?,
     qualitySummary: String,
-    onSelectQuality: (QualityRung?) -> Unit,
+    onSelectQuality: (QualityOption) -> Unit,
     playbackSpeed: Float,
     audioBoost: AudioBoost,
     nightMode: NightMode,
@@ -178,7 +178,7 @@ fun PlayerSettingsPanel(
                                 selected = chosen,
                                 focusRequester = if (chosen) firstFocus else null,
                                 onClick = {
-                                    onSelectQuality(rung)
+                                    onSelectQuality(option)
                                     page = Page.MAIN
                                 },
                                 onClose = ::back,

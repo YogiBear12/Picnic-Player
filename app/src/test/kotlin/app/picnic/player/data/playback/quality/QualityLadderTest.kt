@@ -40,83 +40,66 @@ class QualityLadderTest {
     }
 
     @Test
-    fun rungsFor_hidesRungsAtOrAboveSource() {
-        val rungs = rungsFor(source(videoBitrate = 9_200_000, totalBitrate = 9_800_000), ceiling = null)
+    fun rungsFor_hidesOnlyRungsThatExceedTheSource() {
+        val rungs = rungsFor(source(videoBitrate = 9_000_000, totalBitrate = 9_600_000))
         assertEquals(
-            listOf(QualityRung.P1080_6, QualityRung.P720_4, QualityRung.P720_3, QualityRung.P480_2),
+            listOf(QualityRung.P1080_8, QualityRung.P1080_6, QualityRung.P720_4, QualityRung.P720_3, QualityRung.P480_2),
             rungs
         )
     }
 
     @Test
-    fun rungsFor_dropsRungWithinFifteenPercentOfSource() {
-        val rungs = rungsFor(source(videoBitrate = 9_000_000, totalBitrate = 9_600_000), ceiling = null)
-        assertTrue(QualityRung.P1080_8 !in rungs)
-        assertTrue(QualityRung.P1080_6 in rungs)
-    }
-
-    @Test
     fun rungsFor_widensComparisonForEfficientCodecs() {
-        val hevc = rungsFor(source(8_000_000, 8_600_000, "hevc"), ceiling = null)
-        val h264 = rungsFor(source(8_000_000, 8_600_000, "h264"), ceiling = null)
-        assertTrue(QualityRung.P1080_8 in hevc)
-        assertTrue(QualityRung.P1080_8 !in h264)
-    }
-
-    @Test
-    fun rungsFor_appliesCeilingIndependentlyOfSource() {
-        val rungs = rungsFor(source(40_000_000, 42_000_000), ceiling = QualityRung.P1080_8)
-        assertTrue(QualityRung.P1080_12 !in rungs)
-        assertEquals(QualityRung.P1080_8, rungs.first())
+        val hevc = rungsFor(source(8_000_000, 13_000_000, "hevc"))
+        val h264 = rungsFor(source(8_000_000, 13_000_000, "h264"))
+        assertTrue(QualityRung.P1080_12 in hevc)
+        assertTrue(QualityRung.P1080_12 !in h264)
     }
 
     @Test
     fun rungsFor_neverOffersARungThatCostsMoreThanTheFile() {
-        val rungs = rungsFor(source(9_400_000, 10_000_000, "hevc"), ceiling = null)
+        val rungs = rungsFor(source(9_400_000, 10_000_000, "hevc"))
         assertTrue(QualityRung.P1080_12 !in rungs)
         assertEquals(QualityRung.P1080_8, rungs.first())
     }
 
     @Test
-    fun qualityOptions_offersOriginalWhenSourceFitsCeiling() {
-        val options = qualityOptions(source(8_500_000, 9_200_000), ceiling = null)
+    fun qualityOptions_offersOriginalAlongsideTheRungs() {
+        val options = qualityOptions(source(8_500_000, 9_200_000))
         assertEquals(QualityOption.Original, options.first())
     }
 
     @Test
-    fun qualityOptions_withholdsOriginalWhenSourceExceedsCeiling() {
-        val options = qualityOptions(source(38_000_000, 40_000_000), ceiling = QualityRung.P1080_8)
-        assertTrue(options.none { it is QualityOption.Original })
-        assertEquals(QualityOption.Transcode(QualityRung.P1080_8), options.first())
+    fun defaultQualityLabel_namesTheRungOrOriginal() {
+        assertEquals("Original", defaultQualityLabel(null))
+        assertEquals("1080p (Medium) · 8 Mbps", defaultQualityLabel(QualityRung.P1080_8))
+    }
+
+    @Test
+    fun qualityOptions_alwaysOffersOriginal() {
+        val options = qualityOptions(source(38_000_000, 40_000_000))
+        assertEquals(QualityOption.Original, options.first())
     }
 
     @Test
     fun qualityOptions_onlyOriginalWhenSourceIsBelowEveryRung() {
-        val options = qualityOptions(source(900_000, 1_200_000), ceiling = null)
+        val options = qualityOptions(source(900_000, 1_200_000))
         assertEquals(listOf(QualityOption.Original), options)
     }
 
     @Test
-    fun automaticRung_picksBestPictureUnderSourceAndCeiling() {
-        assertEquals(QualityRung.P1080_12, automaticRung(source(60_000_000, 62_000_000, "hevc"), ceiling = null))
-    }
-
-    @Test
-    fun automaticRung_respectsCeiling() {
-        assertEquals(
-            QualityRung.P1080_8,
-            automaticRung(source(60_000_000, 62_000_000), ceiling = QualityRung.P1080_8)
-        )
+    fun automaticRung_picksTheBestPictureTheSourceSupports() {
+        assertEquals(QualityRung.P1080_12, automaticRung(source(60_000_000, 62_000_000, "hevc")))
     }
 
     @Test
     fun automaticRung_staysBelowASmallSource() {
-        assertEquals(QualityRung.P720_3, automaticRung(source(3_500_000, 3_800_000), ceiling = null))
+        assertEquals(QualityRung.P720_3, automaticRung(source(3_500_000, 3_800_000)))
     }
 
     @Test
     fun automaticRung_fallsBackToLowestRungWhenNothingFits() {
-        assertEquals(QualityRung.P480_2, automaticRung(source(400_000, 600_000), ceiling = null))
+        assertEquals(QualityRung.P480_2, automaticRung(source(400_000, 600_000)))
     }
 
     @Test
@@ -133,12 +116,6 @@ class QualityLadderTest {
         assertEquals("about 5.5 GB/hr", QualityRung.P1080_12.sizeHint)
         assertEquals("about 3.5 GB/hr", QualityRung.P1080_8.sizeHint)
         assertEquals("about 900 MB/hr", QualityRung.P480_2.sizeHint)
-    }
-
-    @Test
-    fun ceilingLabel_namesTheRungOrMaximum() {
-        assertEquals("Maximum", qualityCeilingLabel(null))
-        assertEquals("1080p (Medium) · 8 Mbps", qualityCeilingLabel(QualityRung.P1080_8))
     }
 
     @Test

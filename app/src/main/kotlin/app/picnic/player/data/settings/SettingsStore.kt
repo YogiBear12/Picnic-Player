@@ -92,7 +92,7 @@ data class PlaybackSettings(
     /** Announce full compatibility so the server always direct-plays (never transcodes).
      *  Advanced/expert: may cause playback errors on genuinely unsupported media. */
     val forceDirectPlay: Boolean = false,
-    val maxStreamingQuality: QualityRung? = null,
+    val defaultVideoQuality: QualityRung? = null,
     /** Package name of the custom YouTube app to open trailers with */
     val trailerYouTubePackage: String? = null,
     /**
@@ -143,7 +143,7 @@ class SettingsStore @Inject constructor(
             downmixStereo = p[DOWNMIX_STEREO] ?: false,
             forceDoviProfile7 = p[FORCE_DOVI_PROFILE_7] ?: false,
             forceDirectPlay = p[FORCE_DIRECT_PLAY] ?: false,
-            maxStreamingQuality = QualityRung.named(p[MAX_STREAMING_QUALITY]),
+            defaultVideoQuality = QualityRung.named(p[DEFAULT_VIDEO_QUALITY]),
             trailerYouTubePackage = p[TRAILER_YOUTUBE_PACKAGE],
             preferredAudioLanguage = p[PREFERRED_AUDIO_LANGUAGE],
             preferredSubtitleLanguage = p[PREFERRED_SUBTITLE_LANGUAGE],
@@ -183,8 +183,8 @@ class SettingsStore @Inject constructor(
     suspend fun setDownmixStereo(value: Boolean) = put { it[DOWNMIX_STEREO] = value }
     suspend fun setForceDoviProfile7(value: Boolean) = put { it[FORCE_DOVI_PROFILE_7] = value }
     suspend fun setForceDirectPlay(value: Boolean) = put { it[FORCE_DIRECT_PLAY] = value }
-    suspend fun setMaxStreamingQuality(value: QualityRung?) = put {
-        if (value == null) it.remove(MAX_STREAMING_QUALITY) else it[MAX_STREAMING_QUALITY] = value.name
+    suspend fun setDefaultVideoQuality(value: QualityRung?) = put {
+        if (value == null) it.remove(DEFAULT_VIDEO_QUALITY) else it[DEFAULT_VIDEO_QUALITY] = value.name
     }
     suspend fun setTrailerYouTubePackage(value: String?) = put {
         if (value == null) {
@@ -252,7 +252,7 @@ class SettingsStore @Inject constructor(
         val DOWNMIX_STEREO = booleanPreferencesKey("playback.downmixStereo")
         val FORCE_DOVI_PROFILE_7 = booleanPreferencesKey("playback.forceDoviProfile7")
         val FORCE_DIRECT_PLAY = booleanPreferencesKey("playback.forceDirectPlay")
-        val MAX_STREAMING_QUALITY = stringPreferencesKey("playback.maxStreamingQuality")
+        val DEFAULT_VIDEO_QUALITY = stringPreferencesKey("playback.defaultVideoQuality")
         val TRAILER_YOUTUBE_PACKAGE = stringPreferencesKey("playback.trailerYouTubePackage")
         val PREFERRED_AUDIO_LANGUAGE = stringPreferencesKey("playback.preferredAudioLanguage")
         val PREFERRED_SUBTITLE_LANGUAGE = stringPreferencesKey("playback.preferredSubtitleLanguage")

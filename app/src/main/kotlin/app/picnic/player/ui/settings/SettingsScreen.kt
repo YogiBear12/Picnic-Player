@@ -59,7 +59,7 @@ import app.picnic.player.data.playback.cultureDisplayName
 import app.picnic.player.data.playback.culturePickerOptions
 import app.picnic.player.data.playback.pinnedLanguageOptions
 import app.picnic.player.data.playback.quality.QualityRung
-import app.picnic.player.data.playback.quality.qualityCeilingLabel
+import app.picnic.player.data.playback.quality.defaultQualityLabel
 import app.picnic.player.data.playback.resolveLanguageCode
 import app.picnic.player.data.seerr.SeerrLinkState
 import app.picnic.player.data.settings.PlaybackSettings
@@ -292,7 +292,7 @@ class SettingsViewModel @Inject constructor(
     fun setOutroAction(action: SegmentAction) = viewModelScope.launch { store.setOutroAction(action) }
     fun setPreviewAction(action: SegmentAction) = viewModelScope.launch { store.setPreviewAction(action) }
     fun setCommercialAction(action: SegmentAction) = viewModelScope.launch { store.setCommercialAction(action) }
-    fun setMaxStreamingQuality(rung: QualityRung?) = viewModelScope.launch { store.setMaxStreamingQuality(rung) }
+    fun setDefaultVideoQuality(rung: QualityRung?) = viewModelScope.launch { store.setDefaultVideoQuality(rung) }
 
     fun toggleClickToPause() = viewModelScope.launch {
         store.setClickToPause(!settings.value.clickToPause)
@@ -444,16 +444,16 @@ private fun secondsPicker(
     }
 )
 
-private fun qualityCeilingPicker(
+private fun defaultQualityPicker(
     current: QualityRung?,
     onSelect: (QualityRung?) -> Unit
 ) = ActivePicker(
-    title = "Maximum streaming quality",
-    options = (listOf(null) + QualityRung.entries).map { ceiling ->
+    title = "Default video quality",
+    options = (listOf(null) + QualityRung.entries).map { quality ->
         PickerOption(
-            label = qualityCeilingLabel(ceiling),
-            selected = ceiling == current,
-            onSelect = { onSelect(ceiling) }
+            label = defaultQualityLabel(quality),
+            selected = quality == current,
+            onSelect = { onSelect(quality) }
         )
     }
 )
@@ -655,20 +655,6 @@ private fun sectionsFor(
             }
         ),
         SettingSection(
-            "Streaming",
-            listOf(
-                SettingItem(
-                    "Maximum streaming quality",
-                    qualityCeilingLabel(settings.maxStreamingQuality),
-                    onActivate = {
-                        showPicker(
-                            qualityCeilingPicker(settings.maxStreamingQuality, viewModel::setMaxStreamingQuality)
-                        )
-                    }
-                )
-            )
-        ),
-        SettingSection(
             "Next up behavior",
             listOf(
                 SettingItem(
@@ -733,6 +719,15 @@ private fun sectionsFor(
         SettingSection(
             null,
             listOf(
+                SettingItem(
+                    "Default video quality",
+                    defaultQualityLabel(settings.defaultVideoQuality),
+                    onActivate = {
+                        showPicker(
+                            defaultQualityPicker(settings.defaultVideoQuality, viewModel::setDefaultVideoQuality)
+                        )
+                    }
+                ),
                 SettingItem(
                     "Refresh rate switching",
                     if (settings.matchRefreshRate) "On" else "Off",

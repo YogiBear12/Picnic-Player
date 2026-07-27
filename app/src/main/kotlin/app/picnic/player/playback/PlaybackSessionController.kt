@@ -1,6 +1,6 @@
 package app.picnic.player.playback
 
-import app.picnic.player.data.playback.quality.QualityRung
+import app.picnic.player.data.playback.quality.QualityOption
 import app.picnic.player.di.ApplicationScope
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -64,8 +64,8 @@ class PlaybackSessionController @Inject constructor(
     private val _nightMode = MutableStateFlow(NightMode.OFF)
     val nightMode: StateFlow<NightMode> = _nightMode.asStateFlow()
 
-    private val _qualityOverride = MutableStateFlow<QualityRung?>(null)
-    val qualityOverride: StateFlow<QualityRung?> = _qualityOverride.asStateFlow()
+    private val _qualityOverride = MutableStateFlow<QualityOption?>(null)
+    val qualityOverride: StateFlow<QualityOption?> = _qualityOverride.asStateFlow()
 
     private val _sleep = MutableStateFlow(SleepTimerState())
     val sleep: StateFlow<SleepTimerState> = _sleep.asStateFlow()
@@ -83,8 +83,26 @@ class PlaybackSessionController @Inject constructor(
         _nightMode.value = level
     }
 
-    fun setQualityOverride(rung: QualityRung?) {
-        _qualityOverride.value = rung
+    fun setQualityOverride(option: QualityOption?) {
+        _qualityOverride.value = option
+    }
+
+    /** The next player belongs to the same viewing, so its session controls carry over. */
+    fun handOffToNextItem() {
+        handingOff = true
+    }
+
+    /**
+     * A player was torn down. Anything scoped to one viewing is dropped unless the next item is
+     * already taking over, which is how a quality choice survives an autoplayed episode but not a
+     * return to browsing — however the player was left.
+     */
+    fun playerTornDown() {
+        if (handingOff) {
+            handingOff = false
+        } else {
+            _qualityOverride.value = null
+        }
     }
 
     fun setSleep(mode: SleepMode) {

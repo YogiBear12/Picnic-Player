@@ -3,7 +3,7 @@ package app.picnic.player.playback
 import app.picnic.player.data.auth.ServerConnection
 import app.picnic.player.data.auth.UserSession
 import app.picnic.player.data.playback.StreamInfo
-import app.picnic.player.data.playback.quality.QualityRung
+import app.picnic.player.data.playback.quality.QualityOption
 import java.util.UUID
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -113,7 +113,7 @@ class StreamLoaderTest {
         seriesId = null,
         positionTicks = positionTicks,
         mediaSourceId = "source",
-        rung = null,
+        quality = null,
         audioStreamIndex = null,
         subtitleStreamIndex = null,
         resumePlaying = resumePlaying,
@@ -129,7 +129,7 @@ class StreamLoaderTest {
             itemId: UUID,
             startTicks: Long?,
             mediaSourceId: String?,
-            rung: QualityRung?,
+            quality: QualityOption?,
             audioStreamIndex: Int?,
             subtitleStreamIndex: Int?
         ): StreamInfo {

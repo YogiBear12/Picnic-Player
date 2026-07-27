@@ -2,7 +2,7 @@ package app.picnic.player.playback
 
 import app.picnic.player.data.auth.UserSession
 import app.picnic.player.data.playback.StreamInfo
-import app.picnic.player.data.playback.quality.QualityRung
+import app.picnic.player.data.playback.quality.QualityOption
 import java.util.UUID
 
 interface StreamNegotiator {
@@ -11,7 +11,7 @@ interface StreamNegotiator {
         itemId: UUID,
         startTicks: Long?,
         mediaSourceId: String?,
-        rung: QualityRung?,
+        quality: QualityOption?,
         audioStreamIndex: Int?,
         subtitleStreamIndex: Int?
     ): StreamInfo
@@ -42,7 +42,7 @@ data class StreamRequest(
     val seriesId: UUID?,
     val positionTicks: Long,
     val mediaSourceId: String?,
-    val rung: QualityRung?,
+    val quality: QualityOption?,
     val audioStreamIndex: Int?,
     val subtitleStreamIndex: Int?,
     val resumePlaying: Boolean,
@@ -91,7 +91,7 @@ class StreamLoader(
                 itemId = request.itemId,
                 startTicks = positionTicks,
                 mediaSourceId = request.mediaSourceId,
-                rung = request.rung,
+                quality = request.quality,
                 audioStreamIndex = request.audioStreamIndex,
                 subtitleStreamIndex = request.subtitleStreamIndex
             )

@@ -473,7 +473,7 @@ class PlayerViewModel @Inject constructor(
                     seriesId = seriesId,
                     positionTicks = startTicks ?: 0L,
                     mediaSourceId = mediaSourceId,
-                    rung = sessionController.qualityOverride.value,
+                    quality = sessionController.qualityOverride.value,
                     audioStreamIndex = selectedAudioIndex,
                     subtitleStreamIndex = selectedSubtitleIndex,
                     resumePlaying = true,
@@ -621,14 +621,15 @@ class PlayerViewModel @Inject constructor(
 
     fun clearNotice() = _state.update { it.copy(notice = null) }
 
-    fun selectQuality(rung: QualityRung?) {
+    fun selectQuality(option: QualityOption) {
+        val rung = (option as? QualityOption.Transcode)?.rung
         if (rung == _state.value.activeQuality) return
         val previous = sessionController.qualityOverride.value
-        sessionController.setQualityOverride(rung)
-        reload(rung, revertTo = previous)
+        sessionController.setQualityOverride(option)
+        reload(option, revertTo = previous)
     }
 
-    private fun reload(rung: QualityRung?, revertTo: QualityRung? = rung) {
+    private fun reload(quality: QualityOption?, revertTo: QualityOption? = quality) {
         val activeSession = session ?: return
         val id = itemId ?: return
         val current = stream ?: return
@@ -645,7 +646,7 @@ class PlayerViewModel @Inject constructor(
                     seriesId = seriesId,
                     positionTicks = player.currentPosition * TICKS_PER_MS,
                     mediaSourceId = current.mediaSourceId,
-                    rung = rung,
+                    quality = quality,
                     audioStreamIndex = selectedAudioIndex,
                     subtitleStreamIndex = selectedSubtitleIndex,
                     resumePlaying = player.playWhenReady,
@@ -814,10 +815,7 @@ class PlayerViewModel @Inject constructor(
         val options = if (!canTranscode) {
             emptyList()
         } else {
-            qualityOptions(
-                source = SourceQuality.of(info.mediaSource?.bitrate, info.mediaStreams),
-                ceiling = prefs.maxStreamingQuality
-            )
+            qualityOptions(SourceQuality.of(info.mediaSource?.bitrate, info.mediaStreams))
         }
         val transcoding = info.playMethod == PlayMethodKind.TRANSCODE
         _state.update { it.copy(qualityOptions = options, activeQuality = if (transcoding) info.rung else null) }

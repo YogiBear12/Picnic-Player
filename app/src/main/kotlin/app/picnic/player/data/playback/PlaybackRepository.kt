@@ -8,6 +8,7 @@ import app.picnic.player.data.jellyfin.JellyfinFactory
 import app.picnic.player.data.media.LibraryChange
 import app.picnic.player.data.media.LibraryChangeBus
 import app.picnic.player.data.playback.profile.DynamicProfileBuilder
+import app.picnic.player.data.playback.quality.QualityOption
 import app.picnic.player.data.playback.quality.QualityRung
 import app.picnic.player.data.playback.quality.SourceQuality
 import app.picnic.player.data.playback.quality.automaticRung
@@ -85,13 +86,16 @@ class PlaybackRepository @Inject constructor(
         itemId: UUID,
         startTicks: Long?,
         mediaSourceId: String?,
-        rung: QualityRung?,
+        quality: QualityOption?,
         audioStreamIndex: Int?,
         subtitleStreamIndex: Int?
     ): StreamInfo = onIo {
         val settings = settingsStore.settings.first()
-        val ceiling = settings.maxStreamingQuality
-        val cap = rung?.videoBitrate ?: ceiling?.videoBitrate
+        // No explicit choice follows the Default video quality setting; choosing Original is a
+        // choice, and must not fall back to it.
+        val chosen = quality ?: settings.defaultVideoQuality?.let { QualityOption.Transcode(it) }
+        val rung = (chosen as? QualityOption.Transcode)?.rung
+        val cap = rung?.videoBitrate
         val response = api(session).mediaInfoApi.getPostedPlaybackInfo(
             itemId = itemId,
             data = PlaybackInfoDto(
@@ -109,10 +113,10 @@ class PlaybackRepository @Inject constructor(
             )
         ).content
         val source = response.mediaSources.firstOrNull() ?: error("No playable source")
-        buildStreamInfo(session, itemId, source, response.playSessionId, rung ?: imposedRung(source, ceiling))
+        buildStreamInfo(session, itemId, source, response.playSessionId, rung ?: imposedRung(source))
     }
 
-    private fun imposedRung(source: MediaSourceInfo, ceiling: QualityRung?): QualityRung = automaticRung(SourceQuality.of(source.bitrate, source.mediaStreams.orEmpty()), ceiling)
+    private fun imposedRung(source: MediaSourceInfo): QualityRung = automaticRung(SourceQuality.of(source.bitrate, source.mediaStreams.orEmpty()))
 
     private fun buildStreamInfo(
         session: UserSession,
