@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -83,6 +84,7 @@ import app.picnic.player.ui.player.osd.StatsForNerdsPanel
 import app.picnic.player.ui.player.osd.SubtitleDelayHud
 import app.picnic.player.ui.player.osd.TrackPanel
 import app.picnic.player.ui.player.osd.TrickplayCell
+import app.picnic.player.ui.player.osd.qualitySummary
 import app.picnic.player.ui.theme.PicnicColors
 import coil3.compose.rememberAsyncImagePainter
 import kotlinx.coroutines.delay
@@ -108,6 +110,8 @@ private val NextUpPlayerInset = 56.dp
  * user seeked into the middle of the segment, where skip lives only in the OSD.
  */
 private const val SkipPillEntryWindowMs = 2_000L
+
+private const val NOTICE_VISIBLE_MS = 3_000L
 
 /**
  * Full-screen player. [PlayerSurface] uses SurfaceView for better performance;
@@ -734,6 +738,10 @@ fun PlayerScreen(
             Box(Modifier.fillMaxSize().zIndex(3f)) {
                 PlayerSettingsPanel(
                     subtitleDelayMs = state.subtitleDelayMs,
+                    qualityOptions = state.qualityOptions,
+                    selectedQuality = state.activeQuality,
+                    qualitySummary = qualitySummary(state.playMethod, state.activeQuality),
+                    onSelectQuality = { viewModel.selectQuality(it) },
                     playbackSpeed = state.playbackSpeed,
                     audioBoost = state.audioBoost,
                     nightMode = state.nightMode,
@@ -752,6 +760,30 @@ fun PlayerScreen(
                     onEnterPip = pipState::enterPip,
                     pipSupported = viewModel.pictureInPictureSupported,
                     onClose = ::closePanel
+                )
+            }
+        }
+
+        state.notice?.let { notice ->
+            LaunchedEffect(notice) {
+                delay(NOTICE_VISIBLE_MS)
+                viewModel.clearNotice()
+            }
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .zIndex(4f)
+                    .padding(bottom = 96.dp),
+                contentAlignment = Alignment.BottomCenter
+            ) {
+                Text(
+                    text = notice,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.White,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(Color.Black.copy(alpha = 0.72f))
+                        .padding(horizontal = 16.dp, vertical = 10.dp)
                 )
             }
         }

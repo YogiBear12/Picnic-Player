@@ -48,6 +48,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import app.picnic.player.data.playback.quality.QualityOption
+import app.picnic.player.data.playback.quality.QualityRung
 import app.picnic.player.playback.AudioBoost
 import app.picnic.player.playback.NightMode
 import app.picnic.player.playback.SleepMode
@@ -66,7 +68,7 @@ private val SleepModes = SleepMode.entries
 private val Boosts = AudioBoost.entries
 private val NightModes = NightMode.entries
 
-private enum class Page { MAIN, SPEED, AUDIO, SLEEP }
+private enum class Page { MAIN, QUALITY, SPEED, AUDIO, SLEEP }
 
 /**
  * Frosted right-side player settings panel (mirrors [TrackPanel] chrome). The top level lists
@@ -77,6 +79,10 @@ private enum class Page { MAIN, SPEED, AUDIO, SLEEP }
 @Composable
 fun PlayerSettingsPanel(
     subtitleDelayMs: Long,
+    qualityOptions: List<QualityOption>,
+    selectedQuality: QualityRung?,
+    qualitySummary: String,
+    onSelectQuality: (QualityRung?) -> Unit,
     playbackSpeed: Float,
     audioBoost: AudioBoost,
     nightMode: NightMode,
@@ -126,6 +132,7 @@ fun PlayerSettingsPanel(
             PanelHeader(
                 title = when (page) {
                     Page.MAIN -> "Settings"
+                    Page.QUALITY -> "Quality"
                     Page.SPEED -> "Playback speed"
                     Page.AUDIO -> "Audio"
                     Page.SLEEP -> "Sleep timer"
@@ -140,6 +147,9 @@ fun PlayerSettingsPanel(
                 when (page) {
                     Page.MAIN -> {
                         NavRow("Subtitle delay", formatDelay(subtitleDelayMs), firstFocus, onClose = ::back, blockUp = true, showChevron = false, onClick = onAdjustSubtitleDelay)
+                        if (qualityOptions.isNotEmpty()) {
+                            NavRow("Quality", qualitySummary, null, onClose = ::back) { page = Page.QUALITY }
+                        }
                         NavRow("Playback speed", formatSpeed(playbackSpeed), null, onClose = ::back) { page = Page.SPEED }
                         NavRow("Audio", "Boost ${audioBoostLabel(audioBoost)} · Night ${nightModeLabel(nightMode)}", null, onClose = ::back) { page = Page.AUDIO }
                         NavRow("Sleep timer", sleepSummary(sleep), null, onClose = ::back) { page = Page.SLEEP }
@@ -156,6 +166,25 @@ fun PlayerSettingsPanel(
                                 onEnterPip()
                                 back()
                             }
+                        }
+                    }
+                    Page.QUALITY -> {
+                        qualityOptions.forEachIndexed { i, option ->
+                            val rung = (option as? QualityOption.Transcode)?.rung
+                            val chosen = rung == selectedQuality
+                            SelectRow(
+                                primary = rung?.label ?: "Original",
+                                secondary = rung?.let { "${it.bitrateLabel} · ${it.sizeHint}" },
+                                selected = chosen,
+                                focusRequester = if (chosen) firstFocus else null,
+                                onClick = {
+                                    onSelectQuality(rung)
+                                    page = Page.MAIN
+                                },
+                                onClose = ::back,
+                                blockUp = i == 0,
+                                blockDown = i == qualityOptions.lastIndex
+                            )
                         }
                     }
                     Page.SPEED -> {
@@ -274,6 +303,7 @@ private fun NavRow(
 private fun SelectRow(
     primary: String,
     selected: Boolean,
+    secondary: String? = null,
     focusRequester: FocusRequester?,
     onClick: () -> Unit,
     onClose: () -> Unit,
@@ -283,6 +313,15 @@ private fun SelectRow(
     var focused by remember { mutableStateOf(false) }
     RowFrame(focused, { focused = it }, focusRequester, blockUp, blockDown, onClose, { onClick() }) {
         Text(primary, color = if (focused) Color.Black else Color.White.copy(alpha = 0.92f), style = MaterialTheme.typography.bodyMedium, maxLines = 1, modifier = Modifier.weight(1f))
+        secondary?.let {
+            Text(
+                it,
+                color = if (focused) Color.Black.copy(alpha = 0.66f) else Color.White.copy(alpha = 0.5f),
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 1,
+                modifier = Modifier.padding(end = 8.dp)
+            )
+        }
         if (selected) {
             Icon(Icons.Filled.Check, contentDescription = "Selected", tint = if (focused) Color.Black.copy(alpha = 0.72f) else Color.White.copy(alpha = 0.55f))
         }

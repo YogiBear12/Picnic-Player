@@ -58,6 +58,8 @@ import app.picnic.player.data.playback.CulturePickerOption
 import app.picnic.player.data.playback.cultureDisplayName
 import app.picnic.player.data.playback.culturePickerOptions
 import app.picnic.player.data.playback.pinnedLanguageOptions
+import app.picnic.player.data.playback.quality.QualityRung
+import app.picnic.player.data.playback.quality.qualityCeilingLabel
 import app.picnic.player.data.playback.resolveLanguageCode
 import app.picnic.player.data.seerr.SeerrLinkState
 import app.picnic.player.data.settings.PlaybackSettings
@@ -290,6 +292,7 @@ class SettingsViewModel @Inject constructor(
     fun setOutroAction(action: SegmentAction) = viewModelScope.launch { store.setOutroAction(action) }
     fun setPreviewAction(action: SegmentAction) = viewModelScope.launch { store.setPreviewAction(action) }
     fun setCommercialAction(action: SegmentAction) = viewModelScope.launch { store.setCommercialAction(action) }
+    fun setMaxStreamingQuality(rung: QualityRung?) = viewModelScope.launch { store.setMaxStreamingQuality(rung) }
 
     fun toggleClickToPause() = viewModelScope.launch {
         store.setClickToPause(!settings.value.clickToPause)
@@ -438,6 +441,20 @@ private fun secondsPicker(
     title = title,
     options = options.map { s ->
         PickerOption(label = "${s}s", selected = s == current, onSelect = { onSelect(s) })
+    }
+)
+
+private fun qualityCeilingPicker(
+    current: QualityRung?,
+    onSelect: (QualityRung?) -> Unit
+) = ActivePicker(
+    title = "Maximum streaming quality",
+    options = (listOf(null) + QualityRung.entries).map { ceiling ->
+        PickerOption(
+            label = qualityCeilingLabel(ceiling),
+            selected = ceiling == current,
+            onSelect = { onSelect(ceiling) }
+        )
     }
 )
 
@@ -636,6 +653,20 @@ private fun sectionsFor(
                     )
                 }
             }
+        ),
+        SettingSection(
+            "Streaming",
+            listOf(
+                SettingItem(
+                    "Maximum streaming quality",
+                    qualityCeilingLabel(settings.maxStreamingQuality),
+                    onActivate = {
+                        showPicker(
+                            qualityCeilingPicker(settings.maxStreamingQuality, viewModel::setMaxStreamingQuality)
+                        )
+                    }
+                )
+            )
         ),
         SettingSection(
             "Next up behavior",

@@ -5,6 +5,7 @@ package app.picnic.player.ui.player
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
@@ -17,6 +18,7 @@ import app.picnic.player.data.auth.UserSession
 import app.picnic.player.data.jellyfin.JellyfinImages
 import app.picnic.player.data.playback.MediaSegment
 import app.picnic.player.data.playback.OUTRO_END_TOLERANCE_MS
+import app.picnic.player.data.playback.PlayMethodKind
 import app.picnic.player.data.playback.PlaybackPhase
 import app.picnic.player.data.playback.PlaybackRepository
 import app.picnic.player.data.playback.PlaybackTickInput
@@ -30,6 +32,11 @@ import app.picnic.player.data.playback.TrackMemoryKind
 import app.picnic.player.data.playback.TrickplayTiles
 import app.picnic.player.data.playback.pickTracksWithMemory
 import app.picnic.player.data.playback.playbackTick
+import app.picnic.player.data.playback.quality.QualityOption
+import app.picnic.player.data.playback.quality.QualityRung
+import app.picnic.player.data.playback.quality.SourceQuality
+import app.picnic.player.data.playback.quality.qualityOptions
+import app.picnic.player.data.playback.refinePlayMethod
 import app.picnic.player.data.playback.resolveLanguageCode
 import app.picnic.player.data.settings.PlaybackSettings
 import app.picnic.player.data.settings.SeriesTrackMemoryStore
@@ -40,8 +47,13 @@ import app.picnic.player.playback.JellyfinTrackSelection
 import app.picnic.player.playback.NightMode
 import app.picnic.player.playback.PlaybackEngine
 import app.picnic.player.playback.PlaybackSessionController
+import app.picnic.player.playback.SideloadedTrackId
 import app.picnic.player.playback.SleepMode
 import app.picnic.player.playback.SleepTimerState
+import app.picnic.player.playback.StreamLoader
+import app.picnic.player.playback.StreamRequest
+import app.picnic.player.playback.StreamResult
+import app.picnic.player.playback.StreamTarget
 import app.picnic.player.playback.ThemeMusicPlayer
 import app.picnic.player.ui.browse.ShortDateFormat
 import app.picnic.player.ui.browse.TICKS_PER_MINUTE
@@ -183,13 +195,16 @@ data class PlayerUiState(
     /** Sleep timer state — persists across autoplayed episodes (app-scoped). */
     val sleep: SleepTimerState = SleepTimerState(),
     val showStatsForNerds: Boolean = false,
-    val playMethod: app.picnic.player.data.playback.PlayMethodKind? = null,
+    val playMethod: PlayMethodKind? = null,
     val mediaSourceId: String? = null,
     val mediaSource: org.jellyfin.sdk.model.api.MediaSourceInfo? = null,
     val transcodingInfo: TranscodingInfo? = null,
     val videoDecoderName: String? = null,
     val audioDecoderName: String? = null,
     val estimatedBitrate: Long? = null,
+    val notice: String? = null,
+    val qualityOptions: List<QualityOption> = emptyList(),
+    val activeQuality: QualityRung? = null,
     val tracks: List<app.picnic.player.ui.player.osd.TrackSupport> = emptyList()
 )
 
@@ -246,6 +261,29 @@ class PlayerViewModel @Inject constructor(
     private var ticker: Job? = null
     private var progressJob: Job? = null
     private var trickplayPrefetchJob: Job? = null
+    private var reloadJob: Job? = null
+
+    private val streamTarget = object : StreamTarget {
+        override val positionMs: Long get() = player.currentPosition
+
+        override fun stop() = player.stop()
+
+        override fun load(stream: StreamInfo, resumeMs: Long) {
+            player.setMediaItem(mediaItemFor(stream))
+            player.prepare()
+            pendingSeekMs = resumeMs
+        }
+
+        override fun resume(playing: Boolean) {
+            player.playWhenReady = playing
+        }
+    }
+
+    private val streamLoader = StreamLoader(streamTarget, playbackRepository)
+
+    private var pendingSeekMs: Long = 0
+
+    private var canTranscode = true
     private var hasPresentedFirstFrame = false
 
     private var segments: List<MediaSegment> = emptyList()
@@ -256,6 +294,10 @@ class PlayerViewModel @Inject constructor(
     private var outroNextUpShown = false
 
     private val listener = object : Player.Listener {
+        override fun onPlaybackStateChanged(playbackState: Int) {
+            applyPendingSeek()
+        }
+
         override fun onEvents(player: Player, events: Player.Events) {
             pushState()
             if (events.containsAny(Player.EVENT_TRACKS_CHANGED)) {
@@ -271,6 +313,15 @@ class PlayerViewModel @Inject constructor(
         override fun onPlayerError(error: PlaybackException) {
             _state.update { it.copy(error = error.message ?: "Playback error", isLoading = false) }
         }
+    }
+
+    private fun applyPendingSeek() {
+        val target = pendingSeekMs
+        if (target <= 0) return
+        // Seeking before the duration resolves runs against a timeline the player has not built.
+        if (player.playbackState != Player.STATE_READY || player.duration <= 0) return
+        pendingSeekMs = 0
+        player.seekTo(target)
     }
 
     private fun getDecoderString(decoderName: String): String = try {
@@ -404,6 +455,8 @@ class PlayerViewModel @Inject constructor(
 
             // Item metadata runs in parallel with stream negotiation; we await it before track
             // pick so series/season memory (#15 stage 2) has ids without delaying the HTTP start.
+            launch { ensureTranscodePermission(activeSession) }
+
             val itemDeferred = async {
                 runCatching { mediaRepository.item(activeSession, id) }.getOrNull()
             }
@@ -413,53 +466,33 @@ class PlayerViewModel @Inject constructor(
                 autoSkipped.clear()
             }
 
-            try {
-                val info = playbackRepository.resolveStream(activeSession, id, startTicks, mediaSourceId)
-                val item = itemDeferred.await()
-                if (item != null) {
-                    applyItemMetadata(activeSession, id, item)
-                }
-                stream = info
-                mediaStreams = info.mediaStreams
-                initDefaultTrackIndices()
-                rebuildTrackOptions()
-                player.setMediaItem(MediaItem.fromUri(info.url))
-                player.prepare()
-                // Session-only controls reset for the new item.
-                engine.setSubtitleDelayMs(0)
-                player.setPlaybackSpeed(1.0f)
-                _state.update {
-                    it.copy(
-                        subtitleDelayMs = 0,
-                        playbackSpeed = 1.0f,
-                        showStatsForNerds = false,
-                        playMethod = info.playMethod,
-                        mediaSourceId = info.mediaSourceId,
-                        mediaSource = info.mediaSource,
-                        transcodingInfo = null
-                    )
-                }
-                updateTranscodingInfoJob()
-                if ((startTicks ?: 0L) > 0L) player.seekTo(startTicks!! / TICKS_PER_MS)
-                player.playWhenReady = true
-                startTicker()
-                startProgressReports()
-                launch {
-                    runCatching {
-                        playbackRepository.reportStart(
-                            activeSession,
-                            info,
-                            id,
-                            player.currentPosition * TICKS_PER_MS
-                        )
-                    }
-                    // After the session exists, refine Transcode→Direct Stream when video is remuxed.
-                    if (info.playMethod == app.picnic.player.data.playback.PlayMethodKind.TRANSCODE) {
-                        refreshTranscodingInfoOnce(activeSession, info.mediaSourceId, info.playMethod)
-                    }
-                }
-            } catch (e: Exception) {
+            val result = streamLoader.load(
+                StreamRequest(
+                    session = activeSession,
+                    itemId = id,
+                    seriesId = seriesId,
+                    positionTicks = startTicks ?: 0L,
+                    mediaSourceId = mediaSourceId,
+                    rung = sessionController.qualityOverride.value,
+                    audioStreamIndex = selectedAudioIndex,
+                    subtitleStreamIndex = selectedSubtitleIndex,
+                    resumePlaying = true,
+                    replacing = null
+                )
+            )
+            if (result !is StreamResult.Loaded) {
                 _state.update { it.copy(error = "Could not start playback", buffering = false, isLoading = false) }
+                return@launch
+            }
+            itemDeferred.await()?.let { applyItemMetadata(activeSession, id, it) }
+            adopt(result.stream, subtitleDelayMs = 0, speed = 1.0f)
+            initDefaultTrackIndices()
+            rebuildTrackOptions()
+            _state.update { it.copy(subtitleDelayMs = 0, playbackSpeed = 1.0f, showStatsForNerds = false) }
+            startTicker()
+            startProgressReports()
+            if (result.stream.playMethod == PlayMethodKind.TRANSCODE) {
+                launch { refreshTranscodingInfoOnce(activeSession, result.stream.mediaSourceId, PlayMethodKind.TRANSCODE) }
             }
         }
     }
@@ -498,7 +531,7 @@ class PlayerViewModel @Inject constructor(
         // Gate on the *resolved* stream method (not the refined UI label): remuxes start as
         // TRANSCODE in PlaybackInfo and stay on the transcoding pipeline even after we display
         // Direct Stream once isVideoDirect is known.
-        val pipelineTranscode = stream?.playMethod == app.picnic.player.data.playback.PlayMethodKind.TRANSCODE
+        val pipelineTranscode = stream?.playMethod == PlayMethodKind.TRANSCODE
         if (_state.value.showStatsForNerds && pipelineTranscode) {
             if (transcodingInfoJob == null) {
                 transcodingInfoJob = viewModelScope.launch {
@@ -508,7 +541,7 @@ class PlayerViewModel @Inject constructor(
                             session,
                             mediaSourceId = stream?.mediaSourceId,
                             initialMethod = stream?.playMethod
-                                ?: app.picnic.player.data.playback.PlayMethodKind.TRANSCODE
+                                ?: PlayMethodKind.TRANSCODE
                         )
                         delay(2.seconds)
                     }
@@ -523,13 +556,13 @@ class PlayerViewModel @Inject constructor(
     private suspend fun refreshTranscodingInfoOnce(
         session: UserSession,
         mediaSourceId: String?,
-        initialMethod: app.picnic.player.data.playback.PlayMethodKind
+        initialMethod: PlayMethodKind
     ) {
         val info = playbackRepository.getTranscodingInfo(session, mediaSourceId) ?: return
         _state.update {
             it.copy(
                 transcodingInfo = info,
-                playMethod = app.picnic.player.data.playback.refinePlayMethod(initialMethod, info)
+                playMethod = refinePlayMethod(initialMethod, info)
             )
         }
     }
@@ -564,14 +597,89 @@ class PlayerViewModel @Inject constructor(
 
     fun selectAudio(streamIndex: String) {
         selectedAudioIndex = streamIndex.toIntOrNull() ?: return
-        applyTrackSelections()
         persistOsdTrackMemory(audio = true)
+        if (isConverting()) renegotiate() else applyTrackSelections()
     }
 
     fun selectSubtitle(streamIndex: String?) {
+        val previous = selectedSubtitleIndex
         selectedSubtitleIndex = streamIndex?.toIntOrNull()
-        applyTrackSelections()
         persistOsdTrackMemory(audio = false)
+        val burnedIn = isBurnedIn(previous) || isBurnedIn(selectedSubtitleIndex)
+        if (isConverting() && burnedIn) renegotiate() else applyTrackSelections()
+    }
+
+    private fun isBurnedIn(streamIndex: Int?): Boolean {
+        val index = streamIndex ?: return false
+        return mediaStreams.firstOrNull { it.index == index }?.deliveryMethod ==
+            org.jellyfin.sdk.model.api.SubtitleDeliveryMethod.ENCODE
+    }
+
+    private fun isConverting() = stream?.playMethod == PlayMethodKind.TRANSCODE
+
+    private fun renegotiate() = reload(sessionController.qualityOverride.value)
+
+    fun clearNotice() = _state.update { it.copy(notice = null) }
+
+    fun selectQuality(rung: QualityRung?) {
+        if (rung == _state.value.activeQuality) return
+        val previous = sessionController.qualityOverride.value
+        sessionController.setQualityOverride(rung)
+        reload(rung, revertTo = previous)
+    }
+
+    private fun reload(rung: QualityRung?, revertTo: QualityRung? = rung) {
+        val activeSession = session ?: return
+        val id = itemId ?: return
+        val current = stream ?: return
+        val delayMs = _state.value.subtitleDelayMs
+        val speed = _state.value.playbackSpeed
+
+        reloadJob?.cancel()
+        reloadJob = viewModelScope.launch {
+            _state.update { it.copy(buffering = true, notice = null, subtitleCues = emptyList()) }
+            val result = streamLoader.load(
+                StreamRequest(
+                    session = activeSession,
+                    itemId = id,
+                    seriesId = seriesId,
+                    positionTicks = player.currentPosition * TICKS_PER_MS,
+                    mediaSourceId = current.mediaSourceId,
+                    rung = rung,
+                    audioStreamIndex = selectedAudioIndex,
+                    subtitleStreamIndex = selectedSubtitleIndex,
+                    resumePlaying = player.playWhenReady,
+                    replacing = current
+                )
+            )
+            when (result) {
+                is StreamResult.Loaded -> adopt(result.stream, delayMs, speed)
+                is StreamResult.Failed -> {
+                    sessionController.setQualityOverride(revertTo)
+                    _state.update { it.copy(notice = "Couldn't change quality") }
+                    result.restored?.let { adopt(it, delayMs, speed) }
+                }
+            }
+        }
+    }
+
+    private fun adopt(info: StreamInfo, subtitleDelayMs: Long, speed: Float) {
+        stream = info
+        mediaStreams = info.mediaStreams
+        refreshQualityOptions(info)
+        rebuildTrackOptions()
+        engine.setSubtitleDelayMs(subtitleDelayMs)
+        player.setPlaybackSpeed(speed)
+        _state.update {
+            it.copy(
+                isLoading = false,
+                playMethod = info.playMethod,
+                mediaSourceId = info.mediaSourceId,
+                mediaSource = info.mediaSource,
+                transcodingInfo = null
+            )
+        }
+        updateTranscodingInfoJob()
     }
 
     // Jellyfin user-config language preferences, resolved behind the local app override
@@ -579,6 +687,10 @@ class PlayerViewModel @Inject constructor(
     private var serverAudioLanguage: String? = null
     private var serverSubtitleLanguage: String? = null
     private var serverLanguagePrefsLoaded = false
+
+    private suspend fun ensureTranscodePermission(session: UserSession) {
+        canTranscode = runCatching { mediaRepository.canTranscodeVideo(session) }.getOrDefault(true)
+    }
 
     private suspend fun ensureServerLanguagePrefs() {
         if (serverLanguagePrefsLoaded) return
@@ -697,13 +809,50 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
+    private fun refreshQualityOptions(info: StreamInfo) {
+        val prefs = settings.value
+        val options = if (!canTranscode) {
+            emptyList()
+        } else {
+            qualityOptions(
+                source = SourceQuality.of(info.mediaSource?.bitrate, info.mediaStreams),
+                ceiling = prefs.maxStreamingQuality
+            )
+        }
+        val transcoding = info.playMethod == PlayMethodKind.TRANSCODE
+        _state.update { it.copy(qualityOptions = options, activeQuality = if (transcoding) info.rung else null) }
+    }
+
+    private fun mediaItemFor(info: StreamInfo): MediaItem {
+        val subtitles = info.externalSubtitles.map { subtitle ->
+            MediaItem.SubtitleConfiguration.Builder(android.net.Uri.parse(subtitle.url))
+                .setId(SideloadedTrackId.of(subtitle.streamIndex))
+                .setMimeType(subtitle.mimeType)
+                .setLanguage(subtitle.language)
+                .setLabel(subtitle.title)
+                .build()
+        }
+        return MediaItem.Builder()
+            .setUri(info.url)
+            .setSubtitleConfigurations(subtitles)
+            .build()
+    }
+
     /** Always rebuild audio + subtitle selection together. */
     private fun applyTrackSelections() {
         if (mediaStreams.isEmpty()) return
+        if (isConverting() && isBurnedIn(selectedSubtitleIndex)) {
+            player.trackSelectionParameters = player.trackSelectionParameters
+                .buildUpon()
+                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
+                .build()
+            rebuildTrackOptions()
+            return
+        }
         val result = JellyfinTrackSelection.createTrackSelections(
             trackSelectionParams = player.trackSelectionParameters,
             tracks = player.currentTracks,
-            supportsDirectPlay = true,
+            supportsDirectPlay = !isConverting(),
             audioIndex = selectedAudioIndex,
             subtitleIndex = selectedSubtitleIndex,
             mediaStreams = mediaStreams

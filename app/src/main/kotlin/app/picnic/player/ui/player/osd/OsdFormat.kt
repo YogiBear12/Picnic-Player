@@ -1,5 +1,7 @@
 package app.picnic.player.ui.player.osd
 
+import app.picnic.player.data.playback.PlayMethodKind
+import app.picnic.player.data.playback.quality.QualityRung
 import app.picnic.player.playback.AudioBoost
 import app.picnic.player.playback.NightMode
 import app.picnic.player.playback.SleepMode
@@ -66,4 +68,20 @@ internal fun sleepSummary(state: SleepTimerState): String = when {
     state.mode.durationMinutes != null && state.remainingMs > 0 ->
         "${sleepModeLabel(state.mode)} · ${formatTime(state.remainingMs)} left"
     else -> sleepModeLabel(state.mode)
+}
+
+internal fun qualitySummary(playMethod: PlayMethodKind?, rung: QualityRung?): String = when {
+    playMethod != PlayMethodKind.TRANSCODE -> "Original"
+    rung == null -> "Transcoding…"
+    else -> "Transcoding · ${rung.label}"
+}
+
+private fun ladderResolution(height: Int): String {
+    val tier = QualityRung.entries
+        .map { it.height }
+        .distinct()
+        .sorted()
+        .firstOrNull { height <= it }
+        ?: height
+    return "${tier}p"
 }
