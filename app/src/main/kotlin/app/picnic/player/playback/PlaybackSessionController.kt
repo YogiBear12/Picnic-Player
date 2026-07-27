@@ -75,6 +75,7 @@ class PlaybackSessionController @Inject constructor(
     val sleepExpired: SharedFlow<Unit> = _sleepExpired.asSharedFlow()
 
     private var tickJob: Job? = null
+    private var handingOff = false
 
     fun setAudioBoost(level: AudioBoost) {
         _audioBoost.value = level

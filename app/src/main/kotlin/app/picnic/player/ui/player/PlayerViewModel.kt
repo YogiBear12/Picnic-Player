@@ -284,6 +284,7 @@ class PlayerViewModel @Inject constructor(
     private var pendingSeekMs: Long = 0
 
     private var canTranscode = true
+    private var tornDown = false
     private var hasPresentedFirstFrame = false
 
     private var segments: List<MediaSegment> = emptyList()
@@ -1042,10 +1043,20 @@ class PlayerViewModel @Inject constructor(
         _state.update { it.copy(endedAwaitingNext = false, videoStillPlaying = false) }
     }
 
-    override fun onCleared() {
+    fun onAutoplayHandoff() = sessionController.handOffToNextItem()
+
+    /**
+     * Ends the viewing now rather than whenever this ViewModel happens to be cleared. Navigation
+     * away from a stopped app is deferred, so without this the video plays on in the background.
+     */
+    fun endPlayback() {
+        if (tornDown) return
+        tornDown = true
+        sessionController.playerTornDown()
         ticker?.cancel()
         progressJob?.cancel()
         trickplayPrefetchJob?.cancel()
+        reloadJob?.cancel()
         val s = session
         val info = stream
         val id = itemId
@@ -1055,10 +1066,13 @@ class PlayerViewModel @Inject constructor(
         engine.release()
         if (s != null && info != null && id != null) {
             appScope.launch {
+                playbackRepository.stopEncoding(s, info.playSessionId)
                 runCatching { playbackRepository.reportStopped(s, info, id, positionTicks, series) }
             }
         }
     }
+
+    override fun onCleared() = endPlayback()
 }
 
 // ---------------------------------------------------------------------------

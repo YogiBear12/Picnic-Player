@@ -175,8 +175,6 @@ fun PlayerScreen(
     val inPipMode = pipState.inPipMode
     val lifecycleOwner = LocalLifecycleOwner.current
 
-    var wasPlayingBeforeBackground by remember { mutableStateOf(false) }
-
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
@@ -184,18 +182,13 @@ fun PlayerScreen(
                     pipState.consumeExitedPip()
                 }
                 Lifecycle.Event.ON_STOP -> {
-                    if (pipState.exitedPip) {
+                    // Leaving the app ends the viewing: the player, its decoder and the server's
+                    // encoder all go, and whatever screen playback started from comes back.
+                    if (!pipState.inPipMode) {
                         pipState.consumeExitedPip()
+                        viewModel.onPlayerExit()
+                        viewModel.endPlayback()
                         onExit()
-                    } else {
-                        wasPlayingBeforeBackground = viewModel.player.isPlaying
-                        viewModel.player.pause()
-                    }
-                }
-                Lifecycle.Event.ON_START -> {
-                    if (wasPlayingBeforeBackground) {
-                        viewModel.player.play()
-                        wasPlayingBeforeBackground = false
                     }
                 }
                 else -> {}
@@ -272,7 +265,10 @@ fun PlayerScreen(
         viewModel.navEvents.collect { event ->
             when (event) {
                 PlayerNavEvent.Exit -> exitPlayer()
-                is PlayerNavEvent.PlayNext -> onPlayNext(event.itemId)
+                is PlayerNavEvent.PlayNext -> {
+                    viewModel.onAutoplayHandoff()
+                    onPlayNext(event.itemId)
+                }
             }
         }
     }
@@ -898,7 +894,10 @@ fun PlayerScreen(
                 NextUpOverlay(
                     item = nextUp,
                     countdownSeconds = nextUpCountdownStart,
-                    onPlayNext = { onPlayNext(nextUp.id) },
+                    onPlayNext = {
+                        viewModel.onAutoplayHandoff()
+                        onPlayNext(nextUp.id)
+                    },
                     onBack = onNextUpBack
                 )
             }
