@@ -1,14 +1,19 @@
 package app.picnic.player.data.playback
 
 import android.content.Context
+import androidx.media3.common.MimeTypes
 import app.picnic.player.data.auth.UserSession
 import app.picnic.player.data.device.DeviceIdentityStore
 import app.picnic.player.data.jellyfin.JellyfinFactory
 import app.picnic.player.data.media.LibraryChange
 import app.picnic.player.data.media.LibraryChangeBus
 import app.picnic.player.data.playback.profile.DynamicProfileBuilder
+import app.picnic.player.data.playback.quality.QualityRung
+import app.picnic.player.data.playback.quality.SourceQuality
+import app.picnic.player.data.playback.quality.automaticRung
 import app.picnic.player.data.settings.SettingsStore
 import app.picnic.player.di.IoDispatcher
+import app.picnic.player.playback.StreamNegotiator
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.UUID
 import javax.inject.Inject
@@ -16,6 +21,7 @@ import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
+import org.jellyfin.sdk.api.client.extensions.hlsSegmentApi
 import org.jellyfin.sdk.api.client.extensions.mediaInfoApi
 import org.jellyfin.sdk.api.client.extensions.mediaSegmentsApi
 import org.jellyfin.sdk.api.client.extensions.playStateApi
@@ -24,6 +30,7 @@ import org.jellyfin.sdk.api.client.extensions.userLibraryApi
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.MediaSegmentType
 import org.jellyfin.sdk.model.api.MediaSourceInfo
+import org.jellyfin.sdk.model.api.MediaStreamType
 import org.jellyfin.sdk.model.api.PlayMethod
 import org.jellyfin.sdk.model.api.PlaybackInfoDto
 import org.jellyfin.sdk.model.api.PlaybackOrder
@@ -31,6 +38,7 @@ import org.jellyfin.sdk.model.api.PlaybackProgressInfo
 import org.jellyfin.sdk.model.api.PlaybackStartInfo
 import org.jellyfin.sdk.model.api.PlaybackStopInfo
 import org.jellyfin.sdk.model.api.RepeatMode
+import org.jellyfin.sdk.model.api.SubtitleDeliveryMethod
 import org.jellyfin.sdk.model.api.TranscodingInfo
 
 enum class SegmentKind { INTRO, OUTRO, RECAP, PREVIEW, COMMERCIAL, UNKNOWN }
@@ -54,39 +62,64 @@ class PlaybackRepository @Inject constructor(
     private val deviceIdentityStore: DeviceIdentityStore,
     @ApplicationContext private val context: Context,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher
-) {
+) : StreamNegotiator {
     private fun api(session: UserSession) = jellyfin.api(session.server.baseUrl, session.accessToken)
+
+    override suspend fun stopEncoding(session: UserSession, playSessionId: String?) {
+        if (playSessionId == null) return
+        onIo {
+            runCatching {
+                api(session).hlsSegmentApi.stopEncodingProcess(
+                    deviceId = deviceIdentityStore.deviceId,
+                    playSessionId = playSessionId
+                )
+            }
+        }
+    }
 
     /** Runs a network + deserialize [block] off the caller's dispatcher — see MediaRepository.onIo. */
     private suspend inline fun <T> onIo(crossinline block: suspend () -> T): T = withContext(ioDispatcher) { block() }
 
-    /** Negotiates a playable source for [itemId] and returns the stream to load. */
-    suspend fun resolveStream(
+    override suspend fun resolveStream(
         session: UserSession,
         itemId: UUID,
         startTicks: Long?,
-        mediaSourceId: String? = null
+        mediaSourceId: String?,
+        rung: QualityRung?,
+        audioStreamIndex: Int?,
+        subtitleStreamIndex: Int?
     ): StreamInfo = onIo {
         val settings = settingsStore.settings.first()
+        val ceiling = settings.maxStreamingQuality
+        val cap = rung?.videoBitrate ?: ceiling?.videoBitrate
         val response = api(session).mediaInfoApi.getPostedPlaybackInfo(
             itemId = itemId,
             data = PlaybackInfoDto(
                 userId = UUID.fromString(session.userId),
-                deviceProfile = DynamicProfileBuilder.build(context, settings),
+                deviceProfile = DynamicProfileBuilder.build(context, settings, rung),
                 startTimeTicks = startTicks,
-                maxStreamingBitrate = 120_000_000,
+                maxStreamingBitrate = cap,
+                mediaSourceId = mediaSourceId,
+                audioStreamIndex = audioStreamIndex,
+                subtitleStreamIndex = subtitleStreamIndex,
+                allowVideoStreamCopy = true,
+                allowAudioStreamCopy = true,
+                alwaysBurnInSubtitleWhenTranscoding = false,
                 autoOpenLiveStream = true
             )
         ).content
         val source = response.mediaSources.firstOrNull() ?: error("No playable source")
-        buildStreamInfo(session, itemId, source, response.playSessionId)
+        buildStreamInfo(session, itemId, source, response.playSessionId, rung ?: imposedRung(source, ceiling))
     }
+
+    private fun imposedRung(source: MediaSourceInfo, ceiling: QualityRung?): QualityRung = automaticRung(SourceQuality.of(source.bitrate, source.mediaStreams.orEmpty()), ceiling)
 
     private fun buildStreamInfo(
         session: UserSession,
         itemId: UUID,
         source: MediaSourceInfo,
-        playSessionId: String?
+        playSessionId: String?,
+        rung: QualityRung
     ): StreamInfo {
         val base = session.server.baseUrl.trimEnd('/')
         val sourceId = source.id ?: itemId.toString()
@@ -104,15 +137,47 @@ class PlaybackRepository @Inject constructor(
                 } else {
                     PlayMethodKind.DIRECT_STREAM
                 }
-            return streamInfo(url, method, playSessionId, sourceId, source)
+            return streamInfo(url, method, playSessionId, sourceId, source, session = session)
         }
-        source.transcodingUrl?.let {
-            return streamInfo(base + it, PlayMethodKind.TRANSCODE, playSessionId, sourceId, source)
+        source.transcodingUrl?.let { path ->
+            // Played exactly as returned: editing it yields a stream the server did not plan.
+            val url = base + path
+            return streamInfo(url, PlayMethodKind.TRANSCODE, playSessionId, sourceId, source, rung, session)
         }
         // Last resort: attempt a static stream anyway.
         val url =
             "$base/Videos/$itemId/stream?static=true&mediaSourceId=$sourceId&api_key=${session.accessToken}"
-        return streamInfo(url, PlayMethodKind.DIRECT_STREAM, playSessionId, sourceId, source)
+        return streamInfo(url, PlayMethodKind.DIRECT_STREAM, playSessionId, sourceId, source, session = session)
+    }
+
+    private fun externalSubtitles(session: UserSession, source: MediaSourceInfo): List<ExternalSubtitle> {
+        val base = session.server.baseUrl.trimEnd('/')
+        return source.mediaStreams.orEmpty()
+            .filter { it.type == MediaStreamType.SUBTITLE && it.deliveryMethod == SubtitleDeliveryMethod.EXTERNAL }
+            .mapNotNull { stream ->
+                val path = stream.deliveryUrl ?: return@mapNotNull null
+                val url = if (path.startsWith("http")) path else base + path
+                ExternalSubtitle(
+                    streamIndex = stream.index,
+                    url = if (url.contains("api_key=")) url else appendApiKey(url, session.accessToken),
+                    mimeType = subtitleMimeType(stream.codec, path),
+                    language = stream.language,
+                    title = stream.displayTitle ?: stream.title
+                )
+            }
+    }
+
+    private fun appendApiKey(url: String, token: String): String = url + (if (url.contains('?')) "&" else "?") + "api_key=" + token
+
+    private fun subtitleMimeType(codec: String?, path: String): String {
+        val extension = path.substringAfterLast('.', "").substringBefore('?').lowercase()
+        return when (codec?.lowercase() ?: extension) {
+            "srt", "subrip" -> MimeTypes.APPLICATION_SUBRIP
+            "ass", "ssa" -> MimeTypes.TEXT_SSA
+            "vtt", "webvtt" -> MimeTypes.TEXT_VTT
+            "ttml", "dfxp" -> MimeTypes.APPLICATION_TTML
+            else -> MimeTypes.APPLICATION_SUBRIP
+        }
     }
 
     private fun streamInfo(
@@ -120,7 +185,9 @@ class PlaybackRepository @Inject constructor(
         method: PlayMethodKind,
         playSessionId: String?,
         sourceId: String,
-        source: MediaSourceInfo
+        source: MediaSourceInfo,
+        rung: QualityRung? = null,
+        session: UserSession? = null
     ): StreamInfo = StreamInfo(
         url = url,
         playMethod = method,
@@ -130,12 +197,14 @@ class PlaybackRepository @Inject constructor(
         mediaStreams = source.mediaStreams.orEmpty(),
         defaultAudioStreamIndex = source.defaultAudioStreamIndex,
         defaultSubtitleStreamIndex = source.defaultSubtitleStreamIndex,
-        mediaSource = source
+        mediaSource = source,
+        rung = rung,
+        externalSubtitles = session?.let { externalSubtitles(it, source) }.orEmpty()
     )
 
     // --- progress reporting (resume + Continue Watching) --------------------
 
-    suspend fun reportStart(session: UserSession, info: StreamInfo, itemId: UUID, positionTicks: Long) = onIo {
+    override suspend fun reportStarted(session: UserSession, info: StreamInfo, itemId: UUID, positionTicks: Long): Unit = onIo {
         api(session).playStateApi.reportPlaybackStart(
             PlaybackStartInfo(
                 itemId = itemId,
@@ -175,13 +244,13 @@ class PlaybackRepository @Inject constructor(
         )
     }
 
-    suspend fun reportStopped(
+    override suspend fun reportStopped(
         session: UserSession,
         info: StreamInfo,
         itemId: UUID,
         positionTicks: Long,
-        seriesId: UUID? = null
-    ) = onIo {
+        seriesId: UUID?
+    ): Unit = onIo {
         api(session).playStateApi.reportPlaybackStopped(
             PlaybackStopInfo(
                 itemId = itemId,

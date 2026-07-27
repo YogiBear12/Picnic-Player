@@ -2,6 +2,7 @@ package app.picnic.player.data.playback.profile
 
 import android.content.Context
 import android.media.MediaCodecList
+import app.picnic.player.data.playback.quality.QualityRung
 import app.picnic.player.data.settings.PlaybackSettings
 import org.jellyfin.sdk.model.api.CodecType
 import org.jellyfin.sdk.model.api.DeviceProfile
@@ -14,7 +15,11 @@ import org.jellyfin.sdk.model.deviceprofile.DeviceProfileBuilder
 import org.jellyfin.sdk.model.deviceprofile.buildDeviceProfile
 
 object DynamicProfileBuilder {
-    fun build(androidContext: Context, settings: PlaybackSettings): DeviceProfile {
+    fun build(
+        androidContext: Context,
+        settings: PlaybackSettings,
+        rung: QualityRung? = null
+    ): DeviceProfile {
         if (settings.forceDirectPlay) return forceDirectPlayProfile()
 
         val mediaCodecList = MediaCodecList(MediaCodecList.REGULAR_CODECS)
@@ -29,6 +34,11 @@ object DynamicProfileBuilder {
         } else {
             baseAudioCodecs
         }
+
+        val transcodeVideoCodecs = listOfNotNull(
+            if (capabilities.supportsHevc()) "hevc" else null,
+            "h264"
+        ).toTypedArray()
 
         val allowedVideoCodecs = listOfNotNull(
             "h264",
@@ -78,15 +88,29 @@ object DynamicProfileBuilder {
             transcodingProfile {
                 type = DlnaProfileType.VIDEO
                 context = EncodingContext.STREAMING
+                // One container only: offered a choice, the server picks fMP4, whose segments
+                // fail to parse on this device.
                 container = "ts"
                 protocol = MediaStreamProtocol.HLS
-                videoCodec(*allowedVideoCodecs)
-                val transcodeAudioCodecs = if (settings.downmixStereo) {
-                    arrayOf("aac", "mp3")
-                } else {
-                    arrayOf("aac", "ac3", "eac3", "mp3")
+                videoCodec(*transcodeVideoCodecs)
+                // Encode-only codecs: a passed-through bitstream restarts the audio track
+                // continuously here, halving playback speed.
+                audioCodec("aac", "mp3")
+                copyTimestamps = false
+                enableSubtitlesInManifest = true
+            }
+
+            rung?.let { target ->
+                transcodeVideoCodecs.forEach { codecName ->
+                    codecProfile {
+                        type = CodecType.VIDEO
+                        codec = codecName
+                        conditions {
+                            ProfileConditionValue.WIDTH lowerThanOrEquals target.width
+                            ProfileConditionValue.HEIGHT lowerThanOrEquals target.height
+                        }
+                    }
                 }
-                audioCodec(*transcodeAudioCodecs)
             }
 
             codecProfile {
@@ -127,12 +151,28 @@ object DynamicProfileBuilder {
                 }
             }
 
-            subtitleProfile("ass", SubtitleDeliveryMethod.EMBED)
-            subtitleProfile("ssa", SubtitleDeliveryMethod.EMBED)
-            subtitleProfile("srt", SubtitleDeliveryMethod.EMBED)
-            subtitleProfile("subrip", SubtitleDeliveryMethod.EMBED)
-            subtitleProfile("pgssub", SubtitleDeliveryMethod.EMBED)
+            subtitleProfile("vtt", SubtitleDeliveryMethod.EMBED)
+            subtitleProfile("vtt", SubtitleDeliveryMethod.HLS)
             subtitleProfile("vtt", SubtitleDeliveryMethod.EXTERNAL)
+            subtitleProfile("webvtt", SubtitleDeliveryMethod.EMBED)
+            subtitleProfile("webvtt", SubtitleDeliveryMethod.HLS)
+            subtitleProfile("webvtt", SubtitleDeliveryMethod.EXTERNAL)
+            subtitleProfile("srt", SubtitleDeliveryMethod.EMBED)
+            subtitleProfile("srt", SubtitleDeliveryMethod.EXTERNAL)
+            subtitleProfile("subrip", SubtitleDeliveryMethod.EMBED)
+            subtitleProfile("subrip", SubtitleDeliveryMethod.EXTERNAL)
+            subtitleProfile("ass", SubtitleDeliveryMethod.EMBED)
+            subtitleProfile("ass", SubtitleDeliveryMethod.EXTERNAL)
+            subtitleProfile("ass", SubtitleDeliveryMethod.ENCODE)
+            subtitleProfile("ssa", SubtitleDeliveryMethod.EMBED)
+            subtitleProfile("ssa", SubtitleDeliveryMethod.EXTERNAL)
+            subtitleProfile("ssa", SubtitleDeliveryMethod.ENCODE)
+            subtitleProfile("pgssub", SubtitleDeliveryMethod.EMBED)
+            subtitleProfile("pgssub", SubtitleDeliveryMethod.ENCODE)
+            subtitleProfile("dvdsub", SubtitleDeliveryMethod.EMBED)
+            subtitleProfile("dvdsub", SubtitleDeliveryMethod.ENCODE)
+            subtitleProfile("dvbsub", SubtitleDeliveryMethod.EMBED)
+            subtitleProfile("dvbsub", SubtitleDeliveryMethod.ENCODE)
         }
     }
 

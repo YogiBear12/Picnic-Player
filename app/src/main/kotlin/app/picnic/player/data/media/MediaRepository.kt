@@ -79,6 +79,10 @@ class MediaRepository @Inject constructor(
         api(session).userApi.getCurrentUser().content.configuration
     }
 
+    suspend fun canTranscodeVideo(session: UserSession): Boolean = onIo {
+        api(session).userApi.getCurrentUser().content.policy?.enableVideoPlaybackTranscoding ?: true
+    }
+
     suspend fun resumeItems(session: UserSession, limit: Int = LATEST_ROW_LIMIT): List<BaseItemDto> = onIo {
         api(session).itemsApi.getResumeItems(
             limit = limit,

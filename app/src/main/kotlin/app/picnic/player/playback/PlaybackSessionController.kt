@@ -1,5 +1,6 @@
 package app.picnic.player.playback
 
+import app.picnic.player.data.playback.quality.QualityRung
 import app.picnic.player.di.ApplicationScope
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -63,6 +64,9 @@ class PlaybackSessionController @Inject constructor(
     private val _nightMode = MutableStateFlow(NightMode.OFF)
     val nightMode: StateFlow<NightMode> = _nightMode.asStateFlow()
 
+    private val _qualityOverride = MutableStateFlow<QualityRung?>(null)
+    val qualityOverride: StateFlow<QualityRung?> = _qualityOverride.asStateFlow()
+
     private val _sleep = MutableStateFlow(SleepTimerState())
     val sleep: StateFlow<SleepTimerState> = _sleep.asStateFlow()
 
@@ -77,6 +81,10 @@ class PlaybackSessionController @Inject constructor(
     }
     fun setNightMode(level: NightMode) {
         _nightMode.value = level
+    }
+
+    fun setQualityOverride(rung: QualityRung?) {
+        _qualityOverride.value = rung
     }
 
     fun setSleep(mode: SleepMode) {
@@ -115,6 +123,7 @@ class PlaybackSessionController @Inject constructor(
     fun reset() {
         _audioBoost.value = AudioBoost.OFF
         _nightMode.value = NightMode.OFF
+        _qualityOverride.value = null
         cancelSleep()
     }
 }

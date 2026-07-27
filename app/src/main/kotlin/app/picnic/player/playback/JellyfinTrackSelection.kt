@@ -40,7 +40,7 @@ object JellyfinTrackSelection {
                                     group.isSupported &&
                                     (0 until group.length)
                                         .mapNotNull { group.getTrackFormat(it).id }
-                                        .any { it.endsWith("e:$subtitleIndex") }
+                                        .any { SideloadedTrackId.indexOf(it) == subtitleIndex }
                             }
                         } else {
                             val actualEmbeddedCount =
@@ -48,7 +48,7 @@ object JellyfinTrackSelection {
                                     group.type == C.TRACK_TYPE_TEXT &&
                                         (0 until group.length)
                                             .mapNotNull { group.getTrackFormat(it).id }
-                                            .none { it.contains("e:") }
+                                            .none { SideloadedTrackId.isSideloaded(it) }
                                 }
                             val indexToFind = calculateIndexToFind(subtitleIndex, externalSubtitleCount)
                             groups.firstOrNull { group ->
@@ -57,9 +57,9 @@ object JellyfinTrackSelection {
                                     (0 until group.length)
                                         .filter {
                                             if (subtitleIsExternal) {
-                                                group.getTrackFormat(0).id?.contains("e:") == true
+                                                SideloadedTrackId.isSideloaded(group.getTrackFormat(0).id)
                                             } else {
-                                                group.getTrackFormat(0).id?.contains("e:") == false
+                                                !SideloadedTrackId.isSideloaded(group.getTrackFormat(0).id)
                                             }
                                         }
                                         .map { group.getTrackFormat(it).idAsInt }

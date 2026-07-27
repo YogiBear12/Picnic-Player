@@ -22,6 +22,14 @@ fun refinePlayMethod(
 }
 
 /** A ready-to-play stream resolved from the server's PlaybackInfo. */
+data class ExternalSubtitle(
+    val streamIndex: Int,
+    val url: String,
+    val mimeType: String,
+    val language: String?,
+    val title: String?
+)
+
 data class StreamInfo(
     val url: String,
     val playMethod: PlayMethodKind,
@@ -36,7 +44,9 @@ data class StreamInfo(
      */
     val defaultAudioStreamIndex: Int? = null,
     val defaultSubtitleStreamIndex: Int? = null,
-    val mediaSource: org.jellyfin.sdk.model.api.MediaSourceInfo
+    val mediaSource: org.jellyfin.sdk.model.api.MediaSourceInfo? = null,
+    val rung: app.picnic.player.data.playback.quality.QualityRung? = null,
+    val externalSubtitles: List<ExternalSubtitle> = emptyList()
 )
 
 /** Trickplay tile-set geometry for the scrub preview. */
