@@ -437,6 +437,9 @@ fun PlayerScreen(
         val insetFraction = ((1f - playerScale) / (1f - NextUpPlayerScale)).coerceIn(0f, 1f)
         val playerInset = NextUpPlayerInset * insetFraction
 
+        // Text and bitmap cues are placed against different rectangles, so each gets its own view.
+        val (bitmapCues, textCues) = state.subtitleCues.partition { it.bitmap != null }
+
         // Size the surface to the video's true display aspect ratio (accounts for anamorphic
         // pixel ratios), so 4:3 content is pillar-boxed instead of stretched to the 16:9 screen.
         // videoSizeDp is null until the first frame's size is known; ContentScale.Fit letterboxes.
@@ -473,6 +476,18 @@ fun PlayerScreen(
                     presentationState.videoSizeDp
                 )
             )
+            // PGS/DVB bitmaps, painted into whichever rect their plane belongs in — the picture
+            // when the plane matches it, the screen when the video was cropped out from under it.
+            // Lives inside the video box so it shrinks with the next-up overlay either way.
+            AndroidView(
+                factory = { context -> SubtitleView(context) },
+                update = { it.setCues(bitmapCues) },
+                onReset = { it.setCues(emptyList()) },
+                modifier = Modifier.resizeWithContentScale(
+                    ContentScale.Fit,
+                    bitmapSubtitleFrame(bitmapCues, presentationState.videoSizeDp)
+                )
+            )
         }
 
         // Full screen: SRT/VTT text cues stay screen-relative, not bound to the picture.
@@ -480,7 +495,7 @@ fun PlayerScreen(
             factory = { context -> SubtitleView(context) },
             update = { subtitleView ->
                 viewModel.attachSubtitleView(subtitleView)
-                subtitleView.setCues(state.subtitleCues)
+                subtitleView.setCues(textCues)
             },
             onReset = { it.setCues(emptyList()) },
             modifier = Modifier.fillMaxSize()
