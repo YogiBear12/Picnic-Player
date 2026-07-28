@@ -7,16 +7,25 @@ import app.picnic.player.data.playback.quality.QualityOption
 import app.picnic.player.data.playback.ticksToMs
 import java.util.UUID
 
+/**
+ * Everything the server needs to pick a stream. One object rather than a parameter list because
+ * every new constraint would otherwise have to be threaded through the negotiator, the loader and
+ * their fakes in step.
+ */
+data class StreamNegotiation(
+    val session: UserSession,
+    val itemId: UUID,
+    val startTicks: Long?,
+    val mediaSourceId: String?,
+    val quality: QualityOption?,
+    val audioStreamIndex: Int?,
+    val subtitleStreamIndex: Int?,
+    /** False asks the server to rewrite the container instead of serving the original file. */
+    val allowDirectPlay: Boolean = true
+)
+
 interface StreamNegotiator {
-    suspend fun resolveStream(
-        session: UserSession,
-        itemId: UUID,
-        startTicks: Long?,
-        mediaSourceId: String?,
-        quality: QualityOption?,
-        audioStreamIndex: Int?,
-        subtitleStreamIndex: Int?
-    ): StreamInfo
+    suspend fun resolveStream(negotiation: StreamNegotiation): StreamInfo
 
     suspend fun stopEncoding(session: UserSession, playSessionId: String?)
 
@@ -48,7 +57,9 @@ data class StreamRequest(
     val audioStreamIndex: Int?,
     val subtitleStreamIndex: Int?,
     val resumePlaying: Boolean,
-    val replacing: StreamInfo?
+    val replacing: StreamInfo?,
+    /** False after the extractor rejected the original container; the server rewrites it instead. */
+    val allowDirectPlay: Boolean = true
 )
 
 sealed interface StreamResult {
@@ -87,13 +98,16 @@ class StreamLoader(
 
         val stream = runCatching {
             negotiator.resolveStream(
-                session = request.session,
-                itemId = request.itemId,
-                startTicks = positionTicks,
-                mediaSourceId = request.mediaSourceId,
-                quality = request.quality,
-                audioStreamIndex = request.audioStreamIndex,
-                subtitleStreamIndex = request.subtitleStreamIndex
+                StreamNegotiation(
+                    session = request.session,
+                    itemId = request.itemId,
+                    startTicks = positionTicks,
+                    mediaSourceId = request.mediaSourceId,
+                    quality = request.quality,
+                    audioStreamIndex = request.audioStreamIndex,
+                    subtitleStreamIndex = request.subtitleStreamIndex,
+                    allowDirectPlay = request.allowDirectPlay
+                )
             )
         }.getOrNull()
 

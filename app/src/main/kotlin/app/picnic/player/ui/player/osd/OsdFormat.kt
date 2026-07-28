@@ -70,6 +70,10 @@ internal fun sleepSummary(state: SleepTimerState): String = when {
     else -> sleepModeLabel(state.mode)
 }
 
+/**
+ * A remux reads as Original: the server rewrote the container but the video is untouched, which is
+ * what this line is about. Deliberate — do not "fix" it to report the audio re-encode.
+ */
 internal fun qualitySummary(playMethod: PlayMethodKind?, rung: QualityRung?): String = when {
     playMethod != PlayMethodKind.TRANSCODE -> "Original"
     rung == null -> "Transcoding…"

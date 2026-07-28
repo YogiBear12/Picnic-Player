@@ -16,6 +16,7 @@ import androidx.media3.ui.SubtitleView
 import app.picnic.player.data.auth.AuthRepository
 import app.picnic.player.data.auth.UserSession
 import app.picnic.player.data.jellyfin.JellyfinImages
+import app.picnic.player.data.playback.DirectPlayVeto
 import app.picnic.player.data.playback.MediaSegment
 import app.picnic.player.data.playback.OUTRO_END_TOLERANCE_MS
 import app.picnic.player.data.playback.PlayMethodKind
@@ -97,6 +98,9 @@ import org.jellyfin.sdk.model.api.TranscodingInfo
 // How far short of the media end to seek when skipping an outro that runs to the end, so the final
 // frame renders before the natural end-of-stream rather than freezing the pre-skip frame.
 private const val LAST_FRAME_MS = 200L
+
+// How many times to ask the server what it is actually doing with a newly adopted stream.
+private const val PLAY_METHOD_ATTEMPTS = 5
 
 /**
  * One-shot navigation the player screen must perform on behalf of a remote command (#119).
@@ -195,9 +199,17 @@ data class PlayerUiState(
     val estimatedBitrate: Long? = null,
     val notice: String? = null,
     val qualityOptions: List<QualityOption> = emptyList(),
-    val activeQuality: QualityRung? = null,
+    /** The rung the server negotiated, whether or not it ended up re-encoding to it. */
+    val streamRung: QualityRung? = null,
     val tracks: List<app.picnic.player.ui.player.osd.TrackSupport> = emptyList()
-)
+) {
+    /**
+     * The rung actually in force, which is none unless the server is re-encoding the video. Derived
+     * rather than stored: a remux is negotiated as a transcode and only reveals itself as Direct
+     * Stream once transcoding info arrives, and every reader of this must follow that correction.
+     */
+    val activeQuality: QualityRung? get() = streamRung.takeIf { playMethod == PlayMethodKind.TRANSCODE }
+}
 
 /**
  * Drives the media3 player for one item: resolves the stream via the
@@ -288,6 +300,8 @@ class PlayerViewModel @Inject constructor(
     private var pendingSeekMs: Long = 0
 
     private var canTranscode = true
+
+    private val directPlayVeto = DirectPlayVeto()
     private var inPictureInPicture = false
     private var tornDown = false
     private var hasPresentedFirstFrame = false
@@ -317,6 +331,15 @@ class PlayerViewModel @Inject constructor(
             _state.update { it.copy(subtitleCues = cueGroup.cues) }
         }
         override fun onPlayerError(error: PlaybackException) {
+            // A container this extractor cannot parse is not the user's problem: ask the server to
+            // rewrite it and carry on.
+            if (directPlayVeto.onPlaybackError(error.errorCode)) {
+                reload(
+                    quality = sessionController.qualityOverride.value,
+                    failureNotice = "Couldn't play this file"
+                )
+                return
+            }
             _state.update { it.copy(error = error.message ?: "Playback error", isLoading = false) }
         }
     }
@@ -373,6 +396,7 @@ class PlayerViewModel @Inject constructor(
     }
 
     private var transcodingInfoJob: Job? = null
+    private var playMethodJob: Job? = null
 
     init {
         // Real playback owns the audio output from here; browse-time theme music yields
@@ -504,16 +528,13 @@ class PlayerViewModel @Inject constructor(
                 _state.update { it.copy(error = "Could not start playback", buffering = false, isLoading = false) }
                 return@launch
             }
-            itemDeferred.await()?.let { applyItemMetadata(activeSession, id, it) }
             adopt(result.stream, subtitleDelayMs = 0, speed = 1.0f)
+            itemDeferred.await()?.let { applyItemMetadata(activeSession, id, it) }
             initDefaultTrackIndices()
             rebuildTrackOptions()
             _state.update { it.copy(subtitleDelayMs = 0, playbackSpeed = 1.0f, showStatsForNerds = false) }
             startTicker()
             startProgressReports()
-            if (result.stream.playMethod == PlayMethodKind.TRANSCODE) {
-                launch { refreshTranscodingInfoOnce(activeSession, result.stream.mediaSourceId, PlayMethodKind.TRANSCODE) }
-            }
         }
     }
 
@@ -573,17 +594,40 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
+    /** @return true once the server reported transcoding info, so callers can stop asking. */
     private suspend fun refreshTranscodingInfoOnce(
         session: UserSession,
         mediaSourceId: String?,
         initialMethod: PlayMethodKind
-    ) {
-        val info = playbackRepository.getTranscodingInfo(session, mediaSourceId) ?: return
+    ): Boolean {
+        val info = playbackRepository.getTranscodingInfo(session, mediaSourceId) ?: return false
         _state.update {
             it.copy(
                 transcodingInfo = info,
                 playMethod = refinePlayMethod(initialMethod, info)
             )
+        }
+        return true
+    }
+
+    /**
+     * Settle Direct Stream vs Transcoding for a freshly adopted stream. Both arrive from the server
+     * labelled TRANSCODE and are told apart only by transcoding info, which the stats panel would
+     * otherwise be the first to ask for — leaving the OSD reading "Transcoding…" for a remux until
+     * the user happened to open it. The encoder may not have registered the moment the URL is
+     * handed over, hence a few attempts rather than one.
+     */
+    private fun settlePlayMethod(info: StreamInfo) {
+        if (info.playMethod != PlayMethodKind.TRANSCODE) return
+        playMethodJob?.cancel()
+        playMethodJob = viewingScope.launch {
+            val activeSession = session ?: return@launch
+            repeat(PLAY_METHOD_ATTEMPTS) {
+                if (refreshTranscodingInfoOnce(activeSession, info.mediaSourceId, PlayMethodKind.TRANSCODE)) {
+                    return@launch
+                }
+                delay(1.seconds)
+            }
         }
     }
 
@@ -635,35 +679,46 @@ class PlayerViewModel @Inject constructor(
         reload(option, revertTo = previous)
     }
 
-    private fun reload(quality: QualityOption?, revertTo: QualityOption? = quality) {
+    private fun reload(
+        quality: QualityOption?,
+        revertTo: QualityOption? = quality,
+        failureNotice: String = "Couldn't change quality"
+    ) {
         val activeSession = session ?: return
         val id = itemId ?: return
-        val current = stream ?: return
+        val current = stream
         val delayMs = _state.value.subtitleDelayMs
         val speed = _state.value.playbackSpeed
 
+        // A container failure can land before the resume seek has been applied, so the position to
+        // return to is still pending rather than reached.
+        val resumeMs = maxOf(player.currentPosition, pendingSeekMs)
+
         reloadJob?.cancel()
         reloadJob = viewingScope.launch {
-            _state.update { it.copy(buffering = true, notice = null, subtitleCues = emptyList()) }
+            _state.update {
+                it.copy(buffering = true, error = null, notice = null, subtitleCues = emptyList())
+            }
             val result = streamLoader.load(
                 StreamRequest(
                     session = activeSession,
                     itemId = id,
                     seriesId = seriesId,
-                    positionTicks = player.currentPosition.msToTicks(),
-                    mediaSourceId = current.mediaSourceId,
+                    positionTicks = resumeMs.msToTicks(),
+                    mediaSourceId = current?.mediaSourceId,
                     quality = quality,
                     audioStreamIndex = selectedAudioIndex,
                     subtitleStreamIndex = selectedSubtitleIndex,
                     resumePlaying = player.playWhenReady,
-                    replacing = current
+                    replacing = current,
+                    allowDirectPlay = directPlayVeto.allowsDirectPlay
                 )
             )
             when (result) {
                 is StreamResult.Loaded -> adopt(result.stream, delayMs, speed)
                 is StreamResult.Failed -> {
                     sessionController.setQualityOverride(revertTo)
-                    _state.update { it.copy(notice = "Couldn't change quality") }
+                    _state.update { it.copy(notice = failureNotice) }
                     result.restored?.let { adopt(it, delayMs, speed) }
                 }
             }
@@ -686,6 +741,7 @@ class PlayerViewModel @Inject constructor(
                 transcodingInfo = null
             )
         }
+        settlePlayMethod(info)
         updateTranscodingInfoJob()
     }
 
@@ -825,8 +881,7 @@ class PlayerViewModel @Inject constructor(
         } else {
             qualityOptions(SourceQuality.of(info.mediaSource?.bitrate, info.mediaStreams))
         }
-        val transcoding = info.playMethod == PlayMethodKind.TRANSCODE
-        _state.update { it.copy(qualityOptions = options, activeQuality = if (transcoding) info.rung else null) }
+        _state.update { it.copy(qualityOptions = options, streamRung = info.rung) }
     }
 
     private fun mediaItemFor(info: StreamInfo): MediaItem {

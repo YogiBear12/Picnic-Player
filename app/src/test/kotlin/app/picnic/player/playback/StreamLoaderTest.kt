@@ -3,7 +3,6 @@ package app.picnic.player.playback
 import app.picnic.player.data.auth.ServerConnection
 import app.picnic.player.data.auth.UserSession
 import app.picnic.player.data.playback.StreamInfo
-import app.picnic.player.data.playback.quality.QualityOption
 import java.util.UUID
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -101,12 +100,33 @@ class StreamLoaderTest {
         assertTrue(target.calls.contains("resume(false)"))
     }
 
+    @Test
+    fun aContainerRetryNegotiatesWithDirectPlayOff() = runBlocking {
+        val negotiator = FakeNegotiator()
+        val loader = StreamLoader(RecordingTarget(), negotiator)
+
+        loader.load(request(replacing = existing, allowDirectPlay = false))
+
+        assertEquals(false, negotiator.directPlayAllowed)
+    }
+
+    @Test
+    fun ordinaryPlaybackKeepsDirectPlay() = runBlocking {
+        val negotiator = FakeNegotiator()
+        val loader = StreamLoader(RecordingTarget(), negotiator)
+
+        loader.load(request(replacing = null))
+
+        assertEquals(true, negotiator.directPlayAllowed)
+    }
+
     private val existing = stream("old-session")
 
     private fun request(
         replacing: StreamInfo?,
         positionTicks: Long = 0,
-        resumePlaying: Boolean = true
+        resumePlaying: Boolean = true,
+        allowDirectPlay: Boolean = true
     ) = StreamRequest(
         session = session,
         itemId = itemId,
@@ -117,22 +137,17 @@ class StreamLoaderTest {
         audioStreamIndex = null,
         subtitleStreamIndex = null,
         resumePlaying = resumePlaying,
-        replacing = replacing
+        replacing = replacing,
+        allowDirectPlay = allowDirectPlay
     )
 
     private class FakeNegotiator(private val failResolve: Boolean = false) : StreamNegotiator {
         val orderedCalls = mutableListOf<String>()
         val teardownCalls = mutableListOf<String>()
+        var directPlayAllowed: Boolean? = null
 
-        override suspend fun resolveStream(
-            session: UserSession,
-            itemId: UUID,
-            startTicks: Long?,
-            mediaSourceId: String?,
-            quality: QualityOption?,
-            audioStreamIndex: Int?,
-            subtitleStreamIndex: Int?
-        ): StreamInfo {
+        override suspend fun resolveStream(negotiation: StreamNegotiation): StreamInfo {
+            directPlayAllowed = negotiation.allowDirectPlay
             orderedCalls += "resolve"
             if (failResolve) error("negotiation failed")
             return stream("new-session")

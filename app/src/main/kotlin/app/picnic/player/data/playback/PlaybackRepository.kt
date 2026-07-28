@@ -14,6 +14,7 @@ import app.picnic.player.data.playback.quality.SourceQuality
 import app.picnic.player.data.playback.quality.automaticRung
 import app.picnic.player.data.settings.SettingsStore
 import app.picnic.player.di.IoDispatcher
+import app.picnic.player.playback.StreamNegotiation
 import app.picnic.player.playback.StreamNegotiator
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.UUID
@@ -81,31 +82,26 @@ class PlaybackRepository @Inject constructor(
     /** Runs a network + deserialize [block] off the caller's dispatcher — see MediaRepository.onIo. */
     private suspend inline fun <T> onIo(crossinline block: suspend () -> T): T = withContext(ioDispatcher) { block() }
 
-    override suspend fun resolveStream(
-        session: UserSession,
-        itemId: UUID,
-        startTicks: Long?,
-        mediaSourceId: String?,
-        quality: QualityOption?,
-        audioStreamIndex: Int?,
-        subtitleStreamIndex: Int?
-    ): StreamInfo = onIo {
+    override suspend fun resolveStream(negotiation: StreamNegotiation): StreamInfo = onIo {
+        val session = negotiation.session
         val settings = settingsStore.settings.first()
         // No explicit choice follows the Default video quality setting; choosing Original is a
         // choice, and must not fall back to it.
-        val chosen = quality ?: settings.defaultVideoQuality?.let { QualityOption.Transcode(it) }
+        val chosen = negotiation.quality ?: settings.defaultVideoQuality?.let { QualityOption.Transcode(it) }
         val rung = (chosen as? QualityOption.Transcode)?.rung
-        val cap = rung?.videoBitrate
         val response = api(session).mediaInfoApi.getPostedPlaybackInfo(
-            itemId = itemId,
+            itemId = negotiation.itemId,
             data = PlaybackInfoDto(
                 userId = UUID.fromString(session.userId),
                 deviceProfile = DynamicProfileBuilder.build(context, settings, rung),
-                startTimeTicks = startTicks,
-                maxStreamingBitrate = cap,
-                mediaSourceId = mediaSourceId,
-                audioStreamIndex = audioStreamIndex,
-                subtitleStreamIndex = subtitleStreamIndex,
+                startTimeTicks = negotiation.startTicks,
+                maxStreamingBitrate = rung?.videoBitrate,
+                mediaSourceId = negotiation.mediaSourceId,
+                audioStreamIndex = negotiation.audioStreamIndex,
+                subtitleStreamIndex = negotiation.subtitleStreamIndex,
+                // Direct play off still allows a remux: the server rewrites the container and
+                // copies both streams, so nothing is re-encoded.
+                enableDirectPlay = negotiation.allowDirectPlay,
                 allowVideoStreamCopy = true,
                 allowAudioStreamCopy = true,
                 alwaysBurnInSubtitleWhenTranscoding = false,
@@ -113,7 +109,7 @@ class PlaybackRepository @Inject constructor(
             )
         ).content
         val source = response.mediaSources.firstOrNull() ?: error("No playable source")
-        buildStreamInfo(session, itemId, source, response.playSessionId, rung ?: imposedRung(source))
+        buildStreamInfo(session, negotiation.itemId, source, response.playSessionId, rung ?: imposedRung(source))
     }
 
     private fun imposedRung(source: MediaSourceInfo): QualityRung = automaticRung(SourceQuality.of(source.bitrate, source.mediaStreams.orEmpty()))
@@ -127,7 +123,10 @@ class PlaybackRepository @Inject constructor(
     ): StreamInfo {
         val base = session.server.baseUrl.trimEnd('/')
         val sourceId = source.id ?: itemId.toString()
-        if (source.supportsDirectPlay == true || source.supportsDirectStream == true) {
+        // `static=true` is the original file, byte for byte — only ever right when the server
+        // granted direct play. Anything else it offers, it offers because the file as stored is not
+        // what should be sent, so take the stream it planned instead.
+        if (source.supportsDirectPlay == true) {
             val url = buildString {
                 append(base).append("/Videos/").append(itemId).append("/stream")
                 append("?static=true&mediaSourceId=").append(sourceId)
@@ -135,13 +134,7 @@ class PlaybackRepository @Inject constructor(
                 source.container?.let { append("&container=").append(it) }
                 append("&api_key=").append(session.accessToken)
             }
-            val method =
-                if (source.supportsDirectPlay == true) {
-                    PlayMethodKind.DIRECT_PLAY
-                } else {
-                    PlayMethodKind.DIRECT_STREAM
-                }
-            return streamInfo(url, method, playSessionId, sourceId, source, session = session)
+            return streamInfo(url, PlayMethodKind.DIRECT_PLAY, playSessionId, sourceId, source, session = session)
         }
         source.transcodingUrl?.let { path ->
             // Played exactly as returned: editing it yields a stream the server did not plan.
