@@ -23,9 +23,9 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.dp
+import app.picnic.player.data.playback.TrickplayFrame
 import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.player.ChapterMark
-import app.picnic.player.ui.player.TrickplayFrame
 
 /** Frosted glass for the floating chapters card — matches the OSD/TrackPanel dark glass. */
 private val PanelGlassFill = Color(0xC0181E24)

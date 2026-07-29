@@ -2,7 +2,9 @@ package app.picnic.player.playback
 
 import app.picnic.player.data.auth.UserSession
 import app.picnic.player.data.playback.StreamInfo
+import app.picnic.player.data.playback.msToTicks
 import app.picnic.player.data.playback.quality.QualityOption
+import app.picnic.player.data.playback.ticksToMs
 import java.util.UUID
 
 interface StreamNegotiator {
@@ -54,8 +56,6 @@ sealed interface StreamResult {
     data class Failed(val restored: StreamInfo?, val positionTicks: Long) : StreamResult
 }
 
-private const val TICKS_PER_MS = 10_000L
-
 /**
  * Puts a negotiated stream into the player. Replacing one that is already running has extra steps,
  * and their order is the whole point of this module:
@@ -73,7 +73,7 @@ class StreamLoader(
         // resumes behind where playback actually reached.
         val positionTicks = if (replacing != null) {
             target.stop()
-            target.positionMs * TICKS_PER_MS
+            target.positionMs.msToTicks()
         } else {
             request.positionTicks
         }
@@ -107,7 +107,7 @@ class StreamLoader(
     }
 
     private suspend fun install(stream: StreamInfo, positionTicks: Long, request: StreamRequest) {
-        target.load(stream, positionTicks / TICKS_PER_MS)
+        target.load(stream, positionTicks.ticksToMs())
         target.resume(request.resumePlaying)
         runCatching { negotiator.reportStarted(request.session, stream, request.itemId, positionTicks) }
     }

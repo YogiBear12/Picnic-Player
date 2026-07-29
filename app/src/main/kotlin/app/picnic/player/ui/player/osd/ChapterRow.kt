@@ -31,11 +31,11 @@ import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Glow
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import app.picnic.player.data.playback.TrickplayFrame
 import app.picnic.player.ui.ambient.CardFocusBorderWidth
 import app.picnic.player.ui.ambient.CardFocusGlowAlpha
 import app.picnic.player.ui.ambient.CardFocusGlowElevation
 import app.picnic.player.ui.player.ChapterMark
-import app.picnic.player.ui.player.TrickplayFrame
 import coil3.compose.AsyncImage
 
 private val CardWidth = 150.dp

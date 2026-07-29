@@ -97,9 +97,11 @@ fun playbackTick(input: PlaybackTickInput): PlaybackTickDecision {
     val markSkippedId = if (autoSkip) active!!.id else null
     val effectiveSkipped = if (markSkippedId != null) input.autoSkippedIds + markSkippedId else input.autoSkippedIds
 
-    // The skip button shows only for ask-to-skip segments not already skipped away.
+    // The skip button shows only for ask-to-skip segments not already skipped away, and only once
+    // the video is on screen — during load the position sits at 0, so a segment starting at 0 would
+    // otherwise offer a skip over the loading spinner.
     val nextSegment = active?.takeIf {
-        segmentAction == SegmentAction.ASK_TO_SKIP && it.id !in effectiveSkipped
+        segmentAction == SegmentAction.ASK_TO_SKIP && it.id !in effectiveSkipped && presentedFirstFrame
     }
 
     val endedNow = input.phase == PlaybackPhase.ENDED

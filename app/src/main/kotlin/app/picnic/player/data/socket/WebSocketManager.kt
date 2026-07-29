@@ -6,6 +6,7 @@ import app.picnic.player.data.media.LibraryChange
 import app.picnic.player.data.media.LibraryChangeBus
 import app.picnic.player.data.playback.PlayerCommand
 import app.picnic.player.data.playback.PlayerCommandBus
+import app.picnic.player.data.playback.ticksToMs
 import app.picnic.player.di.IoDispatcher
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
@@ -29,8 +30,6 @@ import org.jellyfin.sdk.model.api.RestartRequiredMessage
 import org.jellyfin.sdk.model.api.ServerRestartingMessage
 import org.jellyfin.sdk.model.api.ServerShuttingDownMessage
 import org.jellyfin.sdk.model.api.UserDataChangedMessage
-
-private const val TICKS_PER_MS = 10_000L
 
 /**
  * Session-scoped owner of the Jellyfin websocket (ticket #119).
@@ -151,7 +150,7 @@ class WebSocketManager @Inject constructor(
                 PlaystateCommand.REWIND -> PlayerCommand.Rewind
                 PlaystateCommand.FAST_FORWARD -> PlayerCommand.FastForward
                 PlaystateCommand.SEEK ->
-                    request.seekPositionTicks?.let { PlayerCommand.Seek(it / TICKS_PER_MS) }
+                    request.seekPositionTicks?.let { PlayerCommand.Seek(it.ticksToMs()) }
             }
             if (command != null) playerCommandBus.emit(command)
         }
@@ -173,7 +172,7 @@ class WebSocketManager @Inject constructor(
                     remoteControlBus.emit(
                         RemoteControlAction.Play(
                             itemId = itemId,
-                            startPositionMs = request.startPositionTicks?.let { it / TICKS_PER_MS }
+                            startPositionMs = request.startPositionTicks?.let { it.ticksToMs() }
                         )
                     )
             }

@@ -38,7 +38,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -71,6 +70,7 @@ import androidx.media3.ui.compose.PlayerSurface
 import androidx.media3.ui.compose.SURFACE_TYPE_SURFACE_VIEW
 import androidx.media3.ui.compose.modifiers.resizeWithContentScale
 import androidx.media3.ui.compose.state.rememberPresentationState
+import app.picnic.player.data.playback.TrickplayFrame
 import app.picnic.player.playback.videoDisplayHints
 import app.picnic.player.ui.ambient.PublishBackdrop
 import app.picnic.player.ui.common.requestFocusWhenAttached
@@ -89,8 +89,6 @@ import app.picnic.player.ui.theme.PicnicColors
 import coil3.compose.rememberAsyncImagePainter
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
-
-private enum class Panel { NONE, AUDIO, SUBTITLE, CHAPTERS, SETTINGS }
 
 private val OsdHorizontalPadding = 56.dp
 
@@ -140,10 +138,9 @@ fun PlayerScreen(
     SideEffect { view.keepScreenOn = state.isPlaying }
     DisposableEffect(Unit) { onDispose { view.keepScreenOn = false } }
 
-    var osdVisible by remember { mutableStateOf(true) }
-    var panel by remember { mutableStateOf(Panel.NONE) }
-    var lastPanel by remember { mutableStateOf(Panel.NONE) }
-    var revealTick by remember { mutableIntStateOf(0) }
+    // Starts hidden: an OSD that auto-opens over the loading screen also swallows a skip button for
+    // a segment that begins at t=0, since the pill only auto-shows while the OSD is down.
+    val chrome = remember { PlayerChrome() }
     var pulseTick by remember { mutableIntStateOf(0) }
     var pulsePlaying by remember { mutableStateOf(true) }
     var pulseVisible by remember { mutableStateOf(false) }
@@ -160,11 +157,7 @@ fun PlayerScreen(
     val osdSkipFocus = remember { FocusRequester() }
     val subAdjustFocus = remember { FocusRequester() }
 
-    var skipPillDismissed by remember { mutableStateOf(false) }
-
-    // Subtitle-delay live-adjust mode (entered from the settings panel): OSD + panel hide so the
-    // subtitles stay visible while the centered HUD shows the offset. Holding L/R accelerates.
-    var subtitleAdjust by remember { mutableStateOf(false) }
+    // Subtitle-delay live-adjust mode (entered from the settings panel): holding L/R accelerates.
     var subAdjustHeldDir by remember { mutableIntStateOf(0) }
 
     val pipState = rememberPipController(
@@ -177,28 +170,17 @@ fun PlayerScreen(
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
-            when (event) {
-                Lifecycle.Event.ON_RESUME -> {
-                    pipState.consumeExitedPip()
-                }
-                Lifecycle.Event.ON_STOP -> {
-                    // Leaving the app ends the viewing: the player, its decoder and the server's
-                    // encoder all go, and whatever screen playback started from comes back.
-                    if (!pipState.inPipMode) {
-                        pipState.consumeExitedPip()
-                        viewModel.onPlayerExit()
-                        viewModel.endPlayback()
-                        onExit()
-                    }
-                }
-                else -> {}
-            }
+            if (event == Lifecycle.Event.ON_RESUME) pipState.consumeExitedPip()
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
         }
     }
+
+    // The VM ends the viewing when the app leaves the screen; PiP is the one case where it must
+    // not, so keep it told which mode the window is in.
+    LaunchedEffect(inPipMode) { viewModel.onPipModeChanged(inPipMode) }
 
     val jellyfinDisplayHints = remember(state.mediaSource) {
         state.mediaSource?.mediaStreams.orEmpty().videoDisplayHints()
@@ -216,26 +198,8 @@ fun PlayerScreen(
 
     // The OSD and track panels must never sit under the next-up screen; close them immediately when
     // it appears (otherwise an open OSD lingers until its inactivity timeout).
-    LaunchedEffect(showNextUpOverlay, inPipMode) {
-        if (showNextUpOverlay || inPipMode) {
-            osdVisible = false
-            panel = Panel.NONE
-        }
-    }
-
-    // Quick-skip pill (WS-2): signed running total of the current D-pad seek burst.
-    var skipAccumMs by remember { mutableLongStateOf(0L) }
-    var skipTick by remember { mutableIntStateOf(0) }
-    var skipVisible by remember { mutableStateOf(false) }
-
-    fun reveal() {
-        if (inPipMode) return
-        osdVisible = true
-        revealTick++
-        // Opening the OSD ends any quick-skip burst.
-        skipVisible = false
-        skipAccumMs = 0L
-    }
+    LaunchedEffect(showNextUpOverlay) { chrome.onNextUpVisibleChanged(showNextUpOverlay) }
+    LaunchedEffect(inPipMode) { chrome.onPipModeChanged(inPipMode) }
 
     fun pulse(playing: Boolean) {
         pulsePlaying = playing
@@ -249,13 +213,13 @@ fun PlayerScreen(
     }
 
     fun closePanel() {
-        panel = Panel.NONE
-        reveal()
+        chrome.closePanel()
     }
 
-    // Real exit to browse: tear down the app-scoped session controls (audio + sleep), then leave.
+    // Real exit to browse: end the viewing (playback stops here, not when this entry is finally
+    // disposed after the fade), then leave.
     fun exitPlayer() {
-        viewModel.onPlayerExit()
+        viewModel.endViewing()
         onExit()
     }
 
@@ -273,23 +237,20 @@ fun PlayerScreen(
         }
     }
 
-    // Record which panel is open so closing it can return focus to the OSD button it came from.
-    LaunchedEffect(panel) { if (panel != Panel.NONE) lastPanel = panel }
-
     // Single owner of OSD focus seeding: whenever the OSD is interactive (no panel open),
     // focus the button that opened the just-closed panel, else the scrubber (a fresh reveal
     // or a Chapters close). Replaces ModernOsd's self-seed, which raced this and won,
     // dropping focus onto the scrubber instead of the audio/subtitle/settings button.
-    LaunchedEffect(panel, osdVisible) {
-        if (panel != Panel.NONE || !osdVisible) return@LaunchedEffect
-        val target = when (lastPanel) {
+    LaunchedEffect(chrome.panel, chrome.osdVisible) {
+        if (chrome.panel != Panel.NONE || !chrome.osdVisible) return@LaunchedEffect
+        val target = when (chrome.lastPanel) {
             Panel.AUDIO -> audioFocus
             Panel.SUBTITLE -> subtitleFocus
             Panel.SETTINGS -> settingsFocus
             Panel.CHAPTERS, Panel.NONE -> scrubberFocus
         }
         target.requestFocusWhenAttached()
-        lastPanel = Panel.NONE
+        chrome.consumeLastPanel()
     }
 
     // Pause on scrub start, restore the pre-scrub play state on commit or cancel. Driven off the
@@ -303,12 +264,12 @@ fun PlayerScreen(
         }
     }
 
-    LaunchedEffect(revealTick, osdVisible, panel, state.isPlaying, scrubbing) {
+    LaunchedEffect(chrome.revealTick, chrome.osdVisible, chrome.panel, state.isPlaying, scrubbing) {
         // Hold the OSD open while an active scrub is in progress, else it would hide mid-scrub and
         // strand a paused video with no controls.
-        if (osdVisible && panel == Panel.NONE && !scrubbing) {
+        if (chrome.osdVisible && chrome.panel == Panel.NONE && !scrubbing) {
             delay(settings.osdHideSeconds.toLong().coerceAtLeast(2) * 1000)
-            osdVisible = false
+            chrome.hideOsd()
             scrubPreview = null
         }
     }
@@ -320,12 +281,10 @@ fun PlayerScreen(
         }
     }
     // Quick-skip burst timeout: each press restarts this; ~1s of quiet hides + resets.
-    LaunchedEffect(skipTick) {
-        if (skipTick > 0) {
-            skipVisible = true
+    LaunchedEffect(chrome.quickSkipTick) {
+        if (chrome.quickSkipTick > 0) {
             delay(1000)
-            skipVisible = false
-            skipAccumMs = 0L
+            chrome.endQuickSkip()
         }
     }
     // Subtitle-delay live adjust: holding L/R accelerates from the 100ms fine step to the 1s coarse
@@ -344,17 +303,13 @@ fun PlayerScreen(
             elapsed += wait
         }
     }
-    LaunchedEffect(subtitleAdjust) {
-        if (subtitleAdjust) runCatching { subAdjustFocus.requestFocus() }
+    LaunchedEffect(chrome.subtitleAdjust) {
+        if (chrome.subtitleAdjust) runCatching { subAdjustFocus.requestFocus() }
     }
-    LaunchedEffect(osdVisible, panel, showNextUpOverlay, subtitleAdjust, skipPillDismissed) {
-        if (!osdVisible && panel == Panel.NONE && !showNextUpOverlay && !subtitleAdjust) {
-            // Also re-runs when the skip pill is dismissed/times out so focus returns to the
-            // video surface (the pill held focus) instead of being orphaned.
-            runCatching { rootFocus.requestFocus() }
-        } else if (osdVisible || panel != Panel.NONE) {
-            skipPillDismissed = true
-        }
+    LaunchedEffect(chrome.videoHasFocus, chrome.skipPillDismissed) {
+        // Also re-runs when the skip pill is dismissed/times out so focus returns to the video
+        // surface (the pill held focus) instead of being orphaned.
+        if (chrome.videoHasFocus) runCatching { rootFocus.requestFocus() }
     }
     LaunchedEffect(state.currentSegment) {
         val segment = state.currentSegment
@@ -362,26 +317,22 @@ fun PlayerScreen(
             // The pill auto-appears only when playback entered the segment at its start (natural
             // boundary crossing). Seeking into the middle of a segment keeps it dismissed — skip
             // then lives only in the OSD.
-            val enteredAtStart = state.positionMs - segment.startMs <= SkipPillEntryWindowMs
-            if (osdVisible || panel != Panel.NONE || !enteredAtStart) {
-                skipPillDismissed = true
-            } else {
-                skipPillDismissed = false
-                // Focus is requested from inside the pill's AnimatedVisibility content (below),
-                // once its node has actually composed — requesting here races the pill's layout and
-                // loses on a janky cold start (the node isn't attached yet, so the request times out).
-            }
+            // Focus for the pill is requested from inside its AnimatedVisibility content (below),
+            // once the node has actually composed — requesting here races the pill's layout and
+            // loses on a janky cold start (the node isn't attached yet, so the request times out).
+            chrome.onSegmentChanged(
+                segmentActive = true,
+                enteredAtStart = state.positionMs - segment.startMs <= SkipPillEntryWindowMs
+            )
         } else {
-            skipPillDismissed = false
-            if (!osdVisible && panel == Panel.NONE) {
-                runCatching { rootFocus.requestFocus() }
-            }
+            chrome.onSegmentChanged(segmentActive = false, enteredAtStart = false)
+            if (chrome.videoHasFocus) runCatching { rootFocus.requestFocus() }
         }
     }
-    LaunchedEffect(state.currentSegment, skipPillDismissed) {
-        if (state.currentSegment != null && !skipPillDismissed) {
+    LaunchedEffect(state.currentSegment, chrome.skipPillDismissed) {
+        if (state.currentSegment != null && !chrome.skipPillDismissed) {
             delay(10_000)
-            skipPillDismissed = true
+            chrome.dismissSkipPill()
         }
     }
 
@@ -398,30 +349,20 @@ fun PlayerScreen(
         if (state.videoStillPlaying) viewModel.dismissNextUp() else exitPlayer()
     }
 
+    // Back is routed through the chrome rather than the focused node: enableOnBackInvokedCallback
+    // sends it straight to the OnBackPressedDispatcher, so widgets never see it.
     BackHandler {
-        when {
-            subtitleAdjust -> {
-                subAdjustHeldDir = 0
-                subtitleAdjust = false
-                panel = Panel.SETTINGS
-            }
-            showNextUpOverlay -> onNextUpBack()
-            panel != Panel.NONE -> closePanel()
-            osdVisible -> {
+        subAdjustHeldDir = 0
+        when (chrome.onBack(segmentActive = state.currentSegment != null)) {
+            BackOutcome.Handled -> Unit
+            BackOutcome.ClosedOsd -> {
                 // Cancel any active scrub: keep the current position, drop the target. Clearing
                 // scrubbing lets the pause/resume effect restore the pre-scrub play state.
                 scrubbing = false
-                osdVisible = false
                 scrubPreview = null
             }
-            // The skip pill is showing (segment active, nothing else on top): Back dismisses the
-            // early pill for this segment instead of exiting. Skip still lives in the OSD. Back is
-            // routed here rather than the pill's onKeyEvent because enableOnBackInvokedCallback
-            // sends Back straight to the OnBackPressedDispatcher — it never reaches focused nodes.
-            state.currentSegment != null && !skipPillDismissed -> {
-                skipPillDismissed = true
-            }
-            else -> exitPlayer()
+            BackOutcome.NextUp -> onNextUpBack()
+            BackOutcome.ExitPlayer -> exitPlayer()
         }
     }
 
@@ -430,32 +371,30 @@ fun PlayerScreen(
             .fillMaxSize()
             .background(Color.Black)
             .focusRequester(rootFocus)
-            .focusable(panel == Panel.NONE && !osdVisible && !showNextUpOverlay && !subtitleAdjust)
+            .focusable(chrome.videoHasFocus)
             .onKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
-                if (osdVisible || panel != Panel.NONE || showNextUpOverlay || subtitleAdjust) return@onKeyEvent false
+                if (!chrome.videoHasFocus) return@onKeyEvent false
                 when (event.key) {
                     Key.DirectionCenter, Key.Enter, Key.MediaPlayPause -> {
                         togglePlay()
-                        reveal()
+                        chrome.reveal()
                         true
                     }
                     Key.DirectionLeft, Key.MediaRewind -> {
                         val d = -settings.skipBackwardSeconds * 1000L
                         viewModel.seekBy(d)
-                        skipAccumMs += d
-                        skipTick++
+                        chrome.onQuickSkip(d)
                         true
                     }
                     Key.DirectionRight, Key.MediaFastForward -> {
                         val d = settings.skipForwardSeconds * 1000L
                         viewModel.seekBy(d)
-                        skipAccumMs += d
-                        skipTick++
+                        chrome.onQuickSkip(d)
                         true
                     }
                     Key.DirectionUp, Key.DirectionDown -> {
-                        reveal()
+                        chrome.reveal()
                         true
                     }
                     else -> false
@@ -577,7 +516,7 @@ fun PlayerScreen(
         // The OSD and the chapters panel share the bottom slot and swap: opening chapters slides the
         // OSD down off-screen while the chapters panel slides up into its place (and fully hides it).
         AnimatedVisibility(
-            visible = osdVisible && state.error == null && !showNextUpOverlay && panel != Panel.CHAPTERS,
+            visible = chrome.osdVisible && state.error == null && !showNextUpOverlay && chrome.panel != Panel.CHAPTERS,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .zIndex(1f),
@@ -588,17 +527,17 @@ fun PlayerScreen(
                 state = state,
                 onPlayPause = { togglePlay() },
                 onSeek = { viewModel.seekTo(it) },
-                onAudio = { panel = Panel.AUDIO },
-                onSubtitles = { panel = Panel.SUBTITLE },
-                onSettings = { panel = Panel.SETTINGS },
-                onChapters = { if (state.chapters.isNotEmpty()) panel = Panel.CHAPTERS },
+                onAudio = { chrome.openPanel(Panel.AUDIO) },
+                onSubtitles = { chrome.openPanel(Panel.SUBTITLE) },
+                onSettings = { chrome.openPanel(Panel.SETTINGS) },
+                onChapters = { if (state.chapters.isNotEmpty()) chrome.openPanel(Panel.CHAPTERS) },
                 skipForwardSeconds = settings.skipForwardSeconds,
                 skipBackwardSeconds = settings.skipBackwardSeconds,
                 onDismiss = {
-                    osdVisible = false
+                    chrome.hideOsd()
                     scrubPreview = null
                 },
-                onInteract = { revealTick++ },
+                onInteract = { chrome.keepAlive() },
                 onScrubPreviewChange = { scrubPreview = it },
                 onScrubbingChange = { scrubbing = it },
                 onScrubBarBottomInset = { scrubBarBottomInset = it },
@@ -608,13 +547,13 @@ fun PlayerScreen(
                 settingsFocusRequester = settingsFocus,
                 scrubberFocusRequester = scrubberFocus,
                 osdSkipFocusRequester = osdSkipFocus,
-                showSkipInOsd = state.currentSegment != null && (skipPillDismissed || osdVisible || panel != Panel.NONE),
+                showSkipInOsd = chrome.skipInOsd(state.currentSegment != null),
                 onSkip = { viewModel.skipCurrentSegment() },
-                focusEnabled = panel == Panel.NONE
+                focusEnabled = chrome.panel == Panel.NONE
             )
         }
         AnimatedVisibility(
-            visible = panel == Panel.CHAPTERS && !showNextUpOverlay,
+            visible = chrome.panel == Panel.CHAPTERS && !showNextUpOverlay,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .zIndex(3f),
@@ -631,11 +570,7 @@ fun PlayerScreen(
         }
 
         AnimatedVisibility(
-            visible = state.currentSegment != null &&
-                !skipPillDismissed &&
-                !osdVisible &&
-                panel == Panel.NONE &&
-                !showNextUpOverlay,
+            visible = chrome.skipPillShowing(state.currentSegment != null),
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(end = 56.dp, bottom = 56.dp)
@@ -669,7 +604,7 @@ fun PlayerScreen(
             }
         }
 
-        if (osdVisible && panel == Panel.NONE && scrubPreview != null && scrubBarBottomInset > 0.dp) {
+        if (chrome.osdVisible && chrome.panel == Panel.NONE && scrubPreview != null && scrubBarBottomInset > 0.dp) {
             val preview = scrubPreview!!
             val frame = preview.frame
             val previewW = TrickplayPreviewWidth
@@ -702,7 +637,7 @@ fun PlayerScreen(
             }
         }
 
-        if (panel == Panel.AUDIO) {
+        if (chrome.panel == Panel.AUDIO) {
             Box(Modifier.fillMaxSize().zIndex(3f)) {
                 TrackPanel(
                     title = "Audio",
@@ -716,7 +651,7 @@ fun PlayerScreen(
                 )
             }
         }
-        if (panel == Panel.SUBTITLE) {
+        if (chrome.panel == Panel.SUBTITLE) {
             Box(Modifier.fillMaxSize().zIndex(3f)) {
                 TrackPanel(
                     title = "Subtitles",
@@ -730,7 +665,7 @@ fun PlayerScreen(
                 )
             }
         }
-        if (panel == Panel.SETTINGS) {
+        if (chrome.panel == Panel.SETTINGS) {
             Box(Modifier.fillMaxSize().zIndex(3f)) {
                 PlayerSettingsPanel(
                     subtitleDelayMs = state.subtitleDelayMs,
@@ -744,9 +679,7 @@ fun PlayerScreen(
                     sleep = state.sleep,
                     showStatsForNerds = state.showStatsForNerds,
                     onAdjustSubtitleDelay = {
-                        panel = Panel.NONE
-                        osdVisible = false
-                        subtitleAdjust = true
+                        chrome.enterSubtitleAdjust()
                     },
                     onSpeed = { viewModel.setSpeed(it) },
                     onAudioBoost = { viewModel.setAudioBoost(it) },
@@ -786,7 +719,7 @@ fun PlayerScreen(
 
         // Subtitle-delay live adjust: invisible key-catcher (L/R steps, Back returns to the panel)
         // plus a centered HUD. OSD + panel are hidden so the subtitles stay visible at the bottom.
-        if (subtitleAdjust) {
+        if (chrome.subtitleAdjust) {
             Box(
                 Modifier
                     .fillMaxSize()
@@ -811,8 +744,7 @@ fun PlayerScreen(
                             }
                             event.key == Key.Back || event.key == Key.DirectionCenter || event.key == Key.Enter -> {
                                 subAdjustHeldDir = 0
-                                subtitleAdjust = false
-                                panel = Panel.SETTINGS
+                                chrome.exitSubtitleAdjust()
                                 true
                             }
                             else -> false
@@ -837,8 +769,8 @@ fun PlayerScreen(
 
         SkipIndicator(
             state = SkipIndicatorState(
-                accumMs = skipAccumMs,
-                visible = skipVisible && !osdVisible && panel == Panel.NONE && !showNextUpOverlay
+                accumMs = chrome.quickSkipMs,
+                visible = chrome.quickSkipVisible && chrome.videoHasFocus
             ),
             modifier = Modifier
                 .align(Alignment.Center)

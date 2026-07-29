@@ -83,6 +83,7 @@ class WebSocketManagerTest {
 
     private class FakeForegroundState(resumed: Boolean) : AppForegroundState {
         override val isResumed = MutableStateFlow(resumed)
+        override val isVisible = MutableStateFlow(resumed)
     }
 
     private class Harness(foreground: Boolean = true) {

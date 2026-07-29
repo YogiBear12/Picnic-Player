@@ -94,6 +94,21 @@ class PlaybackTickTest {
     }
 
     @Test
+    fun askToSkip_hiddenWhileLoading() {
+        val intro = seg(SegmentKind.INTRO, 0, 5_000)
+        val d = playbackTick(
+            input(
+                positionMs = 0,
+                phase = PlaybackPhase.BUFFERING,
+                segments = listOf(intro),
+                hasPresentedFirstFrame = false
+            )
+        )
+        assertTrue(d.isLoading)
+        assertNull(d.currentSegment)
+    }
+
+    @Test
     fun askToSkip_hiddenAfterSkippedAway() {
         val intro = seg(SegmentKind.INTRO, 0, 5_000)
         val d = playbackTick(

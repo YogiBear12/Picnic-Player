@@ -16,6 +16,13 @@ import kotlinx.coroutines.flow.asStateFlow
  */
 interface AppForegroundState {
     val isResumed: StateFlow<Boolean>
+
+    /**
+     * Whether the app is on screen at all (STARTED). Distinct from [isResumed]: a
+     * Picture-in-Picture window is started but not resumed, so playback outlives losing focus
+     * and ends only once the app is really gone.
+     */
+    val isVisible: StateFlow<Boolean>
 }
 
 /**
@@ -28,15 +35,26 @@ class ProcessAppForegroundState @Inject constructor() : AppForegroundState {
     private val _isResumed = MutableStateFlow(false)
     override val isResumed: StateFlow<Boolean> = _isResumed.asStateFlow()
 
+    private val _isVisible = MutableStateFlow(false)
+    override val isVisible: StateFlow<Boolean> = _isVisible.asStateFlow()
+
     init {
         ProcessLifecycleOwner.get().lifecycle.addObserver(
             object : DefaultLifecycleObserver {
+                override fun onStart(owner: LifecycleOwner) {
+                    _isVisible.value = true
+                }
+
                 override fun onResume(owner: LifecycleOwner) {
                     _isResumed.value = true
                 }
 
                 override fun onPause(owner: LifecycleOwner) {
                     _isResumed.value = false
+                }
+
+                override fun onStop(owner: LifecycleOwner) {
+                    _isVisible.value = false
                 }
             }
         )

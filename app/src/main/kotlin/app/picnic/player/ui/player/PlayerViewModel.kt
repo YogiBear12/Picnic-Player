@@ -29,7 +29,9 @@ import app.picnic.player.data.playback.RememberedTrack
 import app.picnic.player.data.playback.SegmentKind
 import app.picnic.player.data.playback.StreamInfo
 import app.picnic.player.data.playback.TrackMemoryKind
-import app.picnic.player.data.playback.TrickplayTiles
+import app.picnic.player.data.playback.Trickplay
+import app.picnic.player.data.playback.TrickplayFrame
+import app.picnic.player.data.playback.msToTicks
 import app.picnic.player.data.playback.pickTracksWithMemory
 import app.picnic.player.data.playback.playbackTick
 import app.picnic.player.data.playback.quality.QualityOption
@@ -38,6 +40,7 @@ import app.picnic.player.data.playback.quality.SourceQuality
 import app.picnic.player.data.playback.quality.qualityOptions
 import app.picnic.player.data.playback.refinePlayMethod
 import app.picnic.player.data.playback.resolveLanguageCode
+import app.picnic.player.data.playback.ticksToMs
 import app.picnic.player.data.settings.PlaybackSettings
 import app.picnic.player.data.settings.SeriesTrackMemoryStore
 import app.picnic.player.data.settings.SettingsStore
@@ -45,7 +48,7 @@ import app.picnic.player.di.ApplicationScope
 import app.picnic.player.playback.AudioBoost
 import app.picnic.player.playback.JellyfinTrackSelection
 import app.picnic.player.playback.NightMode
-import app.picnic.player.playback.PlaybackEngine
+import app.picnic.player.playback.PlaybackEngineFactory
 import app.picnic.player.playback.PlaybackSessionController
 import app.picnic.player.playback.SideloadedTrackId
 import app.picnic.player.playback.SleepMode
@@ -68,7 +71,9 @@ import javax.inject.Inject
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
+import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -86,8 +91,6 @@ import org.jellyfin.sdk.model.api.BaseItemKind
 import org.jellyfin.sdk.model.api.MediaStream
 import org.jellyfin.sdk.model.api.MediaStreamType
 import org.jellyfin.sdk.model.api.TranscodingInfo
-
-private const val TICKS_PER_MS = 10_000L
 
 // OUTRO_END_TOLERANCE_MS lives in data/playback/PlaybackTick.kt (shared with the pure tick decision).
 
@@ -116,16 +119,6 @@ data class TrackOption(
     /** Primary line — regional language name from Jellyfin. */
     val displayLanguage: String,
     val selected: Boolean
-)
-
-/** One trickplay thumbnail: the sprite-sheet URL plus the cell to crop to. */
-data class TrickplayFrame(
-    val url: String,
-    val column: Int,
-    val row: Int,
-    val columns: Int,
-    val rows: Int,
-    val aspect: Float
 )
 
 /** Active scrub preview for a screen-level overlay (does not affect OSD layout). */
@@ -174,8 +167,6 @@ data class PlayerUiState(
     val subtitleTracks: List<TrackOption> = emptyList(),
     val selectedAudioId: String? = null,
     val selectedSubtitleId: String? = null,
-    val trickplaySheetWidth: Int? = null,
-    val trickplayTiles: TrickplayTiles? = null,
     val subtitleCues: List<Cue> = emptyList(),
     val currentSegment: MediaSegment? = null,
     /** Next episode to auto-play; null if unavailable (movies, series finale). */
@@ -223,12 +214,14 @@ class PlayerViewModel @Inject constructor(
     private val seriesTrackMemoryStore: SeriesTrackMemoryStore,
     private val sessionController: PlaybackSessionController,
     private val pictureInPictureSupport: app.picnic.player.data.device.PictureInPictureSupport,
+    engineFactory: PlaybackEngineFactory,
+    private val appForegroundState: app.picnic.player.data.socket.AppForegroundState,
     playerCommandBus: PlayerCommandBus,
     themeMusicPlayer: ThemeMusicPlayer,
     @ApplicationScope private val appScope: CoroutineScope
 ) : ViewModel() {
 
-    private val engine = PlaybackEngine(appContext)
+    private val engine = engineFactory.create()
 
     /** Video player. Built with libass (ASS/SSA) + hardware-first renderers. */
     val player: ExoPlayer get() = engine.player
@@ -256,8 +249,19 @@ class PlayerViewModel @Inject constructor(
     private var mediaStreams: List<MediaStream> = emptyList()
     private var selectedAudioIndex: Int? = null
     private var selectedSubtitleIndex: Int? = null
-    private var trickplay: Pair<Int, TrickplayTiles>? = null
+    private var trickplay: Trickplay? = null
     private var loaded = false
+
+    /**
+     * Everything that runs only while this item is being watched — the state ticker, progress
+     * reports, trickplay prefetch, a stream reload, the transcoding-info poll. They are launched
+     * here rather than in [viewModelScope] so [endPlayback] ends all of them at once: the
+     * ViewModel outlives the viewing by a nav transition, and a poll that survives teardown keeps
+     * talking to a server session that is already gone.
+     */
+    private val viewingJob = SupervisorJob(viewModelScope.coroutineContext[Job])
+    private val viewingScope = CoroutineScope(viewModelScope.coroutineContext + viewingJob)
+
     private var ticker: Job? = null
     private var progressJob: Job? = null
     private var trickplayPrefetchJob: Job? = null
@@ -284,6 +288,7 @@ class PlayerViewModel @Inject constructor(
     private var pendingSeekMs: Long = 0
 
     private var canTranscode = true
+    private var inPictureInPicture = false
     private var tornDown = false
     private var hasPresentedFirstFrame = false
 
@@ -379,13 +384,13 @@ class PlayerViewModel @Inject constructor(
         // current values re-applies them to a fresh engine on each autoplayed episode.
         viewModelScope.launch {
             sessionController.audioBoost.collect { level ->
-                engine.setAudioBoostMillibels(level.gainMb)
+                engine.audioEffects.setBoostMillibels(level.gainMb)
                 _state.update { it.copy(audioBoost = level) }
             }
         }
         viewModelScope.launch {
             sessionController.nightMode.collect { level ->
-                engine.setNightMode(level.strength)
+                engine.audioEffects.setNightMode(level.strength)
                 _state.update { it.copy(nightMode = level) }
             }
         }
@@ -401,6 +406,26 @@ class PlayerViewModel @Inject constructor(
         viewModelScope.launch {
             playerCommandBus.commands.collect { applyRemoteCommand(it) }
         }
+        // Leaving the app ends the viewing: the player, its decoder and the server's encoder all
+        // go, and the screen playback started from comes back. Driven off the process lifecycle —
+        // a nav entry is stopped when it is popped too, so a screen-scoped signal cannot tell
+        // backgrounding from an ordinary exit.
+        viewModelScope.launch {
+            appForegroundState.isVisible.collect { visible ->
+                if (!visible && !inPictureInPicture) {
+                    endViewing()
+                    _navEvents.tryEmit(PlayerNavEvent.Exit)
+                }
+            }
+        }
+    }
+
+    /**
+     * A PiP window keeps playing while the app is off screen, so it suspends the
+     * end-on-background rule until the window itself is gone.
+     */
+    fun onPipModeChanged(inPip: Boolean) {
+        inPictureInPicture = inPip
     }
 
     /** Maps a remote [PlayerCommand] onto the existing player controls. Safe before [load]. */
@@ -434,19 +459,13 @@ class PlayerViewModel @Inject constructor(
     /** libass overlay view; host it sized to the video display rect. */
     fun assOverlayView(context: Context) = engine.assOverlayView(context)
 
-    fun setPictureInPicture(pip: Boolean) {
-        viewModelScope.launch {
-            settingsStore.setPictureInPicture(pip)
-        }
-    }
-
     fun load(itemIdString: String, startTicks: Long?, mediaSourceId: String? = null) {
         if (loaded) return
         loaded = true
         val id = UUID.fromString(itemIdString)
         itemId = id
         outroNextUpShown = false
-        viewModelScope.launch {
+        viewingScope.launch {
             val activeSession = authRepository.activeSession()
             if (activeSession == null) {
                 _state.update { it.copy(error = "No active session", buffering = false, isLoading = false) }
@@ -535,7 +554,7 @@ class PlayerViewModel @Inject constructor(
         val pipelineTranscode = stream?.playMethod == PlayMethodKind.TRANSCODE
         if (_state.value.showStatsForNerds && pipelineTranscode) {
             if (transcodingInfoJob == null) {
-                transcodingInfoJob = viewModelScope.launch {
+                transcodingInfoJob = viewingScope.launch {
                     val session = authRepository.activeSession() ?: return@launch
                     while (isActive) {
                         refreshTranscodingInfoOnce(
@@ -568,33 +587,19 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
-    /** Real player exit (back to browse): clear session audio + sleep timer. */
-    fun onPlayerExit() = sessionController.reset()
-
-    /** Trickplay sprite sheet URL for [tileIndex], or null if unavailable. */
-    fun trickplayTileUrl(tileIndex: Int): String? {
-        val s = session ?: return null
-        val id = itemId ?: return null
-        val (width, _) = trickplay ?: return null
-        return playbackRepository.trickplayTileUrl(s, id, width, tileIndex)
+    /**
+     * The viewing is over — Back, a remote Stop, or the app leaving the screen. Ends playback
+     * now rather than when the nav entry is finally destroyed, which is a fade-out later: the
+     * picture must freeze and the sound stop the moment the user asks to leave. Also clears the
+     * session audio + sleep timer, which belong to one viewing.
+     */
+    fun endViewing() {
+        sessionController.reset()
+        endPlayback()
     }
 
-    /** Trickplay sprite cell for [positionMs], or null if unavailable. */
-    fun trickplayFor(positionMs: Long): TrickplayFrame? {
-        val s = session ?: return null
-        val id = itemId ?: return null
-        val (width, tiles) = trickplay ?: return null
-        val (tileIndex, row, col) = tiles.tileFor(positionMs)
-        val aspect = if (tiles.height > 0) tiles.width.toFloat() / tiles.height else 16f / 9f
-        return TrickplayFrame(
-            url = playbackRepository.trickplayTileUrl(s, id, width, tileIndex),
-            column = col,
-            row = row,
-            columns = tiles.tileWidth.coerceAtLeast(1),
-            rows = tiles.tileHeight.coerceAtLeast(1),
-            aspect = aspect
-        )
-    }
+    /** Trickplay sprite cell for [positionMs], or null if the item has no trickplay data. */
+    fun trickplayFor(positionMs: Long): TrickplayFrame? = trickplay?.frameFor(positionMs)
 
     fun selectAudio(streamIndex: String) {
         selectedAudioIndex = streamIndex.toIntOrNull() ?: return
@@ -638,14 +643,14 @@ class PlayerViewModel @Inject constructor(
         val speed = _state.value.playbackSpeed
 
         reloadJob?.cancel()
-        reloadJob = viewModelScope.launch {
+        reloadJob = viewingScope.launch {
             _state.update { it.copy(buffering = true, notice = null, subtitleCues = emptyList()) }
             val result = streamLoader.load(
                 StreamRequest(
                     session = activeSession,
                     itemId = id,
                     seriesId = seriesId,
-                    positionTicks = player.currentPosition * TICKS_PER_MS,
+                    positionTicks = player.currentPosition.msToTicks(),
                     mediaSourceId = current.mediaSourceId,
                     quality = quality,
                     audioStreamIndex = selectedAudioIndex,
@@ -775,13 +780,17 @@ class PlayerViewModel @Inject constructor(
         seriesId = item.seriesId
         seasonId = item.seasonId
         itemType = item.type
-        trickplay = playbackRepository.trickplayFromItem(item)
+        trickplay = playbackRepository.trickplayFromItem(item)?.let { (sheetWidth, tiles) ->
+            Trickplay(tiles) { tileIndex ->
+                playbackRepository.trickplayTileUrl(activeSession, id, sheetWidth, tileIndex)
+            }
+        }
         prefetchTrickplayTiles()
         val chapterMarks = item.chapters?.mapIndexed { index, ch ->
             ChapterMark(
                 index = index,
                 title = ch.name?.takeIf { it.isNotBlank() } ?: "Chapter ${index + 1}",
-                startMs = ch.startPositionTicks / TICKS_PER_MS,
+                startMs = ch.startPositionTicks.ticksToMs(),
                 imageUrl = ch.imageTag?.let {
                     playbackRepository.chapterImageUrl(activeSession, id, index, it)
                 }
@@ -792,13 +801,11 @@ class PlayerViewModel @Inject constructor(
                 title = item.seriesName ?: item.name.orEmpty(),
                 subtitle = episodeOsdLine(item),
                 backdropUrl = JellyfinImages.backdrop(activeSession, item),
-                trickplaySheetWidth = trickplay?.first,
-                trickplayTiles = trickplay?.second,
                 chapters = chapterMarks
             )
         }
         if (item.type == BaseItemKind.EPISODE) {
-            viewModelScope.launch {
+            viewingScope.launch {
                 val next = runCatching {
                     mediaRepository.nextEpisode(activeSession, id)
                 }.getOrNull()
@@ -897,18 +904,13 @@ class PlayerViewModel @Inject constructor(
 
     /** Prefetch trickplay sprite sheets into Coil's cache while playback starts. */
     private fun prefetchTrickplayTiles() {
-        val s = session ?: return
-        val id = itemId ?: return
-        val (width, tiles) = trickplay ?: return
-        val perTile = tiles.tileWidth * tiles.tileHeight
-        if (perTile <= 0) return
-        val tileCount = (tiles.thumbnailCount + perTile - 1) / perTile
+        val urls = trickplay?.tileUrls().orEmpty()
+        if (urls.isEmpty()) return
         trickplayPrefetchJob?.cancel()
-        trickplayPrefetchJob = viewModelScope.launch {
+        trickplayPrefetchJob = viewingScope.launch {
             val loader = appContext.imageLoader
-            for (tileIndex in 0 until tileCount) {
+            for (url in urls) {
                 if (!isActive) return@launch
-                val url = playbackRepository.trickplayTileUrl(s, id, width, tileIndex)
                 loader.enqueue(
                     ImageRequest.Builder(appContext)
                         .data(url)
@@ -921,7 +923,7 @@ class PlayerViewModel @Inject constructor(
 
     private fun startTicker() {
         ticker?.cancel()
-        ticker = viewModelScope.launch {
+        ticker = viewingScope.launch {
             while (isActive) {
                 pushState()
                 delay(500)
@@ -931,7 +933,7 @@ class PlayerViewModel @Inject constructor(
 
     private fun startProgressReports() {
         progressJob?.cancel()
-        progressJob = viewModelScope.launch {
+        progressJob = viewingScope.launch {
             while (isActive) {
                 delay(10_000)
                 val s = session ?: continue
@@ -942,7 +944,7 @@ class PlayerViewModel @Inject constructor(
                         s,
                         info,
                         id,
-                        player.currentPosition * TICKS_PER_MS,
+                        player.currentPosition.msToTicks(),
                         !player.isPlaying
                     )
                 }
@@ -1053,15 +1055,12 @@ class PlayerViewModel @Inject constructor(
         if (tornDown) return
         tornDown = true
         sessionController.playerTornDown()
-        ticker?.cancel()
-        progressJob?.cancel()
-        trickplayPrefetchJob?.cancel()
-        reloadJob?.cancel()
+        viewingJob.cancelChildren()
         val s = session
         val info = stream
         val id = itemId
         val series = seriesId
-        val positionTicks = player.currentPosition * TICKS_PER_MS
+        val positionTicks = player.currentPosition.msToTicks()
         player.removeListener(listener)
         engine.release()
         if (s != null && info != null && id != null) {

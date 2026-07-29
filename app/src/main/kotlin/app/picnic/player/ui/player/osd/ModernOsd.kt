@@ -50,8 +50,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
+import app.picnic.player.data.playback.TrickplayFrame
 import app.picnic.player.ui.player.PlayerUiState
-import app.picnic.player.ui.player.TrickplayFrame
 import app.picnic.player.ui.player.TrickplayPreview
 
 /**

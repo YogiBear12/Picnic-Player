@@ -18,6 +18,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation3.runtime.NavKey
+import app.picnic.player.data.playback.msToTicks
 import app.picnic.player.data.settings.SettingsStore
 import app.picnic.player.data.socket.RemoteControlAction
 import app.picnic.player.data.socket.RemoteControlBus
@@ -139,7 +140,7 @@ class MainActivity : ComponentActivity() {
                             navViewModel.push(DetailKey(action.itemId, null, null))
                         is RemoteControlAction.Play ->
                             navViewModel.push(
-                                PlayerKey(action.itemId, action.startPositionMs?.let { it * TICKS_PER_MS })
+                                PlayerKey(action.itemId, action.startPositionMs?.let { it.msToTicks() })
                             )
                         // D-pad proxy: inject a synthetic key press through the activity window so
                         // Compose-TV focus traversal (and the player's own onKeyEvent) handle it
@@ -191,9 +192,6 @@ class MainActivity : ComponentActivity() {
     }
 
     companion object {
-        /** Jellyfin position ticks per millisecond (100-ns ticks). */
-        private const val TICKS_PER_MS = 10_000L
-
         /**
          * Maps picnic:// deep links to navigation keys.
          * - picnic://item/{id} → detail (movie / series)

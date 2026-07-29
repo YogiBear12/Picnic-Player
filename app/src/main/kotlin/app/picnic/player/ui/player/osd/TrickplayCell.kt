@@ -17,7 +17,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
-import app.picnic.player.ui.player.TrickplayFrame
+import app.picnic.player.data.playback.TrickplayFrame
 import coil3.imageLoader
 import coil3.request.ImageRequest
 import coil3.request.SuccessResult
