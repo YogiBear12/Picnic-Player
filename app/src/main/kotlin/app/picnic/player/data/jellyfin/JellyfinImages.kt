@@ -33,6 +33,16 @@ object JellyfinImages {
         return "$base/Branding/Splashscreen?fillWidth=$fillWidth&quality=90"
     }
 
+    /**
+     * A Jellyfin user's avatar. Tag-guarded like item artwork so a replaced avatar lands on a
+     * new URL instead of serving the cached copy; an untagged URL 404s when the user has no
+     * avatar, which callers already treat as "draw the initial".
+     */
+    fun userPrimary(baseUrl: String, userId: String, tag: String?, fillWidth: Int = 256): String {
+        val base = "${baseUrl.trimEnd('/')}/Users/$userId/Images/Primary?fillWidth=$fillWidth&quality=90"
+        return if (tag != null) "$base&tag=$tag" else base
+    }
+
     fun personPrimary(session: UserSession, personId: String, tag: String?, fillWidth: Int = 480): String? {
         if (tag == null) return null
         return url(session, personId, ImageType.PRIMARY, tag, fillWidth)

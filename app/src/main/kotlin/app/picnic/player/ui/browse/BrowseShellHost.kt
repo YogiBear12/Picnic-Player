@@ -262,8 +262,11 @@ fun BrowseShellHost(
             }
             val updateViewModel: app.picnic.player.ui.settings.UpdateViewModel = hiltViewModel()
             val updateBadge by updateViewModel.updateAvailable.collectAsStateWithLifecycle()
+            val avatarViewModel: app.picnic.player.ui.common.UserAvatarViewModel = hiltViewModel()
+            val avatarUrl by avatarViewModel.url.collectAsStateWithLifecycle()
             BrowseSideNavDrawer(
                 session = session,
+                avatarUrl = avatarUrl,
                 destinations = destinations,
                 selectedKey = selectedKey,
                 itemFocusRequesters = railRequesters,

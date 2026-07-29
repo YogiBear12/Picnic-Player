@@ -113,6 +113,7 @@ private val DrawerRowSpacing = 4.dp
 @Composable
 internal fun BrowseSideNavDrawer(
     session: UserSession?,
+    avatarUrl: String?,
     destinations: List<BrowseDest>,
     selectedKey: String,
     itemFocusRequesters: Map<String, FocusRequester>,
@@ -229,7 +230,7 @@ internal fun BrowseSideNavDrawer(
                                 selected = false,
                                 onClick = onSwapUser,
                                 label = session.username,
-                                leadingContent = { DrawerAvatar(session) },
+                                leadingContent = { DrawerAvatar(session, avatarUrl) },
                                 height = DrawerChromeRowHeight
                             )
                             Spacer(Modifier.height(6.dp))
@@ -528,8 +529,7 @@ internal fun UpdateBadgeDot(modifier: Modifier = Modifier) {
 
 /** Passive circular avatar (the enclosing drawer item owns focus + click). */
 @Composable
-private fun DrawerAvatar(session: UserSession) {
-    val imageUrl = "${session.server.baseUrl.trimEnd('/')}/Users/${session.userId}/Images/Primary?fillWidth=80&quality=90"
+private fun DrawerAvatar(session: UserSession, imageUrl: String?) {
     // Same layering as the Who's watching? picker: gradient underlay always, initial
     // only when the load fails — so transparent PNG avatars do not show a letter (#131).
     var avatarFailed by remember(session.userId) { mutableStateOf(false) }

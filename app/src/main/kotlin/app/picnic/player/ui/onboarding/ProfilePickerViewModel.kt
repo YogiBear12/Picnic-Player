@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import app.picnic.player.data.auth.AuthRepository
 import app.picnic.player.data.auth.ProfilePickerLocal
 import app.picnic.player.data.auth.ServerConnection
+import app.picnic.player.data.jellyfin.JellyfinImages
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
@@ -214,8 +215,5 @@ class ProfilePickerViewModel @AssistedInject constructor(
         _state.update { it.copy(goLogin = true) }
     }
 
-    private fun userImageUrl(server: ServerConnection, userId: String, tag: String?): String {
-        val base = "${server.baseUrl.trimEnd('/')}/Users/$userId/Images/Primary?fillWidth=256&quality=90"
-        return if (tag != null) "$base&tag=$tag" else base
-    }
+    private fun userImageUrl(server: ServerConnection, userId: String, tag: String?): String = JellyfinImages.userPrimary(server.baseUrl, userId, tag)
 }

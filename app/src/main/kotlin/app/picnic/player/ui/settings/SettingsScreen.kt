@@ -96,6 +96,7 @@ data class YouTubeAppInfo(
 class SettingsViewModel @Inject constructor(
     private val store: SettingsStore,
     private val authRepository: AuthRepository,
+    activeUserAvatar: app.picnic.player.data.auth.ActiveUserAvatar,
     private val mediaRepository: MediaRepository,
     private val seerrRepository: app.picnic.player.data.seerr.SeerrRepository,
     private val pictureInPictureSupport: app.picnic.player.data.device.PictureInPictureSupport,
@@ -128,9 +129,8 @@ class SettingsViewModel @Inject constructor(
     private val _activeUsername = MutableStateFlow("")
     val activeUsername: StateFlow<String> = _activeUsername
 
-    /** Avatar of the active Jellyfin profile (tag-guarded when the tag is cached). */
-    private val _activeUserImageUrl = MutableStateFlow<String?>(null)
-    val activeUserImageUrl: StateFlow<String?> = _activeUserImageUrl
+    /** Avatar of the active Jellyfin profile; shared with the nav drawer. */
+    val activeUserImageUrl: StateFlow<String?> = activeUserAvatar.url
 
     private val _cultureOptions = MutableStateFlow<List<CulturePickerOption>>(emptyList())
     val cultureOptions: StateFlow<List<CulturePickerOption>> = _cultureOptions
@@ -160,14 +160,7 @@ class SettingsViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            val session = authRepository.activeSession() ?: return@launch
-            _activeUsername.value = session.username
-            val tag = authRepository.cachedPublicUsers(session.server.id)
-                .firstOrNull { it.id == session.userId }
-                ?.primaryImageTag
-            val base = session.server.baseUrl.trimEnd('/') +
-                "/Users/${session.userId}/Images/Primary?fillWidth=256&quality=90"
-            _activeUserImageUrl.value = if (tag != null) "$base&tag=$tag" else base
+            _activeUsername.value = authRepository.activeSession()?.username.orEmpty()
         }
         viewModelScope.launch {
             val session = authRepository.activeSession() ?: return@launch
