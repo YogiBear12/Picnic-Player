@@ -23,11 +23,11 @@ import app.picnic.player.data.settings.SubtitleSize
 
 /** Cue height as a fraction of the picture height. */
 fun SubtitleSize.toHeightFraction(): Float = when (this) {
-    SubtitleSize.SMALLER -> 0.0400f
-    SubtitleSize.SMALL -> 0.0489f
-    SubtitleSize.STANDARD -> 0.0533f
-    SubtitleSize.LARGE -> 0.0578f
-    SubtitleSize.LARGER -> 0.0667f
+    SubtitleSize.SMALLER -> 0.0258f
+    SubtitleSize.SMALL -> 0.0331f
+    SubtitleSize.STANDARD -> 0.0405f
+    SubtitleSize.LARGE -> 0.0478f
+    SubtitleSize.LARGER -> 0.0552f
 }
 
 fun SubtitleColour.toArgb(): Int = when (this) {
