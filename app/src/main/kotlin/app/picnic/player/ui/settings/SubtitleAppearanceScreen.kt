@@ -45,6 +45,7 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -69,6 +70,8 @@ import app.picnic.player.ui.grid.OceanAmbientBackground
 import app.picnic.player.ui.theme.PicnicColors
 import coil3.compose.AsyncImage
 import coil3.compose.AsyncImagePainter
+import coil3.request.CachePolicy
+import coil3.request.ImageRequest
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.SharingStarted
@@ -167,8 +170,19 @@ private fun SubtitleBackground(splashUrl: String?, modifier: Modifier = Modifier
                 animationSpec = tween(600),
                 label = "splashFade"
             )
+            val context = LocalContext.current
+            // The Branding endpoint takes no image tag (supplying one returns an empty 304), so a
+            // cached copy would outlive every splashscreen the admin swaps in. This screen is
+            // rare enough that refetching per visit beats showing artwork the server replaced.
+            val request = remember(splashUrl) {
+                ImageRequest.Builder(context)
+                    .data(splashUrl)
+                    .memoryCachePolicy(CachePolicy.DISABLED)
+                    .diskCachePolicy(CachePolicy.DISABLED)
+                    .build()
+            }
             AsyncImage(
-                model = splashUrl,
+                model = request,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 // Only Success flips the fade in; Error leaves alpha at 0 so the ocean
