@@ -77,9 +77,13 @@ class PlaybackEngine(context: Context, httpClient: OkHttpClient) {
     }
 
     /** Style the text-cue view (SRT/VTT/…). ASS renders in [assOverlayView], not here. */
-    fun attachSubtitleView(subtitleView: SubtitleView, appearance: SubtitleAppearance) {
+    fun attachSubtitleView(
+        subtitleView: SubtitleView,
+        appearance: SubtitleAppearance,
+        textSizeScale: Float
+    ) {
         subtitleView.setBackgroundColor(Color.TRANSPARENT)
-        appearance.applyTo(subtitleView)
+        appearance.applyTo(subtitleView, textSizeScale)
     }
 
     /**

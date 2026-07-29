@@ -475,9 +475,10 @@ class PlayerViewModel @Inject constructor(
     }
 
     /** Wire libass overlay (call from [SubtitleView] [AndroidView] update). */
-    fun attachSubtitleView(subtitleView: SubtitleView) = engine.attachSubtitleView(
+    fun attachSubtitleView(subtitleView: SubtitleView, textSizeScale: Float) = engine.attachSubtitleView(
         subtitleView,
-        settings.value.subtitleAppearance
+        settings.value.subtitleAppearance,
+        textSizeScale
     )
 
     /** libass overlay view; host it sized to the video display rect. */

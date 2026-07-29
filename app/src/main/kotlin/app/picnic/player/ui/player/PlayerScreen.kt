@@ -71,6 +71,7 @@ import androidx.media3.ui.compose.SURFACE_TYPE_SURFACE_VIEW
 import androidx.media3.ui.compose.modifiers.resizeWithContentScale
 import androidx.media3.ui.compose.state.rememberPresentationState
 import app.picnic.player.data.playback.TrickplayFrame
+import app.picnic.player.playback.subtitleTextSizeScale
 import app.picnic.player.playback.videoDisplayHints
 import app.picnic.player.ui.ambient.PublishBackdrop
 import app.picnic.player.ui.common.requestFocusWhenAttached
@@ -444,7 +445,7 @@ fun PlayerScreen(
         // pixel ratios), so 4:3 content is pillar-boxed instead of stretched to the 16:9 screen.
         // videoSizeDp is null until the first frame's size is known; ContentScale.Fit letterboxes.
         val presentationState = rememberPresentationState(viewModel.player)
-        Box(
+        BoxWithConstraints(
             modifier = Modifier
                 .align(Alignment.TopStart)
                 .padding(start = playerInset, top = playerInset)
@@ -488,18 +489,24 @@ fun PlayerScreen(
                     bitmapSubtitleFrame(bitmapCues, presentationState.videoSizeDp)
                 )
             )
+            // SRT/VTT text cues, placed against the picture like the other subtitle planes.
+            val videoAspect = presentationState.videoSizeDp
+                ?.takeIf { it.width > 0f && it.height > 0f }
+                ?.let { it.width / it.height }
+            val textSizeScale = subtitleTextSizeScale(videoAspect, maxWidth / maxHeight)
+            AndroidView(
+                factory = { context -> SubtitleView(context) },
+                update = { subtitleView ->
+                    viewModel.attachSubtitleView(subtitleView, textSizeScale)
+                    subtitleView.setCues(textCues)
+                },
+                onReset = { it.setCues(emptyList()) },
+                modifier = Modifier.resizeWithContentScale(
+                    ContentScale.Fit,
+                    presentationState.videoSizeDp
+                )
+            )
         }
-
-        // Full screen: SRT/VTT text cues stay screen-relative, not bound to the picture.
-        AndroidView(
-            factory = { context -> SubtitleView(context) },
-            update = { subtitleView ->
-                viewModel.attachSubtitleView(subtitleView)
-                subtitleView.setCues(textCues)
-            },
-            onReset = { it.setCues(emptyList()) },
-            modifier = Modifier.fillMaxSize()
-        )
 
         if (state.isLoading && state.error == null) {
             state.backdropUrl?.let { url ->

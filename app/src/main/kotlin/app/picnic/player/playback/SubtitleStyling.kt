@@ -21,11 +21,7 @@ import app.picnic.player.data.settings.SubtitleSize
  * during playback.
  */
 
-/**
- * Cue height as a fraction of the view, so text keeps its proportions when the surface shrinks —
- * Picture-in-Picture otherwise renders subtitles at full size over a thumbnail. STANDARD is Media3's
- * own default fraction, and the rest keep the sp ratios they replaced.
- */
+/** Cue height as a fraction of the picture height. */
 fun SubtitleSize.toHeightFraction(): Float = when (this) {
     SubtitleSize.SMALLER -> 0.0400f
     SubtitleSize.SMALL -> 0.0489f
@@ -72,9 +68,18 @@ fun SubtitleAppearance.toCaptionStyle(): CaptionStyleCompat {
     )
 }
 
-fun SubtitleAppearance.applyTo(view: SubtitleView) {
+/**
+ * Cancels letterboxing, so a size step renders the same height whatever the content's aspect.
+ * 1 when the video fills the container's height (pillarboxed or matching).
+ */
+fun subtitleTextSizeScale(videoAspect: Float?, containerAspect: Float): Float {
+    if (videoAspect == null || videoAspect <= 0f || containerAspect <= 0f) return 1f
+    return (videoAspect / containerAspect).coerceAtLeast(1f)
+}
+
+fun SubtitleAppearance.applyTo(view: SubtitleView, textSizeScale: Float = 1f) {
     view.setApplyEmbeddedStyles(false)
     view.setStyle(toCaptionStyle())
-    view.setFractionalTextSize(size.toHeightFraction())
+    view.setFractionalTextSize(size.toHeightFraction() * textSizeScale)
     view.setBottomPaddingFraction(SubtitleBottomPaddingFraction)
 }
