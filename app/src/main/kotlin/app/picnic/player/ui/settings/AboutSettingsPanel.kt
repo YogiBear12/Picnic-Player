@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -28,6 +29,7 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import app.picnic.player.BuildConfig
 import app.picnic.player.R
+import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.theme.PicnicColors
 
 /**
@@ -47,12 +49,23 @@ internal fun AboutSettingsPanel(
     leftFocus: FocusRequester,
     onFocusChanged: (Boolean) -> Unit,
     onOpenLicenses: () -> Unit,
+    restoreRow: SubPageRow?,
+    onRestored: () -> Unit,
     modifier: Modifier = Modifier,
     updateViewModel: UpdateViewModel = hiltViewModel()
 ) {
     val phase by updateViewModel.phase.collectAsStateWithLifecycle()
     val updateAvailable by updateViewModel.updateAvailable.collectAsStateWithLifecycle()
     var showUpdateDialog by remember { mutableStateOf(false) }
+    // Focus target for the licenses row returning from its full-screen page.
+    val restoreFr = remember { FocusRequester() }
+    val restoreLicenses = restoreRow == SubPageRow.LICENSES
+    LaunchedEffect(restoreRow) {
+        if (restoreLicenses) {
+            restoreFr.requestFocusWhenAttached()
+            onRestored()
+        }
+    }
     Column(
         modifier = modifier.onFocusChanged { onFocusChanged(it.hasFocus) },
         verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -103,7 +116,11 @@ internal fun AboutSettingsPanel(
         ActionRow(
             label = stringResource(R.string.about_licenses_title),
             leftFocus = leftFocus,
-            focusRequester = if (updateViewModel.enabled) null else enterFr,
+            focusRequester = when {
+                restoreLicenses -> restoreFr
+                updateViewModel.enabled -> null
+                else -> enterFr
+            },
             blockUp = !updateViewModel.enabled,
             blockDown = true,
             onActivate = onOpenLicenses

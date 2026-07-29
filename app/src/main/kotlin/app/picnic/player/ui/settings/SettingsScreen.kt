@@ -68,6 +68,7 @@ import app.picnic.player.data.settings.PlaybackSettings
 import app.picnic.player.data.settings.SegmentAction
 import app.picnic.player.data.settings.SettingsStore
 import app.picnic.player.data.settings.ThemeMusicVolume
+import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.theme.PicnicColors
 import app.picnic.player.util.LanguageDisplay
 import coil3.imageLoader
@@ -85,6 +86,13 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 private enum class LanguagePickerKind { AUDIO, SUBTITLE }
+
+/**
+ * Detail rows that open a full-screen sub-page. The page returns early from [SettingsScreen] and
+ * takes the panel with it, so the row that opened it is named by one of these and refocused when
+ * the page pops back.
+ */
+internal enum class SubPageRow { SUBTITLE_APPEARANCE, LICENSES }
 
 data class YouTubeAppInfo(
     val packageName: String,
@@ -402,7 +410,9 @@ private data class SettingItem(
     val description: String? = null,
     val onActivate: () -> Unit,
     /** When false the row is greyed out and cannot be activated (still focusable). */
-    val enabled: Boolean = true
+    val enabled: Boolean = true,
+    /** Set when the row opens a full-screen sub-page — the focus-restore key on the way back. */
+    val subPage: SubPageRow? = null
 )
 
 /** A group of rows within a category's detail panel. [title] draws a section
@@ -593,7 +603,8 @@ private fun sectionsFor(
                 SettingItem(
                     "Subtitle appearance",
                     "",
-                    onActivate = onOpenSubtitleAppearance
+                    onActivate = onOpenSubtitleAppearance,
+                    subPage = SubPageRow.SUBTITLE_APPEARANCE
                 )
             )
         ),
@@ -842,6 +853,18 @@ fun SettingsScreen(
     val serverAudioLanguage by viewModel.serverAudioLanguage.collectAsStateWithLifecycle()
     val serverSubtitleLanguage by viewModel.serverSubtitleLanguage.collectAsStateWithLifecycle()
 
+    // Both of these must be declared before every sub-page return below: a return skips the
+    // remember calls after it, and a skipped remember is dropped from the composition — the state
+    // would be back to its initial value on the way in, not restored.
+    //
+    // The detail row to refocus once a full-screen sub-page pops back. The sub-page takes the
+    // panel with it, so the row that opened it has to be named rather than remembered by the row.
+    var restoreDetailRow by remember { mutableStateOf<SubPageRow?>(null) }
+
+    // Scroll offset of the detail panel; without it a panel rebuilt at offset 0 visibly scrolls
+    // down to the restored row. Keyed on category so switching categories still starts at the top.
+    val detailScrollState = remember(selected) { ScrollState(0) }
+
     // Open source licenses render as a full-screen page over Settings (its own
     // focus/scroll and Back handling), not a dialog.
     var showLicenses by remember { mutableStateOf(false) }
@@ -864,7 +887,8 @@ fun SettingsScreen(
     LaunchedEffect(Unit) {
         val restoreRequestRow =
             selected == SettingsCategory.REQUESTS && viewModel.focusedRequestId.value != null
-        if (!restoreRequestRow) {
+        // A pending detail-row restore owns focus; seeding the rail here would steal it.
+        if (!restoreRequestRow && restoreDetailRow == null) {
             runCatching { categoryFocusRequesters.getValue(selected).requestFocus() }
         }
     }
@@ -914,9 +938,18 @@ fun SettingsScreen(
                 showPicker = { activePicker = it },
                 onShowAudioLanguagePicker = { languagePickerKind = LanguagePickerKind.AUDIO },
                 onShowSubtitleLanguagePicker = { languagePickerKind = LanguagePickerKind.SUBTITLE },
-                onOpenSubtitleAppearance = { showSubtitleAppearance = true },
+                restoreRow = restoreDetailRow,
+                onRestored = { restoreDetailRow = null },
+                scrollState = detailScrollState,
+                onOpenSubtitleAppearance = {
+                    restoreDetailRow = SubPageRow.SUBTITLE_APPEARANCE
+                    showSubtitleAppearance = true
+                },
                 onOpenSeerrDetail = onOpenSeerrDetail,
-                onOpenLicenses = { showLicenses = true },
+                onOpenLicenses = {
+                    restoreDetailRow = SubPageRow.LICENSES
+                    showLicenses = true
+                },
                 modifier = Modifier.weight(1f).fillMaxHeight()
             )
         }
@@ -1081,6 +1114,9 @@ private fun DetailPanel(
     onOpenSubtitleAppearance: () -> Unit,
     onOpenSeerrDetail: ((app.picnic.player.data.seerr.SeerrMediaRequest) -> Unit)?,
     onOpenLicenses: () -> Unit,
+    restoreRow: SubPageRow?,
+    onRestored: () -> Unit,
+    scrollState: ScrollState,
     modifier: Modifier = Modifier
 ) {
     val imageCacheSize by viewModel.imageCacheSize.collectAsStateWithLifecycle()
@@ -1116,7 +1152,9 @@ private fun DetailPanel(
                 leftFocus = leftFocus,
                 onFocusChanged = onFocusChanged,
                 onOpenLicenses = onOpenLicenses,
-                modifier = modifier.verticalScroll(rememberScrollState())
+                restoreRow = restoreRow,
+                onRestored = onRestored,
+                modifier = modifier.verticalScroll(scrollState)
             )
             return
         }
@@ -1142,9 +1180,14 @@ private fun DetailPanel(
         onOpenSubtitleAppearance
     )
     val lastSection = sections.lastIndex
-    // Keyed on category: switching categories starts the new panel at the top
-    // instead of inheriting the previous panel's scroll offset.
-    val scrollState = remember(category) { ScrollState(0) }
+    // Focus target for a row returning from its full-screen sub-page.
+    val restoreFr = remember { FocusRequester() }
+    LaunchedEffect(restoreRow) {
+        if (restoreRow != null) {
+            restoreFr.requestFocusWhenAttached()
+            onRestored()
+        }
+    }
     Column(
         modifier = modifier
             .verticalScroll(scrollState)
@@ -1161,8 +1204,13 @@ private fun DetailPanel(
                     value = item.value,
                     description = item.description,
                     enabled = item.enabled,
-                    // The very first row is the entry target for D-pad Right / Enter from the rail.
-                    rowFocus = if (si == 0 && ii == 0) enterFr else null,
+                    // The very first row is the entry target for D-pad Right / Enter from the rail;
+                    // a row popping back from its sub-page takes precedence.
+                    rowFocus = when {
+                        item.subPage != null && item.subPage == restoreRow -> restoreFr
+                        si == 0 && ii == 0 -> enterFr
+                        else -> null
+                    },
                     leftFocus = leftFocus,
                     blockUp = si == 0 && ii == 0,
                     blockDown = si == lastSection && ii == section.items.lastIndex,
