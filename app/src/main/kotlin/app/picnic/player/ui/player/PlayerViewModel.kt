@@ -793,7 +793,8 @@ class PlayerViewModel @Inject constructor(
                 deviceLanguage
             ),
             deviceSubtitleLanguage = deviceLanguage,
-            alwaysDisplaySubtitles = prefs.alwaysDisplaySubtitles
+            alwaysDisplaySubtitles = prefs.alwaysDisplaySubtitles,
+            preferDefaultAudioTrack = prefs.preferDefaultAudioTrack
         )
         selectedAudioIndex = pick.audioIndex
         selectedSubtitleIndex = pick.subtitleIndex

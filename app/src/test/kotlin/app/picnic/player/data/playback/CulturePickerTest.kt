@@ -2,6 +2,7 @@ package app.picnic.player.data.playback
 
 import org.jellyfin.sdk.model.api.CultureDto
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class CulturePickerTest {
@@ -50,6 +51,51 @@ class CulturePickerTest {
         val pinned = pinnedLanguageOptions(base, deviceLanguage = "de")
         assertEquals(listOf("English"), pinned.options.map { it.displayName })
         assertEquals(-1, pinned.separatorAfterIndex)
+    }
+
+    @Test
+    fun languagePickerRows_audioPinsDefaultAboveDeviceLanguage() {
+        val base = culturePickerOptions(
+            listOf(
+                culture("english", "English", "en"),
+                culture("german", "German", "de")
+            )
+        )
+        val picker = languagePickerRows(base, deviceLanguage = "de", includeDefaultAudioTrack = true)
+        assertEquals(listOf("Original language", "German", "English"), picker.rows.map { it.label })
+        // Divider sits under the Default + device-language block.
+        assertEquals(1, picker.separatorAfterIndex)
+    }
+
+    @Test
+    fun languagePickerRows_subtitlesHaveNoDefaultRow() {
+        val base = culturePickerOptions(listOf(culture("english", "English", "en")))
+        val picker = languagePickerRows(base, deviceLanguage = "de", includeDefaultAudioTrack = false)
+        assertEquals(listOf("English"), picker.rows.map { it.label })
+        assertEquals(-1, picker.separatorAfterIndex)
+    }
+
+    @Test
+    fun languagePickerRows_defaultRowAloneWhenDeviceLanguageAbsent() {
+        val base = culturePickerOptions(listOf(culture("english", "English", "en")))
+        val picker = languagePickerRows(base, deviceLanguage = "de", includeDefaultAudioTrack = true)
+        assertEquals(listOf("Original language", "English"), picker.rows.map { it.label })
+        assertEquals(0, picker.separatorAfterIndex)
+    }
+
+    @Test
+    fun selectedLanguageRow_defaultBeatsLanguageCode() {
+        val base = culturePickerOptions(listOf(culture("english", "English", "en")))
+        val rows = languagePickerRows(base, deviceLanguage = "en", includeDefaultAudioTrack = true).rows
+        assertEquals(
+            LanguagePickerRow.DefaultAudioTrack,
+            selectedLanguageRow(rows, languageCode = "en", preferDefaultAudioTrack = true)
+        )
+        assertEquals(
+            "English",
+            selectedLanguageRow(rows, languageCode = "eng", preferDefaultAudioTrack = false)?.label
+        )
+        assertNull(selectedLanguageRow(rows, languageCode = null, preferDefaultAudioTrack = false))
     }
 
     @Test

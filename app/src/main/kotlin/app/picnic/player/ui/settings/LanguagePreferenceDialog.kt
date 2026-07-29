@@ -47,8 +47,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
-import app.picnic.player.data.playback.CulturePickerOption
-import app.picnic.player.data.playback.languageMatches
+import app.picnic.player.data.playback.LanguagePickerRow
 import app.picnic.player.ui.common.requestFocusWhenAttached
 
 /** Align with SeasonRequestDialog / TrackPanel glass chrome. */
@@ -61,26 +60,23 @@ private val RowCornerRadius = 10.dp
 private val ListViewportHeight = 280.dp
 
 /**
- * Scrollable culture picker for Preferred audio / subtitle language. The device language is
- * pinned at the top above a divider drawn after [separatorAfterIndex] (-1 = no pinned row);
- * the remaining rows are Jellyfin DisplayNames, A–Z.
+ * Scrollable picker for Preferred audio / subtitle language. Quick-picks (audio Default, the
+ * device language) are pinned at the top above a divider drawn after [separatorAfterIndex]
+ * (-1 = no pinned row); the remaining rows are Jellyfin DisplayNames, A–Z.
  */
 @Composable
 internal fun LanguagePreferenceDialog(
     title: String,
-    options: List<CulturePickerOption>,
+    rows: List<LanguagePickerRow>,
     separatorAfterIndex: Int,
-    selectedLanguageCode: String?,
-    onSelect: (String?) -> Unit,
+    selectedRow: LanguagePickerRow?,
+    onSelect: (LanguagePickerRow) -> Unit,
     onDismiss: () -> Unit
 ) {
     BackHandler { onDismiss() }
     val seedFocus = remember { FocusRequester() }
-    val selectedIndex = remember(options, selectedLanguageCode) {
-        options.indexOfFirst { option ->
-            !selectedLanguageCode.isNullOrBlank() &&
-                languageMatches(option.languageCode, selectedLanguageCode)
-        }.takeIf { it >= 0 } ?: 0
+    val selectedIndex = remember(rows, selectedRow) {
+        rows.indexOf(selectedRow).takeIf { it >= 0 } ?: 0
     }
     // Open already scrolled to the selected row so the list never paints from the top
     // then jumps to the checked row (#149). But when the selection is the pinned device
@@ -112,21 +108,21 @@ internal fun LanguagePreferenceDialog(
                 contentPadding = PaddingValues(horizontal = ContentInset),
                 verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
-                itemsIndexed(options, key = { _, item -> item.languageCode }) { index, option ->
+                itemsIndexed(rows, key = { _, item -> item.key }) { index, row ->
                     LanguagePickRow(
-                        label = option.displayName,
+                        label = row.label,
                         selected = index == selectedIndex,
                         onClick = {
-                            onSelect(option.languageCode)
+                            onSelect(row)
                             onDismiss()
                         },
                         onClose = onDismiss,
                         focusRequester = if (index == selectedIndex) seedFocus else null,
                         blockUp = index == 0,
-                        blockDown = index == options.lastIndex
+                        blockDown = index == rows.lastIndex
                     )
                     // Divider between the pinned quick-picks and the full A–Z list.
-                    if (index == separatorAfterIndex && index < options.lastIndex) {
+                    if (index == separatorAfterIndex && index < rows.lastIndex) {
                         LanguageListDivider()
                     }
                 }
@@ -134,7 +130,7 @@ internal fun LanguagePreferenceDialog(
         }
     }
     LaunchedEffect(selectedIndex) {
-        if (options.isNotEmpty()) {
+        if (rows.isNotEmpty()) {
             // Deep A–Z selections start off-screen; bring the row in so focus can attach.
             // Pinned selections are already visible at the top — don't scroll them away.
             if (selectedIndex > separatorAfterIndex) listState.scrollToItem(selectedIndex)

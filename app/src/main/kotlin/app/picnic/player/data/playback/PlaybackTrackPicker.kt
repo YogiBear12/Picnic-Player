@@ -22,15 +22,18 @@ data class TrackPick(
  *   (a null subtitle preference resolves to [deviceSubtitleLanguage])
  * @param deviceSubtitleLanguage language from the device locale; used when subtitle pref is null
  * @param alwaysDisplaySubtitles true = Always; false = Smart
+ * @param preferDefaultAudioTrack true = take the file's default audio track, ignoring the
+ *   audio-language preference (subtitles still follow whatever audio language that lands on)
  */
 fun pickTracks(
     streams: List<MediaStream>,
     preferredAudioLanguage: String?,
     preferredSubtitleLanguage: String?,
     deviceSubtitleLanguage: String,
-    alwaysDisplaySubtitles: Boolean
+    alwaysDisplaySubtitles: Boolean,
+    preferDefaultAudioTrack: Boolean = false
 ): TrackPick {
-    val audioIndex = pickAudioIndex(streams, preferredAudioLanguage)
+    val audioIndex = pickAudioIndex(streams, preferredAudioLanguage, preferDefaultAudioTrack)
     val audioLanguage = streams.firstOrNull { it.index == audioIndex }?.language
     val subtitleIndex = pickSubtitleIndex(
         streams = streams,
@@ -44,7 +47,8 @@ fun pickTracks(
 
 fun pickAudioIndex(
     streams: List<MediaStream>,
-    preferredAudioLanguage: String?
+    preferredAudioLanguage: String?,
+    preferDefaultAudioTrack: Boolean = false
 ): Int? {
     val audios = streams.filter { it.type == MediaStreamType.AUDIO }
     if (audios.isEmpty()) return null
@@ -52,7 +56,7 @@ fun pickAudioIndex(
     val pool = audios.filter { !it.isCommentaryStyle() || it.isDefault }
     val candidates = pool.ifEmpty { audios }
 
-    if (!preferredAudioLanguage.isNullOrBlank()) {
+    if (!preferDefaultAudioTrack && !preferredAudioLanguage.isNullOrBlank()) {
         val matches = candidates.filter { languageMatches(it.language, preferredAudioLanguage) }
         preferDefaultElseFirst(matches)?.let { return it.index }
     }

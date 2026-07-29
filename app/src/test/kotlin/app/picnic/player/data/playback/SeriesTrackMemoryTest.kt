@@ -65,6 +65,23 @@ class SeriesTrackMemoryTest {
     }
 
     @Test
+    fun seriesRemember_beatsPreferDefaultAudioTrack() {
+        val memory = EffectiveTrackMemory(
+            audio = RememberedTrack(language = "eng", title = remasteredTitle)
+        )
+        val pick = pickTracksWithMemory(
+            streams = dbccStreams(),
+            memory = memory,
+            preferredAudioLanguage = "ja",
+            preferredSubtitleLanguage = "en",
+            deviceSubtitleLanguage = "en",
+            alwaysDisplaySubtitles = false,
+            preferDefaultAudioTrack = true
+        )
+        assertEquals(3, pick.audioIndex)
+    }
+
+    @Test
     fun seasonOverride_blt_doesNotWipeSeries() {
         val series = RememberedTrack(language = "eng", title = remasteredTitle)
         val pick = RememberedTrack(language = "eng", title = bltTitle)

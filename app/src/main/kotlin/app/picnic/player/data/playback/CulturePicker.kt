@@ -62,6 +62,66 @@ fun pinnedLanguageOptions(
     )
 }
 
+/**
+ * One row of the language dialog. [DefaultAudioTrack] is audio-only: it means "start on the
+ * file's default audio track" rather than naming a language.
+ */
+sealed interface LanguagePickerRow {
+    /** Stable list key. */
+    val key: String
+    val label: String
+
+    data object DefaultAudioTrack : LanguagePickerRow {
+        override val key: String = "default-audio-track"
+        override val label: String = "Original language"
+    }
+
+    data class Culture(val option: CulturePickerOption) : LanguagePickerRow {
+        override val key: String get() = option.languageCode
+        override val label: String get() = option.displayName
+    }
+}
+
+/** Dialog rows plus where the pinned block ends. */
+data class LanguagePickerRows(
+    val rows: List<LanguagePickerRow>,
+    /** A divider is drawn directly after this row index; -1 = no pinned block, no divider. */
+    val separatorAfterIndex: Int
+)
+
+/**
+ * Builds the dialog rows: optional Default row, then the pinned device language, then A–Z.
+ * Everything above the divider is a quick-pick.
+ */
+fun languagePickerRows(
+    base: List<CulturePickerOption>,
+    deviceLanguage: String,
+    includeDefaultAudioTrack: Boolean
+): LanguagePickerRows {
+    val pinned = pinnedLanguageOptions(base, deviceLanguage)
+    val cultures = pinned.options.map { LanguagePickerRow.Culture(it) }
+    if (!includeDefaultAudioTrack) {
+        return LanguagePickerRows(cultures, pinned.separatorAfterIndex)
+    }
+    return LanguagePickerRows(
+        rows = listOf(LanguagePickerRow.DefaultAudioTrack) + cultures,
+        separatorAfterIndex = pinned.separatorAfterIndex + 1
+    )
+}
+
+/** The checked row: Default when preferred, else the row naming [languageCode]. */
+fun selectedLanguageRow(
+    rows: List<LanguagePickerRow>,
+    languageCode: String?,
+    preferDefaultAudioTrack: Boolean
+): LanguagePickerRow? = when {
+    preferDefaultAudioTrack -> rows.firstOrNull { it is LanguagePickerRow.DefaultAudioTrack }
+    languageCode.isNullOrBlank() -> null
+    else -> rows.firstOrNull {
+        it is LanguagePickerRow.Culture && languageMatches(it.option.languageCode, languageCode)
+    }
+}
+
 /** Label for a resolved language code using the culture list; falls back to [fallback]. */
 fun cultureDisplayName(
     languageCode: String,

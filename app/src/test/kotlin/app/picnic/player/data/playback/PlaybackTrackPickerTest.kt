@@ -192,6 +192,52 @@ class PlaybackTrackPickerTest {
     }
 
     @Test
+    fun preferDefault_ignoresAudioLanguagePreference() {
+        val streams = listOf(
+            audio(index = 1, language = "jpn", isDefault = true),
+            audio(index = 2, language = "eng", isDefault = false)
+        )
+        assertEquals(2, pickAudioIndex(streams, preferredAudioLanguage = "en"))
+        assertEquals(
+            1,
+            pickAudioIndex(streams, preferredAudioLanguage = "en", preferDefaultAudioTrack = true)
+        )
+    }
+
+    @Test
+    fun preferDefault_noStreamFlaggedDefault_picksFirstAudio() {
+        val streams = listOf(
+            audio(index = 1, language = "jpn", isDefault = false),
+            audio(index = 2, language = "eng", isDefault = false)
+        )
+        assertEquals(
+            1,
+            pickAudioIndex(streams, preferredAudioLanguage = "en", preferDefaultAudioTrack = true)
+        )
+    }
+
+    @Test
+    fun preferDefault_smartSubtitlesFollowTheDefaultAudio() {
+        val streams = listOf(
+            audio(index = 1, language = "jpn", isDefault = true),
+            audio(index = 2, language = "eng", isDefault = false),
+            subtitle(index = 3, language = "eng", isDefault = true, isForced = false),
+            subtitle(index = 4, language = "eng", isDefault = false, isForced = true)
+        )
+        val pick = pickTracks(
+            streams = streams,
+            preferredAudioLanguage = "en",
+            preferredSubtitleLanguage = "en",
+            deviceSubtitleLanguage = "en",
+            alwaysDisplaySubtitles = false,
+            preferDefaultAudioTrack = true
+        )
+        assertEquals(1, pick.audioIndex)
+        // JP audio vs EN sub preference → full subtitles, not Forced.
+        assertEquals(3, pick.subtitleIndex)
+    }
+
+    @Test
     fun languageMatches_iso2AndIso3() {
         assertEquals(true, languageMatches("jpn", "ja"))
         assertEquals(true, languageMatches("eng", "en"))

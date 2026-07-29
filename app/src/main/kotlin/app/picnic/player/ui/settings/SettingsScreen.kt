@@ -55,12 +55,14 @@ import androidx.tv.material3.Text
 import app.picnic.player.data.auth.AuthRepository
 import app.picnic.player.data.media.MediaRepository
 import app.picnic.player.data.playback.CulturePickerOption
+import app.picnic.player.data.playback.LanguagePickerRow
 import app.picnic.player.data.playback.cultureDisplayName
 import app.picnic.player.data.playback.culturePickerOptions
-import app.picnic.player.data.playback.pinnedLanguageOptions
+import app.picnic.player.data.playback.languagePickerRows
 import app.picnic.player.data.playback.quality.QualityRung
 import app.picnic.player.data.playback.quality.defaultQualityLabel
 import app.picnic.player.data.playback.resolveLanguageCode
+import app.picnic.player.data.playback.selectedLanguageRow
 import app.picnic.player.data.seerr.SeerrLinkState
 import app.picnic.player.data.settings.PlaybackSettings
 import app.picnic.player.data.settings.SegmentAction
@@ -217,8 +219,14 @@ class SettingsViewModel @Inject constructor(
         fallback = { LanguageDisplay.name(it) }
     )
 
+    /** Naming a language also drops the "Default" choice — the two are alternatives. */
     fun setPreferredAudioLanguage(code: String?) = viewModelScope.launch {
         store.setPreferredAudioLanguage(code)
+        store.setPreferDefaultAudioTrack(false)
+    }
+
+    fun preferDefaultAudioTrack() = viewModelScope.launch {
+        store.setPreferDefaultAudioTrack(true)
     }
 
     fun setPreferredSubtitleLanguage(code: String?) = viewModelScope.launch {
@@ -560,13 +568,17 @@ private fun sectionsFor(
             listOf(
                 SettingItem(
                     "Preferred audio language",
-                    viewModel.languageLabel(
-                        resolveLanguageCode(
-                            settings.preferredAudioLanguage,
-                            serverAudioLanguage,
-                            viewModel.deviceLanguage
+                    if (settings.preferDefaultAudioTrack) {
+                        "Original language"
+                    } else {
+                        viewModel.languageLabel(
+                            resolveLanguageCode(
+                                settings.preferredAudioLanguage,
+                                serverAudioLanguage,
+                                viewModel.deviceLanguage
+                            )
                         )
-                    ),
+                    },
                     onActivate = onShowAudioLanguagePicker
                 ),
                 SettingItem(
@@ -926,23 +938,34 @@ fun SettingsScreen(
             LanguagePickerKind.AUDIO -> serverAudioLanguage
             LanguagePickerKind.SUBTITLE -> serverSubtitleLanguage
         }
-        val picker = remember(cultureOptions) {
-            pinnedLanguageOptions(cultureOptions, viewModel.deviceLanguage)
+        val picker = remember(cultureOptions, kind) {
+            languagePickerRows(
+                base = cultureOptions,
+                deviceLanguage = viewModel.deviceLanguage,
+                includeDefaultAudioTrack = kind == LanguagePickerKind.AUDIO
+            )
         }
         LanguagePreferenceDialog(
             title = when (kind) {
                 LanguagePickerKind.AUDIO -> "Preferred audio language"
                 LanguagePickerKind.SUBTITLE -> "Preferred subtitle language"
             },
-            options = picker.options,
+            rows = picker.rows,
             separatorAfterIndex = picker.separatorAfterIndex,
-            // Check the language actually in effect (override → server → device) so the pinned
-            // device row is highlighted on a fresh install with no local override.
-            selectedLanguageCode = resolveLanguageCode(appCode, serverCode, viewModel.deviceLanguage),
-            onSelect = { code ->
-                when (kind) {
-                    LanguagePickerKind.AUDIO -> viewModel.setPreferredAudioLanguage(code)
-                    LanguagePickerKind.SUBTITLE -> viewModel.setPreferredSubtitleLanguage(code)
+            selectedRow = selectedLanguageRow(
+                rows = picker.rows,
+                // Check the language actually in effect (override → server → device) so the pinned
+                // device row is highlighted on a fresh install with no local override.
+                languageCode = resolveLanguageCode(appCode, serverCode, viewModel.deviceLanguage),
+                preferDefaultAudioTrack = kind == LanguagePickerKind.AUDIO && settings.preferDefaultAudioTrack
+            ),
+            onSelect = { row ->
+                when (row) {
+                    LanguagePickerRow.DefaultAudioTrack -> viewModel.preferDefaultAudioTrack()
+                    is LanguagePickerRow.Culture -> when (kind) {
+                        LanguagePickerKind.AUDIO -> viewModel.setPreferredAudioLanguage(row.option.languageCode)
+                        LanguagePickerKind.SUBTITLE -> viewModel.setPreferredSubtitleLanguage(row.option.languageCode)
+                    }
                 }
             },
             onDismiss = { languagePickerKind = null }

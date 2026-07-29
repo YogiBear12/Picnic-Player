@@ -102,6 +102,11 @@ data class PlaybackSettings(
      */
     val preferredAudioLanguage: String? = null,
     /**
+     * When true, playback starts on the file's default audio track and
+     * [preferredAudioLanguage] is ignored. Series/season track memory and OSD picks still win.
+     */
+    val preferDefaultAudioTrack: Boolean = false,
+    /**
      * Local subtitle-language override (ISO 639), or null = no override (resolve to the Jellyfin
      * server preference, else the device language).
      */
@@ -146,6 +151,7 @@ class SettingsStore @Inject constructor(
             defaultVideoQuality = QualityRung.named(p[DEFAULT_VIDEO_QUALITY]),
             trailerYouTubePackage = p[TRAILER_YOUTUBE_PACKAGE],
             preferredAudioLanguage = p[PREFERRED_AUDIO_LANGUAGE],
+            preferDefaultAudioTrack = p[PREFER_DEFAULT_AUDIO_TRACK] ?: false,
             preferredSubtitleLanguage = p[PREFERRED_SUBTITLE_LANGUAGE],
             alwaysDisplaySubtitles = p[ALWAYS_DISPLAY_SUBTITLES] ?: false,
             subtitleAppearance = SubtitleAppearance(
@@ -202,6 +208,10 @@ class SettingsStore @Inject constructor(
         }
     }
 
+    suspend fun setPreferDefaultAudioTrack(value: Boolean) = put {
+        it[PREFER_DEFAULT_AUDIO_TRACK] = value
+    }
+
     suspend fun setPreferredSubtitleLanguage(value: String?) = put {
         if (value.isNullOrBlank()) {
             it.remove(PREFERRED_SUBTITLE_LANGUAGE)
@@ -255,6 +265,7 @@ class SettingsStore @Inject constructor(
         val DEFAULT_VIDEO_QUALITY = stringPreferencesKey("playback.defaultVideoQuality")
         val TRAILER_YOUTUBE_PACKAGE = stringPreferencesKey("playback.trailerYouTubePackage")
         val PREFERRED_AUDIO_LANGUAGE = stringPreferencesKey("playback.preferredAudioLanguage")
+        val PREFER_DEFAULT_AUDIO_TRACK = booleanPreferencesKey("playback.preferDefaultAudioTrack")
         val PREFERRED_SUBTITLE_LANGUAGE = stringPreferencesKey("playback.preferredSubtitleLanguage")
         val ALWAYS_DISPLAY_SUBTITLES = booleanPreferencesKey("playback.alwaysDisplaySubtitles")
         val SUBTITLE_SIZE = stringPreferencesKey("playback.subtitleSize")
