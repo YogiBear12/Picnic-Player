@@ -244,6 +244,9 @@ fun PlayerSettingsPanel(
                         }
                     }
                     Page.QUALITY -> {
+                        val focusIndex = qualityOptions
+                            .indexOfFirst { (it as? QualityOption.Transcode)?.rung == selectedQuality }
+                            .takeIf { it >= 0 } ?: 0
                         qualityOptions.forEachIndexed { i, option ->
                             val rung = (option as? QualityOption.Transcode)?.rung
                             val chosen = rung == selectedQuality
@@ -251,7 +254,7 @@ fun PlayerSettingsPanel(
                                 primary = rung?.label ?: "Original",
                                 secondary = rung?.let { "${it.bitrateLabel} · ${it.sizeHint}" },
                                 selected = chosen,
-                                focusRequester = if (chosen) firstFocus else null,
+                                focusRequester = if (i == focusIndex) firstFocus else null,
                                 onClick = {
                                     onSelectQuality(option)
                                     returnToMain()
@@ -263,11 +266,14 @@ fun PlayerSettingsPanel(
                         }
                     }
                     Page.SPEED -> {
+                        val focusIndex = Speeds
+                            .indexOfFirst { kotlin.math.abs(it - playbackSpeed) < 0.001f }
+                            .takeIf { it >= 0 } ?: 0
                         Speeds.forEachIndexed { i, speed ->
                             SelectRow(
                                 primary = formatSpeed(speed),
                                 selected = kotlin.math.abs(speed - playbackSpeed) < 0.001f,
-                                focusRequester = if (kotlin.math.abs(speed - playbackSpeed) < 0.001f) firstFocus else null,
+                                focusRequester = if (i == focusIndex) firstFocus else null,
                                 onClick = {
                                     onSpeed(speed)
                                     returnToMain()
@@ -347,11 +353,12 @@ fun PlayerSettingsPanel(
                         )
                     }
                     Page.SLEEP -> {
+                        val focusIndex = SleepModes.indexOfFirst { it == sleep.mode }.takeIf { it >= 0 } ?: 0
                         SleepModes.forEachIndexed { i, mode ->
                             SelectRow(
                                 primary = sleepModeLabel(mode),
                                 selected = mode == sleep.mode,
-                                focusRequester = if (mode == sleep.mode) firstFocus else null,
+                                focusRequester = if (i == focusIndex) firstFocus else null,
                                 onClick = {
                                     onSleep(mode)
                                     returnToMain()

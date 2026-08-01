@@ -53,6 +53,7 @@ import app.picnic.player.ui.ambient.LocalAmbientPrewarmer
 import app.picnic.player.ui.browse.BrowseLayoutMetrics
 import app.picnic.player.ui.browse.posterCardStyle
 import app.picnic.player.ui.common.LocalContextMenuHandler
+import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.theme.PicnicColors
 import kotlinx.coroutines.flow.distinctUntilChanged
 import org.jellyfin.sdk.model.api.BaseItemDto
@@ -211,11 +212,9 @@ private fun MediaGridBody(
     var pendingClearSeed by remember { mutableStateOf(false) }
     LaunchedEffect(pendingClearSeed, totalCount, refreshing) {
         if (!pendingClearSeed || refreshing) return@LaunchedEffect
-        // The held button unmounts this same frame; re-request across a frame so the hand-off
-        // to the freshly-composed first card lands rather than falling to the drawer.
-        runCatching { firstFocus.requestFocus() }
-        withFrameNanos { }
-        runCatching { firstFocus.requestFocus() }
+        // The held button unmounts this same frame; retry across frames so the hand-off to the
+        // freshly-composed first card lands rather than falling to the drawer.
+        firstFocus.requestFocusWhenAttached()
         pendingClearSeed = false
     }
 
