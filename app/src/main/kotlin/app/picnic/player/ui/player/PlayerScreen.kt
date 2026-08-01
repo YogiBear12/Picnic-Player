@@ -494,10 +494,11 @@ fun PlayerScreen(
                 ?.takeIf { it.width > 0f && it.height > 0f }
                 ?.let { it.width / it.height }
             val textSizeScale = subtitleTextSizeScale(videoAspect, maxWidth / maxHeight)
+            val subtitleRange by viewModel.subtitleRenderRange.collectAsStateWithLifecycle()
             AndroidView(
                 factory = { context -> SubtitleView(context) },
                 update = { subtitleView ->
-                    viewModel.attachSubtitleView(subtitleView, textSizeScale)
+                    viewModel.attachSubtitleView(subtitleView, textSizeScale, subtitleRange)
                     subtitleView.setCues(textCues)
                 },
                 onReset = { it.setCues(emptyList()) },

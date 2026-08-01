@@ -58,6 +58,7 @@ import app.picnic.player.playback.StreamLoader
 import app.picnic.player.playback.StreamRequest
 import app.picnic.player.playback.StreamResult
 import app.picnic.player.playback.StreamTarget
+import app.picnic.player.playback.SubtitleRenderRange
 import app.picnic.player.playback.ThemeMusicPlayer
 import app.picnic.player.ui.browse.ShortDateFormat
 import app.picnic.player.ui.browse.TICKS_PER_MINUTE
@@ -474,11 +475,19 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
+    /** Range of the picture text cues are drawn over; HDR holds their colour back. */
+    val subtitleRenderRange: StateFlow<SubtitleRenderRange> = engine.subtitleRenderRange
+
     /** Wire libass overlay (call from [SubtitleView] [AndroidView] update). */
-    fun attachSubtitleView(subtitleView: SubtitleView, textSizeScale: Float) = engine.attachSubtitleView(
+    fun attachSubtitleView(
+        subtitleView: SubtitleView,
+        textSizeScale: Float,
+        range: SubtitleRenderRange
+    ) = engine.attachSubtitleView(
         subtitleView,
         settings.value.subtitleAppearance,
-        textSizeScale
+        textSizeScale,
+        range
     )
 
     /** libass overlay view; host it sized to the video display rect. */

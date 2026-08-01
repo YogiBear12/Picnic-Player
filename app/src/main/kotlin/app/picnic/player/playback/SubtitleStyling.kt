@@ -11,6 +11,7 @@ import app.picnic.player.data.settings.SubtitleBackgroundFill
 import app.picnic.player.data.settings.SubtitleBackgroundStyle
 import app.picnic.player.data.settings.SubtitleColour
 import app.picnic.player.data.settings.SubtitleSize
+import kotlin.math.roundToInt
 
 /**
  * Maps [SubtitleAppearance] onto a Media3 [SubtitleView] for text-based cues
@@ -41,13 +42,44 @@ fun SubtitleColour.toArgb(): Int = when (this) {
 const val SubtitleBottomPaddingFraction = 0.08f
 
 /**
+ * Fraction of each colour channel kept when cues sit over HDR video.
+ *
+ * Cues are drawn into an SDR overlay that the compositor lifts into the HDR output, and it puts
+ * SDR white far above the picture's own diffuse white — so a cue that reads as white over SDR
+ * reads as a floodlight over HDR. Scaling the channels holds it back down.
+ *
+ * The channels are gamma-encoded, so 0.60 of the code value is 0.60^2.2 ≈ 0.31 of the light.
+ * Against a panel mapping SDR white near 500 nits that lands the cue just under the 203-nit
+ * reference white of BT.2408 — the level graphics are authored to sit at. Only ever an estimate:
+ * the compositor never states what it maps SDR white to, and each panel picks its own.
+ */
+private const val HdrLuminanceScale = 0.60f
+
+/**
+ * Scales the colour channels by [scale], leaving alpha alone.
+ *
+ * All three channels move together, so the hue and saturation survive untouched and only the
+ * brightness drops — a yellow cue stays exactly as yellow, just dimmer.
+ */
+internal fun Int.scaleRgb(scale: Float): Int {
+    fun channel(shift: Int): Int {
+        val value = (this shr shift) and 0xFF
+        return ((value * scale).roundToInt().coerceIn(0, 255)) shl shift
+    }
+    return (this and 0xFF.shl(24)) or channel(16) or channel(8) or channel(0)
+}
+
+/**
+ * Only the text colour answers to [range] — the outline and the fill are black either way, which
+ * emits no light to hold back and keeps the cue's edge contrast intact as the text dims.
+ *
  * The same black fill goes to a different Media3 slot depending on style:
  * BOXED uses windowColor (one rectangle behind the whole cue block), WRAPPED uses
  * backgroundColor (fill hugs each line of text). The black outline is kept even
  * with the fill on — it is invisible against black and keeps edge handling in one
  * state.
  */
-fun SubtitleAppearance.toCaptionStyle(): CaptionStyleCompat {
+fun SubtitleAppearance.toCaptionStyle(range: SubtitleRenderRange): CaptionStyleCompat {
     val fill = if (background) {
         val alpha = when (backgroundFill) {
             SubtitleBackgroundFill.TRANSLUCENT -> 128
@@ -58,8 +90,12 @@ fun SubtitleAppearance.toCaptionStyle(): CaptionStyleCompat {
         Color.TRANSPARENT
     }
     val boxed = backgroundStyle == SubtitleBackgroundStyle.BOXED
+    val foreground = when (range) {
+        SubtitleRenderRange.SDR -> colour.toArgb()
+        SubtitleRenderRange.HDR -> colour.toArgb().scaleRgb(HdrLuminanceScale)
+    }
     return CaptionStyleCompat(
-        /* foregroundColor= */ colour.toArgb(),
+        /* foregroundColor= */ foreground,
         /* backgroundColor= */ if (boxed) Color.TRANSPARENT else fill,
         /* windowColor= */ if (boxed) fill else Color.TRANSPARENT,
         CaptionStyleCompat.EDGE_TYPE_OUTLINE,
@@ -77,9 +113,13 @@ fun subtitleTextSizeScale(videoAspect: Float?, containerAspect: Float): Float {
     return (videoAspect / containerAspect).coerceAtLeast(1f)
 }
 
-fun SubtitleAppearance.applyTo(view: SubtitleView, textSizeScale: Float = 1f) {
+fun SubtitleAppearance.applyTo(
+    view: SubtitleView,
+    textSizeScale: Float = 1f,
+    range: SubtitleRenderRange = SubtitleRenderRange.SDR
+) {
     view.setApplyEmbeddedStyles(false)
-    view.setStyle(toCaptionStyle())
+    view.setStyle(toCaptionStyle(range))
     view.setFractionalTextSize(size.toHeightFraction() * textSizeScale)
     view.setBottomPaddingFraction(SubtitleBottomPaddingFraction)
 }

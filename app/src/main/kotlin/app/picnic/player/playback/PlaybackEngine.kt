@@ -6,11 +6,14 @@ import android.content.Context
 import android.graphics.Color
 import android.os.Build
 import android.view.ViewGroup
+import androidx.media3.common.Format
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.okhttp.OkHttpDataSource
+import androidx.media3.exoplayer.DecoderReuseEvaluation
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.extractor.DefaultExtractorsFactory
@@ -24,6 +27,9 @@ import io.github.peerless2012.ass.media.parser.AssSubtitleParserFactory
 import io.github.peerless2012.ass.media.type.AssRenderType
 import io.github.peerless2012.ass.media.widget.AssSubtitleView
 import java.util.concurrent.atomic.AtomicLong
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import okhttp3.OkHttpClient
 
 /**
@@ -42,6 +48,15 @@ class PlaybackEngine(context: Context, httpClient: OkHttpClient) {
 
     /** Volume boost + night mode for this player's audio session. */
     val audioEffects = AudioEffects { player.audioSessionId }
+
+    private val _subtitleRenderRange = MutableStateFlow(SubtitleRenderRange.SDR)
+
+    /**
+     * Range of the picture cues are currently drawn over. Follows the video format through every
+     * change within a session — an autoplayed episode, a quality switch — so cue styling never
+     * carries the last item's range into this one.
+     */
+    val subtitleRenderRange: StateFlow<SubtitleRenderRange> = _subtitleRenderRange.asStateFlow()
 
     init {
         val renderType =
@@ -74,16 +89,26 @@ class PlaybackEngine(context: Context, httpClient: OkHttpClient) {
             .setMediaSourceFactory(mediaSourceFactory)
             .build()
         assHandler.init(player)
+        player.addAnalyticsListener(object : AnalyticsListener {
+            override fun onVideoInputFormatChanged(
+                eventTime: AnalyticsListener.EventTime,
+                format: Format,
+                decoderReuseEvaluation: DecoderReuseEvaluation?
+            ) {
+                _subtitleRenderRange.value = subtitleRenderRange(format)
+            }
+        })
     }
 
     /** Style the text-cue view (SRT/VTT/…). ASS renders in [assOverlayView], not here. */
     fun attachSubtitleView(
         subtitleView: SubtitleView,
         appearance: SubtitleAppearance,
-        textSizeScale: Float
+        textSizeScale: Float,
+        range: SubtitleRenderRange
     ) {
         subtitleView.setBackgroundColor(Color.TRANSPARENT)
-        appearance.applyTo(subtitleView, textSizeScale)
+        appearance.applyTo(subtitleView, textSizeScale, range)
     }
 
     /**
