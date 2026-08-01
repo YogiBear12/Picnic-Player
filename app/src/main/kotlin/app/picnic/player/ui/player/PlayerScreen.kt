@@ -732,6 +732,8 @@ fun PlayerScreen(
                 onToggleStatsForNerds = { viewModel.toggleStatsForNerds() },
                 onEnterPip = pipState::enterPip,
                 pipSupported = viewModel.pictureInPictureSupported,
+                focusSubtitleDelay = chrome.returningFromSubtitleAdjust,
+                onFocusSubtitleDelayConsumed = chrome::consumeSubtitleAdjustReturn,
                 onClose = ::closePanel
             )
         }

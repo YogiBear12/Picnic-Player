@@ -55,6 +55,7 @@ import app.picnic.player.playback.AudioBoost
 import app.picnic.player.playback.NightMode
 import app.picnic.player.playback.SleepMode
 import app.picnic.player.playback.SleepTimerState
+import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.settings.display
 
 internal val PlayerSettingsPanelWidth = 380.dp
@@ -72,11 +73,24 @@ private val NightModes = NightMode.entries
 
 private enum class Page { MAIN, QUALITY, SPEED, AUDIO, SLEEP, SUBTITLE_APPEARANCE }
 
+private enum class MainRowKey { QUALITY, SUBTITLE_APPEARANCE, SUBTITLE_DELAY, AUDIO, SPEED, SLEEP, PLAYBACK_INFO, PIP }
+
+private fun Page.rowKey(): MainRowKey? = when (this) {
+    Page.QUALITY -> MainRowKey.QUALITY
+    Page.SUBTITLE_APPEARANCE -> MainRowKey.SUBTITLE_APPEARANCE
+    Page.AUDIO -> MainRowKey.AUDIO
+    Page.SPEED -> MainRowKey.SPEED
+    Page.SLEEP -> MainRowKey.SLEEP
+    Page.MAIN -> null
+}
+
 private data class MainRow(
+    val key: MainRowKey,
     val label: String,
     val value: String,
     val showChevron: Boolean = true,
-    val onClick: () -> Unit
+    val subPage: Page? = null,
+    val onClick: (() -> Unit)? = null
 )
 
 /**
@@ -110,16 +124,30 @@ fun PlayerSettingsPanel(
     onToggleStatsForNerds: () -> Unit,
     onEnterPip: () -> Unit,
     pipSupported: Boolean,
+    focusSubtitleDelay: Boolean,
+    onFocusSubtitleDelayConsumed: () -> Unit,
     onClose: () -> Unit
 ) {
     var page by remember { mutableStateOf(Page.MAIN) }
+    // The list row to focus on the way back — from a sub-page, or from the delay HUD, which
+    // disposes this panel entirely while it is up.
+    var focusKey by remember {
+        mutableStateOf(if (focusSubtitleDelay) MainRowKey.SUBTITLE_DELAY else null)
+    }
     val firstFocus = remember { FocusRequester() }
 
+    fun returnToMain() {
+        focusKey = page.rowKey()
+        page = Page.MAIN
+    }
+
     fun back() {
-        if (page == Page.MAIN) onClose() else page = Page.MAIN
+        if (page == Page.MAIN) onClose() else returnToMain()
     }
     BackHandler { back() }
-    LaunchedEffect(page) { runCatching { firstFocus.requestFocus() } }
+    // The panel slides in, so its rows are not attached for the first frames.
+    LaunchedEffect(page) { firstFocus.requestFocusWhenAttached() }
+    LaunchedEffect(Unit) { if (focusSubtitleDelay) onFocusSubtitleDelayConsumed() }
 
     Row(
         Modifier
@@ -162,11 +190,12 @@ fun PlayerSettingsPanel(
                     Page.MAIN -> {
                         val rows = buildList {
                             if (qualityOptions.isNotEmpty()) {
-                                add(MainRow("Quality", qualitySummary) { page = Page.QUALITY })
+                                add(MainRow(MainRowKey.QUALITY, "Quality", qualitySummary, subPage = Page.QUALITY))
                             }
-                            add(MainRow("Subtitle appearance", "") { page = Page.SUBTITLE_APPEARANCE })
+                            add(MainRow(MainRowKey.SUBTITLE_APPEARANCE, "Subtitle appearance", "", subPage = Page.SUBTITLE_APPEARANCE))
                             add(
                                 MainRow(
+                                    MainRowKey.SUBTITLE_DELAY,
                                     "Subtitle delay",
                                     formatDelay(subtitleDelayMs),
                                     showChevron = false,
@@ -175,14 +204,17 @@ fun PlayerSettingsPanel(
                             )
                             add(
                                 MainRow(
+                                    MainRowKey.AUDIO,
                                     "Audio",
-                                    "Boost ${audioBoostLabel(audioBoost)} · Night ${nightModeLabel(nightMode)}"
-                                ) { page = Page.AUDIO }
+                                    "Boost ${audioBoostLabel(audioBoost)} · Night ${nightModeLabel(nightMode)}",
+                                    subPage = Page.AUDIO
+                                )
                             )
-                            add(MainRow("Playback speed", formatSpeed(playbackSpeed)) { page = Page.SPEED })
-                            add(MainRow("Sleep timer", sleepSummary(sleep)) { page = Page.SLEEP })
+                            add(MainRow(MainRowKey.SPEED, "Playback speed", formatSpeed(playbackSpeed), subPage = Page.SPEED))
+                            add(MainRow(MainRowKey.SLEEP, "Sleep timer", sleepSummary(sleep), subPage = Page.SLEEP))
                             add(
                                 MainRow(
+                                    MainRowKey.PLAYBACK_INFO,
                                     "Playback info",
                                     if (showStatsForNerds) "On" else "Off",
                                     showChevron = false
@@ -190,23 +222,24 @@ fun PlayerSettingsPanel(
                             )
                             if (pipSupported) {
                                 add(
-                                    MainRow("Enter Picture-in-Picture", "", showChevron = false) {
+                                    MainRow(MainRowKey.PIP, "Enter Picture-in-Picture", "", showChevron = false) {
                                         onEnterPip()
                                         back()
                                     }
                                 )
                             }
                         }
+                        val focusIndex = rows.indexOfFirst { it.key == focusKey }.takeIf { it >= 0 } ?: 0
                         rows.forEachIndexed { i, row ->
                             NavRow(
                                 label = row.label,
                                 value = row.value,
-                                focusRequester = if (i == 0) firstFocus else null,
+                                focusRequester = if (i == focusIndex) firstFocus else null,
                                 onClose = ::back,
                                 blockUp = i == 0,
                                 blockDown = i == rows.lastIndex,
                                 showChevron = row.showChevron,
-                                onClick = row.onClick
+                                onClick = { row.subPage?.let { page = it } ?: row.onClick?.invoke() }
                             )
                         }
                     }
@@ -221,7 +254,7 @@ fun PlayerSettingsPanel(
                                 focusRequester = if (chosen) firstFocus else null,
                                 onClick = {
                                     onSelectQuality(option)
-                                    page = Page.MAIN
+                                    returnToMain()
                                 },
                                 onClose = ::back,
                                 blockUp = i == 0,
@@ -237,7 +270,7 @@ fun PlayerSettingsPanel(
                                 focusRequester = if (kotlin.math.abs(speed - playbackSpeed) < 0.001f) firstFocus else null,
                                 onClick = {
                                     onSpeed(speed)
-                                    page = Page.MAIN
+                                    returnToMain()
                                 },
                                 onClose = ::back,
                                 blockUp = i == 0,
@@ -321,7 +354,7 @@ fun PlayerSettingsPanel(
                                 focusRequester = if (mode == sleep.mode) firstFocus else null,
                                 onClick = {
                                     onSleep(mode)
-                                    page = Page.MAIN
+                                    returnToMain()
                                 },
                                 onClose = ::back,
                                 blockUp = i == 0,

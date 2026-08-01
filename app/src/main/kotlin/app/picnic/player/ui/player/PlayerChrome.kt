@@ -126,9 +126,19 @@ class PlayerChrome {
         panel = Panel.NONE
     }
 
+    /** The settings panel is reopening after the delay HUD, so it must refocus that row
+     *  rather than the top of its list — it was disposed while the HUD was up. */
+    var returningFromSubtitleAdjust by mutableStateOf(false)
+        private set
+
     fun exitSubtitleAdjust() {
         subtitleAdjust = false
         panel = Panel.SETTINGS
+        returningFromSubtitleAdjust = true
+    }
+
+    fun consumeSubtitleAdjustReturn() {
+        returningFromSubtitleAdjust = false
     }
 
     /**
