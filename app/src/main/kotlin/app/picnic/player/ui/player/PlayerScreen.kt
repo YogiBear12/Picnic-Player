@@ -78,12 +78,16 @@ import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.player.osd.ChaptersPanel
 import app.picnic.player.ui.player.osd.ModernOsd
 import app.picnic.player.ui.player.osd.PlayerSettingsPanel
+import app.picnic.player.ui.player.osd.PlayerSettingsPanelWidth
+import app.picnic.player.ui.player.osd.SidePanel
+import app.picnic.player.ui.player.osd.SidePanelScrim
 import app.picnic.player.ui.player.osd.SkipIndicator
 import app.picnic.player.ui.player.osd.SkipIndicatorState
 import app.picnic.player.ui.player.osd.SkipSegmentButton
 import app.picnic.player.ui.player.osd.StatsForNerdsPanel
 import app.picnic.player.ui.player.osd.SubtitleDelayHud
 import app.picnic.player.ui.player.osd.TrackPanel
+import app.picnic.player.ui.player.osd.TrackPanelWidth
 import app.picnic.player.ui.player.osd.TrickplayCell
 import app.picnic.player.ui.player.osd.qualitySummary
 import app.picnic.player.ui.theme.PicnicColors
@@ -536,10 +540,10 @@ fun PlayerScreen(
 
         state.error?.let { Text(it, color = Color.White, modifier = Modifier.align(Alignment.Center)) }
 
-        // The OSD and the chapters panel share the bottom slot and swap: opening chapters slides the
-        // OSD down off-screen while the chapters panel slides up into its place (and fully hides it).
+        // Opening any panel slides the OSD off the bottom; closing one slides it back and the
+        // focus-seeding effect above returns focus to the button that opened it.
         AnimatedVisibility(
-            visible = chrome.osdVisible && state.error == null && !showNextUpOverlay && chrome.panel != Panel.CHAPTERS,
+            visible = chrome.osdVisible && state.error == null && !showNextUpOverlay && chrome.panel == Panel.NONE,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .zIndex(1f),
@@ -660,66 +664,76 @@ fun PlayerScreen(
             }
         }
 
-        if (chrome.panel == Panel.AUDIO) {
-            Box(Modifier.fillMaxSize().zIndex(3f)) {
-                TrackPanel(
-                    title = "Audio",
-                    options = state.audioTracks,
-                    allowOff = false,
-                    onSelect = { id ->
-                        id?.let(viewModel::selectAudio)
-                        closePanel()
-                    },
-                    onClose = ::closePanel
-                )
-            }
+        SidePanelScrim(
+            visible = chrome.panel == Panel.AUDIO || chrome.panel == Panel.SUBTITLE || chrome.panel == Panel.SETTINGS,
+            modifier = Modifier.zIndex(3f)
+        )
+        SidePanel(
+            visible = chrome.panel == Panel.AUDIO,
+            width = TrackPanelWidth,
+            modifier = Modifier.zIndex(3f)
+        ) {
+            TrackPanel(
+                title = "Audio",
+                options = state.audioTracks,
+                allowOff = false,
+                onSelect = { id ->
+                    id?.let(viewModel::selectAudio)
+                    closePanel()
+                },
+                onClose = ::closePanel
+            )
         }
-        if (chrome.panel == Panel.SUBTITLE) {
-            Box(Modifier.fillMaxSize().zIndex(3f)) {
-                TrackPanel(
-                    title = "Subtitles",
-                    options = state.subtitleTracks,
-                    allowOff = true,
-                    onSelect = { id ->
-                        viewModel.selectSubtitle(id)
-                        closePanel()
-                    },
-                    onClose = ::closePanel
-                )
-            }
+        SidePanel(
+            visible = chrome.panel == Panel.SUBTITLE,
+            width = TrackPanelWidth,
+            modifier = Modifier.zIndex(3f)
+        ) {
+            TrackPanel(
+                title = "Subtitles",
+                options = state.subtitleTracks,
+                allowOff = true,
+                onSelect = { id ->
+                    viewModel.selectSubtitle(id)
+                    closePanel()
+                },
+                onClose = ::closePanel
+            )
         }
-        if (chrome.panel == Panel.SETTINGS) {
-            Box(Modifier.fillMaxSize().zIndex(3f)) {
-                PlayerSettingsPanel(
-                    subtitleDelayMs = state.subtitleDelayMs,
-                    subtitleAppearance = settings.subtitleAppearance,
-                    onSubtitleSize = { viewModel.cycleSubtitleSize(it) },
-                    onSubtitleColour = { viewModel.cycleSubtitleColour(it) },
-                    onSubtitleBackground = { viewModel.toggleSubtitleBackground() },
-                    onSubtitleBackgroundStyle = { viewModel.cycleSubtitleBackgroundStyle(it) },
-                    onSubtitleBackgroundFill = { viewModel.cycleSubtitleBackgroundFill(it) },
-                    qualityOptions = state.qualityOptions,
-                    selectedQuality = state.activeQuality,
-                    qualitySummary = qualitySummary(state.playMethod, state.activeQuality),
-                    onSelectQuality = { viewModel.selectQuality(it) },
-                    playbackSpeed = state.playbackSpeed,
-                    audioBoost = state.audioBoost,
-                    nightMode = state.nightMode,
-                    sleep = state.sleep,
-                    showStatsForNerds = state.showStatsForNerds,
-                    onAdjustSubtitleDelay = {
-                        chrome.enterSubtitleAdjust()
-                    },
-                    onSpeed = { viewModel.setSpeed(it) },
-                    onAudioBoost = { viewModel.setAudioBoost(it) },
-                    onNightMode = { viewModel.setNightMode(it) },
-                    onSleep = { viewModel.setSleep(it) },
-                    onToggleStatsForNerds = { viewModel.toggleStatsForNerds() },
-                    onEnterPip = pipState::enterPip,
-                    pipSupported = viewModel.pictureInPictureSupported,
-                    onClose = ::closePanel
-                )
-            }
+        SidePanel(
+            visible = chrome.panel == Panel.SETTINGS,
+            width = PlayerSettingsPanelWidth,
+            modifier = Modifier.zIndex(3f)
+        ) {
+            PlayerSettingsPanel(
+                subtitleDelayMs = state.subtitleDelayMs,
+                subtitleAppearance = settings.subtitleAppearance,
+                onSubtitleSize = { viewModel.cycleSubtitleSize(it) },
+                onSubtitleColour = { viewModel.cycleSubtitleColour(it) },
+                onSubtitleBackground = { viewModel.toggleSubtitleBackground() },
+                onSubtitleBackgroundStyle = { viewModel.cycleSubtitleBackgroundStyle(it) },
+                onSubtitleBackgroundFill = { viewModel.cycleSubtitleBackgroundFill(it) },
+                qualityOptions = state.qualityOptions,
+                selectedQuality = state.activeQuality,
+                qualitySummary = qualitySummary(state.playMethod, state.activeQuality),
+                onSelectQuality = { viewModel.selectQuality(it) },
+                playbackSpeed = state.playbackSpeed,
+                audioBoost = state.audioBoost,
+                nightMode = state.nightMode,
+                sleep = state.sleep,
+                showStatsForNerds = state.showStatsForNerds,
+                onAdjustSubtitleDelay = {
+                    chrome.enterSubtitleAdjust()
+                },
+                onSpeed = { viewModel.setSpeed(it) },
+                onAudioBoost = { viewModel.setAudioBoost(it) },
+                onNightMode = { viewModel.setNightMode(it) },
+                onSleep = { viewModel.setSleep(it) },
+                onToggleStatsForNerds = { viewModel.toggleStatsForNerds() },
+                onEnterPip = pipState::enterPip,
+                pipSupported = viewModel.pictureInPictureSupported,
+                onClose = ::closePanel
+            )
         }
 
         state.notice?.let { notice ->

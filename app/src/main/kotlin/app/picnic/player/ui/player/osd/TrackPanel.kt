@@ -50,10 +50,10 @@ import androidx.tv.material3.Text
 import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.player.TrackOption
 
-private val PanelDimScrim = Color(0x52000000)
+internal val TrackPanelWidth = 360.dp
+
 private val PanelGlassFill = Color(0xC0181E24)
 private val PanelCornerRadius = 20.dp
-private val PanelEdgeInset = 28.dp
 private val ContentInset = 16.dp
 private val RowInnerPadding = 14.dp
 private val RowCornerRadius = 10.dp
@@ -81,7 +81,6 @@ fun TrackPanel(
         Modifier
             .fillMaxSize()
             .focusGroup()
-            .background(PanelDimScrim)
     ) {
         Spacer(
             Modifier
@@ -91,9 +90,9 @@ fun TrackPanel(
         )
         Column(
             Modifier
-                .width(360.dp)
+                .width(TrackPanelWidth)
                 .fillMaxHeight()
-                .padding(top = PanelEdgeInset, bottom = PanelEdgeInset, end = PanelEdgeInset)
+                .padding(top = SidePanelEdgeInset, bottom = SidePanelEdgeInset, end = SidePanelEdgeInset)
                 .clip(RoundedCornerShape(PanelCornerRadius))
                 .background(PanelGlassFill)
                 .padding(vertical = 20.dp)

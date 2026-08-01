@@ -57,10 +57,10 @@ import app.picnic.player.playback.SleepMode
 import app.picnic.player.playback.SleepTimerState
 import app.picnic.player.ui.settings.display
 
-private val PanelDimScrim = Color(0x52000000)
+internal val PlayerSettingsPanelWidth = 380.dp
+
 private val PanelGlassFill = Color(0xC0181E24)
 private val PanelCornerRadius = 20.dp
-private val PanelEdgeInset = 28.dp
 private val ContentInset = 16.dp
 private val RowInnerPadding = 14.dp
 private val RowCornerRadius = 10.dp
@@ -72,11 +72,17 @@ private val NightModes = NightMode.entries
 
 private enum class Page { MAIN, QUALITY, SPEED, AUDIO, SLEEP, SUBTITLE_APPEARANCE }
 
+private data class MainRow(
+    val label: String,
+    val value: String,
+    val showChevron: Boolean = true,
+    val onClick: () -> Unit
+)
+
 /**
- * Frosted right-side player settings panel (mirrors [TrackPanel] chrome). The top level lists
- * Subtitle delay / Playback speed / Audio / Sleep timer; activating a row either drills into a
- * sub-page or — for subtitle delay — closes the panel and hands off to the on-screen HUD via
- * [onAdjustSubtitleDelay]. Back steps sub-page → main → closed.
+ * Frosted right-side player settings panel. Subtitle delay closes the panel and hands off to the
+ * on-screen HUD via [onAdjustSubtitleDelay]; every other row drills into a sub-page. Back steps
+ * sub-page → main → closed.
  */
 @Composable
 fun PlayerSettingsPanel(
@@ -119,7 +125,6 @@ fun PlayerSettingsPanel(
         Modifier
             .fillMaxSize()
             .focusGroup()
-            .background(PanelDimScrim)
     ) {
         Spacer(
             Modifier
@@ -129,9 +134,9 @@ fun PlayerSettingsPanel(
         )
         Column(
             Modifier
-                .width(380.dp)
+                .width(PlayerSettingsPanelWidth)
                 .fillMaxHeight()
-                .padding(top = PanelEdgeInset, bottom = PanelEdgeInset, end = PanelEdgeInset)
+                .padding(top = SidePanelEdgeInset, bottom = SidePanelEdgeInset, end = SidePanelEdgeInset)
                 .clip(RoundedCornerShape(PanelCornerRadius))
                 .background(PanelGlassFill)
                 .padding(vertical = 20.dp)
@@ -155,27 +160,54 @@ fun PlayerSettingsPanel(
             ) {
                 when (page) {
                     Page.MAIN -> {
-                        NavRow("Subtitle delay", formatDelay(subtitleDelayMs), firstFocus, onClose = ::back, blockUp = true, showChevron = false, onClick = onAdjustSubtitleDelay)
-                        NavRow("Subtitle appearance", "", null, onClose = ::back) { page = Page.SUBTITLE_APPEARANCE }
-                        if (qualityOptions.isNotEmpty()) {
-                            NavRow("Quality", qualitySummary, null, onClose = ::back) { page = Page.QUALITY }
-                        }
-                        NavRow("Playback speed", formatSpeed(playbackSpeed), null, onClose = ::back) { page = Page.SPEED }
-                        NavRow("Audio", "Boost ${audioBoostLabel(audioBoost)} · Night ${nightModeLabel(nightMode)}", null, onClose = ::back) { page = Page.AUDIO }
-                        NavRow("Sleep timer", sleepSummary(sleep), null, onClose = ::back) { page = Page.SLEEP }
-                        NavRow(
-                            "Playback info",
-                            if (showStatsForNerds) "On" else "Off",
-                            null,
-                            onClose = ::back,
-                            showChevron = false,
-                            blockDown = !pipSupported
-                        ) { onToggleStatsForNerds() }
-                        if (pipSupported) {
-                            NavRow("Enter Picture-in-Picture", "", null, onClose = ::back, blockDown = true, showChevron = false) {
-                                onEnterPip()
-                                back()
+                        val rows = buildList {
+                            if (qualityOptions.isNotEmpty()) {
+                                add(MainRow("Quality", qualitySummary) { page = Page.QUALITY })
                             }
+                            add(MainRow("Subtitle appearance", "") { page = Page.SUBTITLE_APPEARANCE })
+                            add(
+                                MainRow(
+                                    "Subtitle delay",
+                                    formatDelay(subtitleDelayMs),
+                                    showChevron = false,
+                                    onClick = onAdjustSubtitleDelay
+                                )
+                            )
+                            add(
+                                MainRow(
+                                    "Audio",
+                                    "Boost ${audioBoostLabel(audioBoost)} · Night ${nightModeLabel(nightMode)}"
+                                ) { page = Page.AUDIO }
+                            )
+                            add(MainRow("Playback speed", formatSpeed(playbackSpeed)) { page = Page.SPEED })
+                            add(MainRow("Sleep timer", sleepSummary(sleep)) { page = Page.SLEEP })
+                            add(
+                                MainRow(
+                                    "Playback info",
+                                    if (showStatsForNerds) "On" else "Off",
+                                    showChevron = false
+                                ) { onToggleStatsForNerds() }
+                            )
+                            if (pipSupported) {
+                                add(
+                                    MainRow("Enter Picture-in-Picture", "", showChevron = false) {
+                                        onEnterPip()
+                                        back()
+                                    }
+                                )
+                            }
+                        }
+                        rows.forEachIndexed { i, row ->
+                            NavRow(
+                                label = row.label,
+                                value = row.value,
+                                focusRequester = if (i == 0) firstFocus else null,
+                                onClose = ::back,
+                                blockUp = i == 0,
+                                blockDown = i == rows.lastIndex,
+                                showChevron = row.showChevron,
+                                onClick = row.onClick
+                            )
                         }
                     }
                     Page.QUALITY -> {
