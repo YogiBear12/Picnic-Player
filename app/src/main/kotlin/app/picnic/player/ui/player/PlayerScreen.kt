@@ -692,6 +692,12 @@ fun PlayerScreen(
             Box(Modifier.fillMaxSize().zIndex(3f)) {
                 PlayerSettingsPanel(
                     subtitleDelayMs = state.subtitleDelayMs,
+                    subtitleAppearance = settings.subtitleAppearance,
+                    onSubtitleSize = { viewModel.cycleSubtitleSize(it) },
+                    onSubtitleColour = { viewModel.cycleSubtitleColour(it) },
+                    onSubtitleBackground = { viewModel.toggleSubtitleBackground() },
+                    onSubtitleBackgroundStyle = { viewModel.cycleSubtitleBackgroundStyle(it) },
+                    onSubtitleBackgroundFill = { viewModel.cycleSubtitleBackgroundFill(it) },
                     qualityOptions = state.qualityOptions,
                     selectedQuality = state.activeQuality,
                     qualitySummary = qualitySummary(state.playMethod, state.activeQuality),

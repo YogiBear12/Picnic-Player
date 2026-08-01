@@ -50,10 +50,12 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import app.picnic.player.data.playback.quality.QualityOption
 import app.picnic.player.data.playback.quality.QualityRung
+import app.picnic.player.data.settings.SubtitleAppearance
 import app.picnic.player.playback.AudioBoost
 import app.picnic.player.playback.NightMode
 import app.picnic.player.playback.SleepMode
 import app.picnic.player.playback.SleepTimerState
+import app.picnic.player.ui.settings.display
 
 private val PanelDimScrim = Color(0x52000000)
 private val PanelGlassFill = Color(0xC0181E24)
@@ -68,7 +70,7 @@ private val SleepModes = SleepMode.entries
 private val Boosts = AudioBoost.entries
 private val NightModes = NightMode.entries
 
-private enum class Page { MAIN, QUALITY, SPEED, AUDIO, SLEEP }
+private enum class Page { MAIN, QUALITY, SPEED, AUDIO, SLEEP, SUBTITLE_APPEARANCE }
 
 /**
  * Frosted right-side player settings panel (mirrors [TrackPanel] chrome). The top level lists
@@ -79,6 +81,12 @@ private enum class Page { MAIN, QUALITY, SPEED, AUDIO, SLEEP }
 @Composable
 fun PlayerSettingsPanel(
     subtitleDelayMs: Long,
+    subtitleAppearance: SubtitleAppearance,
+    onSubtitleSize: (Boolean) -> Unit,
+    onSubtitleColour: (Boolean) -> Unit,
+    onSubtitleBackground: () -> Unit,
+    onSubtitleBackgroundStyle: (Boolean) -> Unit,
+    onSubtitleBackgroundFill: (Boolean) -> Unit,
     qualityOptions: List<QualityOption>,
     selectedQuality: QualityRung?,
     qualitySummary: String,
@@ -136,6 +144,7 @@ fun PlayerSettingsPanel(
                     Page.SPEED -> "Playback speed"
                     Page.AUDIO -> "Audio"
                     Page.SLEEP -> "Sleep timer"
+                    Page.SUBTITLE_APPEARANCE -> "Subtitle appearance"
                 }
             )
             Column(
@@ -147,6 +156,7 @@ fun PlayerSettingsPanel(
                 when (page) {
                     Page.MAIN -> {
                         NavRow("Subtitle delay", formatDelay(subtitleDelayMs), firstFocus, onClose = ::back, blockUp = true, showChevron = false, onClick = onAdjustSubtitleDelay)
+                        NavRow("Subtitle appearance", "", null, onClose = ::back) { page = Page.SUBTITLE_APPEARANCE }
                         if (qualityOptions.isNotEmpty()) {
                             NavRow("Quality", qualitySummary, null, onClose = ::back) { page = Page.QUALITY }
                         }
@@ -219,6 +229,54 @@ fun PlayerSettingsPanel(
                             focusRequester = null,
                             onLeft = { NightModes.getOrNull(nightMode.ordinal - 1)?.let(onNightMode) },
                             onRight = { NightModes.getOrNull(nightMode.ordinal + 1)?.let(onNightMode) },
+                            onClose = ::back,
+                            blockDown = true
+                        )
+                    }
+                    Page.SUBTITLE_APPEARANCE -> {
+                        StepRow(
+                            label = "Size",
+                            value = subtitleAppearance.size.display(),
+                            focusRequester = firstFocus,
+                            onLeft = { onSubtitleSize(false) },
+                            onRight = { onSubtitleSize(true) },
+                            onClose = ::back,
+                            blockUp = true
+                        )
+                        StepRow(
+                            label = "Color",
+                            value = subtitleAppearance.colour.display(),
+                            focusRequester = null,
+                            onLeft = { onSubtitleColour(false) },
+                            onRight = { onSubtitleColour(true) },
+                            onClose = ::back
+                        )
+                        StepRow(
+                            label = "Background",
+                            value = if (subtitleAppearance.background) "On" else "Off",
+                            focusRequester = null,
+                            onLeft = onSubtitleBackground,
+                            onRight = onSubtitleBackground,
+                            onClose = ::back
+                        )
+                        // Fill and style stay mounted while background is off — removing a
+                        // focused row disposes the focused node.
+                        StepRow(
+                            label = "Background style",
+                            value = subtitleAppearance.backgroundStyle.display(),
+                            focusRequester = null,
+                            enabled = subtitleAppearance.background,
+                            onLeft = { onSubtitleBackgroundStyle(false) },
+                            onRight = { onSubtitleBackgroundStyle(true) },
+                            onClose = ::back
+                        )
+                        StepRow(
+                            label = "Background fill",
+                            value = subtitleAppearance.backgroundFill.display(),
+                            focusRequester = null,
+                            enabled = subtitleAppearance.background,
+                            onLeft = { onSubtitleBackgroundFill(false) },
+                            onRight = { onSubtitleBackgroundFill(true) },
                             onClose = ::back,
                             blockDown = true
                         )
@@ -338,10 +396,23 @@ private fun StepRow(
     onRight: () -> Unit,
     onClose: () -> Unit,
     blockUp: Boolean = false,
-    blockDown: Boolean = false
+    blockDown: Boolean = false,
+    enabled: Boolean = true
 ) {
     var focused by remember { mutableStateOf(false) }
     val base = if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier
+    val labelColor = when {
+        !enabled && focused -> Color.Black.copy(alpha = 0.4f)
+        !enabled -> Color.White.copy(alpha = 0.38f)
+        focused -> Color.Black
+        else -> Color.White.copy(alpha = 0.92f)
+    }
+    val valueColor = when {
+        !enabled && focused -> Color.Black.copy(alpha = 0.4f)
+        !enabled -> Color.White.copy(alpha = 0.38f)
+        focused -> Color.Black
+        else -> Color.White.copy(alpha = 0.92f)
+    }
     Row(
         modifier = base
             .fillMaxWidth()
@@ -359,11 +430,11 @@ private fun StepRow(
                 if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
                 when (event.key) {
                     Key.DirectionLeft -> {
-                        onLeft()
+                        if (enabled) onLeft()
                         true
                     }
                     Key.DirectionRight -> {
-                        onRight()
+                        if (enabled) onRight()
                         true
                     }
                     Key.Back -> {
@@ -376,10 +447,10 @@ private fun StepRow(
             .padding(horizontal = RowInnerPadding, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(label, color = if (focused) Color.Black else Color.White.copy(alpha = 0.92f), style = MaterialTheme.typography.bodyMedium, maxLines = 1, modifier = Modifier.weight(1f))
-        Icon(Icons.Filled.ChevronLeft, contentDescription = "Decrease", tint = if (focused) Color.Black else Color.White.copy(alpha = 0.7f))
-        Text(value, color = if (focused) Color.Black else Color.White.copy(alpha = 0.92f), style = MaterialTheme.typography.bodyMedium, maxLines = 1, modifier = Modifier.padding(horizontal = 8.dp))
-        Icon(Icons.Filled.ChevronRight, contentDescription = "Increase", tint = if (focused) Color.Black else Color.White.copy(alpha = 0.7f))
+        Text(label, color = labelColor, style = MaterialTheme.typography.bodyMedium, maxLines = 1, modifier = Modifier.weight(1f))
+        Icon(Icons.Filled.ChevronLeft, contentDescription = "Decrease", tint = valueColor)
+        Text(value, color = valueColor, style = MaterialTheme.typography.bodyMedium, maxLines = 1, modifier = Modifier.padding(horizontal = 8.dp))
+        Icon(Icons.Filled.ChevronRight, contentDescription = "Increase", tint = valueColor)
     }
 }
 

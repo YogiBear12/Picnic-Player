@@ -224,6 +224,7 @@ class PlayerViewModel @Inject constructor(
     private val authRepository: AuthRepository,
     private val mediaRepository: app.picnic.player.data.media.MediaRepository,
     private val settingsStore: SettingsStore,
+    private val subtitleAppearanceEditor: app.picnic.player.data.settings.SubtitleAppearanceEditor,
     private val seriesTrackMemoryStore: SeriesTrackMemoryStore,
     private val sessionController: PlaybackSessionController,
     private val pictureInPictureSupport: app.picnic.player.data.device.PictureInPictureSupport,
@@ -492,6 +493,16 @@ class PlayerViewModel @Inject constructor(
 
     /** libass overlay view; host it sized to the video display rect. */
     fun assOverlayView(context: Context) = engine.assOverlayView(context)
+
+    fun cycleSubtitleSize(forward: Boolean) = viewModelScope.launch { subtitleAppearanceEditor.cycleSize(forward) }
+
+    fun cycleSubtitleColour(forward: Boolean) = viewModelScope.launch { subtitleAppearanceEditor.cycleColour(forward) }
+
+    fun toggleSubtitleBackground() = viewModelScope.launch { subtitleAppearanceEditor.toggleBackground() }
+
+    fun cycleSubtitleBackgroundStyle(forward: Boolean) = viewModelScope.launch { subtitleAppearanceEditor.cycleBackgroundStyle(forward) }
+
+    fun cycleSubtitleBackgroundFill(forward: Boolean) = viewModelScope.launch { subtitleAppearanceEditor.cycleBackgroundFill(forward) }
 
     fun load(itemIdString: String, startTicks: Long?, mediaSourceId: String? = null) {
         if (loaded) return

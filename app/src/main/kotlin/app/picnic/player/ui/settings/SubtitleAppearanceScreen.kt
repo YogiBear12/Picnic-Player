@@ -61,10 +61,7 @@ import app.picnic.player.data.auth.AuthRepository
 import app.picnic.player.data.jellyfin.JellyfinImages
 import app.picnic.player.data.settings.SettingsStore
 import app.picnic.player.data.settings.SubtitleAppearance
-import app.picnic.player.data.settings.SubtitleBackgroundFill
-import app.picnic.player.data.settings.SubtitleBackgroundStyle
-import app.picnic.player.data.settings.SubtitleColour
-import app.picnic.player.data.settings.SubtitleSize
+import app.picnic.player.data.settings.SubtitleAppearanceEditor
 import app.picnic.player.playback.applyTo
 import app.picnic.player.ui.grid.OceanAmbientBackground
 import app.picnic.player.ui.theme.PicnicColors
@@ -82,7 +79,8 @@ import kotlinx.coroutines.launch
 
 @HiltViewModel
 class SubtitleAppearanceViewModel @Inject constructor(
-    private val store: SettingsStore,
+    store: SettingsStore,
+    private val editor: SubtitleAppearanceEditor,
     authRepository: AuthRepository
 ) : ViewModel() {
 
@@ -96,53 +94,16 @@ class SubtitleAppearanceViewModel @Inject constructor(
         .map { session -> session?.let { JellyfinImages.splashscreen(it) } }
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
-    fun cycleSize(forward: Boolean) = viewModelScope.launch {
-        store.setSubtitleSize(appearance.value.size.step(forward))
-    }
+    fun cycleSize(forward: Boolean) = viewModelScope.launch { editor.cycleSize(forward) }
 
-    fun cycleColour(forward: Boolean) = viewModelScope.launch {
-        store.setSubtitleColour(appearance.value.colour.step(forward))
-    }
+    fun cycleColour(forward: Boolean) = viewModelScope.launch { editor.cycleColour(forward) }
 
     // Two-state toggle — direction is irrelevant, both chevrons flip it.
-    fun toggleBackground(forward: Boolean) = viewModelScope.launch {
-        store.setSubtitleBackground(!appearance.value.background)
-    }
+    fun toggleBackground(forward: Boolean) = viewModelScope.launch { editor.toggleBackground() }
 
-    fun cycleBackgroundFill(forward: Boolean) = viewModelScope.launch {
-        store.setSubtitleBackgroundFill(appearance.value.backgroundFill.step(forward))
-    }
+    fun cycleBackgroundFill(forward: Boolean) = viewModelScope.launch { editor.cycleBackgroundFill(forward) }
 
-    fun cycleBackgroundStyle(forward: Boolean) = viewModelScope.launch {
-        store.setSubtitleBackgroundStyle(appearance.value.backgroundStyle.step(forward))
-    }
-
-    private inline fun <reified T : Enum<T>> T.step(forward: Boolean): T = enumValues<T>().let { it[(ordinal + (if (forward) 1 else -1) + it.size) % it.size] }
-}
-
-private fun SubtitleSize.display(): String = when (this) {
-    SubtitleSize.SMALLER -> "Smaller"
-    SubtitleSize.SMALL -> "Small"
-    SubtitleSize.STANDARD -> "Standard"
-    SubtitleSize.LARGE -> "Large"
-    SubtitleSize.LARGER -> "Larger"
-}
-
-private fun SubtitleColour.display(): String = when (this) {
-    SubtitleColour.WHITE -> "White"
-    SubtitleColour.YELLOW -> "Yellow"
-    SubtitleColour.CYAN -> "Cyan"
-    SubtitleColour.GREEN -> "Green"
-}
-
-private fun SubtitleBackgroundFill.display(): String = when (this) {
-    SubtitleBackgroundFill.TRANSLUCENT -> "Translucent"
-    SubtitleBackgroundFill.SOLID -> "Solid"
-}
-
-private fun SubtitleBackgroundStyle.display(): String = when (this) {
-    SubtitleBackgroundStyle.BOXED -> "Boxed"
-    SubtitleBackgroundStyle.WRAPPED -> "Wrapped"
+    fun cycleBackgroundStyle(forward: Boolean) = viewModelScope.launch { editor.cycleBackgroundStyle(forward) }
 }
 
 // Shared floating-panel language (matches GridFilterPanel / PlayerSettingsPanel).
