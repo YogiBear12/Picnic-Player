@@ -27,13 +27,11 @@ import app.picnic.player.data.playback.TrickplayFrame
 import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.player.ChapterMark
 
-/** Frosted glass for the floating chapters card — matches the OSD/TrackPanel dark glass. */
 private val PanelGlassFill = Color(0xC0181E24)
 
 /**
- * Floating chapters card shown on D-pad Down — it takes the OSD's place (the OSD slides off while
- * this slides up; the slide animations are owned by the caller). Detached from the screen edges
- * with margins. Back closes it; selecting a chapter seeks + closes.
+ * Floating chapters card shown on D-pad Down, taking the OSD's place in the bottom slot. The
+ * slide animations belong to the caller, not this composable.
  */
 @Composable
 fun ChaptersPanel(
@@ -45,10 +43,8 @@ fun ChaptersPanel(
 ) {
     BackHandler { onClose() }
     val firstFocus = remember { FocusRequester() }
-    // The panel slides in from the caller's animation — wait for the row's requester to
-    // attach instead of guessing with a wall-clock delay.
+    // The panel animates in, so the row is not attached for the first frames.
     LaunchedEffect(Unit) { firstFocus.requestFocusWhenAttached() }
-    // Outer margins keep the card floating off every edge.
     Column(Modifier.fillMaxWidth().padding(horizontal = 40.dp).padding(bottom = 28.dp)) {
         Column(
             Modifier
