@@ -591,6 +591,7 @@ fun PlayerScreen(
                 positionMs = state.positionMs,
                 trickplayFor = viewModel::trickplayFor,
                 onSelect = { viewModel.seekTo(it) },
+                active = chrome.panel == Panel.CHAPTERS,
                 onClose = ::closePanel
             )
         }
@@ -667,7 +668,7 @@ fun PlayerScreen(
             visible = chrome.panel == Panel.AUDIO,
             width = TrackPanelWidth,
             modifier = Modifier.zIndex(3f)
-        ) {
+        ) { active ->
             TrackPanel(
                 title = "Audio",
                 options = state.audioTracks,
@@ -676,6 +677,7 @@ fun PlayerScreen(
                     id?.let(viewModel::selectAudio)
                     closePanel()
                 },
+                active = active,
                 onClose = ::closePanel
             )
         }
@@ -683,7 +685,7 @@ fun PlayerScreen(
             visible = chrome.panel == Panel.SUBTITLE,
             width = TrackPanelWidth,
             modifier = Modifier.zIndex(3f)
-        ) {
+        ) { active ->
             TrackPanel(
                 title = "Subtitles",
                 options = state.subtitleTracks,
@@ -692,6 +694,7 @@ fun PlayerScreen(
                     viewModel.selectSubtitle(id)
                     closePanel()
                 },
+                active = active,
                 onClose = ::closePanel
             )
         }
@@ -699,7 +702,7 @@ fun PlayerScreen(
             visible = chrome.panel == Panel.SETTINGS,
             width = PlayerSettingsPanelWidth,
             modifier = Modifier.zIndex(3f)
-        ) {
+        ) { active ->
             PlayerSettingsPanel(
                 subtitleDelayMs = state.subtitleDelayMs,
                 subtitleAppearance = settings.subtitleAppearance,
@@ -729,6 +732,7 @@ fun PlayerScreen(
                 pipSupported = viewModel.pictureInPictureSupported,
                 focusSubtitleDelay = chrome.returningFromSubtitleAdjust,
                 onFocusSubtitleDelayConsumed = chrome::consumeSubtitleAdjustReturn,
+                active = active,
                 onClose = ::closePanel
             )
         }

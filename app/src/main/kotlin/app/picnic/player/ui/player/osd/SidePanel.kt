@@ -19,7 +19,7 @@ fun SidePanel(
     visible: Boolean,
     width: Dp,
     modifier: Modifier = Modifier,
-    content: @Composable () -> Unit
+    content: @Composable (active: Boolean) -> Unit
 ) {
     val distance = with(LocalDensity.current) { (width + SidePanelEdgeInset).roundToPx() }
     AnimatedVisibility(
@@ -28,6 +28,6 @@ fun SidePanel(
         enter = slideInHorizontally { distance } + fadeIn(),
         exit = slideOutHorizontally { distance } + fadeOut()
     ) {
-        content()
+        content(visible)
     }
 }

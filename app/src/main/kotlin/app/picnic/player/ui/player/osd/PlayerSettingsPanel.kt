@@ -170,6 +170,7 @@ fun PlayerSettingsPanel(
     pipSupported: Boolean,
     focusSubtitleDelay: Boolean,
     onFocusSubtitleDelayConsumed: () -> Unit,
+    active: Boolean,
     onClose: () -> Unit
 ) {
     var page by remember { mutableStateOf(Page.MAIN) }
@@ -188,7 +189,7 @@ fun PlayerSettingsPanel(
     fun back() {
         if (page == Page.MAIN) onClose() else returnToMain()
     }
-    BackHandler { back() }
+    BackHandler(enabled = active) { back() }
     // The panel slides in, so its rows are not attached for the first frames.
     LaunchedEffect(page) { firstFocus.requestFocusWhenAttached() }
     LaunchedEffect(Unit) { if (focusSubtitleDelay) onFocusSubtitleDelayConsumed() }
@@ -243,6 +244,7 @@ fun PlayerSettingsPanel(
     Row(
         Modifier
             .fillMaxSize()
+            .focusProperties { canFocus = active }
             .focusGroup()
     ) {
         Spacer(

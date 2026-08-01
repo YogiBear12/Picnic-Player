@@ -39,9 +39,10 @@ fun ChaptersPanel(
     positionMs: Long,
     trickplayFor: (Long) -> TrickplayFrame?,
     onSelect: (Long) -> Unit,
+    active: Boolean,
     onClose: () -> Unit
 ) {
-    BackHandler { onClose() }
+    BackHandler(enabled = active) { onClose() }
     val firstFocus = remember { FocusRequester() }
     // The panel animates in, so the row is not attached for the first frames.
     LaunchedEffect(Unit) { firstFocus.requestFocusWhenAttached() }

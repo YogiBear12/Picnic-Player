@@ -66,9 +66,10 @@ fun TrackPanel(
     options: List<TrackOption>,
     allowOff: Boolean,
     onSelect: (String?) -> Unit,
+    active: Boolean,
     onClose: () -> Unit
 ) {
-    BackHandler { onClose() }
+    BackHandler(enabled = active) { onClose() }
     val selectedFocus = remember { FocusRequester() }
     val selectedIndex = options.indexOfFirst { it.selected }
     // The selected row can start below the fold in a long track list — wait for its
