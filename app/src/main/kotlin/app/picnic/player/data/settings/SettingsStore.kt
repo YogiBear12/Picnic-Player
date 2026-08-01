@@ -1,11 +1,13 @@
 package app.picnic.player.data.settings
 
 import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import app.picnic.player.data.auth.UserScope
 import app.picnic.player.data.playback.quality.QualityRung
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -55,7 +57,6 @@ data class PlaybackSettings(
     val skipForwardSeconds: Int = 30,
     val skipBackwardSeconds: Int = 10,
     val osdHideSeconds: Int = 3,
-    val clickToPause: Boolean = true,
     /** Card focus chrome uses artwork-derived colour; false = plain white. */
     val colouredFocus: Boolean = true,
     /** Focused card glow gently pulses brightness; false = static glow. */
@@ -92,9 +93,10 @@ data class PlaybackSettings(
     /** Announce full compatibility so the server always direct-plays (never transcodes).
      *  Advanced/expert: may cause playback errors on genuinely unsupported media. */
     val forceDirectPlay: Boolean = false,
-    val defaultVideoQuality: QualityRung? = null,
     /** Package name of the custom YouTube app to open trailers with */
     val trailerYouTubePackage: String? = null,
+    // ── Per-user, below. Scoped to the signed-in profile; factory defaults when signed out.
+    val defaultVideoQuality: QualityRung? = null,
     /**
      * Local audio-language override (ISO 639), or null = no override (resolve to the Jellyfin
      * server preference, else the device language). Device-local (#15); does not write Jellyfin
@@ -117,17 +119,31 @@ data class PlaybackSettings(
     val subtitleAppearance: SubtitleAppearance = SubtitleAppearance()
 )
 
-/** User-tunable playback settings persisted in DataStore. */
+/**
+ * User-tunable settings persisted in DataStore.
+ *
+ * Most settings are app-wide. The fields under "User Preferences" in the Playback tab are
+ * **per-user**: they are stored under [UserScope.key] and resolved against the signed-in
+ * profile, so two people sharing a TV keep their own languages, subtitle styling and default
+ * quality.
+ *
+ * The active profile is read from the [UserScope.ACTIVE_SESSION] key in this same DataStore
+ * rather than from `CredentialStore.activeSessionFlow`. That flow is seeded asynchronously at
+ * startup, so combining on it would publish factory defaults first and the real values a
+ * moment later — a visible flash of wrong values in Settings. Reading the key out of the same
+ * `Preferences` snapshot keeps the resolution atomic with the rest of the read and still
+ * re-emits on profile switch, because switching writes that key.
+ */
 @Singleton
 class SettingsStore @Inject constructor(
     private val dataStore: DataStore<Preferences>
 ) {
     val settings: Flow<PlaybackSettings> = dataStore.data.map { p ->
+        val scope = UserScope.decode(p[ACTIVE_SESSION])
         PlaybackSettings(
             skipForwardSeconds = p[SKIP_FWD] ?: 30,
             skipBackwardSeconds = p[SKIP_BACK] ?: 10,
             osdHideSeconds = p[OSD_HIDE] ?: 3,
-            clickToPause = p[CLICK_PAUSE] ?: true,
             colouredFocus = p[COLOURED_FOCUS] ?: true,
             pulseFocusGlow = p[PULSE_FOCUS_GLOW] ?: true,
             ambientBackgrounds = p[AMBIENT_BACKGROUNDS] ?: true,
@@ -148,19 +164,23 @@ class SettingsStore @Inject constructor(
             downmixStereo = p[DOWNMIX_STEREO] ?: false,
             forceDoviProfile7 = p[FORCE_DOVI_PROFILE_7] ?: false,
             forceDirectPlay = p[FORCE_DIRECT_PLAY] ?: false,
-            defaultVideoQuality = QualityRung.named(p[DEFAULT_VIDEO_QUALITY]),
             trailerYouTubePackage = p[TRAILER_YOUTUBE_PACKAGE],
-            preferredAudioLanguage = p[PREFERRED_AUDIO_LANGUAGE],
-            preferDefaultAudioTrack = p[PREFER_DEFAULT_AUDIO_TRACK] ?: false,
-            preferredSubtitleLanguage = p[PREFERRED_SUBTITLE_LANGUAGE],
-            alwaysDisplaySubtitles = p[ALWAYS_DISPLAY_SUBTITLES] ?: false,
+            defaultVideoQuality = QualityRung.named(p.userString(scope, DEFAULT_VIDEO_QUALITY)),
+            preferredAudioLanguage = p.userString(scope, PREFERRED_AUDIO_LANGUAGE),
+            preferDefaultAudioTrack = p.userBoolean(scope, PREFER_DEFAULT_AUDIO_TRACK) ?: false,
+            preferredSubtitleLanguage = p.userString(scope, PREFERRED_SUBTITLE_LANGUAGE),
+            alwaysDisplaySubtitles = p.userBoolean(scope, ALWAYS_DISPLAY_SUBTITLES) ?: false,
             subtitleAppearance = SubtitleAppearance(
-                size = p[SUBTITLE_SIZE]?.let { enumOrNull<SubtitleSize>(it) } ?: SubtitleSize.STANDARD,
-                colour = p[SUBTITLE_COLOUR]?.let { enumOrNull<SubtitleColour>(it) } ?: SubtitleColour.WHITE,
-                background = p[SUBTITLE_BACKGROUND] ?: false,
-                backgroundFill = p[SUBTITLE_BACKGROUND_FILL]?.let { enumOrNull<SubtitleBackgroundFill>(it) }
+                size = p.userString(scope, SUBTITLE_SIZE)?.let { enumOrNull<SubtitleSize>(it) }
+                    ?: SubtitleSize.STANDARD,
+                colour = p.userString(scope, SUBTITLE_COLOUR)?.let { enumOrNull<SubtitleColour>(it) }
+                    ?: SubtitleColour.WHITE,
+                background = p.userBoolean(scope, SUBTITLE_BACKGROUND) ?: false,
+                backgroundFill = p.userString(scope, SUBTITLE_BACKGROUND_FILL)
+                    ?.let { enumOrNull<SubtitleBackgroundFill>(it) }
                     ?: SubtitleBackgroundFill.TRANSLUCENT,
-                backgroundStyle = p[SUBTITLE_BACKGROUND_STYLE]?.let { enumOrNull<SubtitleBackgroundStyle>(it) }
+                backgroundStyle = p.userString(scope, SUBTITLE_BACKGROUND_STYLE)
+                    ?.let { enumOrNull<SubtitleBackgroundStyle>(it) }
                     ?: SubtitleBackgroundStyle.BOXED
             )
         )
@@ -169,7 +189,6 @@ class SettingsStore @Inject constructor(
     suspend fun setSkipForwardSeconds(value: Int) = put { it[SKIP_FWD] = value }
     suspend fun setSkipBackwardSeconds(value: Int) = put { it[SKIP_BACK] = value }
     suspend fun setOsdHideSeconds(value: Int) = put { it[OSD_HIDE] = value }
-    suspend fun setClickToPause(value: Boolean) = put { it[CLICK_PAUSE] = value }
     suspend fun setColouredFocus(value: Boolean) = put { it[COLOURED_FOCUS] = value }
     suspend fun setPulseFocusGlow(value: Boolean) = put { it[PULSE_FOCUS_GLOW] = value }
     suspend fun setAmbientBackgrounds(value: Boolean) = put { it[AMBIENT_BACKGROUNDS] = value }
@@ -189,9 +208,6 @@ class SettingsStore @Inject constructor(
     suspend fun setDownmixStereo(value: Boolean) = put { it[DOWNMIX_STEREO] = value }
     suspend fun setForceDoviProfile7(value: Boolean) = put { it[FORCE_DOVI_PROFILE_7] = value }
     suspend fun setForceDirectPlay(value: Boolean) = put { it[FORCE_DIRECT_PLAY] = value }
-    suspend fun setDefaultVideoQuality(value: QualityRung?) = put {
-        if (value == null) it.remove(DEFAULT_VIDEO_QUALITY) else it[DEFAULT_VIDEO_QUALITY] = value.name
-    }
     suspend fun setTrailerYouTubePackage(value: String?) = put {
         if (value == null) {
             it.remove(TRAILER_YOUTUBE_PACKAGE)
@@ -200,54 +216,51 @@ class SettingsStore @Inject constructor(
         }
     }
 
-    suspend fun setPreferredAudioLanguage(value: String?) = put {
-        if (value.isNullOrBlank()) {
-            it.remove(PREFERRED_AUDIO_LANGUAGE)
-        } else {
-            it[PREFERRED_AUDIO_LANGUAGE] = value
-        }
-    }
+    suspend fun setDefaultVideoQuality(value: QualityRung?) = putUserString(DEFAULT_VIDEO_QUALITY, value?.name)
 
-    suspend fun setPreferDefaultAudioTrack(value: Boolean) = put {
-        it[PREFER_DEFAULT_AUDIO_TRACK] = value
-    }
+    suspend fun setPreferredAudioLanguage(value: String?) = putUserString(PREFERRED_AUDIO_LANGUAGE, value)
 
-    suspend fun setPreferredSubtitleLanguage(value: String?) = put {
-        if (value.isNullOrBlank()) {
-            it.remove(PREFERRED_SUBTITLE_LANGUAGE)
-        } else {
-            it[PREFERRED_SUBTITLE_LANGUAGE] = value
-        }
-    }
+    suspend fun setPreferDefaultAudioTrack(value: Boolean) = putUserBoolean(PREFER_DEFAULT_AUDIO_TRACK, value)
 
-    suspend fun setAlwaysDisplaySubtitles(value: Boolean) = put {
-        it[ALWAYS_DISPLAY_SUBTITLES] = value
-    }
+    suspend fun setPreferredSubtitleLanguage(value: String?) = putUserString(PREFERRED_SUBTITLE_LANGUAGE, value)
 
-    suspend fun setSubtitleSize(value: SubtitleSize) = put { it[SUBTITLE_SIZE] = value.name }
-    suspend fun setSubtitleColour(value: SubtitleColour) = put { it[SUBTITLE_COLOUR] = value.name }
-    suspend fun setSubtitleBackground(value: Boolean) = put { it[SUBTITLE_BACKGROUND] = value }
-    suspend fun setSubtitleBackgroundFill(value: SubtitleBackgroundFill) = put {
-        it[SUBTITLE_BACKGROUND_FILL] = value.name
-    }
-    suspend fun setSubtitleBackgroundStyle(value: SubtitleBackgroundStyle) = put {
-        it[SUBTITLE_BACKGROUND_STYLE] = value.name
-    }
+    suspend fun setAlwaysDisplaySubtitles(value: Boolean) = putUserBoolean(ALWAYS_DISPLAY_SUBTITLES, value)
 
-    private suspend fun put(block: (androidx.datastore.preferences.core.MutablePreferences) -> Unit) {
+    suspend fun setSubtitleSize(value: SubtitleSize) = putUserString(SUBTITLE_SIZE, value.name)
+    suspend fun setSubtitleColour(value: SubtitleColour) = putUserString(SUBTITLE_COLOUR, value.name)
+    suspend fun setSubtitleBackground(value: Boolean) = putUserBoolean(SUBTITLE_BACKGROUND, value)
+    suspend fun setSubtitleBackgroundFill(value: SubtitleBackgroundFill) = putUserString(SUBTITLE_BACKGROUND_FILL, value.name)
+    suspend fun setSubtitleBackgroundStyle(value: SubtitleBackgroundStyle) = putUserString(SUBTITLE_BACKGROUND_STYLE, value.name)
+
+    private suspend fun put(block: (MutablePreferences) -> Unit) {
         dataStore.edit(block)
     }
 
+    /** Writes a per-user key, or removes it when [value] is null/blank. No-op when signed
+     *  out — the settings UI is unreachable without a session, and an unscoped write would
+     *  land in a key nothing reads. */
+    private suspend fun putUserString(name: String, value: String?) = putUser { p, scope ->
+        val key = stringPreferencesKey(scope.key(name))
+        if (value.isNullOrBlank()) p.remove(key) else p[key] = value
+    }
+
+    private suspend fun putUserBoolean(name: String, value: Boolean) = putUser { p, scope ->
+        p[booleanPreferencesKey(scope.key(name))] = value
+    }
+
+    private suspend fun putUser(block: (MutablePreferences, UserScope) -> Unit) {
+        dataStore.edit { p ->
+            val scope = UserScope.decode(p[ACTIVE_SESSION]) ?: return@edit
+            block(p, scope)
+        }
+    }
+
     private companion object {
+        val ACTIVE_SESSION = stringPreferencesKey(UserScope.ACTIVE_SESSION)
+
         val SKIP_FWD = intPreferencesKey("playback.skipForwardSeconds")
         val SKIP_BACK = intPreferencesKey("playback.skipBackwardSeconds")
         val OSD_HIDE = intPreferencesKey("playback.osdHideSeconds")
-        val CLICK_PAUSE = booleanPreferencesKey("playback.clickToPause")
-        val COLOURED_FOCUS = booleanPreferencesKey("ui.colouredFocus")
-        val PULSE_FOCUS_GLOW = booleanPreferencesKey("ui.pulseFocusGlow")
-        val AMBIENT_BACKGROUNDS = booleanPreferencesKey("ui.ambientBackgrounds")
-        val CAP_BADGE_COUNT = booleanPreferencesKey("ui.capBadgeCount")
-        val THEME_MUSIC_VOLUME = stringPreferencesKey("ui.themeMusicVolume")
         val INTRO_ACTION = stringPreferencesKey("playback.introAction")
         val RECAP_ACTION = stringPreferencesKey("playback.recapAction")
         val OUTRO_ACTION = stringPreferencesKey("playback.outroAction")
@@ -255,26 +268,37 @@ class SettingsStore @Inject constructor(
         val COMMERCIAL_ACTION = stringPreferencesKey("playback.commercialAction")
         val NEXT_UP_COUNTDOWN = intPreferencesKey("playback.nextUpCountdownSeconds")
         val DISPLAY_NEXT_UP_DURING_OUTRO = booleanPreferencesKey("playback.displayNextUpDuringOutro")
-        val AUTO_LOGIN_LAST_USER = booleanPreferencesKey("account.autoLoginLastUser")
-        val PICTURE_IN_PICTURE = booleanPreferencesKey("playback.pictureInPicture")
-        val MATCH_REFRESH_RATE = booleanPreferencesKey("playback.matchRefreshRate")
-        val MATCH_RESOLUTION = booleanPreferencesKey("playback.matchResolution")
-        val DOWNMIX_STEREO = booleanPreferencesKey("playback.downmixStereo")
-        val FORCE_DOVI_PROFILE_7 = booleanPreferencesKey("playback.forceDoviProfile7")
-        val FORCE_DIRECT_PLAY = booleanPreferencesKey("playback.forceDirectPlay")
-        val DEFAULT_VIDEO_QUALITY = stringPreferencesKey("playback.defaultVideoQuality")
-        val TRAILER_YOUTUBE_PACKAGE = stringPreferencesKey("playback.trailerYouTubePackage")
-        val PREFERRED_AUDIO_LANGUAGE = stringPreferencesKey("playback.preferredAudioLanguage")
-        val PREFER_DEFAULT_AUDIO_TRACK = booleanPreferencesKey("playback.preferDefaultAudioTrack")
-        val PREFERRED_SUBTITLE_LANGUAGE = stringPreferencesKey("playback.preferredSubtitleLanguage")
-        val ALWAYS_DISPLAY_SUBTITLES = booleanPreferencesKey("playback.alwaysDisplaySubtitles")
-        val SUBTITLE_SIZE = stringPreferencesKey("playback.subtitleSize")
-        val SUBTITLE_COLOUR = stringPreferencesKey("playback.subtitleColour")
-        val SUBTITLE_BACKGROUND = booleanPreferencesKey("playback.subtitleBackground")
 
-        // Legacy key name kept so a saved fill (TRANSLUCENT/SOLID) survives the rename to "fill".
-        val SUBTITLE_BACKGROUND_FILL = stringPreferencesKey("playback.subtitleBackgroundStyle")
-        val SUBTITLE_BACKGROUND_STYLE = stringPreferencesKey("playback.subtitleBackgroundShape")
+        val AUTO_LOGIN_LAST_USER = booleanPreferencesKey("experience.autoLoginLastUser")
+        val COLOURED_FOCUS = booleanPreferencesKey("experience.colouredFocus")
+        val PULSE_FOCUS_GLOW = booleanPreferencesKey("experience.pulseFocusGlow")
+        val AMBIENT_BACKGROUNDS = booleanPreferencesKey("experience.ambientBackgrounds")
+        val CAP_BADGE_COUNT = booleanPreferencesKey("experience.capBadgeCount")
+        val THEME_MUSIC_VOLUME = stringPreferencesKey("experience.themeMusicVolume")
+
+        val PICTURE_IN_PICTURE = booleanPreferencesKey("advanced.pictureInPicture")
+        val MATCH_REFRESH_RATE = booleanPreferencesKey("advanced.matchRefreshRate")
+        val MATCH_RESOLUTION = booleanPreferencesKey("advanced.matchResolution")
+        val DOWNMIX_STEREO = booleanPreferencesKey("advanced.downmixStereo")
+        val FORCE_DOVI_PROFILE_7 = booleanPreferencesKey("advanced.forceDoviProfile7")
+        val FORCE_DIRECT_PLAY = booleanPreferencesKey("advanced.forceDirectPlay")
+        val TRAILER_YOUTUBE_PACKAGE = stringPreferencesKey("advanced.trailerYouTubePackage")
+
+        // Per-user: names only — the typed key is built per profile via UserScope.key.
+        const val DEFAULT_VIDEO_QUALITY = "playback.defaultVideoQuality"
+        const val PREFERRED_AUDIO_LANGUAGE = "playback.preferredAudioLanguage"
+        const val PREFER_DEFAULT_AUDIO_TRACK = "playback.preferDefaultAudioTrack"
+        const val PREFERRED_SUBTITLE_LANGUAGE = "playback.preferredSubtitleLanguage"
+        const val ALWAYS_DISPLAY_SUBTITLES = "playback.alwaysDisplaySubtitles"
+        const val SUBTITLE_SIZE = "playback.subtitleSize"
+        const val SUBTITLE_COLOUR = "playback.subtitleColour"
+        const val SUBTITLE_BACKGROUND = "playback.subtitleBackground"
+        const val SUBTITLE_BACKGROUND_FILL = "playback.subtitleBackgroundFill"
+        const val SUBTITLE_BACKGROUND_STYLE = "playback.subtitleBackgroundStyle"
+
+        fun Preferences.userString(scope: UserScope?, name: String): String? = scope?.let { this[stringPreferencesKey(it.key(name))] }
+
+        fun Preferences.userBoolean(scope: UserScope?, name: String): Boolean? = scope?.let { this[booleanPreferencesKey(it.key(name))] }
 
         inline fun <reified T : Enum<T>> enumOrNull(name: String): T? = runCatching { enumValueOf<T>(name) }.getOrNull()
     }

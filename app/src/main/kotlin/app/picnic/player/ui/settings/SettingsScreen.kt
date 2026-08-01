@@ -303,10 +303,6 @@ class SettingsViewModel @Inject constructor(
     fun setCommercialAction(action: SegmentAction) = viewModelScope.launch { store.setCommercialAction(action) }
     fun setDefaultVideoQuality(rung: QualityRung?) = viewModelScope.launch { store.setDefaultVideoQuality(rung) }
 
-    fun toggleClickToPause() = viewModelScope.launch {
-        store.setClickToPause(!settings.value.clickToPause)
-    }
-
     fun toggleColouredFocus() = viewModelScope.launch {
         store.setColouredFocus(!settings.value.colouredFocus)
     }
@@ -567,8 +563,17 @@ private fun sectionsFor(
     )
     SettingsCategory.PLAYBACK -> listOf(
         SettingSection(
-            "Languages",
+            "User Preferences",
             listOf(
+                SettingItem(
+                    "Default video quality",
+                    defaultQualityLabel(settings.defaultVideoQuality),
+                    onActivate = {
+                        showPicker(
+                            defaultQualityPicker(settings.defaultVideoQuality, viewModel::setDefaultVideoQuality)
+                        )
+                    }
+                ),
                 SettingItem(
                     "Preferred audio language",
                     if (settings.preferDefaultAudioTrack) {
@@ -610,65 +615,50 @@ private fun sectionsFor(
         ),
         SettingSection(
             "Controls",
-            buildList {
-                add(
-                    SettingItem(
-                        "Skip forward",
-                        "${settings.skipForwardSeconds}s",
-                        onActivate = {
-                            showPicker(
-                                secondsPicker(
-                                    "Skip forward",
-                                    SettingsViewModel.SKIP_FORWARD_OPTIONS,
-                                    settings.skipForwardSeconds,
-                                    viewModel::setSkipForwardSeconds
-                                )
+            listOf(
+                SettingItem(
+                    "Skip forward",
+                    "${settings.skipForwardSeconds}s",
+                    onActivate = {
+                        showPicker(
+                            secondsPicker(
+                                "Skip forward",
+                                SettingsViewModel.SKIP_FORWARD_OPTIONS,
+                                settings.skipForwardSeconds,
+                                viewModel::setSkipForwardSeconds
                             )
-                        }
-                    )
-                )
-                add(
-                    SettingItem(
-                        "Skip back",
-                        "${settings.skipBackwardSeconds}s",
-                        onActivate = {
-                            showPicker(
-                                secondsPicker(
-                                    "Skip back",
-                                    SettingsViewModel.SKIP_BACKWARD_OPTIONS,
-                                    settings.skipBackwardSeconds,
-                                    viewModel::setSkipBackwardSeconds
-                                )
-                            )
-                        }
-                    )
-                )
-                add(
-                    SettingItem(
-                        "Hide playback controls",
-                        "${settings.osdHideSeconds}s",
-                        onActivate = {
-                            showPicker(
-                                secondsPicker(
-                                    "Hide playback controls",
-                                    SettingsViewModel.HIDE_CONTROLS_OPTIONS,
-                                    settings.osdHideSeconds,
-                                    viewModel::setOsdHideSeconds
-                                )
-                            )
-                        }
-                    )
-                )
-                if (pictureInPictureSupported) {
-                    add(
-                        SettingItem(
-                            "Enable Picture-in-Picture",
-                            if (settings.pictureInPicture) "On" else "Off",
-                            onActivate = viewModel::togglePictureInPicture
                         )
-                    )
-                }
-            }
+                    }
+                ),
+                SettingItem(
+                    "Skip back",
+                    "${settings.skipBackwardSeconds}s",
+                    onActivate = {
+                        showPicker(
+                            secondsPicker(
+                                "Skip back",
+                                SettingsViewModel.SKIP_BACKWARD_OPTIONS,
+                                settings.skipBackwardSeconds,
+                                viewModel::setSkipBackwardSeconds
+                            )
+                        )
+                    }
+                ),
+                SettingItem(
+                    "Hide playback controls",
+                    "${settings.osdHideSeconds}s",
+                    onActivate = {
+                        showPicker(
+                            secondsPicker(
+                                "Hide playback controls",
+                                SettingsViewModel.HIDE_CONTROLS_OPTIONS,
+                                settings.osdHideSeconds,
+                                viewModel::setOsdHideSeconds
+                            )
+                        )
+                    }
+                )
+            )
         ),
         SettingSection(
             "Next up behavior",
@@ -734,80 +724,94 @@ private fun sectionsFor(
     SettingsCategory.ADVANCED -> listOf(
         SettingSection(
             null,
-            listOf(
-                SettingItem(
-                    "Default video quality",
-                    defaultQualityLabel(settings.defaultVideoQuality),
-                    onActivate = {
-                        showPicker(
-                            defaultQualityPicker(settings.defaultVideoQuality, viewModel::setDefaultVideoQuality)
+            buildList {
+                if (pictureInPictureSupported) {
+                    add(
+                        SettingItem(
+                            "Enable Picture-in-Picture",
+                            if (settings.pictureInPicture) "On" else "Off",
+                            onActivate = viewModel::togglePictureInPicture
                         )
-                    }
-                ),
-                SettingItem(
-                    "Refresh rate switching",
-                    if (settings.matchRefreshRate) "On" else "Off",
-                    onActivate = viewModel::toggleMatchRefreshRate
-                ),
-                SettingItem(
-                    "Resolution switching",
-                    if (settings.matchResolution) "On" else "Off",
-                    onActivate = viewModel::toggleMatchResolution
-                ),
-                SettingItem(
-                    "Force direct play",
-                    if (settings.forceDirectPlay) "On" else "Off",
-                    onActivate = viewModel::toggleForceDirectPlay
-                ),
-                SettingItem(
-                    "Downmix to stereo",
-                    if (settings.downmixStereo) "On" else "Off",
-                    // Force direct play announces full compatibility, so this has no effect.
-                    enabled = !settings.forceDirectPlay,
-                    onActivate = viewModel::toggleDownmixStereo
-                ),
-                SettingItem(
-                    "Force DoVi Profile 7 support",
-                    if (settings.forceDoviProfile7) "On" else "Off",
-                    enabled = !settings.forceDirectPlay,
-                    onActivate = viewModel::toggleForceDoviProfile7
-                ),
-                SettingItem(
-                    "External application for trailers",
-                    youtubeApps.find { it.packageName == settings.trailerYouTubePackage }?.name ?: "System Default",
-                    onActivate = {
-                        showPicker(
-                            ActivePicker(
-                                title = "External application for trailers",
-                                options = buildList {
-                                    add(
-                                        PickerOption(
-                                            label = "System Default",
-                                            selected = settings.trailerYouTubePackage == null,
-                                            onSelect = { viewModel.setTrailerYouTubePackage(null) }
-                                        )
-                                    )
-                                    youtubeApps.forEach { app ->
+                    )
+                }
+                add(
+                    SettingItem(
+                        "Refresh rate switching",
+                        if (settings.matchRefreshRate) "On" else "Off",
+                        onActivate = viewModel::toggleMatchRefreshRate
+                    )
+                )
+                add(
+                    SettingItem(
+                        "Resolution switching",
+                        if (settings.matchResolution) "On" else "Off",
+                        onActivate = viewModel::toggleMatchResolution
+                    )
+                )
+                add(
+                    SettingItem(
+                        "Force direct play",
+                        if (settings.forceDirectPlay) "On" else "Off",
+                        onActivate = viewModel::toggleForceDirectPlay
+                    )
+                )
+                add(
+                    SettingItem(
+                        "Downmix to stereo",
+                        if (settings.downmixStereo) "On" else "Off",
+                        // Force direct play announces full compatibility, so this has no effect.
+                        enabled = !settings.forceDirectPlay,
+                        onActivate = viewModel::toggleDownmixStereo
+                    )
+                )
+                add(
+                    SettingItem(
+                        "Force DoVi Profile 7 support",
+                        if (settings.forceDoviProfile7) "On" else "Off",
+                        enabled = !settings.forceDirectPlay,
+                        onActivate = viewModel::toggleForceDoviProfile7
+                    )
+                )
+                add(
+                    SettingItem(
+                        "External application for trailers",
+                        youtubeApps.find { it.packageName == settings.trailerYouTubePackage }?.name ?: "System Default",
+                        onActivate = {
+                            showPicker(
+                                ActivePicker(
+                                    title = "External application for trailers",
+                                    options = buildList {
                                         add(
                                             PickerOption(
-                                                label = app.name,
-                                                selected = app.packageName == settings.trailerYouTubePackage,
-                                                icon = app.icon,
-                                                onSelect = { viewModel.setTrailerYouTubePackage(app.packageName) }
+                                                label = "System Default",
+                                                selected = settings.trailerYouTubePackage == null,
+                                                onSelect = { viewModel.setTrailerYouTubePackage(null) }
                                             )
                                         )
+                                        youtubeApps.forEach { app ->
+                                            add(
+                                                PickerOption(
+                                                    label = app.name,
+                                                    selected = app.packageName == settings.trailerYouTubePackage,
+                                                    icon = app.icon,
+                                                    onSelect = { viewModel.setTrailerYouTubePackage(app.packageName) }
+                                                )
+                                            )
+                                        }
                                     }
-                                }
+                                )
                             )
-                        )
-                    }
-                ),
-                SettingItem(
-                    "Clear image cache",
-                    Formatter.formatFileSize(context, imageCacheSize),
-                    onActivate = viewModel::clearImageCache
+                        }
+                    )
                 )
-            )
+                add(
+                    SettingItem(
+                        "Clear image cache",
+                        Formatter.formatFileSize(context, imageCacheSize),
+                        onActivate = viewModel::clearImageCache
+                    )
+                )
+            }
         )
     )
 }

@@ -18,6 +18,9 @@ data class StoredSession(
     val username: String
 )
 
+/** DataStore key holding the persisted [StoredSession] list, as JSON. */
+const val STORED_SESSIONS = "sessions"
+
 /** A runtime session with a decrypted access token. Never serialized verbatim. */
 data class UserSession(
     val server: ServerConnection,

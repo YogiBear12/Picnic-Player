@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.preferencesDataStore
+import app.picnic.player.data.settings.settingsKeyMigration
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -12,7 +13,12 @@ import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
 import kotlinx.serialization.json.Json
 
-private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "picnic")
+// Migrations run here rather than at app start so DataStore applies them before any
+// consumer's first read — no one can observe a half-migrated file.
+private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(
+    name = "picnic",
+    produceMigrations = { listOf(settingsKeyMigration()) }
+)
 
 @Module
 @InstallIn(SingletonComponent::class)

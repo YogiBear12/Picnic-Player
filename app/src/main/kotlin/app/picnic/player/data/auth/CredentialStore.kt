@@ -63,13 +63,12 @@ class CredentialStore @Inject constructor(
     }
 
     suspend fun activeSession(): UserSession? {
-        val parts = read(ACTIVE)?.split('|') ?: return null
-        if (parts.size != 2) return null
-        return session(parts[0], parts[1])
+        val scope = UserScope.decode(read(ACTIVE)) ?: return null
+        return session(scope.serverId, scope.userId)
     }
 
     suspend fun setActive(serverId: String, userId: String) {
-        write(ACTIVE, "$serverId|$userId")
+        write(ACTIVE, UserScope.encode(serverId, userId))
         write(ACTIVE_SERVER, serverId)
         publishActiveSession()
     }
@@ -107,7 +106,8 @@ class CredentialStore @Inject constructor(
         remove(tokenKey(serverId, userId))
         clearSessionAuthError(serverId, userId)
         setProfileOrder(serverId, profileOrder(serverId).filterNot { it == userId })
-        if (read(ACTIVE) == "$serverId|$userId") remove(ACTIVE)
+        removeByPrefix(UserScope.prefix(serverId, userId))
+        if (read(ACTIVE) == UserScope.encode(serverId, userId)) remove(ACTIVE)
         publishActiveSession()
     }
 
@@ -119,6 +119,7 @@ class CredentialStore @Inject constructor(
         remove(publicUsersKey(serverId))
         remove(sessionErrorsKey(serverId))
         setServerOrder(serverOrder().filterNot { it == serverId })
+        removeByPrefix(UserScope.serverPrefix(serverId))
         if (read(ACTIVE)?.startsWith("$serverId|") == true) remove(ACTIVE)
         if (read(ACTIVE_SERVER) == serverId) remove(ACTIVE_SERVER)
         publishActiveSession()
@@ -175,6 +176,16 @@ class CredentialStore @Inject constructor(
         dataStore.edit { it.remove(stringPreferencesKey(key)) }
     }
 
+    /** Drops every key under [prefix], whatever its type — used to sweep a forgotten
+     *  user's (or server's) per-user preferences. */
+    private suspend fun removeByPrefix(prefix: String) {
+        dataStore.edit { prefs ->
+            prefs.asMap().keys
+                .filter { it.name.startsWith(prefix) }
+                .forEach { prefs -= it }
+        }
+    }
+
     private fun tokenKey(serverId: String, userId: String) = "token.$serverId.$userId"
     private fun profileOrderKey(serverId: String) = "profile_order.$serverId"
     private fun publicUsersKey(serverId: String) = "public_users.$serverId"
@@ -182,8 +193,8 @@ class CredentialStore @Inject constructor(
 
     private companion object {
         const val SERVERS = "servers"
-        const val SESSIONS = "sessions"
-        const val ACTIVE = "active_session"
+        const val SESSIONS = STORED_SESSIONS
+        const val ACTIVE = UserScope.ACTIVE_SESSION
         const val ACTIVE_SERVER = "active_server"
         const val SERVER_ORDER = "server_order"
     }
