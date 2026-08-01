@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -67,37 +68,80 @@ private val RowInnerPadding = 14.dp
 private val RowCornerRadius = 10.dp
 
 private val Speeds = listOf(0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 1.75f, 2.0f)
-private val SleepModes = SleepMode.entries
 private val Boosts = AudioBoost.entries
 private val NightModes = NightMode.entries
 
 private enum class Page { MAIN, QUALITY, SPEED, AUDIO, SLEEP, SUBTITLE_APPEARANCE }
 
-private enum class MainRowKey { QUALITY, SUBTITLE_APPEARANCE, SUBTITLE_DELAY, AUDIO, SPEED, SLEEP, PLAYBACK_INFO, PIP }
+private enum class RowKey {
+    QUALITY,
+    SUBTITLE_APPEARANCE,
+    SUBTITLE_DELAY,
+    AUDIO,
+    SPEED,
+    SLEEP,
+    PLAYBACK_INFO,
+    PIP,
+    BOOST,
+    NIGHT_MODE,
+    SUB_SIZE,
+    SUB_COLOR,
+    SUB_BACKGROUND,
+    SUB_BG_STYLE,
+    SUB_BG_FILL
+}
 
-private fun Page.rowKey(): MainRowKey? = when (this) {
-    Page.QUALITY -> MainRowKey.QUALITY
-    Page.SUBTITLE_APPEARANCE -> MainRowKey.SUBTITLE_APPEARANCE
-    Page.AUDIO -> MainRowKey.AUDIO
-    Page.SPEED -> MainRowKey.SPEED
-    Page.SLEEP -> MainRowKey.SLEEP
+private fun Page.rowKey(): RowKey? = when (this) {
+    Page.QUALITY -> RowKey.QUALITY
+    Page.SUBTITLE_APPEARANCE -> RowKey.SUBTITLE_APPEARANCE
+    Page.AUDIO -> RowKey.AUDIO
+    Page.SPEED -> RowKey.SPEED
+    Page.SLEEP -> RowKey.SLEEP
     Page.MAIN -> null
 }
 
-private data class MainRow(
-    val key: MainRowKey,
-    val label: String,
-    val value: String,
-    val showChevron: Boolean = true,
-    val subPage: Page? = null,
-    val onClick: (() -> Unit)? = null
-)
+private fun Page.title(): String = when (this) {
+    Page.MAIN -> "Settings"
+    Page.QUALITY -> "Quality"
+    Page.SPEED -> "Playback speed"
+    Page.AUDIO -> "Audio"
+    Page.SLEEP -> "Sleep timer"
+    Page.SUBTITLE_APPEARANCE -> "Subtitle appearance"
+}
 
 /**
- * Frosted right-side player settings panel. Subtitle delay closes the panel and hands off to the
- * on-screen HUD via [onAdjustSubtitleDelay]; every other row drills into a sub-page. Back steps
- * sub-page → main → closed.
+ * One row of any panel page. Pages are lists of these — data, not layout — so navigating
+ * changes what a row shows rather than replacing the row nodes and their focus machinery.
  */
+private sealed interface PanelRow {
+    val key: Any
+
+    data class Nav(
+        override val key: Any,
+        val label: String,
+        val value: String,
+        val chevron: Boolean = true,
+        val onClick: () -> Unit
+    ) : PanelRow
+
+    data class Select(
+        override val key: Any,
+        val primary: String,
+        val secondary: String? = null,
+        val selected: Boolean,
+        val onClick: () -> Unit
+    ) : PanelRow
+
+    data class Step(
+        override val key: Any,
+        val label: String,
+        val value: String,
+        val enabled: Boolean = true,
+        val onLeft: () -> Unit,
+        val onRight: () -> Unit
+    ) : PanelRow
+}
+
 @Composable
 fun PlayerSettingsPanel(
     subtitleDelayMs: Long,
@@ -132,7 +176,7 @@ fun PlayerSettingsPanel(
     // The list row to focus on the way back — from a sub-page, or from the delay HUD, which
     // disposes this panel entirely while it is up.
     var focusKey by remember {
-        mutableStateOf(if (focusSubtitleDelay) MainRowKey.SUBTITLE_DELAY else null)
+        mutableStateOf(if (focusSubtitleDelay) RowKey.SUBTITLE_DELAY else null)
     }
     val firstFocus = remember { FocusRequester() }
 
@@ -148,6 +192,53 @@ fun PlayerSettingsPanel(
     // The panel slides in, so its rows are not attached for the first frames.
     LaunchedEffect(page) { firstFocus.requestFocusWhenAttached() }
     LaunchedEffect(Unit) { if (focusSubtitleDelay) onFocusSubtitleDelayConsumed() }
+
+    val rows = when (page) {
+        Page.MAIN -> mainRows(
+            qualityOptions = qualityOptions,
+            qualitySummary = qualitySummary,
+            subtitleDelayMs = subtitleDelayMs,
+            audioBoost = audioBoost,
+            nightMode = nightMode,
+            playbackSpeed = playbackSpeed,
+            sleep = sleep,
+            showStatsForNerds = showStatsForNerds,
+            pipSupported = pipSupported,
+            onNavigate = { page = it },
+            onAdjustSubtitleDelay = onAdjustSubtitleDelay,
+            onToggleStatsForNerds = onToggleStatsForNerds,
+            onEnterPip = {
+                onEnterPip()
+                back()
+            }
+        )
+        Page.QUALITY -> qualityRows(qualityOptions, selectedQuality) {
+            onSelectQuality(it)
+            returnToMain()
+        }
+        Page.SPEED -> speedRows(playbackSpeed) {
+            onSpeed(it)
+            returnToMain()
+        }
+        Page.SLEEP -> sleepRows(sleep) {
+            onSleep(it)
+            returnToMain()
+        }
+        Page.AUDIO -> audioRows(audioBoost, nightMode, onAudioBoost, onNightMode)
+        Page.SUBTITLE_APPEARANCE -> subtitleAppearanceRows(
+            subtitleAppearance,
+            onSubtitleSize,
+            onSubtitleColour,
+            onSubtitleBackground,
+            onSubtitleBackgroundStyle,
+            onSubtitleBackgroundFill
+        )
+    }
+
+    val focusIndex = when (page) {
+        Page.MAIN -> rows.indexOfFirst { it.key == focusKey }
+        else -> rows.indexOfFirst { it is PanelRow.Select && it.selected }
+    }.takeIf { it >= 0 } ?: 0
 
     Row(
         Modifier
@@ -170,210 +261,186 @@ fun PlayerSettingsPanel(
                 .padding(vertical = 20.dp)
                 .focusGroup()
         ) {
-            PanelHeader(
-                title = when (page) {
-                    Page.MAIN -> "Settings"
-                    Page.QUALITY -> "Quality"
-                    Page.SPEED -> "Playback speed"
-                    Page.AUDIO -> "Audio"
-                    Page.SLEEP -> "Sleep timer"
-                    Page.SUBTITLE_APPEARANCE -> "Subtitle appearance"
-                }
-            )
+            PanelHeader(title = page.title())
             Column(
                 Modifier
                     .padding(horizontal = ContentInset)
                     .focusGroup(),
                 verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
-                when (page) {
-                    Page.MAIN -> {
-                        val rows = buildList {
-                            if (qualityOptions.isNotEmpty()) {
-                                add(MainRow(MainRowKey.QUALITY, "Quality", qualitySummary, subPage = Page.QUALITY))
-                            }
-                            add(MainRow(MainRowKey.SUBTITLE_APPEARANCE, "Subtitle appearance", "", subPage = Page.SUBTITLE_APPEARANCE))
-                            add(
-                                MainRow(
-                                    MainRowKey.SUBTITLE_DELAY,
-                                    "Subtitle delay",
-                                    formatDelay(subtitleDelayMs),
-                                    showChevron = false,
-                                    onClick = onAdjustSubtitleDelay
-                                )
-                            )
-                            add(
-                                MainRow(
-                                    MainRowKey.AUDIO,
-                                    "Audio",
-                                    "Boost ${audioBoostLabel(audioBoost)} · Night ${nightModeLabel(nightMode)}",
-                                    subPage = Page.AUDIO
-                                )
-                            )
-                            add(MainRow(MainRowKey.SPEED, "Playback speed", formatSpeed(playbackSpeed), subPage = Page.SPEED))
-                            add(MainRow(MainRowKey.SLEEP, "Sleep timer", sleepSummary(sleep), subPage = Page.SLEEP))
-                            add(
-                                MainRow(
-                                    MainRowKey.PLAYBACK_INFO,
-                                    "Playback info",
-                                    if (showStatsForNerds) "On" else "Off",
-                                    showChevron = false
-                                ) { onToggleStatsForNerds() }
-                            )
-                            if (pipSupported) {
-                                add(
-                                    MainRow(MainRowKey.PIP, "Enter Picture-in-Picture", "", showChevron = false) {
-                                        onEnterPip()
-                                        back()
-                                    }
-                                )
-                            }
-                        }
-                        val focusIndex = rows.indexOfFirst { it.key == focusKey }.takeIf { it >= 0 } ?: 0
-                        rows.forEachIndexed { i, row ->
-                            NavRow(
-                                label = row.label,
-                                value = row.value,
-                                focusRequester = if (i == focusIndex) firstFocus else null,
-                                onClose = ::back,
-                                blockUp = i == 0,
-                                blockDown = i == rows.lastIndex,
-                                showChevron = row.showChevron,
-                                onClick = { row.subPage?.let { page = it } ?: row.onClick?.invoke() }
-                            )
-                        }
-                    }
-                    Page.QUALITY -> {
-                        val focusIndex = qualityOptions
-                            .indexOfFirst { (it as? QualityOption.Transcode)?.rung == selectedQuality }
-                            .takeIf { it >= 0 } ?: 0
-                        qualityOptions.forEachIndexed { i, option ->
-                            val rung = (option as? QualityOption.Transcode)?.rung
-                            val chosen = rung == selectedQuality
-                            SelectRow(
-                                primary = rung?.label ?: "Original",
-                                secondary = rung?.let { "${it.bitrateLabel} · ${it.sizeHint}" },
-                                selected = chosen,
-                                focusRequester = if (i == focusIndex) firstFocus else null,
-                                onClick = {
-                                    onSelectQuality(option)
-                                    returnToMain()
-                                },
-                                onClose = ::back,
-                                blockUp = i == 0,
-                                blockDown = i == qualityOptions.lastIndex
-                            )
-                        }
-                    }
-                    Page.SPEED -> {
-                        val focusIndex = Speeds
-                            .indexOfFirst { kotlin.math.abs(it - playbackSpeed) < 0.001f }
-                            .takeIf { it >= 0 } ?: 0
-                        Speeds.forEachIndexed { i, speed ->
-                            SelectRow(
-                                primary = formatSpeed(speed),
-                                selected = kotlin.math.abs(speed - playbackSpeed) < 0.001f,
-                                focusRequester = if (i == focusIndex) firstFocus else null,
-                                onClick = {
-                                    onSpeed(speed)
-                                    returnToMain()
-                                },
-                                onClose = ::back,
-                                blockUp = i == 0,
-                                blockDown = i == Speeds.lastIndex
-                            )
-                        }
-                    }
-                    Page.AUDIO -> {
-                        StepRow(
-                            label = "Boost",
-                            value = audioBoostLabel(audioBoost),
-                            focusRequester = firstFocus,
-                            onLeft = { Boosts.getOrNull(audioBoost.ordinal - 1)?.let(onAudioBoost) },
-                            onRight = { Boosts.getOrNull(audioBoost.ordinal + 1)?.let(onAudioBoost) },
-                            onClose = ::back,
-                            blockUp = true
-                        )
-                        StepRow(
-                            label = "Night mode",
-                            value = nightModeLabel(nightMode),
-                            focusRequester = null,
-                            onLeft = { NightModes.getOrNull(nightMode.ordinal - 1)?.let(onNightMode) },
-                            onRight = { NightModes.getOrNull(nightMode.ordinal + 1)?.let(onNightMode) },
-                            onClose = ::back,
-                            blockDown = true
-                        )
-                    }
-                    Page.SUBTITLE_APPEARANCE -> {
-                        StepRow(
-                            label = "Size",
-                            value = subtitleAppearance.size.display(),
-                            focusRequester = firstFocus,
-                            onLeft = { onSubtitleSize(false) },
-                            onRight = { onSubtitleSize(true) },
-                            onClose = ::back,
-                            blockUp = true
-                        )
-                        StepRow(
-                            label = "Color",
-                            value = subtitleAppearance.colour.display(),
-                            focusRequester = null,
-                            onLeft = { onSubtitleColour(false) },
-                            onRight = { onSubtitleColour(true) },
-                            onClose = ::back
-                        )
-                        StepRow(
-                            label = "Background",
-                            value = if (subtitleAppearance.background) "On" else "Off",
-                            focusRequester = null,
-                            onLeft = onSubtitleBackground,
-                            onRight = onSubtitleBackground,
-                            onClose = ::back
-                        )
-                        // Fill and style stay mounted while background is off — removing a
-                        // focused row disposes the focused node.
-                        StepRow(
-                            label = "Background style",
-                            value = subtitleAppearance.backgroundStyle.display(),
-                            focusRequester = null,
-                            enabled = subtitleAppearance.background,
-                            onLeft = { onSubtitleBackgroundStyle(false) },
-                            onRight = { onSubtitleBackgroundStyle(true) },
-                            onClose = ::back
-                        )
-                        StepRow(
-                            label = "Background fill",
-                            value = subtitleAppearance.backgroundFill.display(),
-                            focusRequester = null,
-                            enabled = subtitleAppearance.background,
-                            onLeft = { onSubtitleBackgroundFill(false) },
-                            onRight = { onSubtitleBackgroundFill(true) },
-                            onClose = ::back,
-                            blockDown = true
-                        )
-                    }
-                    Page.SLEEP -> {
-                        val focusIndex = SleepModes.indexOfFirst { it == sleep.mode }.takeIf { it >= 0 } ?: 0
-                        SleepModes.forEachIndexed { i, mode ->
-                            SelectRow(
-                                primary = sleepModeLabel(mode),
-                                selected = mode == sleep.mode,
-                                focusRequester = if (i == focusIndex) firstFocus else null,
-                                onClick = {
-                                    onSleep(mode)
-                                    returnToMain()
-                                },
-                                onClose = ::back,
-                                blockUp = i == 0,
-                                blockDown = i == SleepModes.lastIndex
-                            )
-                        }
-                    }
+                // Deliberately not keyed: positional identity lets Compose update the existing
+                // row nodes across a page change instead of rebuilding them.
+                rows.forEachIndexed { i, row ->
+                    PanelRowItem(
+                        row = row,
+                        focusRequester = if (i == focusIndex) firstFocus else null,
+                        blockUp = i == 0,
+                        blockDown = i == rows.lastIndex,
+                        onClose = ::back
+                    )
                 }
             }
         }
     }
 }
+
+private fun mainRows(
+    qualityOptions: List<QualityOption>,
+    qualitySummary: String,
+    subtitleDelayMs: Long,
+    audioBoost: AudioBoost,
+    nightMode: NightMode,
+    playbackSpeed: Float,
+    sleep: SleepTimerState,
+    showStatsForNerds: Boolean,
+    pipSupported: Boolean,
+    onNavigate: (Page) -> Unit,
+    onAdjustSubtitleDelay: () -> Unit,
+    onToggleStatsForNerds: () -> Unit,
+    onEnterPip: () -> Unit
+): List<PanelRow> = buildList {
+    if (qualityOptions.isNotEmpty()) {
+        add(PanelRow.Nav(RowKey.QUALITY, "Quality", qualitySummary) { onNavigate(Page.QUALITY) })
+    }
+    add(
+        PanelRow.Nav(RowKey.SUBTITLE_APPEARANCE, "Subtitle appearance", "") {
+            onNavigate(Page.SUBTITLE_APPEARANCE)
+        }
+    )
+    add(
+        PanelRow.Nav(
+            RowKey.SUBTITLE_DELAY,
+            "Subtitle delay",
+            formatDelay(subtitleDelayMs),
+            chevron = false,
+            onClick = onAdjustSubtitleDelay
+        )
+    )
+    add(
+        PanelRow.Nav(
+            RowKey.AUDIO,
+            "Audio",
+            "Boost ${audioBoostLabel(audioBoost)} · Night ${nightModeLabel(nightMode)}"
+        ) { onNavigate(Page.AUDIO) }
+    )
+    add(PanelRow.Nav(RowKey.SPEED, "Playback speed", formatSpeed(playbackSpeed)) { onNavigate(Page.SPEED) })
+    add(PanelRow.Nav(RowKey.SLEEP, "Sleep timer", sleepSummary(sleep)) { onNavigate(Page.SLEEP) })
+    add(
+        PanelRow.Nav(
+            RowKey.PLAYBACK_INFO,
+            "Playback info",
+            if (showStatsForNerds) "On" else "Off",
+            chevron = false,
+            onClick = onToggleStatsForNerds
+        )
+    )
+    if (pipSupported) {
+        add(
+            PanelRow.Nav(RowKey.PIP, "Enter Picture-in-Picture", "", chevron = false, onClick = onEnterPip)
+        )
+    }
+}
+
+private fun qualityRows(
+    options: List<QualityOption>,
+    selected: QualityRung?,
+    onSelect: (QualityOption) -> Unit
+): List<PanelRow> = options.map { option ->
+    val rung = (option as? QualityOption.Transcode)?.rung
+    PanelRow.Select(
+        key = rung ?: "original",
+        primary = rung?.label ?: "Original",
+        secondary = rung?.let { "${it.bitrateLabel} · ${it.sizeHint}" },
+        selected = rung == selected
+    ) { onSelect(option) }
+}
+
+private fun speedRows(current: Float, onSelect: (Float) -> Unit): List<PanelRow> = Speeds.map { speed ->
+    PanelRow.Select(
+        key = speed,
+        primary = formatSpeed(speed),
+        selected = kotlin.math.abs(speed - current) < 0.001f
+    ) { onSelect(speed) }
+}
+
+private fun sleepRows(sleep: SleepTimerState, onSelect: (SleepMode) -> Unit): List<PanelRow> = SleepMode.entries.map { mode ->
+    PanelRow.Select(
+        key = mode,
+        primary = sleepModeLabel(mode),
+        selected = mode == sleep.mode
+    ) { onSelect(mode) }
+}
+
+private fun audioRows(
+    audioBoost: AudioBoost,
+    nightMode: NightMode,
+    onAudioBoost: (AudioBoost) -> Unit,
+    onNightMode: (NightMode) -> Unit
+): List<PanelRow> = listOf(
+    PanelRow.Step(
+        key = RowKey.BOOST,
+        label = "Boost",
+        value = audioBoostLabel(audioBoost),
+        onLeft = { Boosts.getOrNull(audioBoost.ordinal - 1)?.let(onAudioBoost) },
+        onRight = { Boosts.getOrNull(audioBoost.ordinal + 1)?.let(onAudioBoost) }
+    ),
+    PanelRow.Step(
+        key = RowKey.NIGHT_MODE,
+        label = "Night mode",
+        value = nightModeLabel(nightMode),
+        onLeft = { NightModes.getOrNull(nightMode.ordinal - 1)?.let(onNightMode) },
+        onRight = { NightModes.getOrNull(nightMode.ordinal + 1)?.let(onNightMode) }
+    )
+)
+
+private fun subtitleAppearanceRows(
+    appearance: SubtitleAppearance,
+    onSize: (Boolean) -> Unit,
+    onColour: (Boolean) -> Unit,
+    onBackground: () -> Unit,
+    onBackgroundStyle: (Boolean) -> Unit,
+    onBackgroundFill: (Boolean) -> Unit
+): List<PanelRow> = listOf(
+    PanelRow.Step(
+        key = RowKey.SUB_SIZE,
+        label = "Size",
+        value = appearance.size.display(),
+        onLeft = { onSize(false) },
+        onRight = { onSize(true) }
+    ),
+    PanelRow.Step(
+        key = RowKey.SUB_COLOR,
+        label = "Color",
+        value = appearance.colour.display(),
+        onLeft = { onColour(false) },
+        onRight = { onColour(true) }
+    ),
+    PanelRow.Step(
+        key = RowKey.SUB_BACKGROUND,
+        label = "Background",
+        value = if (appearance.background) "On" else "Off",
+        onLeft = onBackground,
+        onRight = onBackground
+    ),
+    // Fill and style stay listed while background is off — removing a focused row disposes
+    // the focused node.
+    PanelRow.Step(
+        key = RowKey.SUB_BG_STYLE,
+        label = "Background style",
+        value = appearance.backgroundStyle.display(),
+        enabled = appearance.background,
+        onLeft = { onBackgroundStyle(false) },
+        onRight = { onBackgroundStyle(true) }
+    ),
+    PanelRow.Step(
+        key = RowKey.SUB_BG_FILL,
+        label = "Background fill",
+        value = appearance.backgroundFill.display(),
+        enabled = appearance.background,
+        onLeft = { onBackgroundFill(false) },
+        onRight = { onBackgroundFill(true) }
+    )
+)
 
 @Composable
 private fun PanelHeader(title: String) {
@@ -400,91 +467,22 @@ private fun PanelHeader(title: String) {
     }
 }
 
-/** Row that drills into a sub-page or triggers an action; shows a value + chevron. */
+/**
+ * The single row used by every page. Left/Right step a [PanelRow.Step] in place; Center
+ * activates a [PanelRow.Nav] or [PanelRow.Select]; Back is handled by the panel.
+ */
 @Composable
-private fun NavRow(
-    label: String,
-    value: String,
+private fun PanelRowItem(
+    row: PanelRow,
     focusRequester: FocusRequester?,
-    onClose: () -> Unit,
-    blockUp: Boolean = false,
-    blockDown: Boolean = false,
-    showChevron: Boolean = true,
-    onClick: () -> Unit
-) {
-    var focused by remember { mutableStateOf(false) }
-    RowFrame(focused, { focused = it }, focusRequester, blockUp, blockDown, onClose, { onClick() }) {
-        Text(label, color = if (focused) Color.Black else Color.White.copy(alpha = 0.92f), style = MaterialTheme.typography.bodyMedium, maxLines = 1, modifier = Modifier.weight(1f))
-        Text(value, color = if (focused) Color.Black.copy(alpha = 0.7f) else Color.White.copy(alpha = 0.7f), style = MaterialTheme.typography.bodyMedium, maxLines = 1)
-        Icon(
-            Icons.AutoMirrored.Filled.KeyboardArrowRight,
-            contentDescription = null,
-            tint = if (showChevron) {
-                if (focused) Color.Black else Color.White.copy(alpha = 0.6f)
-            } else {
-                Color.Transparent
-            }
-        )
-    }
-}
-
-/** Row that selects one value from a list (checkmark on the active one). */
-@Composable
-private fun SelectRow(
-    primary: String,
-    selected: Boolean,
-    secondary: String? = null,
-    focusRequester: FocusRequester?,
-    onClick: () -> Unit,
-    onClose: () -> Unit,
     blockUp: Boolean,
-    blockDown: Boolean
+    blockDown: Boolean,
+    onClose: () -> Unit
 ) {
     var focused by remember { mutableStateOf(false) }
-    RowFrame(focused, { focused = it }, focusRequester, blockUp, blockDown, onClose, { onClick() }) {
-        Text(primary, color = if (focused) Color.Black else Color.White.copy(alpha = 0.92f), style = MaterialTheme.typography.bodyMedium, maxLines = 1, modifier = Modifier.weight(1f))
-        secondary?.let {
-            Text(
-                it,
-                color = if (focused) Color.Black.copy(alpha = 0.66f) else Color.White.copy(alpha = 0.5f),
-                style = MaterialTheme.typography.bodySmall,
-                maxLines = 1,
-                modifier = Modifier.padding(end = 8.dp)
-            )
-        }
-        if (selected) {
-            Icon(Icons.Filled.Check, contentDescription = "Selected", tint = if (focused) Color.Black.copy(alpha = 0.72f) else Color.White.copy(alpha = 0.55f))
-        }
-    }
-}
-
-/** Row whose value is cycled with left/right D-pad (no focus move). */
-@Composable
-private fun StepRow(
-    label: String,
-    value: String,
-    focusRequester: FocusRequester?,
-    onLeft: () -> Unit,
-    onRight: () -> Unit,
-    onClose: () -> Unit,
-    blockUp: Boolean = false,
-    blockDown: Boolean = false,
-    enabled: Boolean = true
-) {
-    var focused by remember { mutableStateOf(false) }
+    val stepper = row as? PanelRow.Step
+    val enabled = stepper?.enabled ?: true
     val base = if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier
-    val labelColor = when {
-        !enabled && focused -> Color.Black.copy(alpha = 0.4f)
-        !enabled -> Color.White.copy(alpha = 0.38f)
-        focused -> Color.Black
-        else -> Color.White.copy(alpha = 0.92f)
-    }
-    val valueColor = when {
-        !enabled && focused -> Color.Black.copy(alpha = 0.4f)
-        !enabled -> Color.White.copy(alpha = 0.38f)
-        focused -> Color.Black
-        else -> Color.White.copy(alpha = 0.92f)
-    }
     Row(
         modifier = base
             .fillMaxWidth()
@@ -493,7 +491,7 @@ private fun StepRow(
             .onFocusChanged { focused = it.isFocused }
             .focusProperties {
                 left = FocusRequester.Cancel
-                right = FocusRequester.Cancel
+                if (stepper != null) right = FocusRequester.Cancel
                 if (blockUp) up = FocusRequester.Cancel
                 if (blockDown) down = FocusRequester.Cancel
             }
@@ -502,12 +500,20 @@ private fun StepRow(
                 if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
                 when (event.key) {
                     Key.DirectionLeft -> {
-                        if (enabled) onLeft()
-                        true
+                        if (stepper != null && enabled) stepper.onLeft()
+                        stepper != null
                     }
                     Key.DirectionRight -> {
-                        if (enabled) onRight()
-                        true
+                        if (stepper != null && enabled) stepper.onRight()
+                        stepper != null
+                    }
+                    Key.DirectionCenter, Key.Enter -> {
+                        when (row) {
+                            is PanelRow.Nav -> row.onClick()
+                            is PanelRow.Select -> row.onClick()
+                            is PanelRow.Step -> Unit
+                        }
+                        row !is PanelRow.Step
                     }
                     Key.Back -> {
                         onClose()
@@ -519,54 +525,89 @@ private fun StepRow(
             .padding(horizontal = RowInnerPadding, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(label, color = labelColor, style = MaterialTheme.typography.bodyMedium, maxLines = 1, modifier = Modifier.weight(1f))
-        Icon(Icons.Filled.ChevronLeft, contentDescription = "Decrease", tint = valueColor)
-        Text(value, color = valueColor, style = MaterialTheme.typography.bodyMedium, maxLines = 1, modifier = Modifier.padding(horizontal = 8.dp))
-        Icon(Icons.Filled.ChevronRight, contentDescription = "Increase", tint = valueColor)
+        when (row) {
+            is PanelRow.Nav -> NavContent(row, focused)
+            is PanelRow.Select -> SelectContent(row, focused)
+            is PanelRow.Step -> StepContent(row, focused)
+        }
     }
 }
 
-/** Shared focusable row container: white-on-focus, left-blocked, center/back handling. */
 @Composable
-private fun RowFrame(
-    focused: Boolean,
-    onFocusChanged: (Boolean) -> Unit,
-    focusRequester: FocusRequester?,
-    blockUp: Boolean,
-    blockDown: Boolean,
-    onClose: () -> Unit,
-    onClick: () -> Unit,
-    content: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit
-) {
-    val base = if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier
-    Row(
-        modifier = base
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(RowCornerRadius))
-            .background(if (focused) Color.White else Color.Transparent)
-            .onFocusChanged { onFocusChanged(it.isFocused) }
-            .focusProperties {
-                left = FocusRequester.Cancel
-                if (blockUp) up = FocusRequester.Cancel
-                if (blockDown) down = FocusRequester.Cancel
-            }
-            .focusable()
-            .onKeyEvent { event ->
-                if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
-                when (event.key) {
-                    Key.DirectionCenter, Key.Enter -> {
-                        onClick()
-                        true
-                    }
-                    Key.Back -> {
-                        onClose()
-                        true
-                    }
-                    else -> false
-                }
-            }
-            .padding(horizontal = RowInnerPadding, vertical = 9.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        content = content
+private fun RowScope.NavContent(row: PanelRow.Nav, focused: Boolean) {
+    Text(
+        row.label,
+        color = if (focused) Color.Black else Color.White.copy(alpha = 0.92f),
+        style = MaterialTheme.typography.bodyMedium,
+        maxLines = 1,
+        modifier = Modifier.weight(1f)
     )
+    Text(
+        row.value,
+        color = if (focused) Color.Black.copy(alpha = 0.7f) else Color.White.copy(alpha = 0.7f),
+        style = MaterialTheme.typography.bodyMedium,
+        maxLines = 1
+    )
+    Icon(
+        Icons.AutoMirrored.Filled.KeyboardArrowRight,
+        contentDescription = null,
+        tint = when {
+            !row.chevron -> Color.Transparent
+            focused -> Color.Black
+            else -> Color.White.copy(alpha = 0.6f)
+        }
+    )
+}
+
+@Composable
+private fun RowScope.SelectContent(row: PanelRow.Select, focused: Boolean) {
+    Text(
+        row.primary,
+        color = if (focused) Color.Black else Color.White.copy(alpha = 0.92f),
+        style = MaterialTheme.typography.bodyMedium,
+        maxLines = 1,
+        modifier = Modifier.weight(1f)
+    )
+    row.secondary?.let {
+        Text(
+            it,
+            color = if (focused) Color.Black.copy(alpha = 0.66f) else Color.White.copy(alpha = 0.5f),
+            style = MaterialTheme.typography.bodySmall,
+            maxLines = 1,
+            modifier = Modifier.padding(end = 8.dp)
+        )
+    }
+    if (row.selected) {
+        Icon(
+            Icons.Filled.Check,
+            contentDescription = "Selected",
+            tint = if (focused) Color.Black.copy(alpha = 0.72f) else Color.White.copy(alpha = 0.55f)
+        )
+    }
+}
+
+@Composable
+private fun RowScope.StepContent(row: PanelRow.Step, focused: Boolean) {
+    val labelColor = when {
+        !row.enabled && focused -> Color.Black.copy(alpha = 0.4f)
+        !row.enabled -> Color.White.copy(alpha = 0.38f)
+        focused -> Color.Black
+        else -> Color.White.copy(alpha = 0.92f)
+    }
+    Text(
+        row.label,
+        color = labelColor,
+        style = MaterialTheme.typography.bodyMedium,
+        maxLines = 1,
+        modifier = Modifier.weight(1f)
+    )
+    Icon(Icons.Filled.ChevronLeft, contentDescription = "Decrease", tint = labelColor)
+    Text(
+        row.value,
+        color = labelColor,
+        style = MaterialTheme.typography.bodyMedium,
+        maxLines = 1,
+        modifier = Modifier.padding(horizontal = 8.dp)
+    )
+    Icon(Icons.Filled.ChevronRight, contentDescription = "Increase", tint = labelColor)
 }
