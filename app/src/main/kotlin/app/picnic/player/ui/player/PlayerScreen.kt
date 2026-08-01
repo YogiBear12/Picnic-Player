@@ -80,7 +80,6 @@ import app.picnic.player.ui.player.osd.ModernOsd
 import app.picnic.player.ui.player.osd.PlayerSettingsPanel
 import app.picnic.player.ui.player.osd.PlayerSettingsPanelWidth
 import app.picnic.player.ui.player.osd.SidePanel
-import app.picnic.player.ui.player.osd.SidePanelScrim
 import app.picnic.player.ui.player.osd.SkipIndicator
 import app.picnic.player.ui.player.osd.SkipIndicatorState
 import app.picnic.player.ui.player.osd.SkipSegmentButton
@@ -664,10 +663,6 @@ fun PlayerScreen(
             }
         }
 
-        SidePanelScrim(
-            visible = chrome.panel == Panel.AUDIO || chrome.panel == Panel.SUBTITLE || chrome.panel == Panel.SETTINGS,
-            modifier = Modifier.zIndex(3f)
-        )
         SidePanel(
             visible = chrome.panel == Panel.AUDIO,
             width = TrackPanelWidth,
