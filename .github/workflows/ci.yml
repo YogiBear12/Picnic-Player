@@ -74,10 +74,9 @@ jobs:
           find app/build/reports/ktlint -type f \( -name '*.txt' -o -name '*.html' -o -name '*.xml' \) \
             -print -exec echo '--- {} ---' \; -exec cat {} \; 2>/dev/null || echo "(no ktlint reports)"
 
-      # Forgejo/act: upload-artifact@v4 is unsupported (GHESNotSupportedError). Use v3.
       - name: Upload lint report
         if: failure() && steps.quality.outcome == 'failure'
-        uses: actions/upload-artifact@v3
+        uses: https://code.forgejo.org/forgejo/upload-artifact@v4
         with:
           name: lint-results-debug
           path: |
@@ -88,7 +87,7 @@ jobs:
 
       - name: Upload ktlint reports
         if: failure() && steps.quality.outcome == 'failure'
-        uses: actions/upload-artifact@v3
+        uses: https://code.forgejo.org/forgejo/upload-artifact@v4
         with:
           name: quality-reports
           path: |
