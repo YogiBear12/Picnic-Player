@@ -1,3 +1,37 @@
 {
-    "$schema": "https://docs.renovatebot.com/renovate-schema.json"
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "packageRules": [
+    {
+      "matchManagers": ["gradle"],
+      "matchPackageNames": ["androidx.compose**"],
+      "groupName": "compose"
+    },
+    {
+      "matchManagers": ["gradle"],
+      "matchPackageNames": ["androidx.media3**"],
+      "groupName": "media3"
+    },
+    {
+      "matchManagers": ["github-actions"],
+      "groupName": "actions"
+    },
+    {
+      "groupName": "baseline profile",
+      "matchPackageNames": ["androidx.benchmark**", "androidx.baselineprofile**"]
+    },
+    {
+      "groupName": "kotlin",
+      "matchPackageNames": ["org.jetbrains.kotlin.**", "com.google.devtools.ksp**"]
+    },
+    {
+      "matchPackageNames": ["com.android.**"],
+      "matchUpdateTypes": ["major"],
+      "enabled": false
+    },
+    {
+      "matchPackageNames": ["/upload-artifact/"],
+      "enabled": false
+    }
+  ]
 }
