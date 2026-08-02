@@ -10,12 +10,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.remember
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -24,7 +21,6 @@ import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.dp
 import app.picnic.player.data.playback.TrickplayFrame
-import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.player.ChapterMark
 
 private val PanelGlassFill = Color(0xC0181E24)
@@ -43,9 +39,6 @@ fun ChaptersPanel(
     onClose: () -> Unit
 ) {
     BackHandler(enabled = active) { onClose() }
-    val firstFocus = remember { FocusRequester() }
-    // The panel animates in, so the row is not attached for the first frames.
-    LaunchedEffect(Unit) { firstFocus.requestFocusWhenAttached() }
     Column(Modifier.fillMaxWidth().padding(horizontal = 40.dp).padding(bottom = 28.dp)) {
         Column(
             Modifier
@@ -73,8 +66,7 @@ fun ChaptersPanel(
                 onSelect = {
                     onSelect(it)
                     onClose()
-                },
-                firstFocus = firstFocus
+                }
             )
         }
     }

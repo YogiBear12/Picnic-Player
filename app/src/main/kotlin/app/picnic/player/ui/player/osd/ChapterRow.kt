@@ -14,8 +14,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -36,6 +39,7 @@ import app.picnic.player.data.playback.TrickplayFrame
 import app.picnic.player.ui.ambient.CardFocusBorderWidth
 import app.picnic.player.ui.ambient.CardFocusGlowAlpha
 import app.picnic.player.ui.ambient.CardFocusGlowElevation
+import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.player.ChapterMark
 import coil3.compose.AsyncImage
 
@@ -54,12 +58,19 @@ fun ChapterRow(
     positionMs: Long,
     trickplayFor: (Long) -> TrickplayFrame?,
     onSelect: (Long) -> Unit,
-    firstFocus: FocusRequester,
     modifier: Modifier = Modifier
 ) {
     // Last chapter whose start has passed — the one playing, and the row's initial focus.
     val activeIndex = chapters.indexOfLast { positionMs >= it.startMs }.coerceAtLeast(0)
+    val listState = rememberLazyListState()
+    val activeFocus = remember { FocusRequester() }
+    // Scroll first: an off-screen card is not composed, so its requester cannot attach.
+    LaunchedEffect(Unit) {
+        listState.scrollToItem(activeIndex)
+        activeFocus.requestFocusWhenAttached(maxFrames = 20)
+    }
     LazyRow(
+        state = listState,
         modifier = modifier.fillMaxWidth().focusGroup(),
         horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(10.dp),
         // Near-flush horizontally so cards run to the panel edge; vertical room for scale + glow.
@@ -71,7 +82,7 @@ fun ChapterRow(
                 trickplayFor = trickplayFor,
                 onClick = { onSelect(chapter.startMs) },
                 modifier = if (chapter.index == activeIndex) {
-                    Modifier.focusRequester(firstFocus)
+                    Modifier.focusRequester(activeFocus)
                 } else {
                     Modifier
                 }
