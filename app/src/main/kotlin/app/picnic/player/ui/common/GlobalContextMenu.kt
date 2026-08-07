@@ -112,10 +112,6 @@ fun GlobalContextMenuDialog(
             }
         }
 
-        if (item.overview?.isNotBlank() == true) {
-            add(MenuItem("View synopsis", Icons.Default.Article) { showSynopsis = true })
-        }
-
         add(
             MenuItem(
                 if (played) "Mark unwatched" else "Mark watched",
@@ -125,6 +121,19 @@ fun GlobalContextMenuDialog(
                 onDismiss()
             }
         )
+
+        if (item.overview?.isNotBlank() == true) {
+            add(MenuItem("View synopsis", Icons.Default.Article) { showSynopsis = true })
+        }
+
+        if (item.type == BaseItemKind.EPISODE && item.seriesId != null && onGoToSeries != null) {
+            add(
+                MenuItem("Go to Series", Icons.Default.ArrowForward) {
+                    onGoToSeries(item.seriesId.toString())
+                    onDismiss()
+                }
+            )
+        }
 
         add(
             MenuItem(
@@ -136,19 +145,6 @@ fun GlobalContextMenuDialog(
             }
         )
 
-        if (item.type == BaseItemKind.EPISODE && item.seriesId != null && onGoToSeries != null) {
-            add(
-                MenuItem("Go to Series", Icons.Default.ArrowForward) {
-                    onGoToSeries(item.seriesId.toString())
-                    onDismiss()
-                }
-            )
-        }
-
-        if (item.type == BaseItemKind.MOVIE || item.type == BaseItemKind.EPISODE) {
-            add(MenuItem("View media info", Icons.Default.Info) { showMediaInfo = true })
-        }
-
         if (onAddToPlaylist != null) {
             add(
                 MenuItem("Add to playlist", Icons.AutoMirrored.Filled.PlaylistAdd) {
@@ -156,6 +152,10 @@ fun GlobalContextMenuDialog(
                     onDismiss()
                 }
             )
+        }
+
+        if (item.type == BaseItemKind.MOVIE || item.type == BaseItemKind.EPISODE) {
+            add(MenuItem("View media info", Icons.Default.Info) { showMediaInfo = true })
         }
 
         extraActions.forEach { extra ->

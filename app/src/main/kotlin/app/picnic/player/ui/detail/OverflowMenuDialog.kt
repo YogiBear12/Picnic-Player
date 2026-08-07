@@ -83,6 +83,14 @@ fun SeasonContextMenu(
                 onDismiss()
             }
         )
+        if (onGoToSeries != null) {
+            add(
+                MenuItem("Go to Series", Icons.Default.ArrowForward) {
+                    onGoToSeries()
+                    onDismiss()
+                }
+            )
+        }
         add(
             MenuItem(
                 if (isFavorite) "Remove favorite" else "Add to favorites",
@@ -92,14 +100,6 @@ fun SeasonContextMenu(
                 onDismiss()
             }
         )
-        if (onGoToSeries != null) {
-            add(
-                MenuItem("Go to Series", Icons.Default.ArrowForward) {
-                    onGoToSeries()
-                    onDismiss()
-                }
-            )
-        }
         add(
             MenuItem("Add to playlist", Icons.AutoMirrored.Filled.PlaylistAdd) {
                 addToPlaylist(season)
@@ -197,7 +197,6 @@ fun EpisodeContextMenu(
                 }
             )
         }
-        add(MenuItem("View synopsis", Icons.Default.Article) { showSynopsis = true })
         add(
             MenuItem(
                 if (played) "Mark unwatched" else "Mark watched",
@@ -207,15 +206,7 @@ fun EpisodeContextMenu(
                 onDismiss()
             }
         )
-        add(
-            MenuItem(
-                if (isFavorite) "Remove favorite" else "Add to favorites",
-                if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder
-            ) {
-                onToggleFavorite(!isFavorite)
-                onDismiss()
-            }
-        )
+        add(MenuItem("View synopsis", Icons.Default.Article) { showSynopsis = true })
 
         if (episode.seriesId != null && onGoToSeries != null) {
             add(
@@ -225,6 +216,16 @@ fun EpisodeContextMenu(
                 }
             )
         }
+
+        add(
+            MenuItem(
+                if (isFavorite) "Remove favorite" else "Add to favorites",
+                if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder
+            ) {
+                onToggleFavorite(!isFavorite)
+                onDismiss()
+            }
+        )
 
         add(
             MenuItem("Add to playlist", Icons.AutoMirrored.Filled.PlaylistAdd) {
