@@ -50,6 +50,14 @@ import org.jellyfin.sdk.model.api.BaseItemKind
 
 private val ContextMenuGlassFill = PicnicColors.GlassFill
 
+/** Kinds the player can load directly; anything else has no single stream to start. */
+private val PlayableKinds = setOf(
+    BaseItemKind.MOVIE,
+    BaseItemKind.EPISODE,
+    BaseItemKind.VIDEO,
+    BaseItemKind.MUSIC_VIDEO
+)
+
 /** An extra, caller-supplied context-menu row (e.g. Reorder / Remove from playlist). */
 data class ContextMenuExtra(
     val label: String,
@@ -80,26 +88,28 @@ fun GlobalContextMenuDialog(
     data class MenuItem(val label: String, val icon: ImageVector, val onClick: () -> Unit)
 
     val items = buildList {
-        if (resumeTicks != null) {
-            add(
-                MenuItem("Resume", Icons.Default.PlayArrow) {
-                    onPlay(item.id.toString(), resumeTicks)
-                    onDismiss()
-                }
-            )
-            add(
-                MenuItem("Restart", Icons.Default.Replay) {
-                    onPlay(item.id.toString(), 1L)
-                    onDismiss()
-                }
-            )
-        } else {
-            add(
-                MenuItem("Play", Icons.Default.PlayArrow) {
-                    onPlay(item.id.toString(), null)
-                    onDismiss()
-                }
-            )
+        if (item.type in PlayableKinds) {
+            if (resumeTicks != null) {
+                add(
+                    MenuItem("Resume", Icons.Default.PlayArrow) {
+                        onPlay(item.id.toString(), resumeTicks)
+                        onDismiss()
+                    }
+                )
+                add(
+                    MenuItem("Restart", Icons.Default.Replay) {
+                        onPlay(item.id.toString(), 1L)
+                        onDismiss()
+                    }
+                )
+            } else {
+                add(
+                    MenuItem("Play", Icons.Default.PlayArrow) {
+                        onPlay(item.id.toString(), null)
+                        onDismiss()
+                    }
+                )
+            }
         }
 
         if (item.overview?.isNotBlank() == true) {

@@ -15,28 +15,28 @@ class GlobalContextMenuViewModel @Inject constructor(
     private val mediaRepository: MediaRepository
 ) : ViewModel() {
 
-    fun toggleWatched(item: BaseItemDto, currentPlayed: Boolean) {
+    fun setWatched(item: BaseItemDto, played: Boolean) {
         viewModelScope.launch {
             val session = authRepository.activeSession() ?: return@launch
             runCatching {
                 mediaRepository.setWatched(
                     session = session,
                     itemId = item.id,
-                    played = !currentPlayed,
+                    played = played,
                     seriesId = item.seriesId
                 )
             }
         }
     }
 
-    fun toggleFavorite(item: BaseItemDto, currentFavorite: Boolean) {
+    fun setFavorite(item: BaseItemDto, favorite: Boolean) {
         viewModelScope.launch {
             val session = authRepository.activeSession() ?: return@launch
             runCatching {
                 mediaRepository.setFavorite(
                     session = session,
                     itemId = item.id,
-                    favorite = !currentFavorite,
+                    favorite = favorite,
                     seriesId = item.seriesId
                 )
             }

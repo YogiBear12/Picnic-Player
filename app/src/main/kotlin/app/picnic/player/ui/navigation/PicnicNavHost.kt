@@ -423,8 +423,8 @@ fun PicnicNavHost(
                         contextMenuItem = null
                         navViewModel.push(PlayerKey(id, ticks))
                     },
-                    onMarkWatched = { contextMenuViewModel.toggleWatched(item, it) },
-                    onToggleFavorite = { contextMenuViewModel.toggleFavorite(item, it) },
+                    onMarkWatched = { played -> contextMenuViewModel.setWatched(item, played) },
+                    onToggleFavorite = { favorite -> contextMenuViewModel.setFavorite(item, favorite) },
                     onGoToSeries = if (item.type == BaseItemKind.EPISODE && item.seriesId != null) {
                         { seriesId ->
                             contextMenuItem = null
