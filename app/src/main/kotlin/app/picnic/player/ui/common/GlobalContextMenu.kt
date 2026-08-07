@@ -128,7 +128,7 @@ fun GlobalContextMenuDialog(
 
         if (item.type == BaseItemKind.EPISODE && item.seriesId != null && onGoToSeries != null) {
             add(
-                MenuItem("Go to Series", Icons.Default.ArrowForward) {
+                MenuItem("Go to series", Icons.Default.ArrowForward) {
                     onGoToSeries(item.seriesId.toString())
                     onDismiss()
                 }
@@ -137,7 +137,7 @@ fun GlobalContextMenuDialog(
 
         add(
             MenuItem(
-                if (isFavorite) "Remove favorite" else "Add to favorites",
+                if (isFavorite) "Remove from favorites" else "Add to favorites",
                 if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder
             ) {
                 onToggleFavorite(!isFavorite)

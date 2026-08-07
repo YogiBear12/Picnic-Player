@@ -392,8 +392,8 @@ internal fun requestContextMenuActions(
     canCancel: Boolean
 ): List<RequestMenuEntry> = buildList {
     val goToLabel = when (resolvedRequestMediaType(request)) {
-        SeerrMediaType.MOVIE -> "Go to Movie"
-        SeerrMediaType.TV -> "Go to Series"
+        SeerrMediaType.MOVIE -> "Go to movie"
+        SeerrMediaType.TV -> "Go to series"
         null -> "Go to title"
     }
     add(RequestMenuEntry(RequestMenuAction.GO_TO, goToLabel))

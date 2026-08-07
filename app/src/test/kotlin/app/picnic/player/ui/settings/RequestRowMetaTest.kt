@@ -10,7 +10,6 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class RequestRowMetaTest {
-
     @Test
     fun requestRowMetaLine_movie_yearOnly() {
         val row = displayRow(
@@ -89,7 +88,7 @@ class RequestRowMetaTest {
     @Test
     fun requestContextMenuActions_movieGoToOnlyWhenCannotCancel() {
         assertEquals(
-            listOf(RequestMenuEntry(RequestMenuAction.GO_TO, "Go to Movie")),
+            listOf(RequestMenuEntry(RequestMenuAction.GO_TO, "Go to movie")),
             requestContextMenuActions(displayRow(mediaType = "movie").request, canCancel = false)
         )
     }
@@ -98,7 +97,7 @@ class RequestRowMetaTest {
     fun requestContextMenuActions_seriesIncludesCancelWhenAllowed() {
         assertEquals(
             listOf(
-                RequestMenuEntry(RequestMenuAction.GO_TO, "Go to Series"),
+                RequestMenuEntry(RequestMenuAction.GO_TO, "Go to series"),
                 RequestMenuEntry(RequestMenuAction.CANCEL, "Cancel request")
             ),
             requestContextMenuActions(displayRow(mediaType = "tv").request, canCancel = true)

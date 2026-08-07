@@ -85,7 +85,7 @@ fun SeasonContextMenu(
         )
         if (onGoToSeries != null) {
             add(
-                MenuItem("Go to Series", Icons.Default.ArrowForward) {
+                MenuItem("Go to series", Icons.Default.ArrowForward) {
                     onGoToSeries()
                     onDismiss()
                 }
@@ -93,7 +93,7 @@ fun SeasonContextMenu(
         }
         add(
             MenuItem(
-                if (isFavorite) "Remove favorite" else "Add to favorites",
+                if (isFavorite) "Remove from favorites" else "Add to favorites",
                 if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder
             ) {
                 onToggleFavorite(!isFavorite)
@@ -210,7 +210,7 @@ fun EpisodeContextMenu(
 
         if (episode.seriesId != null && onGoToSeries != null) {
             add(
-                MenuItem("Go to Series", Icons.Default.ArrowForward) {
+                MenuItem("Go to series", Icons.Default.ArrowForward) {
                     onGoToSeries(episode.seriesId.toString())
                     onDismiss()
                 }
@@ -219,7 +219,7 @@ fun EpisodeContextMenu(
 
         add(
             MenuItem(
-                if (isFavorite) "Remove favorite" else "Add to favorites",
+                if (isFavorite) "Remove from favorites" else "Add to favorites",
                 if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder
             ) {
                 onToggleFavorite(!isFavorite)
@@ -348,7 +348,7 @@ fun OverflowMenuDialog(
         if (hasVersions) {
             add(
                 GlassMenuItem(
-                    label = "Choose Version",
+                    label = "Choose version",
                     icon = Icons.Default.Layers,
                     onClick = { showVersions = true }
                 )
@@ -356,7 +356,7 @@ fun OverflowMenuDialog(
         }
         add(
             GlassMenuItem(
-                label = if (isFavorite) "Remove favorite" else "Add to favorites",
+                label = if (isFavorite) "Remove from favorites" else "Add to favorites",
                 icon = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                 onClick = {
                     onToggleFavorite(!isFavorite)
