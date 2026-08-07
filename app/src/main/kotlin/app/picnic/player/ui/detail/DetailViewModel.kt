@@ -201,7 +201,7 @@ class DetailViewModel @AssistedInject constructor(
     }
 
     fun showSeasonPicker() {
-        if (!state.value.canRequestMore) return
+        if (state.value.requestMoreSeasons.isEmpty()) return
         _state.update { it.copy(showSeasonPicker = true) }
     }
 

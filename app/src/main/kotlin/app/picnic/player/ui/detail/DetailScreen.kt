@@ -167,9 +167,9 @@ private fun DetailContent(
     val collections = state.collections
     val localTrailers = state.localTrailers
     val trailerYouTubePackage = state.trailerYouTubePackage
-    val requestMoreVisible = item.type == BaseItemKind.SERIES &&
-        state.requestMoreCanRequest &&
-        state.requestMoreSeasons.any { it.selectable }
+    // Shown for any series Seerr knows about; the picker's per-season badges say what is
+    // already requested or available, and submitting stays gated on what is selectable.
+    val requestMoreVisible = item.type == BaseItemKind.SERIES && state.requestMoreTmdbId != null
     val context = LocalContext.current
 
     val metrics = browseLayoutMetrics(maxWidth, maxHeight)
