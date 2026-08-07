@@ -1,6 +1,5 @@
 package app.picnic.player.ui.settings
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
@@ -37,13 +36,11 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -52,12 +49,7 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.tv.material3.Icon
-import androidx.tv.material3.ListItem
-import androidx.tv.material3.ListItemDefaults
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import app.picnic.player.data.seerr.SeerrImages
@@ -67,8 +59,8 @@ import app.picnic.player.data.seerr.SeerrMediaType
 import app.picnic.player.data.seerr.SeerrRequestDisplay
 import app.picnic.player.data.seerr.SeerrRequestStatus
 import app.picnic.player.data.seerr.formatRequestedSeasonsLabel
-import app.picnic.player.ui.common.longPressGuard
-import app.picnic.player.ui.common.rememberLongPressGuard
+import app.picnic.player.ui.common.ContextMenuAction
+import app.picnic.player.ui.common.ContextMenuDialog
 import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.theme.PicnicColors
 import coil3.compose.AsyncImage
@@ -537,7 +529,6 @@ private fun RequestRow(
     }
 }
 
-private val RequestContextMenuGlassFill = Color(0xEA181E24)
 private const val RequestRowLongPressMs = 550L
 
 @Composable
@@ -548,57 +539,16 @@ private fun RequestContextMenuDialog(
     onGoTo: () -> Unit,
     onCancel: () -> Unit
 ) {
-    BackHandler { onDismiss() }
-    val guard = rememberLongPressGuard()
-
-    data class MenuItem(val label: String, val icon: ImageVector, val onClick: () -> Unit)
-
-    val items = requestContextMenuActions(request, canCancel).map { entry ->
+    val actions = requestContextMenuActions(request, canCancel).map { entry ->
         when (entry.action) {
-            RequestMenuAction.GO_TO -> MenuItem(entry.label, Icons.AutoMirrored.Filled.ArrowForward, onGoTo)
-            RequestMenuAction.CANCEL -> MenuItem(entry.label, Icons.Default.Delete, onCancel)
+            RequestMenuAction.GO_TO ->
+                ContextMenuAction(entry.label, Icons.AutoMirrored.Filled.ArrowForward, onClick = onGoTo)
+            RequestMenuAction.CANCEL ->
+                ContextMenuAction(entry.label, Icons.Default.Delete, onClick = onCancel)
         }
     }
-    val focusRequesters = remember(items.size) { List(items.size) { FocusRequester() } }
 
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
-        Column(
-            verticalArrangement = Arrangement.spacedBy(2.dp),
-            modifier = Modifier
-                .widthIn(min = 320.dp, max = 380.dp)
-                .shadow(8.dp, RoundedCornerShape(28.dp))
-                .clip(RoundedCornerShape(28.dp))
-                .background(RequestContextMenuGlassFill)
-                .padding(24.dp)
-                .longPressGuard(guard)
-        ) {
-            items.forEachIndexed { index, item ->
-                ListItem(
-                    selected = false,
-                    onClick = item.onClick,
-                    headlineContent = { Text(item.label, color = Color.White) },
-                    leadingContent = {
-                        Icon(item.icon, contentDescription = null, tint = Color.White.copy(alpha = 0.8f))
-                    },
-                    colors = ListItemDefaults.colors(
-                        containerColor = Color.Transparent,
-                        focusedContainerColor = Color.White.copy(alpha = 0.15f),
-                        contentColor = Color.White
-                    ),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .focusRequester(focusRequesters[index])
-                )
-            }
-        }
-
-        LaunchedEffect(Unit) {
-            focusRequesters.firstOrNull()?.requestFocusWhenAttached()
-        }
-    }
+    ContextMenuDialog(actions = actions, onDismiss = onDismiss)
 }
 
 @Composable

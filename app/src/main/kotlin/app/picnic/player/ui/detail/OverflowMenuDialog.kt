@@ -1,15 +1,9 @@
 package app.picnic.player.ui.detail
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.Add
@@ -24,32 +18,22 @@ import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.tv.material3.ExperimentalTvMaterial3Api
-import androidx.tv.material3.Icon
-import androidx.tv.material3.ListItem
-import androidx.tv.material3.ListItemDefaults
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import app.picnic.player.ui.common.ContextMenuAction
+import app.picnic.player.ui.common.ContextMenuDialog
 import app.picnic.player.ui.common.LocalAddToPlaylist
 import app.picnic.player.ui.common.MediaInfoDialog
-import app.picnic.player.ui.common.longPressGuard
-import app.picnic.player.ui.common.rememberLongPressGuard
-import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.theme.PicnicColors
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
@@ -69,13 +53,10 @@ fun SeasonContextMenu(
     val played = season.userData?.played ?: false
     val isFavorite = season.userData?.isFavorite ?: false
     val addToPlaylist = LocalAddToPlaylist.current
-    val guard = rememberLongPressGuard()
 
-    data class MenuItem(val label: String, val icon: ImageVector, val onClick: () -> Unit)
-
-    val items = buildList {
+    val actions = buildList {
         add(
-            MenuItem(
+            ContextMenuAction(
                 if (played) "Mark unwatched" else "Mark watched",
                 if (played) Icons.Default.VisibilityOff else Icons.Default.Visibility
             ) {
@@ -85,14 +66,14 @@ fun SeasonContextMenu(
         )
         if (onGoToSeries != null) {
             add(
-                MenuItem("Go to series", Icons.Default.ArrowForward) {
+                ContextMenuAction("Go to series", Icons.Default.ArrowForward) {
                     onGoToSeries()
                     onDismiss()
                 }
             )
         }
         add(
-            MenuItem(
+            ContextMenuAction(
                 if (isFavorite) "Remove from favorites" else "Add to favorites",
                 if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder
             ) {
@@ -101,57 +82,14 @@ fun SeasonContextMenu(
             }
         )
         add(
-            MenuItem("Add to playlist", Icons.AutoMirrored.Filled.PlaylistAdd) {
+            ContextMenuAction("Add to playlist", Icons.AutoMirrored.Filled.PlaylistAdd) {
                 addToPlaylist(season)
                 onDismiss()
             }
         )
     }
 
-    val focusRequesters = remember(items.size) { List(items.size) { FocusRequester() } }
-
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
-        Column(
-            verticalArrangement = Arrangement.spacedBy(2.dp),
-            modifier = Modifier
-                .width(380.dp)
-                .heightIn(max = 460.dp)
-                .shadow(8.dp, RoundedCornerShape(28.dp))
-                .clip(RoundedCornerShape(28.dp))
-                .background(ContextMenuGlassFill)
-                .verticalScroll(rememberScrollState())
-                .padding(24.dp)
-                .longPressGuard(guard)
-        ) {
-            items.forEachIndexed { index, item ->
-                ListItem(
-                    selected = false,
-                    onClick = item.onClick,
-                    headlineContent = {
-                        Text(item.label, color = Color.White)
-                    },
-                    leadingContent = {
-                        Icon(item.icon, contentDescription = null, tint = Color.White.copy(alpha = 0.8f))
-                    },
-                    colors = ListItemDefaults.colors(
-                        containerColor = Color.Transparent,
-                        focusedContainerColor = Color.White.copy(alpha = 0.15f),
-                        contentColor = Color.White
-                    ),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .focusRequester(focusRequesters[index])
-                )
-            }
-        }
-
-        LaunchedEffect(Unit) {
-            focusRequesters.firstOrNull()?.requestFocusWhenAttached()
-        }
-    }
+    ContextMenuDialog(actions = actions, onDismiss = onDismiss)
 }
 
 @OptIn(ExperimentalTvMaterial3Api::class)
@@ -171,34 +109,31 @@ fun EpisodeContextMenu(
 
     var showSynopsis by remember { mutableStateOf(false) }
     var showMediaInfo by remember { mutableStateOf(false) }
-    val guard = rememberLongPressGuard()
 
-    data class MenuItem(val label: String, val icon: ImageVector, val onClick: () -> Unit)
-
-    val items = buildList<MenuItem> {
+    val actions = buildList {
         if (resumeTicks != null) {
             add(
-                MenuItem("Resume", Icons.Default.PlayArrow) {
+                ContextMenuAction("Resume", Icons.Default.PlayArrow) {
                     onPlay(resumeTicks)
                     onDismiss()
                 }
             )
             add(
-                MenuItem("Restart", Icons.Default.Replay) {
+                ContextMenuAction("Restart", Icons.Default.Replay) {
                     onPlay(1L)
                     onDismiss()
                 }
             )
         } else {
             add(
-                MenuItem("Play", Icons.Default.PlayArrow) {
+                ContextMenuAction("Play", Icons.Default.PlayArrow) {
                     onPlay(null)
                     onDismiss()
                 }
             )
         }
         add(
-            MenuItem(
+            ContextMenuAction(
                 if (played) "Mark unwatched" else "Mark watched",
                 if (played) Icons.Default.VisibilityOff else Icons.Default.Visibility
             ) {
@@ -206,11 +141,11 @@ fun EpisodeContextMenu(
                 onDismiss()
             }
         )
-        add(MenuItem("View synopsis", Icons.Default.Article) { showSynopsis = true })
+        add(ContextMenuAction("View synopsis", Icons.Default.Article) { showSynopsis = true })
 
         if (episode.seriesId != null && onGoToSeries != null) {
             add(
-                MenuItem("Go to series", Icons.Default.ArrowForward) {
+                ContextMenuAction("Go to series", Icons.Default.ArrowForward) {
                     onGoToSeries(episode.seriesId.toString())
                     onDismiss()
                 }
@@ -218,7 +153,7 @@ fun EpisodeContextMenu(
         }
 
         add(
-            MenuItem(
+            ContextMenuAction(
                 if (isFavorite) "Remove from favorites" else "Add to favorites",
                 if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder
             ) {
@@ -228,59 +163,16 @@ fun EpisodeContextMenu(
         )
 
         add(
-            MenuItem("Add to playlist", Icons.AutoMirrored.Filled.PlaylistAdd) {
+            ContextMenuAction("Add to playlist", Icons.AutoMirrored.Filled.PlaylistAdd) {
                 addToPlaylist(episode)
                 onDismiss()
             }
         )
 
-        add(MenuItem("View media info", Icons.Default.Info) { showMediaInfo = true })
+        add(ContextMenuAction("View media info", Icons.Default.Info) { showMediaInfo = true })
     }
 
-    val focusRequesters = remember(items.size) { List(items.size) { FocusRequester() } }
-
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
-        Column(
-            verticalArrangement = Arrangement.spacedBy(2.dp),
-            modifier = Modifier
-                .width(380.dp)
-                .heightIn(max = 460.dp)
-                .shadow(8.dp, RoundedCornerShape(28.dp))
-                .clip(RoundedCornerShape(28.dp))
-                .background(ContextMenuGlassFill)
-                .verticalScroll(rememberScrollState())
-                .padding(24.dp)
-                .longPressGuard(guard)
-        ) {
-            items.forEachIndexed { index, item ->
-                ListItem(
-                    selected = false,
-                    onClick = item.onClick,
-                    headlineContent = {
-                        Text(item.label, color = Color.White)
-                    },
-                    leadingContent = {
-                        Icon(item.icon, contentDescription = null, tint = Color.White.copy(alpha = 0.8f))
-                    },
-                    colors = ListItemDefaults.colors(
-                        containerColor = Color.Transparent,
-                        focusedContainerColor = Color.White.copy(alpha = 0.15f),
-                        contentColor = Color.White
-                    ),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .focusRequester(focusRequesters[index])
-                )
-            }
-        }
-
-        LaunchedEffect(Unit) {
-            focusRequesters.firstOrNull()?.requestFocusWhenAttached()
-        }
-    }
+    ContextMenuDialog(actions = actions, onDismiss = onDismiss)
 
     if (showSynopsis) {
         EpisodeSynopsisDialog(episode = episode, onDismiss = { showSynopsis = false })
@@ -315,7 +207,7 @@ fun OverflowMenuDialog(
 
     if (showVersions) {
         val versionItems = mediaSources.mapIndexed { index, source ->
-            GlassMenuItem(
+            ContextMenuAction(
                 label = source.name ?: "Version ${index + 1}",
                 icon = Icons.Default.PlayArrow,
                 onClick = {
@@ -324,9 +216,10 @@ fun OverflowMenuDialog(
                 }
             )
         }
-        GlassContextMenu(
-            items = versionItems,
-            onDismissRequest = { showVersions = false }
+        ContextMenuDialog(
+            actions = versionItems,
+            onDismiss = { showVersions = false },
+            openedByLongPress = false
         )
         return
     }
@@ -334,7 +227,7 @@ fun OverflowMenuDialog(
     val mainItems = buildList {
         if (showRequestMore) {
             add(
-                GlassMenuItem(
+                ContextMenuAction(
                     label = if (requestMoreBusy) "Requesting…" else "Request more",
                     icon = Icons.Default.Add,
                     enabled = !requestMoreBusy,
@@ -347,7 +240,7 @@ fun OverflowMenuDialog(
         }
         if (hasVersions) {
             add(
-                GlassMenuItem(
+                ContextMenuAction(
                     label = "Choose version",
                     icon = Icons.Default.Layers,
                     onClick = { showVersions = true }
@@ -355,7 +248,7 @@ fun OverflowMenuDialog(
             )
         }
         add(
-            GlassMenuItem(
+            ContextMenuAction(
                 label = if (isFavorite) "Remove from favorites" else "Add to favorites",
                 icon = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                 onClick = {
@@ -365,7 +258,7 @@ fun OverflowMenuDialog(
             )
         )
         add(
-            GlassMenuItem(
+            ContextMenuAction(
                 label = "Add to playlist",
                 icon = Icons.AutoMirrored.Filled.PlaylistAdd,
                 onClick = {
@@ -376,7 +269,7 @@ fun OverflowMenuDialog(
         )
         if (item.type == BaseItemKind.MOVIE || item.type == BaseItemKind.EPISODE) {
             add(
-                GlassMenuItem(
+                ContextMenuAction(
                     label = "View media info",
                     icon = Icons.Default.Info,
                     onClick = { showMediaInfo = true }
@@ -385,69 +278,7 @@ fun OverflowMenuDialog(
         }
     }
 
-    GlassContextMenu(
-        items = mainItems,
-        onDismissRequest = onDismiss
-    )
-}
-
-private data class GlassMenuItem(
-    val label: String,
-    val icon: ImageVector,
-    val enabled: Boolean = true,
-    val onClick: () -> Unit
-)
-
-@OptIn(ExperimentalTvMaterial3Api::class)
-@Composable
-private fun GlassContextMenu(
-    items: List<GlassMenuItem>,
-    onDismissRequest: () -> Unit
-) {
-    val focusRequesters = remember(items.size) { List(items.size) { FocusRequester() } }
-
-    Dialog(
-        onDismissRequest = onDismissRequest,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
-        Column(
-            verticalArrangement = Arrangement.spacedBy(2.dp),
-            modifier = Modifier
-                .width(380.dp)
-                .heightIn(max = 460.dp)
-                .shadow(8.dp, RoundedCornerShape(28.dp))
-                .clip(RoundedCornerShape(28.dp))
-                .background(ContextMenuGlassFill)
-                .verticalScroll(rememberScrollState())
-                .padding(24.dp)
-        ) {
-            items.forEachIndexed { index, item ->
-                ListItem(
-                    selected = false,
-                    enabled = item.enabled,
-                    onClick = item.onClick,
-                    headlineContent = {
-                        Text(item.label, color = Color.White)
-                    },
-                    leadingContent = {
-                        Icon(item.icon, contentDescription = null, tint = Color.White.copy(alpha = 0.8f))
-                    },
-                    colors = ListItemDefaults.colors(
-                        containerColor = Color.Transparent,
-                        focusedContainerColor = Color.White.copy(alpha = 0.15f),
-                        contentColor = Color.White
-                    ),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .focusRequester(focusRequesters[index])
-                )
-            }
-        }
-
-        LaunchedEffect(Unit) {
-            focusRequesters.firstOrNull()?.requestFocusWhenAttached()
-        }
-    }
+    ContextMenuDialog(actions = mainItems, onDismiss = onDismiss, openedByLongPress = false)
 }
 
 @Composable
