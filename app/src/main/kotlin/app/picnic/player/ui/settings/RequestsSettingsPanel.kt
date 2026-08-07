@@ -383,18 +383,21 @@ internal fun resolvedRequestMediaType(request: SeerrMediaRequest): SeerrMediaTyp
     }
 }
 
-internal fun requestContextMenuLabels(
+internal enum class RequestMenuAction { GO_TO, CANCEL }
+
+internal data class RequestMenuEntry(val action: RequestMenuAction, val label: String)
+
+internal fun requestContextMenuActions(
     request: SeerrMediaRequest,
     canCancel: Boolean
-): List<String> = buildList {
-    add(
-        when (resolvedRequestMediaType(request)) {
-            SeerrMediaType.MOVIE -> "Go to Movie"
-            SeerrMediaType.TV -> "Go to Series"
-            null -> "Go to title"
-        }
-    )
-    if (canCancel) add("Cancel request")
+): List<RequestMenuEntry> = buildList {
+    val goToLabel = when (resolvedRequestMediaType(request)) {
+        SeerrMediaType.MOVIE -> "Go to Movie"
+        SeerrMediaType.TV -> "Go to Series"
+        null -> "Go to title"
+    }
+    add(RequestMenuEntry(RequestMenuAction.GO_TO, goToLabel))
+    if (canCancel) add(RequestMenuEntry(RequestMenuAction.CANCEL, "Cancel request"))
 }
 
 /**
@@ -550,14 +553,10 @@ private fun RequestContextMenuDialog(
 
     data class MenuItem(val label: String, val icon: ImageVector, val onClick: () -> Unit)
 
-    val items = requestContextMenuLabels(request, canCancel).map { label ->
-        when (label) {
-            "Cancel request" -> MenuItem(label, Icons.Default.Delete) {
-                onCancel()
-            }
-            else -> MenuItem(label, Icons.AutoMirrored.Filled.ArrowForward) {
-                onGoTo()
-            }
+    val items = requestContextMenuActions(request, canCancel).map { entry ->
+        when (entry.action) {
+            RequestMenuAction.GO_TO -> MenuItem(entry.label, Icons.AutoMirrored.Filled.ArrowForward, onGoTo)
+            RequestMenuAction.CANCEL -> MenuItem(entry.label, Icons.Default.Delete, onCancel)
         }
     }
     val focusRequesters = remember(items.size) { List(items.size) { FocusRequester() } }

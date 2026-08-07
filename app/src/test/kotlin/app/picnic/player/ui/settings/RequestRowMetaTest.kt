@@ -87,26 +87,32 @@ class RequestRowMetaTest {
     }
 
     @Test
-    fun requestContextMenuLabels_movieGoToOnlyWhenCannotCancel() {
+    fun requestContextMenuActions_movieGoToOnlyWhenCannotCancel() {
         assertEquals(
-            listOf("Go to Movie"),
-            requestContextMenuLabels(displayRow(mediaType = "movie").request, canCancel = false)
+            listOf(RequestMenuEntry(RequestMenuAction.GO_TO, "Go to Movie")),
+            requestContextMenuActions(displayRow(mediaType = "movie").request, canCancel = false)
         )
     }
 
     @Test
-    fun requestContextMenuLabels_seriesIncludesCancelWhenAllowed() {
+    fun requestContextMenuActions_seriesIncludesCancelWhenAllowed() {
         assertEquals(
-            listOf("Go to Series", "Cancel request"),
-            requestContextMenuLabels(displayRow(mediaType = "tv").request, canCancel = true)
+            listOf(
+                RequestMenuEntry(RequestMenuAction.GO_TO, "Go to Series"),
+                RequestMenuEntry(RequestMenuAction.CANCEL, "Cancel request")
+            ),
+            requestContextMenuActions(displayRow(mediaType = "tv").request, canCancel = true)
         )
     }
 
     @Test
-    fun requestContextMenuLabels_unknownUsesGenericTitleLabel() {
+    fun requestContextMenuActions_unknownUsesGenericTitleLabel() {
         assertEquals(
-            listOf("Go to title", "Cancel request"),
-            requestContextMenuLabels(displayRow(mediaType = "music").request, canCancel = true)
+            listOf(
+                RequestMenuEntry(RequestMenuAction.GO_TO, "Go to title"),
+                RequestMenuEntry(RequestMenuAction.CANCEL, "Cancel request")
+            ),
+            requestContextMenuActions(displayRow(mediaType = "music").request, canCancel = true)
         )
     }
 
