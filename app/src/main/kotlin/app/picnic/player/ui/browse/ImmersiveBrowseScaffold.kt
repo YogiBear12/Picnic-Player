@@ -20,6 +20,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -85,6 +86,27 @@ internal fun ImmersiveBrowseScaffold(
             runCatching { focus.rowFocusRequesters.getOrNull(rowIndex)?.requestFocus() }
         }
         onContentFocusSeeded()
+    }
+
+    // A vanished card takes focus with it. Updating the saved item re-pins the row's requester,
+    // so that has to happen before the request.
+    val focusedRowItems = rows.getOrNull(restoreRow)?.items.orEmpty()
+    val savedSlot = focusedItemId?.let { id -> focusedRowItems.indexOfFirst { it.id == id } } ?: -1
+    var lastFocusedSlot by remember { mutableIntStateOf(0) }
+    LaunchedEffect(savedSlot) {
+        if (savedSlot >= 0) lastFocusedSlot = savedSlot
+    }
+    LaunchedEffect(focusedRowItems) {
+        if (seedContentFocus || rows.isEmpty() || focusedItemId == null || savedSlot >= 0) {
+            return@LaunchedEffect
+        }
+        if (focusedRowItems.isEmpty()) {
+            focus.rowFocusRequesters.getOrNull(restoreRow)?.requestFocusWhenAttached()
+            return@LaunchedEffect
+        }
+        val slot = lastFocusedSlot.coerceIn(0, focusedRowItems.lastIndex)
+        onBrowseItemFocused(restoreRow, focusedRowItems[slot])
+        focus.rowCardFocus.getOrNull(restoreRow)?.requestFocusWhenAttached()
     }
 
     val spaceAbovePx = with(androidx.compose.ui.platform.LocalDensity.current) {
