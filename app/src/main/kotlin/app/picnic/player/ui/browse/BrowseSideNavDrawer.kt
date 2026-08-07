@@ -83,6 +83,7 @@ import androidx.tv.material3.Text
 import app.picnic.player.data.auth.UserSession
 import app.picnic.player.data.nav.NavLayout
 import app.picnic.player.ui.common.rememberIdentityBrush
+import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.common.verticalFadingEdges
 import app.picnic.player.ui.theme.PicnicColors
 import coil3.compose.AsyncImage
@@ -179,12 +180,35 @@ internal fun BrowseSideNavDrawer(
         itemFocusRequesters[key]?.let { runCatching { it.requestFocus() } }
     }
 
+    // Moving focus before the row leaves would show two steps, so this waits for the layout the
+    // pin produced and lands on the neighbour in the same frame the row goes.
+    var refocusAfter by remember { mutableStateOf<Pair<String, NavLayout>?>(null) }
+    LaunchedEffect(layout) {
+        val (key, before) = refocusAfter ?: return@LaunchedEffect
+        if (layout == before) return@LaunchedEffect
+        refocusAfter = null
+        itemFocusRequesters[key]?.requestFocusWhenAttached(maxFrames = 20)
+    }
+
+    fun neighbourOf(dest: BrowseDest): Pair<String, NavLayout>? {
+        val index = destinations.indexOfFirst { it.key == dest.key }
+        if (index < 0) return null
+        val neighbour = destinations.getOrNull(index - 1) ?: destinations.getOrNull(index + 1)
+        return neighbour?.let { it.key to layout }
+    }
+
     actionsDest?.let { dest ->
         NavDestActionsDialog(
             dest = dest,
             pinned = layout.isPinned(dest.key),
-            onPin = { onPin(dest) },
-            onUnpin = { onUnpin(dest) },
+            onPin = {
+                refocusAfter = neighbourOf(dest)
+                onPin(dest)
+            },
+            onUnpin = {
+                refocusAfter = neighbourOf(dest)
+                onUnpin(dest)
+            },
             onReorder = { onEnterReorder(dest) },
             onDismiss = { actionsDest = null }
         )
