@@ -122,12 +122,29 @@ class DetailViewModel @AssistedInject constructor(
         // screen instant; the bus keeps it truthful.
         viewModelScope.launch {
             changeBus.events.collect { change ->
-                if (change is LibraryChange.ItemUpdated &&
-                    (change.itemId == itemId || change.seriesId == itemId)
-                ) {
+                if (change !is LibraryChange.ItemUpdated) return@collect
+                if (change.itemId == itemId || change.seriesId == itemId) {
                     reload()
+                } else {
+                    patchRails(change.itemId)
                 }
             }
+        }
+    }
+
+    private suspend fun patchRails(changedId: String) {
+        val session = state.value.session ?: return
+        val current = state.value
+        val inRails = current.similarItems.any { it.id.toString() == changedId } ||
+            current.collections.any { it.id.toString() == changedId }
+        if (!inRails) return
+        val updated = runCatching { mediaRepository.item(session, UUID.fromString(changedId)) }
+            .getOrNull() ?: return
+        _state.update { state ->
+            state.copy(
+                similarItems = state.similarItems.map { if (it.id == updated.id) updated else it },
+                collections = state.collections.map { if (it.id == updated.id) updated else it }
+            )
         }
     }
 
