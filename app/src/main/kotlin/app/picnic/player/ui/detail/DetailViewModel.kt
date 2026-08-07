@@ -164,17 +164,16 @@ class DetailViewModel @AssistedInject constructor(
         }
     }
 
-    fun toggleFavorite() {
+    fun setFavorite(favorite: Boolean) {
         val currentItem = state.value.item ?: return
         val currentSession = state.value.session ?: return
-        val currentFavorite = currentItem.userData?.isFavorite ?: false
 
         viewModelScope.launch {
             runCatching {
                 mediaRepository.setFavorite(
                     currentSession,
                     currentItem.id,
-                    !currentFavorite,
+                    favorite,
                     currentItem.seriesId
                 )
             }

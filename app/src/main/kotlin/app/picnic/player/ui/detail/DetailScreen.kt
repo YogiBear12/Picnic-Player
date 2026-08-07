@@ -585,7 +585,7 @@ private fun DetailContent(
                 onPlay(item.id.toString(), null, sourceId)
             },
             onDismiss = { showOverflowMenu = false },
-            onToggleFavorite = { viewModel.toggleFavorite() },
+            onToggleFavorite = viewModel::setFavorite,
             showRequestMore = requestMoreVisible,
             requestMoreBusy = state.requestMoreBusy,
             onRequestMore = { viewModel.showSeasonPicker() }

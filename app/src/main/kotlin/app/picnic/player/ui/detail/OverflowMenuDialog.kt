@@ -295,7 +295,7 @@ fun OverflowMenuDialog(
     item: BaseItemDto,
     onPlayVersion: (String) -> Unit,
     onDismiss: () -> Unit,
-    onToggleFavorite: (Boolean) -> Unit = {},
+    onToggleFavorite: (Boolean) -> Unit,
     showRequestMore: Boolean = false,
     requestMoreBusy: Boolean = false,
     onRequestMore: () -> Unit = {}
