@@ -11,19 +11,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.onKeyEvent
-import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -32,7 +26,8 @@ import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
-import kotlinx.coroutines.delay
+import app.picnic.player.ui.common.longPressGuard
+import app.picnic.player.ui.common.rememberLongPressGuard
 
 private val DialogGlassFill = Color(0xEA181E24)
 private val PanelWidth = 280.dp
@@ -42,8 +37,8 @@ private val PanelCornerRadius = 20.dp
  * Compact Actions picker for a customisable drawer destination (#88):
  * Pin/Unpin + Reorder only. Opened via [NavigationDrawerItem] long-click.
  *
- * Rows start disabled until the long-press Select is released (same guard as
- * [app.picnic.player.ui.common.GlobalContextMenuDialog]).
+ * Rows ignore Select until the opening long-press is released
+ * ([app.picnic.player.ui.common.LongPressGuard]).
  */
 @Composable
 internal fun NavDestActionsDialog(
@@ -56,12 +51,8 @@ internal fun NavDestActionsDialog(
 ) {
     BackHandler { onDismiss() }
     val seedFocus = remember { FocusRequester() }
-    var actionsEnabled by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) {
-        runCatching { seedFocus.requestFocus() }
-        delay(1000L)
-        actionsEnabled = true
-    }
+    val guard = rememberLongPressGuard()
+    LaunchedEffect(Unit) { runCatching { seedFocus.requestFocus() } }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -75,23 +66,11 @@ internal fun NavDestActionsDialog(
                 .background(DialogGlassFill)
                 .padding(vertical = 16.dp, horizontal = 16.dp)
                 .focusGroup()
-                .onKeyEvent { event ->
-                    if (event.type == KeyEventType.KeyUp &&
-                        event.nativeKeyEvent.keyCode in setOf(
-                            android.view.KeyEvent.KEYCODE_ENTER,
-                            android.view.KeyEvent.KEYCODE_DPAD_CENTER,
-                            android.view.KeyEvent.KEYCODE_NUMPAD_ENTER
-                        )
-                    ) {
-                        actionsEnabled = true
-                    }
-                    false
-                },
+                .longPressGuard(guard),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             ActionRow(
                 text = if (pinned) "Unpin from sidebar" else "Pin to sidebar",
-                enabled = actionsEnabled,
                 focusRequester = seedFocus,
                 onClick = {
                     if (pinned) onUnpin() else onPin()
@@ -100,7 +79,6 @@ internal fun NavDestActionsDialog(
             )
             ActionRow(
                 text = "Reorder",
-                enabled = actionsEnabled,
                 focusRequester = null,
                 onClick = {
                     onReorder()
@@ -114,23 +92,19 @@ internal fun NavDestActionsDialog(
 @Composable
 private fun ActionRow(
     text: String,
-    enabled: Boolean,
     focusRequester: FocusRequester?,
     onClick: () -> Unit
 ) {
     Surface(
         onClick = onClick,
-        enabled = enabled,
         scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
         colors = ClickableSurfaceDefaults.colors(
             containerColor = Color.White.copy(alpha = 0.08f),
             focusedContainerColor = Color.White,
             pressedContainerColor = Color.White,
-            disabledContainerColor = Color.White.copy(alpha = 0.08f),
             contentColor = Color.White.copy(alpha = 0.85f),
             focusedContentColor = Color.Black,
-            pressedContentColor = Color.Black,
-            disabledContentColor = Color.White.copy(alpha = 0.85f)
+            pressedContentColor = Color.Black
         ),
         shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(10.dp)),
         modifier = Modifier

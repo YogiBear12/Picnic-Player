@@ -34,9 +34,6 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.onKeyEvent
-import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -48,7 +45,6 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.theme.PicnicColors
-import kotlinx.coroutines.delay
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
 
@@ -77,14 +73,9 @@ fun GlobalContextMenuDialog(
     val isFavorite = item.userData?.isFavorite ?: false
     val resumeTicks = item.userData?.playbackPositionTicks?.takeIf { it > 0L }
 
-    // Disable items for ~1s after opening from long-press so the held key can't fire the first item.
     var showSynopsis by remember { mutableStateOf(false) }
     var showMediaInfo by remember { mutableStateOf(false) }
-    var enabled by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) {
-        delay(1000L)
-        enabled = true
-    }
+    val guard = rememberLongPressGuard()
 
     data class MenuItem(val label: String, val icon: ImageVector, val onClick: () -> Unit)
 
@@ -183,24 +174,11 @@ fun GlobalContextMenuDialog(
                 .background(ContextMenuGlassFill)
                 .verticalScroll(rememberScrollState())
                 .padding(24.dp)
-                // Release the held key so it can't immediately click the first enabled item.
-                .onKeyEvent { event ->
-                    if (event.type == KeyEventType.KeyUp &&
-                        event.nativeKeyEvent.keyCode in setOf(
-                            android.view.KeyEvent.KEYCODE_ENTER,
-                            android.view.KeyEvent.KEYCODE_DPAD_CENTER,
-                            android.view.KeyEvent.KEYCODE_NUMPAD_ENTER
-                        )
-                    ) {
-                        enabled = true
-                    }
-                    false
-                }
+                .longPressGuard(guard)
         ) {
             items.forEachIndexed { index, menuItem ->
                 ListItem(
                     selected = false,
-                    enabled = enabled,
                     onClick = menuItem.onClick,
                     headlineContent = {
                         Text(menuItem.label, color = Color.White)

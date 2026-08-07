@@ -1,6 +1,5 @@
 package app.picnic.player.ui.detail
 
-import android.view.KeyEvent as AndroidKeyEvent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -37,9 +36,6 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.onKeyEvent
-import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -51,9 +47,10 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import app.picnic.player.ui.common.LocalAddToPlaylist
 import app.picnic.player.ui.common.MediaInfoDialog
+import app.picnic.player.ui.common.longPressGuard
+import app.picnic.player.ui.common.rememberLongPressGuard
 import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.theme.PicnicColors
-import kotlinx.coroutines.delay
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
 
@@ -72,13 +69,7 @@ fun SeasonContextMenu(
     val played = season.userData?.played ?: false
     val isFavorite = season.userData?.isFavorite ?: false
     val addToPlaylist = LocalAddToPlaylist.current
-
-    // Disable items for ~1s after opening from long-press so the held key can't fire the first item.
-    var enabled by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) {
-        delay(1000L)
-        enabled = true
-    }
+    val guard = rememberLongPressGuard()
 
     data class MenuItem(val label: String, val icon: ImageVector, val onClick: () -> Unit)
 
@@ -133,23 +124,11 @@ fun SeasonContextMenu(
                 .background(ContextMenuGlassFill)
                 .verticalScroll(rememberScrollState())
                 .padding(24.dp)
-                .onKeyEvent { event ->
-                    if (event.type == KeyEventType.KeyUp &&
-                        event.nativeKeyEvent.keyCode in setOf(
-                            AndroidKeyEvent.KEYCODE_ENTER,
-                            AndroidKeyEvent.KEYCODE_DPAD_CENTER,
-                            AndroidKeyEvent.KEYCODE_NUMPAD_ENTER
-                        )
-                    ) {
-                        enabled = true
-                    }
-                    false
-                }
+                .longPressGuard(guard)
         ) {
             items.forEachIndexed { index, item ->
                 ListItem(
                     selected = false,
-                    enabled = enabled,
                     onClick = item.onClick,
                     headlineContent = {
                         Text(item.label, color = Color.White)
@@ -192,12 +171,7 @@ fun EpisodeContextMenu(
 
     var showSynopsis by remember { mutableStateOf(false) }
     var showMediaInfo by remember { mutableStateOf(false) }
-    var enabled by remember { mutableStateOf(false) }
-
-    LaunchedEffect(Unit) {
-        delay(1000L)
-        enabled = true
-    }
+    val guard = rememberLongPressGuard()
 
     data class MenuItem(val label: String, val icon: ImageVector, val onClick: () -> Unit)
 
@@ -278,23 +252,11 @@ fun EpisodeContextMenu(
                 .background(ContextMenuGlassFill)
                 .verticalScroll(rememberScrollState())
                 .padding(24.dp)
-                .onKeyEvent { event ->
-                    if (event.type == KeyEventType.KeyUp &&
-                        event.nativeKeyEvent.keyCode in setOf(
-                            AndroidKeyEvent.KEYCODE_ENTER,
-                            AndroidKeyEvent.KEYCODE_DPAD_CENTER,
-                            AndroidKeyEvent.KEYCODE_NUMPAD_ENTER
-                        )
-                    ) {
-                        enabled = true
-                    }
-                    false
-                }
+                .longPressGuard(guard)
         ) {
             items.forEachIndexed { index, item ->
                 ListItem(
                     selected = false,
-                    enabled = enabled,
                     onClick = item.onClick,
                     headlineContent = {
                         Text(item.label, color = Color.White)

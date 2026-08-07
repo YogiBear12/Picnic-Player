@@ -67,6 +67,8 @@ import app.picnic.player.data.seerr.SeerrMediaType
 import app.picnic.player.data.seerr.SeerrRequestDisplay
 import app.picnic.player.data.seerr.SeerrRequestStatus
 import app.picnic.player.data.seerr.formatRequestedSeasonsLabel
+import app.picnic.player.ui.common.longPressGuard
+import app.picnic.player.ui.common.rememberLongPressGuard
 import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.theme.PicnicColors
 import coil3.compose.AsyncImage
@@ -544,11 +546,7 @@ private fun RequestContextMenuDialog(
     onCancel: () -> Unit
 ) {
     BackHandler { onDismiss() }
-    var enabled by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) {
-        delay(1000L)
-        enabled = true
-    }
+    val guard = rememberLongPressGuard()
 
     data class MenuItem(val label: String, val icon: ImageVector, val onClick: () -> Unit)
 
@@ -576,23 +574,11 @@ private fun RequestContextMenuDialog(
                 .clip(RoundedCornerShape(28.dp))
                 .background(RequestContextMenuGlassFill)
                 .padding(24.dp)
-                .onKeyEvent { event ->
-                    if (event.type == KeyEventType.KeyUp &&
-                        event.nativeKeyEvent.keyCode in setOf(
-                            android.view.KeyEvent.KEYCODE_ENTER,
-                            android.view.KeyEvent.KEYCODE_DPAD_CENTER,
-                            android.view.KeyEvent.KEYCODE_NUMPAD_ENTER
-                        )
-                    ) {
-                        enabled = true
-                    }
-                    false
-                }
+                .longPressGuard(guard)
         ) {
             items.forEachIndexed { index, item ->
                 ListItem(
                     selected = false,
-                    enabled = enabled,
                     onClick = item.onClick,
                     headlineContent = { Text(item.label, color = Color.White) },
                     leadingContent = {
