@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.picnic.player.data.auth.AuthRepository
 import app.picnic.player.data.auth.UserSession
+import app.picnic.player.data.media.LibraryChange
+import app.picnic.player.data.media.LibraryChangeBus
 import app.picnic.player.data.media.MediaRepository
 import app.picnic.player.data.seerr.SeerrCatalogItem
 import app.picnic.player.data.seerr.SeerrLinkState
@@ -32,7 +34,8 @@ import org.jellyfin.sdk.model.api.BaseItemKind
 class SearchViewModel @Inject constructor(
     private val authRepository: AuthRepository,
     private val mediaRepository: MediaRepository,
-    private val seerrRepository: SeerrRepository
+    private val seerrRepository: SeerrRepository,
+    private val changeBus: LibraryChangeBus
 ) : ViewModel() {
 
     /** Which part of the pane held focus last — the seed-on-return target. */
@@ -98,6 +101,13 @@ class SearchViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
+            changeBus.events.collect { change ->
+                if (change is LibraryChange.ItemUpdated) {
+                    patchResults(setOfNotNull(change.itemId, change.seriesId))
+                }
+            }
+        }
+        viewModelScope.launch {
             queryFlow.debounce(QUERY_DEBOUNCE_MS).collectLatest { query ->
                 if (query.isBlank()) {
                     _state.update {
@@ -147,6 +157,29 @@ class SearchViewModel @Inject constructor(
                     )
                 }
             }
+        }
+    }
+
+    /**
+     * Refetches only the affected rows rather than re-running the query, so results keep their
+     * order and the focused card stays where it is.
+     */
+    private suspend fun patchResults(changedIds: Set<String>) {
+        val session = _state.value.session ?: return
+        val affected = _state.value.results
+            .flatMap { it.items }
+            .filter { it.id.toString() in changedIds }
+        if (affected.isEmpty()) return
+        val refreshed = affected
+            .mapNotNull { runCatching { mediaRepository.item(session, it.id) }.getOrNull() }
+            .associateBy { it.id }
+        if (refreshed.isEmpty()) return
+        _state.update { state ->
+            state.copy(
+                results = state.results.map { row ->
+                    row.copy(items = row.items.map { refreshed[it.id] ?: it })
+                }
+            )
         }
     }
 
