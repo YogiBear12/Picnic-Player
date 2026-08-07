@@ -81,6 +81,7 @@ import app.picnic.player.ui.browse.runtimeMinutes
 import app.picnic.player.ui.common.ContextMenuExtra
 import app.picnic.player.ui.common.GlobalContextMenuDialog
 import app.picnic.player.ui.common.requestFocusWhenAttached
+import app.picnic.player.ui.common.watchProgress
 import app.picnic.player.ui.detail.ExpandableButton
 import app.picnic.player.ui.theme.PicnicColors
 import coil3.compose.AsyncImage
@@ -440,7 +441,7 @@ private fun PlaylistRow(
                     modifier = Modifier.fillMaxSize().background(Color.DarkGray)
                 )
                 ItemProgressBar(item)
-                val progress = ((item.userData?.playedPercentage ?: 0.0) / 100.0).toFloat()
+                val progress = item.watchProgress()
                 val remaining = minutesLeft(item)
                 if (remaining != null && progress > 0.01f) {
                     CardTimeLeftBadge(remaining)
@@ -514,7 +515,7 @@ private fun PosterMosaic(session: UserSession, items: List<BaseItemDto>, modifie
 
 @Composable
 private fun BoxScope.ItemProgressBar(item: BaseItemDto) {
-    val progress = ((item.userData?.playedPercentage ?: 0.0) / 100.0).toFloat()
+    val progress = item.watchProgress()
     if (progress <= 0.01f) return
     Box(
         Modifier

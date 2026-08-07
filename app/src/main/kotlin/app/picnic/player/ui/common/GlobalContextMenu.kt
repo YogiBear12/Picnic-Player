@@ -31,14 +31,6 @@ import androidx.tv.material3.Text
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
 
-/** Kinds the player can load directly; anything else has no single stream to start. */
-private val PlayableKinds = setOf(
-    BaseItemKind.MOVIE,
-    BaseItemKind.EPISODE,
-    BaseItemKind.VIDEO,
-    BaseItemKind.MUSIC_VIDEO
-)
-
 /** An extra, caller-supplied context-menu row (e.g. Reorder / Remove from playlist). */
 data class ContextMenuExtra(
     val label: String,

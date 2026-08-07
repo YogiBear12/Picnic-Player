@@ -51,6 +51,7 @@ import app.picnic.player.ui.ambient.rememberCardFocusAccent
 import app.picnic.player.ui.ambient.rememberCardFocusGlow
 import app.picnic.player.ui.common.ArtworkImage
 import app.picnic.player.ui.common.ArtworkLogTag
+import app.picnic.player.ui.common.watchProgress
 import org.jellyfin.sdk.model.api.BaseItemDto
 
 /**
@@ -85,7 +86,7 @@ internal fun BrowsePosterCard(
     }
     val imageUrl = overrideImageUrl ?: cardArtworkUrl(session, item, style.landscape, widthPx)
     val showOverlay = style.landscape && overrideImageUrl == null && thumbUrl == null
-    val progress = (item.userData?.playedPercentage ?: 0.0).toFloat() / 100f
+    val progress = item.watchProgress()
     val shape = RoundedCornerShape(12.dp)
     // Extract the palette as the card composes so the accent is ready when focus lands — no white
     // flash. The same artwork at accent size: a fraction of the displayed image's bytes, and a URL
