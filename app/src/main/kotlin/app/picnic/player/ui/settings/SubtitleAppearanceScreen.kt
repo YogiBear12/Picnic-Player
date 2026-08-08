@@ -66,7 +66,6 @@ import app.picnic.player.data.settings.SettingsStore
 import app.picnic.player.data.settings.SubtitleAppearance
 import app.picnic.player.data.settings.SubtitleAppearanceEditor
 import app.picnic.player.data.settings.SubtitleArea
-import app.picnic.player.data.settings.SubtitleBackground
 import app.picnic.player.playback.BlackBars
 import app.picnic.player.playback.applyTo
 import app.picnic.player.playback.subtitleBottomPaddingFraction
@@ -105,9 +104,12 @@ class SubtitleAppearanceViewModel @Inject constructor(
 
     fun cycleColour(forward: Boolean) = viewModelScope.launch { editor.cycleColour(forward) }
 
-    fun cycleBackground(forward: Boolean) = viewModelScope.launch { editor.cycleBackground(forward) }
+    // Two-state toggle — direction is irrelevant, both chevrons flip it.
+    fun toggleBackground(forward: Boolean) = viewModelScope.launch { editor.toggleBackground() }
 
     fun cycleBackgroundFill(forward: Boolean) = viewModelScope.launch { editor.cycleBackgroundFill(forward) }
+
+    fun cycleBackgroundStyle(forward: Boolean) = viewModelScope.launch { editor.cycleBackgroundStyle(forward) }
 
     fun cycleArea(forward: Boolean) = viewModelScope.launch { editor.cycleArea(forward) }
 
@@ -263,15 +265,22 @@ internal fun SubtitleAppearanceScreen(
                 )
                 AppearanceRow(
                     label = "Background",
-                    value = appearance.background.display(),
-                    onStep = viewModel::cycleBackground
+                    value = if (appearance.background) "On" else "Off",
+                    onStep = viewModel::toggleBackground
                 )
-                // The fill row stays mounted while the background is off (removing a focused row
-                // disposes the focused node — see OnboardingTextField / #130); it only mutes.
+                // Fill and style rows stay mounted while background is off (removing a
+                // focused row disposes the focused node — see OnboardingTextField / #130);
+                // they just mute and ignore Left/Right/Select.
+                AppearanceRow(
+                    label = "Background style",
+                    value = appearance.backgroundStyle.display(),
+                    enabled = appearance.background,
+                    onStep = viewModel::cycleBackgroundStyle
+                )
                 AppearanceRow(
                     label = "Background fill",
                     value = appearance.backgroundFill.display(),
-                    enabled = appearance.background != SubtitleBackground.OFF,
+                    enabled = appearance.background,
                     onStep = viewModel::cycleBackgroundFill
                 )
                 AppearanceRow(
