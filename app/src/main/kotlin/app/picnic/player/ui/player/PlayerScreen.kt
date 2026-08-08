@@ -721,6 +721,8 @@ fun PlayerScreen(
                 onSubtitleBackground = { viewModel.toggleSubtitleBackground() },
                 onSubtitleBackgroundStyle = { viewModel.cycleSubtitleBackgroundStyle(it) },
                 onSubtitleBackgroundFill = { viewModel.cycleSubtitleBackgroundFill(it) },
+                onSubtitleArea = { viewModel.cycleSubtitleArea(it) },
+                onSubtitleInset = { viewModel.stepSubtitleInset(it) },
                 qualityOptions = state.qualityOptions,
                 selectedQuality = state.activeQuality,
                 qualitySummary = qualitySummary(state.playMethod, state.activeQuality),
