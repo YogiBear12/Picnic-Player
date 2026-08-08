@@ -18,7 +18,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SettingsKeyMigrationTest {
-
     private val migration = settingsKeyMigration()
 
     private fun migrate(vararg entries: Preferences.Pair<*>): Preferences = runBlocking {
@@ -77,7 +76,6 @@ class SettingsKeyMigrationTest {
             assertEquals("Q_1080P", result[stringPreferencesKey(scope.key("playback.defaultVideoQuality"))])
         }
 
-        // The unscoped originals are gone — nothing reads them after the migration.
         assertNull(result[stringPreferencesKey("playback.preferredAudioLanguage")])
         assertNull(result[booleanPreferencesKey("playback.alwaysDisplaySubtitles")])
         assertNull(result[stringPreferencesKey("playback.defaultVideoQuality")])
@@ -87,14 +85,58 @@ class SettingsKeyMigrationTest {
     fun `gives the subtitle background keys the names they describe`() {
         val result = migrate(
             sessions(profileA),
-            // The fill was stored under the "…Style" name and the style under "…Shape".
             stringPreferencesKey("playback.subtitleBackgroundStyle") to "SOLID",
-            stringPreferencesKey("playback.subtitleBackgroundShape") to "WRAPPED"
+            stringPreferencesKey("playback.subtitleBackgroundShape") to "WRAPPED",
+            booleanPreferencesKey("playback.subtitleBackground") to true
         )
 
         val scope = UserScope(profileA.serverId, profileA.userId)
         assertEquals("SOLID", result[stringPreferencesKey(scope.key("playback.subtitleBackgroundFill"))])
-        assertEquals("WRAPPED", result[stringPreferencesKey(scope.key("playback.subtitleBackgroundStyle"))])
+        assertEquals("WRAPPED", result[stringPreferencesKey(scope.key("playback.subtitleBackground"))])
+    }
+
+    @Test
+    fun `folds the background switch and shape into one setting`() {
+        val scope = UserScope(profileA.serverId, profileA.userId)
+        val result = migrate(
+            sessions(profileA),
+            booleanPreferencesKey(scope.key("playback.subtitleBackground")) to true,
+            stringPreferencesKey(scope.key("playback.subtitleBackgroundStyle")) to "WRAPPED"
+        )
+
+        assertEquals("WRAPPED", result[stringPreferencesKey(scope.key("playback.subtitleBackground"))])
+        assertNull(result[stringPreferencesKey(scope.key("playback.subtitleBackgroundStyle"))])
+    }
+
+    @Test
+    fun `a background that was switched off folds to off whatever its shape`() {
+        val scope = UserScope(profileA.serverId, profileA.userId)
+        val result = migrate(
+            sessions(profileA),
+            booleanPreferencesKey(scope.key("playback.subtitleBackground")) to false,
+            stringPreferencesKey(scope.key("playback.subtitleBackgroundStyle")) to "WRAPPED"
+        )
+
+        assertEquals("OFF", result[stringPreferencesKey(scope.key("playback.subtitleBackground"))])
+    }
+
+    @Test
+    fun `a background switched on with no shape keeps the shape it defaulted to`() {
+        val scope = UserScope(profileA.serverId, profileA.userId)
+        val result = migrate(
+            sessions(profileA),
+            booleanPreferencesKey(scope.key("playback.subtitleBackground")) to true
+        )
+
+        assertEquals("BOXED", result[stringPreferencesKey(scope.key("playback.subtitleBackground"))])
+    }
+
+    @Test
+    fun `a profile that never touched the background is left with no key`() {
+        val scope = UserScope(profileA.serverId, profileA.userId)
+        val result = migrate(sessions(profileA))
+
+        assertNull(result[stringPreferencesKey(scope.key("playback.subtitleBackground"))])
     }
 
     @Test

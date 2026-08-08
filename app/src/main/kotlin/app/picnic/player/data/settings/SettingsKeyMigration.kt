@@ -12,7 +12,6 @@ import app.picnic.player.data.auth.UserScope
 import kotlinx.serialization.json.Json
 
 internal fun settingsKeyMigration(): DataMigration<Preferences> = object : DataMigration<Preferences> {
-
     override suspend fun shouldMigrate(currentData: Preferences): Boolean = currentData[VERSION] != CURRENT_VERSION
 
     override suspend fun migrate(currentData: Preferences): Preferences {
@@ -37,6 +36,10 @@ internal fun settingsKeyMigration(): DataMigration<Preferences> = object : DataM
             carried.forEach { (pref, value) -> prefs.write(scope.key(pref.newName), value) }
         }
         USER_PREFS.forEach { pref -> prefs.drop(pref.oldName, pref.isBoolean) }
+
+        storedSessions(currentData).forEach { session ->
+            prefs.foldSubtitleBackground(UserScope(session.serverId, session.userId))
+        }
 
         prefs -= booleanPreferencesKey(CLICK_TO_PAUSE)
         prefs[VERSION] = CURRENT_VERSION
@@ -64,6 +67,17 @@ private fun MutablePreferences.write(name: String, value: Any) {
     }
 }
 
+private fun MutablePreferences.foldSubtitleBackground(scope: UserScope) {
+    val on = this[booleanPreferencesKey(scope.key(SUBTITLE_BACKGROUND))]
+    val shape = this[stringPreferencesKey(scope.key(SUBTITLE_BACKGROUND_STYLE))]
+    if (on == null && shape == null) return
+
+    this -= booleanPreferencesKey(scope.key(SUBTITLE_BACKGROUND))
+    this -= stringPreferencesKey(scope.key(SUBTITLE_BACKGROUND_STYLE))
+    this[stringPreferencesKey(scope.key(SUBTITLE_BACKGROUND))] =
+        if (on == true) shape ?: DEFAULT_BACKGROUND_SHAPE else BACKGROUND_OFF
+}
+
 private fun MutablePreferences.drop(name: String, isBoolean: Boolean) {
     this -= if (isBoolean) booleanPreferencesKey(name) else stringPreferencesKey(name)
 }
@@ -73,9 +87,14 @@ private data class UserPref(val oldName: String, val newName: String, val isBool
 private val MIGRATION_JSON = Json { ignoreUnknownKeys = true }
 
 private val VERSION = intPreferencesKey("settings.migrationVersion")
-private const val CURRENT_VERSION = 1
+private const val CURRENT_VERSION = 2
 
 private const val CLICK_TO_PAUSE = "playback.clickToPause"
+
+private const val SUBTITLE_BACKGROUND = "playback.subtitleBackground"
+private const val SUBTITLE_BACKGROUND_STYLE = "playback.subtitleBackgroundStyle"
+private const val DEFAULT_BACKGROUND_SHAPE = "BOXED"
+private const val BACKGROUND_OFF = "OFF"
 
 private val RENAMED_BOOLEANS = listOf(
     "account.autoLoginLastUser" to "experience.autoLoginLastUser",

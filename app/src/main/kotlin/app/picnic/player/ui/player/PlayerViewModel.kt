@@ -16,6 +16,7 @@ import androidx.media3.ui.SubtitleView
 import app.picnic.player.data.auth.AuthRepository
 import app.picnic.player.data.auth.UserSession
 import app.picnic.player.data.jellyfin.JellyfinImages
+import app.picnic.player.data.playback.BlackBarProbe
 import app.picnic.player.data.playback.DirectPlayVeto
 import app.picnic.player.data.playback.MediaSegment
 import app.picnic.player.data.playback.OUTRO_END_TOLERANCE_MS
@@ -45,8 +46,10 @@ import app.picnic.player.data.playback.ticksToMs
 import app.picnic.player.data.settings.PlaybackSettings
 import app.picnic.player.data.settings.SeriesTrackMemoryStore
 import app.picnic.player.data.settings.SettingsStore
+import app.picnic.player.data.settings.SubtitleArea
 import app.picnic.player.di.ApplicationScope
 import app.picnic.player.playback.AudioBoost
+import app.picnic.player.playback.BlackBarTrack
 import app.picnic.player.playback.JellyfinTrackSelection
 import app.picnic.player.playback.NightMode
 import app.picnic.player.playback.PlaybackEngineFactory
@@ -84,6 +87,10 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
@@ -221,6 +228,7 @@ data class PlayerUiState(
 class PlayerViewModel @Inject constructor(
     @ApplicationContext private val appContext: Context,
     private val playbackRepository: PlaybackRepository,
+    private val blackBarProbe: BlackBarProbe,
     private val authRepository: AuthRepository,
     private val mediaRepository: app.picnic.player.data.media.MediaRepository,
     private val settingsStore: SettingsStore,
@@ -263,7 +271,8 @@ class PlayerViewModel @Inject constructor(
     private var mediaStreams: List<MediaStream> = emptyList()
     private var selectedAudioIndex: Int? = null
     private var selectedSubtitleIndex: Int? = null
-    private var trickplay: Trickplay? = null
+    private val trickplay = MutableStateFlow<Trickplay?>(null)
+    private val _blackBars = MutableStateFlow(BlackBarTrack.None)
     private var loaded = false
 
     /**
@@ -404,6 +413,23 @@ class PlayerViewModel @Inject constructor(
         // Real playback owns the audio output from here; browse-time theme music yields
         // immediately rather than overlapping the opening seconds of the stream.
         themeMusicPlayer.stop()
+        // collectLatest cancels an in-flight probe when the item changes or the area moves off
+        // AUTOMATIC, so a measurement can never land on the item after the one it was taken from.
+        viewModelScope.launch {
+            combine(
+                trickplay,
+                settings.map { it.subtitleAppearance.area }.distinctUntilChanged(),
+                ::Pair
+            ).collectLatest { (trickplay, area) ->
+                val sheets = trickplay?.sheets().orEmpty()
+                _blackBars.value = if (area == SubtitleArea.AUTOMATIC && sheets.isNotEmpty()) {
+                    trickplayPrefetchJob?.join()
+                    blackBarProbe.detect(sheets)
+                } else {
+                    BlackBarTrack.None
+                }
+            }
+        }
         player.addListener(listener)
         player.addAnalyticsListener(analyticsListener)
         // Mirror app-scoped session controls into this item's engine + UI state. Collecting the
@@ -479,15 +505,16 @@ class PlayerViewModel @Inject constructor(
     /** Range of the picture text cues are drawn over; HDR holds their colour back. */
     val subtitleRenderRange: StateFlow<SubtitleRenderRange> = engine.subtitleRenderRange
 
-    /** Wire libass overlay (call from [SubtitleView] [AndroidView] update). */
+    val blackBars: StateFlow<BlackBarTrack> = _blackBars.asStateFlow()
+
     fun attachSubtitleView(
         subtitleView: SubtitleView,
-        textSizeScale: Float,
+        bottomPaddingFraction: Float,
         range: SubtitleRenderRange
     ) = engine.attachSubtitleView(
         subtitleView,
         settings.value.subtitleAppearance,
-        textSizeScale,
+        bottomPaddingFraction,
         range
     )
 
@@ -498,11 +525,13 @@ class PlayerViewModel @Inject constructor(
 
     fun cycleSubtitleColour(forward: Boolean) = viewModelScope.launch { subtitleAppearanceEditor.cycleColour(forward) }
 
-    fun toggleSubtitleBackground() = viewModelScope.launch { subtitleAppearanceEditor.toggleBackground() }
-
-    fun cycleSubtitleBackgroundStyle(forward: Boolean) = viewModelScope.launch { subtitleAppearanceEditor.cycleBackgroundStyle(forward) }
+    fun cycleSubtitleBackground(forward: Boolean) = viewModelScope.launch { subtitleAppearanceEditor.cycleBackground(forward) }
 
     fun cycleSubtitleBackgroundFill(forward: Boolean) = viewModelScope.launch { subtitleAppearanceEditor.cycleBackgroundFill(forward) }
+
+    fun cycleSubtitleArea(forward: Boolean) = viewModelScope.launch { subtitleAppearanceEditor.cycleArea(forward) }
+
+    fun stepSubtitleInset(forward: Boolean) = viewModelScope.launch { subtitleAppearanceEditor.stepInset(forward) }
 
     fun load(itemIdString: String, startTicks: Long?, mediaSourceId: String? = null) {
         if (loaded) return
@@ -664,7 +693,7 @@ class PlayerViewModel @Inject constructor(
     }
 
     /** Trickplay sprite cell for [positionMs], or null if the item has no trickplay data. */
-    fun trickplayFor(positionMs: Long): TrickplayFrame? = trickplay?.frameFor(positionMs)
+    fun trickplayFor(positionMs: Long): TrickplayFrame? = trickplay.value?.frameFor(positionMs)
 
     fun selectAudio(streamIndex: String) {
         selectedAudioIndex = streamIndex.toIntOrNull() ?: return
@@ -858,12 +887,14 @@ class PlayerViewModel @Inject constructor(
         seriesId = item.seriesId
         seasonId = item.seasonId
         itemType = item.type
-        trickplay = playbackRepository.trickplayFromItem(item)?.let { (sheetWidth, tiles) ->
+        val sheets = playbackRepository.trickplayFromItem(item)?.let { (sheetWidth, tiles) ->
             Trickplay(tiles) { tileIndex ->
                 playbackRepository.trickplayTileUrl(activeSession, id, sheetWidth, tileIndex)
             }
         }
-        prefetchTrickplayTiles()
+        // Prefetch first: the bar probe waits on this job and then reads the sheets it warmed.
+        prefetchTrickplayTiles(sheets?.tileUrls().orEmpty())
+        trickplay.value = sheets
         val chapterMarks = item.chapters?.mapIndexed { index, ch ->
             ChapterMark(
                 index = index,
@@ -979,16 +1010,19 @@ class PlayerViewModel @Inject constructor(
         )
     }
 
-    /** Prefetch trickplay sprite sheets into Coil's cache while playback starts. */
-    private fun prefetchTrickplayTiles() {
-        val urls = trickplay?.tileUrls().orEmpty()
-        if (urls.isEmpty()) return
+    /**
+     * Warm Coil's cache with the trickplay sprite sheets. Awaited rather than fired off, so the bar
+     * probe can join this job and then read the sheets from disk instead of fetching them again.
+     */
+    private fun prefetchTrickplayTiles(urls: List<String>) {
         trickplayPrefetchJob?.cancel()
+        trickplayPrefetchJob = null
+        if (urls.isEmpty()) return
         trickplayPrefetchJob = viewingScope.launch {
             val loader = appContext.imageLoader
             for (url in urls) {
                 if (!isActive) return@launch
-                loader.enqueue(
+                loader.execute(
                     ImageRequest.Builder(appContext)
                         .data(url)
                         .size(Size.ORIGINAL)
@@ -1133,6 +1167,8 @@ class PlayerViewModel @Inject constructor(
         tornDown = true
         sessionController.playerTornDown()
         viewingJob.cancelChildren()
+        // Drops any in-flight bar probe: the collector below is keyed on this.
+        trickplay.value = null
         val s = session
         val info = stream
         val id = itemId

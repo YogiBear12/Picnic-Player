@@ -18,6 +18,10 @@ class SubtitleAppearanceEditor @Inject constructor(
 
     suspend fun cycleBackgroundStyle(forward: Boolean) = store.setSubtitleBackgroundStyle(current().backgroundStyle.step(forward))
 
+    suspend fun cycleArea(forward: Boolean) = store.setSubtitleArea(current().area.step(forward))
+
+    suspend fun stepInset(forward: Boolean) = store.setSubtitleInsetPercent(current().insetPercent + if (forward) 1 else -1)
+
     private suspend fun current(): SubtitleAppearance = store.settings.first().subtitleAppearance
 
     private inline fun <reified T : Enum<T>> T.step(forward: Boolean): T = enumValues<T>().let { it[(ordinal + (if (forward) 1 else -1) + it.size) % it.size] }

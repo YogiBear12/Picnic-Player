@@ -9,6 +9,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -46,6 +48,7 @@ import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -62,7 +65,11 @@ import app.picnic.player.data.jellyfin.JellyfinImages
 import app.picnic.player.data.settings.SettingsStore
 import app.picnic.player.data.settings.SubtitleAppearance
 import app.picnic.player.data.settings.SubtitleAppearanceEditor
+import app.picnic.player.data.settings.SubtitleArea
+import app.picnic.player.data.settings.SubtitleBackground
+import app.picnic.player.playback.BlackBars
 import app.picnic.player.playback.applyTo
+import app.picnic.player.playback.subtitleBottomPaddingFraction
 import app.picnic.player.ui.grid.OceanAmbientBackground
 import app.picnic.player.ui.theme.PicnicColors
 import coil3.compose.AsyncImage
@@ -98,20 +105,26 @@ class SubtitleAppearanceViewModel @Inject constructor(
 
     fun cycleColour(forward: Boolean) = viewModelScope.launch { editor.cycleColour(forward) }
 
-    // Two-state toggle — direction is irrelevant, both chevrons flip it.
-    fun toggleBackground(forward: Boolean) = viewModelScope.launch { editor.toggleBackground() }
+    fun cycleBackground(forward: Boolean) = viewModelScope.launch { editor.cycleBackground(forward) }
 
     fun cycleBackgroundFill(forward: Boolean) = viewModelScope.launch { editor.cycleBackgroundFill(forward) }
 
-    fun cycleBackgroundStyle(forward: Boolean) = viewModelScope.launch { editor.cycleBackgroundStyle(forward) }
+    fun cycleArea(forward: Boolean) = viewModelScope.launch { editor.cycleArea(forward) }
+
+    fun stepInset(forward: Boolean) = viewModelScope.launch { editor.stepInset(forward) }
 }
 
-// Shared floating-panel language (matches GridFilterPanel / PlayerSettingsPanel).
 private val PanelGlassFill = Color(0xF2181E24)
 private val PanelCornerRadius = 20.dp
-private val ContentInset = 12.dp
+private val PanelWidth = 380.dp
+private val PanelInsetHorizontal = 12.dp
+private val PanelInsetVertical = 16.dp
 private val RowInnerPadding = 12.dp
-private val RowCornerRadius = 8.dp
+private val RowSpacing = 1.dp
+private val RowCornerRadius = 10.dp
+private val PageInset = 40.dp
+private val MinHeaderHeight = 40.dp
+private const val ScopeAspect = 2.39f
 
 /**
  * Screen background: server splashscreen art layered over the ocean wash. The splash
@@ -196,30 +209,44 @@ internal fun SubtitleAppearanceScreen(
     val firstRowFocus = remember { FocusRequester() }
     LaunchedEffect(Unit) { runCatching { firstRowFocus.requestFocus() } }
 
-    Box(Modifier.fillMaxSize()) {
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        // Screen and Image place a cue identically with no video behind them, so the preview
+        // borrows a scope frame to sit against.
+        val barFraction = scopeBarFraction(maxWidth / maxHeight)
+        val barHeight = maxHeight * barFraction
+
         // Server splashscreen art, ocean wash showing through on 404/failure.
         SubtitleBackground(splashUrl, Modifier.fillMaxSize())
+        ScopeBars(barHeight)
 
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 64.dp, vertical = 48.dp)
+                .padding(horizontal = PageInset, vertical = 24.dp)
         ) {
-            Text(
-                "Subtitle appearance",
-                style = MaterialTheme.typography.headlineMedium,
-                color = PicnicColors.OnDark
-            )
-            Spacer(Modifier.height(32.dp))
+            // Held to the bar's height so the title sits inside the letterbox rather than
+            // straddling its edge; the floor covers displays wide enough to leave no bars.
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(maxOf(barHeight - 24.dp, MinHeaderHeight)),
+                contentAlignment = Alignment.CenterStart
+            ) {
+                Text(
+                    "Subtitle appearance",
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = PicnicColors.OnDark
+                )
+            }
+            Spacer(Modifier.height(24.dp))
 
-            // Options float in a glass card so they stay legible over the artwork.
             Column(
                 modifier = Modifier
-                    .width(380.dp)
+                    .width(PanelWidth)
                     .clip(RoundedCornerShape(PanelCornerRadius))
                     .background(PanelGlassFill)
-                    .padding(horizontal = ContentInset, vertical = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(2.dp)
+                    .padding(horizontal = PanelInsetHorizontal, vertical = PanelInsetVertical),
+                verticalArrangement = Arrangement.spacedBy(RowSpacing)
             ) {
                 AppearanceRow(
                     label = "Size",
@@ -236,23 +263,26 @@ internal fun SubtitleAppearanceScreen(
                 )
                 AppearanceRow(
                     label = "Background",
-                    value = if (appearance.background) "On" else "Off",
-                    onStep = viewModel::toggleBackground
+                    value = appearance.background.display(),
+                    onStep = viewModel::cycleBackground
                 )
-                // Fill and style rows stay mounted while background is off (removing a
-                // focused row disposes the focused node — see OnboardingTextField / #130);
-                // they just mute and ignore Left/Right/Select.
-                AppearanceRow(
-                    label = "Background style",
-                    value = appearance.backgroundStyle.display(),
-                    enabled = appearance.background,
-                    onStep = viewModel::cycleBackgroundStyle
-                )
+                // The fill row stays mounted while the background is off (removing a focused row
+                // disposes the focused node — see OnboardingTextField / #130); it only mutes.
                 AppearanceRow(
                     label = "Background fill",
                     value = appearance.backgroundFill.display(),
-                    enabled = appearance.background,
-                    onStep = viewModel::cycleBackgroundFill,
+                    enabled = appearance.background != SubtitleBackground.OFF,
+                    onStep = viewModel::cycleBackgroundFill
+                )
+                AppearanceRow(
+                    label = "Subtitle area",
+                    value = appearance.area.display(),
+                    onStep = viewModel::cycleArea
+                )
+                AppearanceRow(
+                    label = "Subtitle offset",
+                    value = appearance.insetDisplay(),
+                    onStep = viewModel::stepInset,
                     modifier = Modifier.focusProperties { down = FocusRequester.Cancel }
                 )
             }
@@ -262,7 +292,7 @@ internal fun SubtitleAppearanceScreen(
         AndroidView(
             factory = { context -> SubtitleView(context) },
             update = { view ->
-                appearance.applyTo(view)
+                appearance.applyTo(view, previewBottomPaddingFraction(appearance, barFraction))
                 view.setCues(
                     listOf(
                         Cue.Builder()
@@ -324,7 +354,7 @@ private fun AppearanceRow(
             }
             .onFocusChanged { focused = it.isFocused }
             .focusable()
-            .padding(horizontal = RowInnerPadding, vertical = 9.dp),
+            .padding(horizontal = RowInnerPadding, vertical = 7.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -360,3 +390,24 @@ private fun AppearanceRow(
         }
     }
 }
+
+@Composable
+private fun BoxScope.ScopeBars(height: Dp) {
+    if (height <= 0.dp) return
+    Box(Modifier.fillMaxWidth().height(height).align(Alignment.TopCenter).background(Color.Black))
+    Box(Modifier.fillMaxWidth().height(height).align(Alignment.BottomCenter).background(Color.Black))
+}
+
+/** Bars a 2.39:1 picture leaves in a container, as a fraction of its height. */
+private fun scopeBarFraction(containerAspect: Float): Float = ((1f - containerAspect / ScopeAspect) / 2f).coerceIn(0f, 0.4f)
+
+/**
+ * Image reads the frame as a letterboxed video rect, Automatic as a full rect with the bars baked
+ * in. Both land the cue in the same place, which is the point being previewed.
+ */
+private fun previewBottomPaddingFraction(appearance: SubtitleAppearance, barFraction: Float): Float = subtitleBottomPaddingFraction(
+    appearance.area,
+    appearance.insetPercent,
+    if (appearance.area == SubtitleArea.IMAGE) 1f - 2f * barFraction else 1f,
+    if (appearance.area == SubtitleArea.AUTOMATIC) BlackBars(barFraction, barFraction) else BlackBars.None
+)

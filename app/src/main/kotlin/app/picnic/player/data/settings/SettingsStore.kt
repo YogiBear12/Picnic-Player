@@ -39,19 +39,33 @@ enum class SubtitleBackgroundFill { TRANSLUCENT, SOLID }
 enum class SubtitleBackgroundStyle { BOXED, WRAPPED }
 
 /**
+ * The rectangle text cues are anchored to: the display, the video's display rect, or the picture
+ * inside that rect once the encoder's baked-in black bars are measured. AUTOMATIC falls back to
+ * IMAGE on any item whose bars cannot be measured.
+ */
+enum class SubtitleArea { SCREEN, IMAGE, AUTOMATIC }
+
+/**
  * How text-based subtitle cues are drawn (#54). ASS/SSA cues keep their authored
  * styling via libass and are untouched by these preferences.
  *
- * [background] turns the fill on/off; [backgroundFill] and [backgroundStyle] only
- * apply while it is on — fill sets the opacity, style sets box vs per-line wrap.
+ * [insetPercent] lifts cues off the bottom edge of [area], as a percentage of that area's height.
  */
 data class SubtitleAppearance(
     val size: SubtitleSize = SubtitleSize.STANDARD,
     val colour: SubtitleColour = SubtitleColour.WHITE,
     val background: Boolean = false,
     val backgroundFill: SubtitleBackgroundFill = SubtitleBackgroundFill.TRANSLUCENT,
-    val backgroundStyle: SubtitleBackgroundStyle = SubtitleBackgroundStyle.BOXED
-)
+    val backgroundStyle: SubtitleBackgroundStyle = SubtitleBackgroundStyle.BOXED,
+    val area: SubtitleArea = SubtitleArea.IMAGE,
+    val insetPercent: Int = DefaultInsetPercent
+) {
+    companion object {
+        const val DefaultInsetPercent = 8
+        const val MinInsetPercent = 0
+        const val MaxInsetPercent = 40
+    }
+}
 
 data class PlaybackSettings(
     val skipForwardSeconds: Int = 30,
@@ -181,7 +195,11 @@ class SettingsStore @Inject constructor(
                     ?: SubtitleBackgroundFill.TRANSLUCENT,
                 backgroundStyle = p.userString(scope, SUBTITLE_BACKGROUND_STYLE)
                     ?.let { enumOrNull<SubtitleBackgroundStyle>(it) }
-                    ?: SubtitleBackgroundStyle.BOXED
+                    ?: SubtitleBackgroundStyle.BOXED,
+                area = p.userString(scope, SUBTITLE_AREA)?.let { enumOrNull<SubtitleArea>(it) }
+                    ?: SubtitleArea.IMAGE,
+                insetPercent = (p.userInt(scope, SUBTITLE_INSET_PERCENT) ?: SubtitleAppearance.DefaultInsetPercent)
+                    .coerceIn(SubtitleAppearance.MinInsetPercent, SubtitleAppearance.MaxInsetPercent)
             )
         )
     }
@@ -231,6 +249,11 @@ class SettingsStore @Inject constructor(
     suspend fun setSubtitleBackground(value: Boolean) = putUserBoolean(SUBTITLE_BACKGROUND, value)
     suspend fun setSubtitleBackgroundFill(value: SubtitleBackgroundFill) = putUserString(SUBTITLE_BACKGROUND_FILL, value.name)
     suspend fun setSubtitleBackgroundStyle(value: SubtitleBackgroundStyle) = putUserString(SUBTITLE_BACKGROUND_STYLE, value.name)
+    suspend fun setSubtitleArea(value: SubtitleArea) = putUserString(SUBTITLE_AREA, value.name)
+    suspend fun setSubtitleInsetPercent(value: Int) = putUserInt(
+        SUBTITLE_INSET_PERCENT,
+        value.coerceIn(SubtitleAppearance.MinInsetPercent, SubtitleAppearance.MaxInsetPercent)
+    )
 
     private suspend fun put(block: (MutablePreferences) -> Unit) {
         dataStore.edit(block)
@@ -246,6 +269,10 @@ class SettingsStore @Inject constructor(
 
     private suspend fun putUserBoolean(name: String, value: Boolean) = putUser { p, scope ->
         p[booleanPreferencesKey(scope.key(name))] = value
+    }
+
+    private suspend fun putUserInt(name: String, value: Int) = putUser { p, scope ->
+        p[intPreferencesKey(scope.key(name))] = value
     }
 
     private suspend fun putUser(block: (MutablePreferences, UserScope) -> Unit) {
@@ -295,10 +322,14 @@ class SettingsStore @Inject constructor(
         const val SUBTITLE_BACKGROUND = "playback.subtitleBackground"
         const val SUBTITLE_BACKGROUND_FILL = "playback.subtitleBackgroundFill"
         const val SUBTITLE_BACKGROUND_STYLE = "playback.subtitleBackgroundStyle"
+        const val SUBTITLE_AREA = "playback.subtitleArea"
+        const val SUBTITLE_INSET_PERCENT = "playback.subtitleInsetPercent"
 
         fun Preferences.userString(scope: UserScope?, name: String): String? = scope?.let { this[stringPreferencesKey(it.key(name))] }
 
         fun Preferences.userBoolean(scope: UserScope?, name: String): Boolean? = scope?.let { this[booleanPreferencesKey(it.key(name))] }
+
+        fun Preferences.userInt(scope: UserScope?, name: String): Int? = scope?.let { this[intPreferencesKey(it.key(name))] }
 
         inline fun <reified T : Enum<T>> enumOrNull(name: String): T? = runCatching { enumValueOf<T>(name) }.getOrNull()
     }

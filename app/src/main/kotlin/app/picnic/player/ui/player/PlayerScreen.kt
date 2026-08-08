@@ -36,6 +36,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -71,8 +72,9 @@ import androidx.media3.ui.compose.SURFACE_TYPE_SURFACE_VIEW
 import androidx.media3.ui.compose.modifiers.resizeWithContentScale
 import androidx.media3.ui.compose.state.rememberPresentationState
 import app.picnic.player.data.playback.TrickplayFrame
-import app.picnic.player.playback.subtitleTextSizeScale
+import app.picnic.player.playback.subtitleBottomPaddingFraction
 import app.picnic.player.playback.videoDisplayHints
+import app.picnic.player.playback.videoRectHeightFraction
 import app.picnic.player.ui.ambient.PublishBackdrop
 import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.player.osd.ChaptersPanel
@@ -492,23 +494,31 @@ fun PlayerScreen(
                     bitmapSubtitleFrame(bitmapCues, presentationState.videoSizeDp)
                 )
             )
-            // SRT/VTT text cues, placed against the picture like the other subtitle planes.
-            val videoAspect = presentationState.videoSizeDp
-                ?.takeIf { it.width > 0f && it.height > 0f }
-                ?.let { it.width / it.height }
-            val textSizeScale = subtitleTextSizeScale(videoAspect, maxWidth / maxHeight)
+            // Spans the box whatever the area: a SubtitleView clips cues to its own bounds, so one
+            // sized to the video rect could never place a cue in the bars.
             val subtitleRange by viewModel.subtitleRenderRange.collectAsStateWithLifecycle()
+            val blackBarTrack by viewModel.blackBars.collectAsStateWithLifecycle()
+            // Derived so a track with segments only recomposes when the framing actually changes,
+            // not on every position tick.
+            val blackBars by remember { derivedStateOf { blackBarTrack.at(state.positionMs) } }
+            val appearance = settings.subtitleAppearance
+            val videoRectHeight = presentationState.videoSizeDp?.let { video ->
+                videoRectHeightFraction(video.width, video.height, maxWidth.value, maxHeight.value)
+            } ?: 1f
+            val bottomPadding = subtitleBottomPaddingFraction(
+                appearance.area,
+                appearance.insetPercent,
+                videoRectHeight,
+                blackBars
+            )
             AndroidView(
                 factory = { context -> SubtitleView(context) },
                 update = { subtitleView ->
-                    viewModel.attachSubtitleView(subtitleView, textSizeScale, subtitleRange)
+                    viewModel.attachSubtitleView(subtitleView, bottomPadding, subtitleRange)
                     subtitleView.setCues(textCues)
                 },
                 onReset = { it.setCues(emptyList()) },
-                modifier = Modifier.resizeWithContentScale(
-                    ContentScale.Fit,
-                    presentationState.videoSizeDp
-                )
+                modifier = Modifier.fillMaxSize()
             )
         }
 
@@ -708,9 +718,10 @@ fun PlayerScreen(
                 subtitleAppearance = settings.subtitleAppearance,
                 onSubtitleSize = { viewModel.cycleSubtitleSize(it) },
                 onSubtitleColour = { viewModel.cycleSubtitleColour(it) },
-                onSubtitleBackground = { viewModel.toggleSubtitleBackground() },
-                onSubtitleBackgroundStyle = { viewModel.cycleSubtitleBackgroundStyle(it) },
+                onSubtitleBackground = { viewModel.cycleSubtitleBackground(it) },
                 onSubtitleBackgroundFill = { viewModel.cycleSubtitleBackgroundFill(it) },
+                onSubtitleArea = { viewModel.cycleSubtitleArea(it) },
+                onSubtitleInset = { viewModel.stepSubtitleInset(it) },
                 qualityOptions = state.qualityOptions,
                 selectedQuality = state.activeQuality,
                 qualitySummary = qualitySummary(state.playMethod, state.activeQuality),

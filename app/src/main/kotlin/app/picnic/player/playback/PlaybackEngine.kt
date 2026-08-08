@@ -104,11 +104,11 @@ class PlaybackEngine(context: Context, httpClient: OkHttpClient) {
     fun attachSubtitleView(
         subtitleView: SubtitleView,
         appearance: SubtitleAppearance,
-        textSizeScale: Float,
+        bottomPaddingFraction: Float,
         range: SubtitleRenderRange
     ) {
         subtitleView.setBackgroundColor(Color.TRANSPARENT)
-        appearance.applyTo(subtitleView, textSizeScale, range)
+        appearance.applyTo(subtitleView, bottomPaddingFraction, range)
     }
 
     /**
