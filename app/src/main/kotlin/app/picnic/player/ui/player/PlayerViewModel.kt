@@ -525,7 +525,9 @@ class PlayerViewModel @Inject constructor(
 
     fun cycleSubtitleColour(forward: Boolean) = viewModelScope.launch { subtitleAppearanceEditor.cycleColour(forward) }
 
-    fun cycleSubtitleBackground(forward: Boolean) = viewModelScope.launch { subtitleAppearanceEditor.cycleBackground(forward) }
+    fun toggleSubtitleBackground() = viewModelScope.launch { subtitleAppearanceEditor.toggleBackground() }
+
+    fun cycleSubtitleBackgroundStyle(forward: Boolean) = viewModelScope.launch { subtitleAppearanceEditor.cycleBackgroundStyle(forward) }
 
     fun cycleSubtitleBackgroundFill(forward: Boolean) = viewModelScope.launch { subtitleAppearanceEditor.cycleBackgroundFill(forward) }
 
