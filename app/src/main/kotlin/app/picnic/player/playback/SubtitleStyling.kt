@@ -7,8 +7,8 @@ import android.graphics.Typeface
 import androidx.media3.ui.CaptionStyleCompat
 import androidx.media3.ui.SubtitleView
 import app.picnic.player.data.settings.SubtitleAppearance
+import app.picnic.player.data.settings.SubtitleBackground
 import app.picnic.player.data.settings.SubtitleBackgroundFill
-import app.picnic.player.data.settings.SubtitleBackgroundStyle
 import app.picnic.player.data.settings.SubtitleColour
 import app.picnic.player.data.settings.SubtitleSize
 import kotlin.math.roundToInt
@@ -56,7 +56,7 @@ internal fun Int.scaleRgb(scale: Float): Int {
  * rectangle behind the block), WRAPPED to backgroundColor (hugs each line).
  */
 fun SubtitleAppearance.toCaptionStyle(range: SubtitleRenderRange): CaptionStyleCompat {
-    val fill = if (background) {
+    val fill = if (background != SubtitleBackground.OFF) {
         val alpha = when (backgroundFill) {
             SubtitleBackgroundFill.TRANSLUCENT -> 128
             SubtitleBackgroundFill.SOLID -> 255
@@ -65,7 +65,7 @@ fun SubtitleAppearance.toCaptionStyle(range: SubtitleRenderRange): CaptionStyleC
     } else {
         Color.TRANSPARENT
     }
-    val boxed = backgroundStyle == SubtitleBackgroundStyle.BOXED
+    val boxed = background == SubtitleBackground.BOXED
     val foreground = when (range) {
         SubtitleRenderRange.SDR -> colour.toArgb()
         SubtitleRenderRange.HDR -> colour.toArgb().scaleRgb(HdrLuminanceScale)

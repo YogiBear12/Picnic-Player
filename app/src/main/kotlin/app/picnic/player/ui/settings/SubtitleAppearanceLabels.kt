@@ -2,8 +2,8 @@ package app.picnic.player.ui.settings
 
 import app.picnic.player.data.settings.SubtitleAppearance
 import app.picnic.player.data.settings.SubtitleArea
+import app.picnic.player.data.settings.SubtitleBackground
 import app.picnic.player.data.settings.SubtitleBackgroundFill
-import app.picnic.player.data.settings.SubtitleBackgroundStyle
 import app.picnic.player.data.settings.SubtitleColour
 import app.picnic.player.data.settings.SubtitleSize
 
@@ -27,9 +27,10 @@ internal fun SubtitleBackgroundFill.display(): String = when (this) {
     SubtitleBackgroundFill.SOLID -> "Solid"
 }
 
-internal fun SubtitleBackgroundStyle.display(): String = when (this) {
-    SubtitleBackgroundStyle.BOXED -> "Boxed"
-    SubtitleBackgroundStyle.WRAPPED -> "Wrapped"
+internal fun SubtitleBackground.display(): String = when (this) {
+    SubtitleBackground.OFF -> "Off"
+    SubtitleBackground.WRAPPED -> "Wrapped"
+    SubtitleBackground.BOXED -> "Boxed"
 }
 
 internal fun SubtitleArea.display(): String = when (this) {

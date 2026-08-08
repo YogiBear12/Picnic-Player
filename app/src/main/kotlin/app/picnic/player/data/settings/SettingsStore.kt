@@ -33,10 +33,10 @@ enum class SubtitleColour { WHITE, YELLOW, CYAN, GREEN }
 enum class SubtitleBackgroundFill { TRANSLUCENT, SOLID }
 
 /**
- * Shape of the subtitle background. BOXED draws one rectangle behind the whole
- * cue block; WRAPPED fills only behind each line of text (Media3's default).
+ * Shape of the subtitle background. WRAPPED fills behind each line of text (Media3's default);
+ * BOXED draws one rectangle behind the whole cue block.
  */
-enum class SubtitleBackgroundStyle { BOXED, WRAPPED }
+enum class SubtitleBackground { OFF, WRAPPED, BOXED }
 
 /**
  * The rectangle text cues are anchored to: the display, the video's display rect, or the picture
@@ -49,14 +49,14 @@ enum class SubtitleArea { SCREEN, IMAGE, AUTOMATIC }
  * How text-based subtitle cues are drawn (#54). ASS/SSA cues keep their authored
  * styling via libass and are untouched by these preferences.
  *
- * [insetPercent] lifts cues off the bottom edge of [area], as a percentage of that area's height.
+ * [backgroundFill] applies only while [background] is on. [insetPercent] lifts cues off the bottom
+ * edge of [area], as a percentage of that area's height.
  */
 data class SubtitleAppearance(
     val size: SubtitleSize = SubtitleSize.STANDARD,
     val colour: SubtitleColour = SubtitleColour.WHITE,
-    val background: Boolean = false,
+    val background: SubtitleBackground = SubtitleBackground.OFF,
     val backgroundFill: SubtitleBackgroundFill = SubtitleBackgroundFill.TRANSLUCENT,
-    val backgroundStyle: SubtitleBackgroundStyle = SubtitleBackgroundStyle.BOXED,
     val area: SubtitleArea = SubtitleArea.IMAGE,
     val insetPercent: Int = DefaultInsetPercent
 ) {
@@ -189,13 +189,11 @@ class SettingsStore @Inject constructor(
                     ?: SubtitleSize.STANDARD,
                 colour = p.userString(scope, SUBTITLE_COLOUR)?.let { enumOrNull<SubtitleColour>(it) }
                     ?: SubtitleColour.WHITE,
-                background = p.userBoolean(scope, SUBTITLE_BACKGROUND) ?: false,
+                background = p.userString(scope, SUBTITLE_BACKGROUND)?.let { enumOrNull<SubtitleBackground>(it) }
+                    ?: SubtitleBackground.OFF,
                 backgroundFill = p.userString(scope, SUBTITLE_BACKGROUND_FILL)
                     ?.let { enumOrNull<SubtitleBackgroundFill>(it) }
                     ?: SubtitleBackgroundFill.TRANSLUCENT,
-                backgroundStyle = p.userString(scope, SUBTITLE_BACKGROUND_STYLE)
-                    ?.let { enumOrNull<SubtitleBackgroundStyle>(it) }
-                    ?: SubtitleBackgroundStyle.BOXED,
                 area = p.userString(scope, SUBTITLE_AREA)?.let { enumOrNull<SubtitleArea>(it) }
                     ?: SubtitleArea.IMAGE,
                 insetPercent = (p.userInt(scope, SUBTITLE_INSET_PERCENT) ?: SubtitleAppearance.DefaultInsetPercent)
@@ -246,9 +244,8 @@ class SettingsStore @Inject constructor(
 
     suspend fun setSubtitleSize(value: SubtitleSize) = putUserString(SUBTITLE_SIZE, value.name)
     suspend fun setSubtitleColour(value: SubtitleColour) = putUserString(SUBTITLE_COLOUR, value.name)
-    suspend fun setSubtitleBackground(value: Boolean) = putUserBoolean(SUBTITLE_BACKGROUND, value)
+    suspend fun setSubtitleBackground(value: SubtitleBackground) = putUserString(SUBTITLE_BACKGROUND, value.name)
     suspend fun setSubtitleBackgroundFill(value: SubtitleBackgroundFill) = putUserString(SUBTITLE_BACKGROUND_FILL, value.name)
-    suspend fun setSubtitleBackgroundStyle(value: SubtitleBackgroundStyle) = putUserString(SUBTITLE_BACKGROUND_STYLE, value.name)
     suspend fun setSubtitleArea(value: SubtitleArea) = putUserString(SUBTITLE_AREA, value.name)
     suspend fun setSubtitleInsetPercent(value: Int) = putUserInt(
         SUBTITLE_INSET_PERCENT,
@@ -321,7 +318,6 @@ class SettingsStore @Inject constructor(
         const val SUBTITLE_COLOUR = "playback.subtitleColour"
         const val SUBTITLE_BACKGROUND = "playback.subtitleBackground"
         const val SUBTITLE_BACKGROUND_FILL = "playback.subtitleBackgroundFill"
-        const val SUBTITLE_BACKGROUND_STYLE = "playback.subtitleBackgroundStyle"
         const val SUBTITLE_AREA = "playback.subtitleArea"
         const val SUBTITLE_INSET_PERCENT = "playback.subtitleInsetPercent"
 

@@ -52,6 +52,7 @@ import androidx.tv.material3.Text
 import app.picnic.player.data.playback.quality.QualityOption
 import app.picnic.player.data.playback.quality.QualityRung
 import app.picnic.player.data.settings.SubtitleAppearance
+import app.picnic.player.data.settings.SubtitleBackground
 import app.picnic.player.playback.AudioBoost
 import app.picnic.player.playback.NightMode
 import app.picnic.player.playback.SleepMode
@@ -88,7 +89,6 @@ private enum class RowKey {
     SUB_SIZE,
     SUB_COLOR,
     SUB_BACKGROUND,
-    SUB_BG_STYLE,
     SUB_BG_FILL,
     SUB_AREA,
     SUB_INSET
@@ -151,8 +151,7 @@ fun PlayerSettingsPanel(
     subtitleAppearance: SubtitleAppearance,
     onSubtitleSize: (Boolean) -> Unit,
     onSubtitleColour: (Boolean) -> Unit,
-    onSubtitleBackground: () -> Unit,
-    onSubtitleBackgroundStyle: (Boolean) -> Unit,
+    onSubtitleBackground: (Boolean) -> Unit,
     onSubtitleBackgroundFill: (Boolean) -> Unit,
     onSubtitleArea: (Boolean) -> Unit,
     onSubtitleInset: (Boolean) -> Unit,
@@ -236,7 +235,6 @@ fun PlayerSettingsPanel(
             onSubtitleSize,
             onSubtitleColour,
             onSubtitleBackground,
-            onSubtitleBackgroundStyle,
             onSubtitleBackgroundFill,
             onSubtitleArea,
             onSubtitleInset
@@ -406,8 +404,7 @@ private fun subtitleAppearanceRows(
     appearance: SubtitleAppearance,
     onSize: (Boolean) -> Unit,
     onColour: (Boolean) -> Unit,
-    onBackground: () -> Unit,
-    onBackgroundStyle: (Boolean) -> Unit,
+    onBackground: (Boolean) -> Unit,
     onBackgroundFill: (Boolean) -> Unit,
     onArea: (Boolean) -> Unit,
     onInset: (Boolean) -> Unit
@@ -429,25 +426,17 @@ private fun subtitleAppearanceRows(
     PanelRow.Step(
         key = RowKey.SUB_BACKGROUND,
         label = "Background",
-        value = if (appearance.background) "On" else "Off",
-        onLeft = onBackground,
-        onRight = onBackground
+        value = appearance.background.display(),
+        onLeft = { onBackground(false) },
+        onRight = { onBackground(true) }
     ),
-    // Fill and style stay listed while background is off — removing a focused row disposes
+    // The fill stays listed while the background is off — removing a focused row disposes
     // the focused node.
-    PanelRow.Step(
-        key = RowKey.SUB_BG_STYLE,
-        label = "Background style",
-        value = appearance.backgroundStyle.display(),
-        enabled = appearance.background,
-        onLeft = { onBackgroundStyle(false) },
-        onRight = { onBackgroundStyle(true) }
-    ),
     PanelRow.Step(
         key = RowKey.SUB_BG_FILL,
         label = "Background fill",
         value = appearance.backgroundFill.display(),
-        enabled = appearance.background,
+        enabled = appearance.background != SubtitleBackground.OFF,
         onLeft = { onBackgroundFill(false) },
         onRight = { onBackgroundFill(true) }
     ),

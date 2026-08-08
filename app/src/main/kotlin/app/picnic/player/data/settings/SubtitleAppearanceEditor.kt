@@ -12,11 +12,9 @@ class SubtitleAppearanceEditor @Inject constructor(
 
     suspend fun cycleColour(forward: Boolean) = store.setSubtitleColour(current().colour.step(forward))
 
-    suspend fun toggleBackground() = store.setSubtitleBackground(!current().background)
+    suspend fun cycleBackground(forward: Boolean) = store.setSubtitleBackground(current().background.step(forward))
 
     suspend fun cycleBackgroundFill(forward: Boolean) = store.setSubtitleBackgroundFill(current().backgroundFill.step(forward))
-
-    suspend fun cycleBackgroundStyle(forward: Boolean) = store.setSubtitleBackgroundStyle(current().backgroundStyle.step(forward))
 
     suspend fun cycleArea(forward: Boolean) = store.setSubtitleArea(current().area.step(forward))
 
