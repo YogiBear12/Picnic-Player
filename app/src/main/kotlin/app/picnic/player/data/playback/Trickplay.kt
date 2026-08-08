@@ -10,6 +10,16 @@ data class TrickplayFrame(
     val aspect: Float
 )
 
+data class TrickplaySheet(
+    val url: String,
+    val columns: Int,
+    val rows: Int,
+    val firstFrameIndex: Int,
+    val intervalMs: Int
+) {
+    fun positionMsOf(cell: Int): Long = (firstFrameIndex + cell).toLong() * intervalMs
+}
+
 /**
  * The trickplay sprite sheets for one item, bound to how its URLs are built.
  *
@@ -40,6 +50,15 @@ class Trickplay(
         if (perTile <= 0) return emptyList()
         val count = (tiles.thumbnailCount + perTile - 1) / perTile
         return (0 until count).map(tileUrl)
+    }
+
+    /** Every sheet with its grid, in play order. Empty when the geometry is unusable. */
+    fun sheets(): List<TrickplaySheet> {
+        val columns = tiles.tileWidth.coerceAtLeast(1)
+        val rows = tiles.tileHeight.coerceAtLeast(1)
+        return tileUrls().mapIndexed { index, url ->
+            TrickplaySheet(url, columns, rows, index * columns * rows, tiles.intervalMs)
+        }
     }
 
     private companion object {
