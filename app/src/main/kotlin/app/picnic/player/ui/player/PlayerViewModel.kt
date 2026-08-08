@@ -101,63 +101,40 @@ import org.jellyfin.sdk.model.api.MediaStream
 import org.jellyfin.sdk.model.api.MediaStreamType
 import org.jellyfin.sdk.model.api.TranscodingInfo
 
-// OUTRO_END_TOLERANCE_MS lives in data/playback/PlaybackTick.kt (shared with the pure tick decision).
-
-// How far short of the media end to seek when skipping an outro that runs to the end, so the final
-// frame renders before the natural end-of-stream rather than freezing the pre-skip frame.
 private const val LAST_FRAME_MS = 200L
 
-// How many times to ask the server what it is actually doing with a newly adopted stream.
 private const val PLAY_METHOD_ATTEMPTS = 5
 
-/**
- * One-shot navigation the player screen must perform on behalf of a remote command (#119).
- * The ViewModel cannot navigate, so it signals and the screen calls its existing callbacks.
- */
 sealed interface PlayerNavEvent {
-    /** Leave the player (remote Stop). */
     data object Exit : PlayerNavEvent
 
-    /** Launch the next episode (remote NextTrack). */
     data class PlayNext(val itemId: String) : PlayerNavEvent
 }
 
-/** A selectable audio/subtitle track. */
 data class TrackOption(
     val id: String,
-    /** Secondary line (track title / description). */
     val label: String?,
     val language: String?,
-    /** Primary line — regional language name from Jellyfin. */
     val displayLanguage: String,
     val selected: Boolean
 )
 
-/** Active scrub preview for a screen-level overlay (does not affect OSD layout). */
 data class TrickplayPreview(
     val frame: TrickplayFrame,
     val fraction: Float
 )
 
-/** One chapter marker for the OSD Down Menu chapters row. */
 data class ChapterMark(
     val index: Int,
     val title: String,
     val startMs: Long,
-    /** Chapter image if the item has one; null falls back to a trickplay frame. */
     val imageUrl: String?
 )
 
-/**
- * Next episode data for the next-up overlay. Formatted for display — the ViewModel
- * owns the formatting so the overlay composable stays stateless/previewable.
- */
 data class NextUpItem(
     val id: String,
     val title: String,
-    /** Season and episode label e.g. "S1 E11". Empty if unavailable. */
     val seasonEpisode: String,
-    /** Formatted meta line e.g. "Jun 4, 2013 • 11m • 8.2 ★". */
     val meta: String,
     val overview: String,
     val backdropUrl: String?,
@@ -181,21 +158,14 @@ data class PlayerUiState(
     val selectedSubtitleId: String? = null,
     val subtitleCues: List<Cue> = emptyList(),
     val currentSegment: MediaSegment? = null,
-    /** Next episode to auto-play; null if unavailable (movies, series finale). */
     val nextUp: NextUpItem? = null,
-    /** True once playback has ended or (opt-in) entered an OUTRO segment, triggering the overlay. */
     val endedAwaitingNext: Boolean = false,
-    /** True only in opt-in outro mode: the video is still playing under the shrunk corner. */
     val videoStillPlaying: Boolean = false,
     val chapters: List<ChapterMark> = emptyList(),
-    /** Session-only subtitle offset (ms); resets each item. */
     val subtitleDelayMs: Long = 0,
-    /** Session-only playback speed; resets each item. */
     val playbackSpeed: Float = 1.0f,
-    /** Session audio enhancement — persists across autoplayed episodes (app-scoped). */
     val audioBoost: AudioBoost = AudioBoost.OFF,
     val nightMode: NightMode = NightMode.OFF,
-    /** Sleep timer state — persists across autoplayed episodes (app-scoped). */
     val sleep: SleepTimerState = SleepTimerState(),
     val showStatsForNerds: Boolean = false,
     val playMethod: PlayMethodKind? = null,
@@ -207,23 +177,12 @@ data class PlayerUiState(
     val estimatedBitrate: Long? = null,
     val notice: String? = null,
     val qualityOptions: List<QualityOption> = emptyList(),
-    /** The rung the server negotiated, whether or not it ended up re-encoding to it. */
     val streamRung: QualityRung? = null,
     val tracks: List<app.picnic.player.ui.player.osd.TrackSupport> = emptyList()
 ) {
-    /**
-     * The rung actually in force, which is none unless the server is re-encoding the video. Derived
-     * rather than stored: a remux is negotiated as a transcode and only reveals itself as Direct
-     * Stream once transcoding info arrives, and every reader of this must follow that correction.
-     */
     val activeQuality: QualityRung? get() = streamRung.takeIf { playMethod == PlayMethodKind.TRANSCODE }
 }
 
-/**
- * Drives the media3 player for one item: resolves the stream via the
- * SDK, loads it, mirrors state + tracks, and reports progress. Video renders on
- * a SurfaceView supplied by the screen.
- */
 @HiltViewModel
 class PlayerViewModel @Inject constructor(
     @ApplicationContext private val appContext: Context,
@@ -245,20 +204,16 @@ class PlayerViewModel @Inject constructor(
 
     private val engine = engineFactory.create()
 
-    /** Video player. Built with libass (ASS/SSA) + hardware-first renderers. */
     val player: ExoPlayer get() = engine.player
 
     val settings: StateFlow<PlaybackSettings> =
         settingsStore.settings.stateIn(viewModelScope, SharingStarted.Eagerly, PlaybackSettings())
 
-    /** Hide PiP OSD / auto-enter when the device does not advertise system PiP. */
     val pictureInPictureSupported: Boolean = pictureInPictureSupport.isSupported
 
     private val _state = MutableStateFlow(PlayerUiState())
     val state: StateFlow<PlayerUiState> = _state.asStateFlow()
 
-    // Remote-control actions the *screen* must service (it owns navigation, the VM does not):
-    // a remote Stop exits the player, a remote NextTrack launches the next episode.
     private val _navEvents = MutableSharedFlow<PlayerNavEvent>(extraBufferCapacity = 4)
     val navEvents: SharedFlow<PlayerNavEvent> = _navEvents.asSharedFlow()
 
@@ -275,13 +230,6 @@ class PlayerViewModel @Inject constructor(
     private val _blackBars = MutableStateFlow(BlackBarTrack.None)
     private var loaded = false
 
-    /**
-     * Everything that runs only while this item is being watched — the state ticker, progress
-     * reports, trickplay prefetch, a stream reload, the transcoding-info poll. They are launched
-     * here rather than in [viewModelScope] so [endPlayback] ends all of them at once: the
-     * ViewModel outlives the viewing by a nav transition, and a poll that survives teardown keeps
-     * talking to a server session that is already gone.
-     */
     private val viewingJob = SupervisorJob(viewModelScope.coroutineContext[Job])
     private val viewingScope = CoroutineScope(viewModelScope.coroutineContext + viewingJob)
 
@@ -320,8 +268,6 @@ class PlayerViewModel @Inject constructor(
     private var segments: List<MediaSegment> = emptyList()
     private val autoSkipped = mutableSetOf<String>()
 
-    // Outro next-up is shown at most once per item; dismissing it must not re-trigger while the
-    // outro segment is still on screen.
     private var outroNextUpShown = false
 
     private val listener = object : Player.Listener {
@@ -342,8 +288,6 @@ class PlayerViewModel @Inject constructor(
             _state.update { it.copy(subtitleCues = cueGroup.cues) }
         }
         override fun onPlayerError(error: PlaybackException) {
-            // A container this extractor cannot parse is not the user's problem: ask the server to
-            // rewrite it and carry on.
             if (directPlayVeto.onPlaybackError(error.errorCode)) {
                 reload(
                     quality = sessionController.qualityOverride.value,
@@ -355,10 +299,11 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
+    private fun resumeAwarePositionMs(): Long = maxOf(player.currentPosition, pendingSeekMs)
+
     private fun applyPendingSeek() {
         val target = pendingSeekMs
         if (target <= 0) return
-        // Seeking before the duration resolves runs against a timeline the player has not built.
         if (player.playbackState != Player.STATE_READY || player.duration <= 0) return
         pendingSeekMs = 0
         player.seekTo(target)
@@ -410,11 +355,7 @@ class PlayerViewModel @Inject constructor(
     private var playMethodJob: Job? = null
 
     init {
-        // Real playback owns the audio output from here; browse-time theme music yields
-        // immediately rather than overlapping the opening seconds of the stream.
         themeMusicPlayer.stop()
-        // collectLatest cancels an in-flight probe when the item changes or the area moves off
-        // AUTOMATIC, so a measurement can never land on the item after the one it was taken from.
         viewModelScope.launch {
             combine(
                 trickplay,
@@ -432,8 +373,6 @@ class PlayerViewModel @Inject constructor(
         }
         player.addListener(listener)
         player.addAnalyticsListener(analyticsListener)
-        // Mirror app-scoped session controls into this item's engine + UI state. Collecting the
-        // current values re-applies them to a fresh engine on each autoplayed episode.
         viewModelScope.launch {
             sessionController.audioBoost.collect { level ->
                 engine.audioEffects.setBoostMillibels(level.gainMb)
@@ -452,16 +391,9 @@ class PlayerViewModel @Inject constructor(
         viewModelScope.launch {
             sessionController.sleepExpired.collect { player.playWhenReady = false }
         }
-        // Remote control (#119, Slice 2): apply commands from another device/dashboard to this
-        // player. This VM is the sole collector while the player is composed; once it is cleared
-        // there is no collector, so commands arriving with nothing playing are dropped safely.
         viewModelScope.launch {
             playerCommandBus.commands.collect { applyRemoteCommand(it) }
         }
-        // Leaving the app ends the viewing: the player, its decoder and the server's encoder all
-        // go, and the screen playback started from comes back. Driven off the process lifecycle —
-        // a nav entry is stopped when it is popped too, so a screen-scoped signal cannot tell
-        // backgrounding from an ordinary exit.
         viewModelScope.launch {
             appForegroundState.isVisible.collect { visible ->
                 if (!visible && !inPictureInPicture) {
@@ -472,15 +404,10 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
-    /**
-     * A PiP window keeps playing while the app is off screen, so it suspends the
-     * end-on-background rule until the window itself is gone.
-     */
     fun onPipModeChanged(inPip: Boolean) {
         inPictureInPicture = inPip
     }
 
-    /** Maps a remote [PlayerCommand] onto the existing player controls. Safe before [load]. */
     private fun applyRemoteCommand(command: PlayerCommand) {
         when (command) {
             PlayerCommand.Stop -> {
@@ -495,14 +422,12 @@ class PlayerViewModel @Inject constructor(
             PlayerCommand.FastForward -> seekBy(settings.value.skipForwardSeconds * 1000L)
             PlayerCommand.NextTrack ->
                 nextItemId()?.let { _navEvents.tryEmit(PlayerNavEvent.PlayNext(it)) }
-            // No previous/queue model on a single-item player — safely ignored.
             PlayerCommand.PreviousTrack -> Unit
             is PlayerCommand.SetAudioIndex -> selectAudio(command.index.toString())
             is PlayerCommand.SetSubtitleIndex -> selectSubtitle(command.index?.toString())
         }
     }
 
-    /** Range of the picture text cues are drawn over; HDR holds their colour back. */
     val subtitleRenderRange: StateFlow<SubtitleRenderRange> = engine.subtitleRenderRange
 
     val blackBars: StateFlow<BlackBarTrack> = _blackBars.asStateFlow()
@@ -518,7 +443,6 @@ class PlayerViewModel @Inject constructor(
         range
     )
 
-    /** libass overlay view; host it sized to the video display rect. */
     fun assOverlayView(context: Context) = engine.assOverlayView(context)
 
     fun cycleSubtitleSize(forward: Boolean) = viewModelScope.launch { subtitleAppearanceEditor.cycleSize(forward) }
@@ -547,8 +471,6 @@ class PlayerViewModel @Inject constructor(
             }
             session = activeSession
 
-            // Item metadata runs in parallel with stream negotiation; we await it before track
-            // pick so series/season memory (#15 stage 2) has ids without delaying the HTTP start.
             launch { ensureTranscodePermission(activeSession) }
 
             val itemDeferred = async {
@@ -596,19 +518,16 @@ class PlayerViewModel @Inject constructor(
 
     fun seekBy(deltaMs: Long) = player.seekTo((player.currentPosition + deltaMs).coerceAtLeast(0))
 
-    /** Session-only subtitle offset in ms (positive = later). Applies to text + ASS. */
     fun setSubtitleDelayMs(ms: Long) {
         engine.setSubtitleDelayMs(ms)
         _state.update { it.copy(subtitleDelayMs = ms) }
     }
 
-    /** Session-only playback speed (media3 native, pitch-corrected). */
     fun setSpeed(speed: Float) {
         player.setPlaybackSpeed(speed)
         _state.update { it.copy(playbackSpeed = speed) }
     }
 
-    // Session controls delegated to the app-scoped controller (survive autoplay).
     fun setAudioBoost(level: AudioBoost) = sessionController.setAudioBoost(level)
     fun setNightMode(level: NightMode) = sessionController.setNightMode(level)
     fun setSleep(mode: SleepMode) = sessionController.setSleep(mode)
@@ -619,9 +538,6 @@ class PlayerViewModel @Inject constructor(
     }
 
     private fun updateTranscodingInfoJob() {
-        // Gate on the *resolved* stream method (not the refined UI label): remuxes start as
-        // TRANSCODE in PlaybackInfo and stay on the transcoding pipeline even after we display
-        // Direct Stream once isVideoDirect is known.
         val pipelineTranscode = stream?.playMethod == PlayMethodKind.TRANSCODE
         if (_state.value.showStatsForNerds && pipelineTranscode) {
             if (transcodingInfoJob == null) {
@@ -644,7 +560,6 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
-    /** @return true once the server reported transcoding info, so callers can stop asking. */
     private suspend fun refreshTranscodingInfoOnce(
         session: UserSession,
         mediaSourceId: String?,
@@ -660,13 +575,6 @@ class PlayerViewModel @Inject constructor(
         return true
     }
 
-    /**
-     * Settle Direct Stream vs Transcoding for a freshly adopted stream. Both arrive from the server
-     * labelled TRANSCODE and are told apart only by transcoding info, which the stats panel would
-     * otherwise be the first to ask for — leaving the OSD reading "Transcoding…" for a remux until
-     * the user happened to open it. The encoder may not have registered the moment the URL is
-     * handed over, hence a few attempts rather than one.
-     */
     private fun settlePlayMethod(info: StreamInfo) {
         if (info.playMethod != PlayMethodKind.TRANSCODE) return
         playMethodJob?.cancel()
@@ -681,18 +589,11 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
-    /**
-     * The viewing is over — Back, a remote Stop, or the app leaving the screen. Ends playback
-     * now rather than when the nav entry is finally destroyed, which is a fade-out later: the
-     * picture must freeze and the sound stop the moment the user asks to leave. Also clears the
-     * session audio + sleep timer, which belong to one viewing.
-     */
     fun endViewing() {
         sessionController.reset()
         endPlayback()
     }
 
-    /** Trickplay sprite cell for [positionMs], or null if the item has no trickplay data. */
     fun trickplayFor(positionMs: Long): TrickplayFrame? = trickplay.value?.frameFor(positionMs)
 
     fun selectAudio(streamIndex: String) {
@@ -740,9 +641,7 @@ class PlayerViewModel @Inject constructor(
         val delayMs = _state.value.subtitleDelayMs
         val speed = _state.value.playbackSpeed
 
-        // A container failure can land before the resume seek has been applied, so the position to
-        // return to is still pending rather than reached.
-        val resumeMs = maxOf(player.currentPosition, pendingSeekMs)
+        val resumeMs = resumeAwarePositionMs()
 
         reloadJob?.cancel()
         reloadJob = viewingScope.launch {
@@ -795,8 +694,6 @@ class PlayerViewModel @Inject constructor(
         updateTranscodingInfoJob()
     }
 
-    // Jellyfin user-config language preferences, resolved behind the local app override
-    // (app > server > device). Fetched once per player session and memoised.
     private var serverAudioLanguage: String? = null
     private var serverSubtitleLanguage: String? = null
     private var serverLanguagePrefsLoaded = false
@@ -814,10 +711,6 @@ class PlayerViewModel @Inject constructor(
         serverSubtitleLanguage = config?.subtitleLanguagePreference
     }
 
-    /**
-     * Initial track choice (#15): season → series memory when confident, else device-local
-     * [PlaybackSettings] via [pickTracksWithMemory]. Movies stay on global prefs only.
-     */
     private suspend fun initDefaultTrackIndices() {
         val prefs = settings.value
         ensureServerLanguagePrefs()
@@ -850,7 +743,6 @@ class PlayerViewModel @Inject constructor(
         selectedSubtitleIndex = pick.subtitleIndex
     }
 
-    /** L1/W2: remember OSD audio/subtitle picks for TV episodes only. */
     private fun persistOsdTrackMemory(audio: Boolean) {
         if (itemType != BaseItemKind.EPISODE) return
         val series = seriesId ?: return
@@ -859,7 +751,6 @@ class PlayerViewModel @Inject constructor(
             val stream = mediaStreams.firstOrNull {
                 it.type == MediaStreamType.AUDIO && it.index == selectedAudioIndex
             } ?: return
-            // Skip blank titles — R1 needs a title string to match later.
             RememberedTrack.of(stream) ?: return
         } else {
             val index = selectedSubtitleIndex
@@ -892,7 +783,6 @@ class PlayerViewModel @Inject constructor(
                 playbackRepository.trickplayTileUrl(activeSession, id, sheetWidth, tileIndex)
             }
         }
-        // Prefetch first: the bar probe waits on this job and then reads the sheets it warmed.
         prefetchTrickplayTiles(sheets?.tileUrls().orEmpty())
         trickplay.value = sheets
         val chapterMarks = item.chapters?.mapIndexed { index, ch ->
@@ -952,7 +842,6 @@ class PlayerViewModel @Inject constructor(
             .build()
     }
 
-    /** Always rebuild audio + subtitle selection together. */
     private fun applyTrackSelections() {
         if (mediaStreams.isEmpty()) return
         if (isConverting() && isBurnedIn(selectedSubtitleIndex)) {
@@ -977,7 +866,6 @@ class PlayerViewModel @Inject constructor(
         rebuildTrackOptions()
     }
 
-    /** Track panel lists Jellyfin [mediaStreams] only — never ExoPlayer groups. */
     private fun rebuildTrackOptions() {
         if (mediaStreams.isEmpty()) return
         val audio = mediaStreams
@@ -1010,10 +898,6 @@ class PlayerViewModel @Inject constructor(
         )
     }
 
-    /**
-     * Warm Coil's cache with the trickplay sprite sheets. Awaited rather than fired off, so the bar
-     * probe can join this job and then read the sheets from disk instead of fetching them again.
-     */
     private fun prefetchTrickplayTiles(urls: List<String>) {
         trickplayPrefetchJob?.cancel()
         trickplayPrefetchJob = null
@@ -1055,7 +939,7 @@ class PlayerViewModel @Inject constructor(
                         s,
                         info,
                         id,
-                        player.currentPosition.msToTicks(),
+                        resumeAwarePositionMs().msToTicks(),
                         !player.isPlaying
                     )
                 }
@@ -1094,7 +978,6 @@ class PlayerViewModel @Inject constructor(
             )
         )
 
-        // Apply the decision's side-effect requests to the real player/session.
         if (decision.presentFirstFrame) hasPresentedFirstFrame = true
         decision.autoSkipToMs?.let { player.seekTo(it) }
         decision.markSkippedId?.let { autoSkipped += it }
@@ -1134,46 +1017,31 @@ class PlayerViewModel @Inject constructor(
             duration > 0 &&
             seg.endMs >= duration - OUTRO_END_TOLERANCE_MS
         ) {
-            // Outro runs to the end of the file. Seeking onto the end-of-stream renders no frame, so
-            // the pre-skip frame would stay frozen in the next-up window. Seek just short of the end
-            // instead, letting the final frame render before playback reaches its natural end and the
-            // next-up screen appears.
             player.seekTo((duration - LAST_FRAME_MS).coerceAtLeast(0))
         } else {
             player.seekTo(seg.endMs)
         }
     }
 
-    /** Returns the next item id stored in state, or null. Used by the screen to navigate. */
     fun nextItemId(): String? = _state.value.nextUp?.id
 
-    /**
-     * Dismisses the next-up overlay shown during an OUTRO segment and returns to the playing video.
-     * The outro-shown guard stays set so the overlay does not immediately re-trigger; the default
-     * at-end overlay still appears when playback actually reaches STATE_ENDED.
-     */
     fun dismissNextUp() {
         _state.update { it.copy(endedAwaitingNext = false, videoStillPlaying = false) }
     }
 
     fun onAutoplayHandoff() = sessionController.handOffToNextItem()
 
-    /**
-     * Ends the viewing now rather than whenever this ViewModel happens to be cleared. Navigation
-     * away from a stopped app is deferred, so without this the video plays on in the background.
-     */
     fun endPlayback() {
         if (tornDown) return
         tornDown = true
         sessionController.playerTornDown()
         viewingJob.cancelChildren()
-        // Drops any in-flight bar probe: the collector below is keyed on this.
         trickplay.value = null
         val s = session
         val info = stream
         val id = itemId
         val series = seriesId
-        val positionTicks = player.currentPosition.msToTicks()
+        val positionTicks = resumeAwarePositionMs().msToTicks()
         player.removeListener(listener)
         engine.release()
         if (s != null && info != null && id != null) {
@@ -1187,14 +1055,6 @@ class PlayerViewModel @Inject constructor(
     override fun onCleared() = endPlayback()
 }
 
-// ---------------------------------------------------------------------------
-// Helpers (file-level, not part of the ViewModel)
-// ---------------------------------------------------------------------------
-
-/**
- * Maps a Jellyfin episode DTO to the display-ready [NextUpItem] shown in the overlay.
- * All formatting is done here so the composable stays stateless.
- */
 private fun buildNextUpItem(session: UserSession, item: BaseItemDto): NextUpItem {
     val seasonNum = item.parentIndexNumber
     val epNum = item.indexNumber
