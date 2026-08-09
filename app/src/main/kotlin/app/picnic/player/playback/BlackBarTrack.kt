@@ -1,13 +1,10 @@
 package app.picnic.player.playback
 
+import kotlin.math.abs
+
 data class TimedBars(val positionMs: Long, val bars: BlackBars)
 
-/**
- * Bars across an item's runtime. Boundaries carry the timing of the thumbnails they came from,
- * which Jellyfin's keyframe-only trickplay leaves a few seconds loose.
- */
 class BlackBarTrack(segments: List<Segment>) {
-
     data class Segment(val startMs: Long, val bars: BlackBars)
 
     private val segments = segments.ifEmpty { listOf(Segment(0L, BlackBars.None)) }.sortedBy { it.startMs }
@@ -37,42 +34,51 @@ class BlackBarTrack(segments: List<Segment>) {
     }
 }
 
-private const val FramingTolerance = 0.03f
+/** Depths within a row and a half of each other are one framing measured either side of a pixel. */
+private const val FramingMergeRows = 1.5f
 
-/** Matches the sample floor [mergeBars] applies, so every run it keeps is one [mergeBars] answers. */
-private const val MinRunFrames = 4
+/** A framing has to account for this much of the item; below it a depth is a misread. */
+private const val MinFramingShare = 0.02f
 
-/**
- * Each run is reduced by [mergeBars], so a segment clears the picture across every frame it covers
- * and discards the same implausible measurements a whole-item answer would. A run must hold for
- * [MinRunFrames] to become a segment, so a lone dark frame cannot cut the timeline in two.
- */
-fun blackBarSegments(frames: List<TimedBars>): List<BlackBarTrack.Segment> {
-    if (frames.isEmpty()) return emptyList()
+fun blackBarSegments(frames: List<TimedBars>, frameHeight: Int): List<BlackBarTrack.Segment> {
+    if (frames.isEmpty() || frameHeight <= 0) return emptyList()
     val ordered = frames.sortedBy { it.positionMs }
+    val depths = ordered.map { minOf(it.bars.top, it.bars.bottom) }
+    val framings = framingsOf(depths, frameHeight)
 
-    val runs = mutableListOf<MutableList<TimedBars>>()
-    ordered.forEach { frame ->
-        val current = runs.lastOrNull()
-        if (current != null && frame.bars.matches(current.last().bars)) {
-            current += frame
-        } else {
-            runs += mutableListOf(frame)
-        }
-    }
-
-    val held = runs.filter { it.size >= MinRunFrames }.ifEmpty { listOf(ordered.toMutableList()) }
     val segments = mutableListOf<BlackBarTrack.Segment>()
-    held.forEach { run ->
-        val bars = mergeBars(run.map { it.bars })
+    ordered.forEachIndexed { index, frame ->
+        val depth = framings.minBy { abs(it - depths[index]) }
+        val bars = if (depth <= 0f) BlackBars.None else BlackBars(depth, depth)
         val previous = segments.lastOrNull()
         when {
             previous == null -> segments += BlackBarTrack.Segment(0L, bars)
-            bars.matches(previous.bars) -> Unit
-            else -> segments += BlackBarTrack.Segment(run.first().positionMs, bars)
+            previous.bars != bars -> segments += BlackBarTrack.Segment(frame.positionMs, bars)
         }
     }
     return segments
 }
 
-private fun BlackBars.matches(other: BlackBars): Boolean = kotlin.math.abs(top - other.top) <= FramingTolerance && kotlin.math.abs(bottom - other.bottom) <= FramingTolerance
+private fun framingsOf(depths: List<Float>, frameHeight: Int): List<Float> {
+    val merge = FramingMergeRows / frameHeight
+    val capped = barSearchRows(frameHeight).toFloat() / frameHeight
+    val kept = mutableListOf<Pair<Float, Int>>()
+    depths.filter { it < capped }
+        .groupingBy { it }
+        .eachCount()
+        .entries
+        .sortedByDescending { it.value }
+        .forEach { (depth, count) ->
+            val index = kept.indexOfFirst { abs(it.first - depth) <= merge }
+            if (index < 0) {
+                kept += depth to count
+            } else {
+                val (center, weight) = kept[index]
+                kept[index] = (center * weight + depth * count) / (weight + count) to weight + count
+            }
+        }
+    return kept.filter { it.second >= MinFramingShare * depths.size }
+        .map { it.first }
+        .sorted()
+        .ifEmpty { listOf(0f) }
+}

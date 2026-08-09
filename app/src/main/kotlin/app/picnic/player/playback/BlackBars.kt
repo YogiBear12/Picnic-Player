@@ -1,12 +1,6 @@
 package app.picnic.player.playback
 
-/**
- * Black bars an encoder baked into the frame — a 2.39:1 film carried in a 16:9 picture — as
- * fractions of its height. Bars a player adds to fit one aspect inside another are not these:
- * those follow from the video's display size and never need measuring.
- */
 data class BlackBars(val top: Float, val bottom: Float) {
-
     val pictureHeight: Float get() = (1f - top - bottom).coerceIn(0f, 1f)
 
     companion object {
@@ -14,59 +8,38 @@ data class BlackBars(val top: Float, val bottom: Float) {
     }
 }
 
-private const val BarLumaCeiling = 22f
+/** Limited-range black is 16, with headroom to 21 for compression. */
+private const val BlackCeiling = 21
 
-/** Below this a frame is unmeasurable: fades, title cards and a sheet's unwritten cells are all bar. */
-private const val ContentLumaFloor = 48f
+/** 2.76:1 in 16:9 gives 0.177, the widest letterbox there is to find. */
+private const val SearchFraction = 0.25f
 
-private const val MinBarFraction = 0.015f
+/** How far in from an edge a bar is looked for. A reading this deep never found the picture. */
+internal fun barSearchRows(height: Int): Int = (height * SearchFraction).toInt()
 
-/** 2.39:1 in 16:9 gives 0.127, 2.76:1 gives 0.177; past this, dark frames are likelier. */
-private const val MaxBarFraction = 0.25f
+fun barsInFrame(pixels: IntArray, width: Int, height: Int): BlackBars {
+    if (width <= 0 || height <= 0 || pixels.size < width * height) return BlackBars.None
 
-private const val MinSamples = 4
-
-/** Null when the frame carries no picture to measure a bar against. [rowLuma] top row first. */
-fun barsInFrame(rowLuma: FloatArray): BlackBars? {
-    if (rowLuma.isEmpty() || rowLuma.none { it >= ContentLumaFloor }) return null
-
+    val range = barSearchRows(height)
     var top = 0
-    while (top < rowLuma.size && rowLuma[top] < BarLumaCeiling) top++
+    while (top < range && rowIsBlack(pixels, top * width, width)) top++
     var bottom = 0
-    while (bottom < rowLuma.size - top && rowLuma[rowLuma.size - 1 - bottom] < BarLumaCeiling) bottom++
+    while (bottom < range && rowIsBlack(pixels, (height - 1 - bottom) * width, width)) bottom++
 
-    val height = rowLuma.size.toFloat()
-    return BlackBars(top / height, bottom / height)
+    return BlackBars(top.toFloat() / height, bottom.toFloat() / height)
 }
 
-/**
- * One measurement for a whole item: the smallest bar seen on each side.
- *
- * A film that opens 2.39:1 and widens to full frame for some scenes reports no bars at all, so its
- * cues sit in the bar during the scope scenes rather than climbing over the picture during the
- * full-frame ones. Dark scenes only ever overstate a bar, so the minimum discards them for free.
- */
-fun mergeBars(frames: List<BlackBars>): BlackBars {
-    if (frames.size < MinSamples) return BlackBars.None
-    val top = frames.minOf { it.top }.settle()
-    val bottom = frames.minOf { it.bottom }.settle()
-    return if (top <= 0f && bottom <= 0f) BlackBars.None else BlackBars(top, bottom)
-}
-
-private fun Float.settle(): Float = if (this < MinBarFraction || this > MaxBarFraction) 0f else this
-
-fun rowLuma(pixels: IntArray, offset: Int, width: Int, columnStride: Int): Float {
-    var total = 0L
-    var count = 0
+// Every column: a thumbnail is a few hundred pixels wide, and subsampling one steps over the
+// handful of lit pixels that prove a row is picture.
+private fun rowIsBlack(pixels: IntArray, offset: Int, width: Int): Boolean {
     var x = 0
     while (x < width) {
         val pixel = pixels[offset + x]
         val r = (pixel shr 16) and 0xFF
         val g = (pixel shr 8) and 0xFF
         val b = pixel and 0xFF
-        total += (r * 77 + g * 151 + b * 28) shr 8
-        count++
-        x += columnStride
+        if (((r * 77 + g * 151 + b * 28) shr 8) > BlackCeiling) return false
+        x++
     }
-    return if (count == 0) 0f else total.toFloat() / count
+    return true
 }
