@@ -50,6 +50,8 @@ import app.picnic.player.data.settings.SubtitleArea
 import app.picnic.player.di.ApplicationScope
 import app.picnic.player.playback.AudioBoost
 import app.picnic.player.playback.BlackBarTrack
+import app.picnic.player.playback.BlackBars
+import app.picnic.player.playback.CueLatchedBars
 import app.picnic.player.playback.JellyfinTrackSelection
 import app.picnic.player.playback.NightMode
 import app.picnic.player.playback.PlaybackEngineFactory
@@ -227,7 +229,7 @@ class PlayerViewModel @Inject constructor(
     private var selectedAudioIndex: Int? = null
     private var selectedSubtitleIndex: Int? = null
     private val trickplay = MutableStateFlow<Trickplay?>(null)
-    private val _blackBars = MutableStateFlow(BlackBarTrack.None)
+    private val latchedBars = CueLatchedBars()
     private var loaded = false
 
     private val viewingJob = SupervisorJob(viewModelScope.coroutineContext[Job])
@@ -285,6 +287,7 @@ class PlayerViewModel @Inject constructor(
             applyTrackSelections()
         }
         override fun onCues(cueGroup: androidx.media3.common.text.CueGroup) {
+            latchedBars.onCueBoundary(player.currentPosition)
             _state.update { it.copy(subtitleCues = cueGroup.cues) }
         }
         override fun onPlayerError(error: PlaybackException) {
@@ -363,12 +366,13 @@ class PlayerViewModel @Inject constructor(
                 ::Pair
             ).collectLatest { (trickplay, area) ->
                 val sheets = trickplay?.sheets().orEmpty()
-                _blackBars.value = if (area == SubtitleArea.AUTOMATIC && sheets.isNotEmpty()) {
+                val track = if (area == SubtitleArea.AUTOMATIC && sheets.isNotEmpty()) {
                     trickplayPrefetchJob?.join()
                     blackBarProbe.detect(sheets)
                 } else {
                     BlackBarTrack.None
                 }
+                latchedBars.setTrack(track, player.currentPosition)
             }
         }
         player.addListener(listener)
@@ -430,7 +434,7 @@ class PlayerViewModel @Inject constructor(
 
     val subtitleRenderRange: StateFlow<SubtitleRenderRange> = engine.subtitleRenderRange
 
-    val blackBars: StateFlow<BlackBarTrack> = _blackBars.asStateFlow()
+    val blackBars: StateFlow<BlackBars> = latchedBars.bars
 
     fun attachSubtitleView(
         subtitleView: SubtitleView,

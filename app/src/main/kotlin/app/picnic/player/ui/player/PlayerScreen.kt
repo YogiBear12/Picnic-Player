@@ -36,7 +36,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -497,10 +496,7 @@ fun PlayerScreen(
             // Spans the box whatever the area: a SubtitleView clips cues to its own bounds, so one
             // sized to the video rect could never place a cue in the bars.
             val subtitleRange by viewModel.subtitleRenderRange.collectAsStateWithLifecycle()
-            val blackBarTrack by viewModel.blackBars.collectAsStateWithLifecycle()
-            // Derived so a track with segments only recomposes when the framing actually changes,
-            // not on every position tick.
-            val blackBars by remember { derivedStateOf { blackBarTrack.at(state.positionMs) } }
+            val blackBars by viewModel.blackBars.collectAsStateWithLifecycle()
             val appearance = settings.subtitleAppearance
             val videoRectHeight = presentationState.videoSizeDp?.let { video ->
                 videoRectHeightFraction(video.width, video.height, maxWidth.value, maxHeight.value)
