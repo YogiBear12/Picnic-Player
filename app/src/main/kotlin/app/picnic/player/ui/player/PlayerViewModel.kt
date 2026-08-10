@@ -54,6 +54,7 @@ import app.picnic.player.playback.BlackBars
 import app.picnic.player.playback.CueLatchedBars
 import app.picnic.player.playback.JellyfinTrackSelection
 import app.picnic.player.playback.NightMode
+import app.picnic.player.playback.PlaybackDiagnostics
 import app.picnic.player.playback.PlaybackEngineFactory
 import app.picnic.player.playback.PlaybackSessionController
 import app.picnic.player.playback.SideloadedTrackId
@@ -65,6 +66,7 @@ import app.picnic.player.playback.StreamResult
 import app.picnic.player.playback.StreamTarget
 import app.picnic.player.playback.SubtitleRenderRange
 import app.picnic.player.playback.ThemeMusicPlayer
+import app.picnic.player.playback.externalSubtitleCount
 import app.picnic.player.ui.browse.ShortDateFormat
 import app.picnic.player.ui.browse.TICKS_PER_MINUTE
 import app.picnic.player.util.LanguageDisplay
@@ -246,6 +248,8 @@ class PlayerViewModel @Inject constructor(
         override fun stop() = player.stop()
 
         override fun load(stream: StreamInfo, resumeMs: Long) {
+            PlaybackDiagnostics.logStream(stream)
+            PlaybackDiagnostics.log("loading at resumeMs=$resumeMs directPlayAllowed=${directPlayVeto.allowsDirectPlay}")
             player.setMediaItem(mediaItemFor(stream))
             player.prepare()
             pendingSeekMs = resumeMs
@@ -307,6 +311,7 @@ class PlayerViewModel @Inject constructor(
     // advances over a black screen — so the empty track list is the only signal there is.
     private fun recoverIfNothingToPlay() {
         if (player.currentTracks.groups.isNotEmpty()) return
+        PlaybackDiagnostics.log("prepared with no playable tracks; remuxAlreadyTried=${!directPlayVeto.allowsDirectPlay}")
         if (directPlayVeto.onNoPlayableTracks()) {
             reload(
                 quality = sessionController.qualityOverride.value,
@@ -392,6 +397,10 @@ class PlayerViewModel @Inject constructor(
         }
         player.addListener(listener)
         player.addAnalyticsListener(analyticsListener)
+        if (PlaybackDiagnostics.enabled) {
+            player.addAnalyticsListener(PlaybackDiagnostics)
+            PlaybackDiagnostics.logRenderers(player)
+        }
         viewModelScope.launch {
             sessionController.audioBoost.collect { level ->
                 engine.audioEffects.setBoostMillibels(level.gainMb)
@@ -878,6 +887,13 @@ class PlayerViewModel @Inject constructor(
             audioIndex = selectedAudioIndex,
             subtitleIndex = selectedSubtitleIndex,
             mediaStreams = mediaStreams
+        )
+        PlaybackDiagnostics.logTrackSelectionOutcome(
+            result = result,
+            audioIndex = selectedAudioIndex,
+            subtitleIndex = selectedSubtitleIndex,
+            externalSubtitleCount = mediaStreams.externalSubtitleCount,
+            supportsDirectPlay = !isConverting()
         )
         if (result.bothSelected) {
             player.trackSelectionParameters = result.trackSelectionParameters

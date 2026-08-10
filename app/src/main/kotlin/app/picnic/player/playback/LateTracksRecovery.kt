@@ -72,6 +72,7 @@ private class LateTracksExtractor(private val delegate: Extractor) : Extractor {
                 tracksPosition = found
                 RecoveryState.SEEK_TO_TRACKS
             }
+            PlaybackDiagnostics.log("late tracks: ${found?.let { "Tracks at $it, recovering" } ?: "not needed"}")
         }
 
         when (state) {
@@ -93,6 +94,7 @@ private class LateTracksExtractor(private val delegate: Extractor) : Extractor {
 
         val wrapped = output
         if (wrapped != null && (wrapped.tracksEnded || result == Extractor.RESULT_END_OF_INPUT)) {
+            PlaybackDiagnostics.log("late tracks: read ${wrapped.trackCount} track(s), restarting from the top")
             state = RecoveryState.SEEK_TO_START
             return Extractor.RESULT_CONTINUE
         }
@@ -123,6 +125,8 @@ private class LateTracksExtractor(private val delegate: Extractor) : Extractor {
 private class LateTracksOutput(private val delegate: ExtractorOutput) : ExtractorOutput {
 
     private val outputs = mutableMapOf<Int, TrackOutput>()
+
+    val trackCount: Int get() = outputs.size
 
     var tracksEnded = false
         private set

@@ -74,10 +74,12 @@ class PlaybackEngine(context: Context, httpClient: OkHttpClient) {
         val mediaSourceFactory = DefaultMediaSourceFactory(
             jellyfinDataSourceFactory(context, httpClient),
             recoverLateTracks(
-                DefaultExtractorsFactory()
-                    .setConstantBitrateSeekingEnabled(true)
-                    .setConstantBitrateSeekingAlwaysEnabled(true)
-                    .withAssMkvSupport(parserFactory, assHandler)
+                instrumentExtractors(
+                    DefaultExtractorsFactory()
+                        .setConstantBitrateSeekingEnabled(true)
+                        .setConstantBitrateSeekingAlwaysEnabled(true)
+                        .withAssMkvSupport(parserFactory, assHandler)
+                )
             )
         ).setSubtitleParserFactory(parserFactory)
         player = ExoPlayer.Builder(context)
