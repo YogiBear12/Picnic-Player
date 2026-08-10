@@ -32,10 +32,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import okhttp3.OkHttpClient
 
-/**
- * ExoPlayer + libass wiring. Owns renderer/track-selector setup and
- * binds once to a [PlayerView] so video surface + ASS overlay share one host.
- */
 class PlaybackEngine(context: Context, httpClient: OkHttpClient) {
 
     val assHandler: AssHandler
@@ -46,7 +42,6 @@ class PlaybackEngine(context: Context, httpClient: OkHttpClient) {
     /** Shared subtitle offset (µs). Read each frame by every text/ASS renderer. */
     private val subtitleDelayUs = AtomicLong(0L)
 
-    /** Volume boost + night mode for this player's audio session. */
     val audioEffects = AudioEffects { player.audioSessionId }
 
     private val _subtitleRenderRange = MutableStateFlow(SubtitleRenderRange.SDR)
@@ -78,10 +73,12 @@ class PlaybackEngine(context: Context, httpClient: OkHttpClient) {
         )
         val mediaSourceFactory = DefaultMediaSourceFactory(
             jellyfinDataSourceFactory(context, httpClient),
-            DefaultExtractorsFactory()
-                .setConstantBitrateSeekingEnabled(true)
-                .setConstantBitrateSeekingAlwaysEnabled(true)
-                .withAssMkvSupport(parserFactory, assHandler)
+            recoverLateTracks(
+                DefaultExtractorsFactory()
+                    .setConstantBitrateSeekingEnabled(true)
+                    .setConstantBitrateSeekingAlwaysEnabled(true)
+                    .withAssMkvSupport(parserFactory, assHandler)
+            )
         ).setSubtitleParserFactory(parserFactory)
         player = ExoPlayer.Builder(context)
             .setTrackSelector(DefaultTrackSelector(context))
