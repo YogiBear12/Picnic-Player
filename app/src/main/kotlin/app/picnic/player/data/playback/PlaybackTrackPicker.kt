@@ -77,7 +77,6 @@ fun pickSubtitleIndex(
     }
 }
 
-/** True when [streamLang] and [preferred] name the same language, iso2/iso3 tolerant. */
 fun languageMatches(streamLang: String?, preferred: String): Boolean {
     if (streamLang.isNullOrBlank()) return false
     return normalizeLanguage(streamLang) == normalizeLanguage(preferred)
@@ -91,7 +90,7 @@ internal fun normalizeLanguage(raw: String): String {
     return tag
 }
 
-private fun pickFullInLanguage(subs: List<MediaStream>, language: String): Int? = preferDefaultElseFirst(
+private fun pickFullInLanguage(subs: List<MediaStream>, language: String): Int? = preferExternalThenDefault(
     subs.filter { languageMatches(it.language, language) && !it.isForced }
 )?.index
 
@@ -99,8 +98,11 @@ private fun pickForcedInLanguage(subs: List<MediaStream>, language: String): Int
     val forced = subs.filter { it.isForced }
     val matches = forced.filter { languageMatches(it.language, language) }
         .ifEmpty { forced.filter { it.language.isUndefinedLanguage() } }
-    return preferDefaultElseFirst(matches)?.index
+    return preferExternalThenDefault(matches)?.index
 }
+
+private fun preferExternalThenDefault(subs: List<MediaStream>): MediaStream? = preferDefaultElseFirst(subs.filter { it.isExternal })
+    ?: preferDefaultElseFirst(subs)
 
 private fun String?.isUndefinedLanguage(): Boolean = isNullOrBlank() || trim().lowercase(Locale.ROOT) in UNDEFINED_LANGUAGES
 

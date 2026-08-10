@@ -7,8 +7,6 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 class PlaybackTrackPickerTest {
-
-    /** Dual-audio fixture: JP+EN audio; EN subs Default, Forced, and neither. */
     private fun dualAudioStreams(): List<MediaStream> = listOf(
         audio(index = 1, language = "jpn", isDefault = false),
         audio(index = 2, language = "eng", isDefault = true),
@@ -71,7 +69,6 @@ class PlaybackTrackPickerTest {
 
     @Test
     fun smart_jpAudio_unspecifiedSub_deviceDe_picksNone() {
-        // Device German, only EN subs → no match → none (no English fallback).
         val pick = pickTracks(
             streams = dualAudioStreams(),
             preferredAudioLanguage = "ja",
@@ -85,7 +82,6 @@ class PlaybackTrackPickerTest {
 
     @Test
     fun smart_match_noForcedInPreferred_picksNoneNotEnglishForced() {
-        // JP audio + JP preferred sub; no JP Forced; EN Forced present → none (not EN Forced).
         val streams = listOf(
             audio(index = 1, language = "jpn", isDefault = true),
             audio(index = 2, language = "eng", isDefault = false),
@@ -261,6 +257,74 @@ class PlaybackTrackPickerTest {
     }
 
     @Test
+    fun alwaysOn_externalFullTrack_beatsEmbeddedDefault() {
+        val streams = listOf(
+            audio(index = 1, language = "eng", isDefault = true),
+            subtitle(index = 2, language = "eng", isDefault = true, isForced = false),
+            subtitle(index = 3, language = "eng", isDefault = false, isForced = false, isExternal = true)
+        )
+        val pick = pickTracks(
+            streams = streams,
+            preferredAudioLanguage = "en",
+            preferredSubtitleLanguage = "en",
+            deviceSubtitleLanguage = "en",
+            alwaysDisplaySubtitles = true
+        )
+        assertEquals(3, pick.subtitleIndex)
+    }
+
+    @Test
+    fun alwaysOn_externalForcedNeverBeatsEmbeddedFullTrack() {
+        val streams = listOf(
+            audio(index = 1, language = "eng", isDefault = true),
+            subtitle(index = 2, language = "eng", isDefault = false, isForced = true, isExternal = true),
+            subtitle(index = 3, language = "eng", isDefault = false, isForced = false)
+        )
+        val pick = pickTracks(
+            streams = streams,
+            preferredAudioLanguage = "en",
+            preferredSubtitleLanguage = "en",
+            deviceSubtitleLanguage = "en",
+            alwaysDisplaySubtitles = true
+        )
+        assertEquals(3, pick.subtitleIndex)
+    }
+
+    @Test
+    fun smart_foreignAudio_externalFullTrack_beatsEmbeddedDefault() {
+        val streams = listOf(
+            audio(index = 1, language = "jpn", isDefault = true),
+            subtitle(index = 2, language = "eng", isDefault = true, isForced = false),
+            subtitle(index = 3, language = "eng", isDefault = false, isForced = false, isExternal = true)
+        )
+        val pick = pickTracks(
+            streams = streams,
+            preferredAudioLanguage = "ja",
+            preferredSubtitleLanguage = "en",
+            deviceSubtitleLanguage = "en",
+            alwaysDisplaySubtitles = false
+        )
+        assertEquals(3, pick.subtitleIndex)
+    }
+
+    @Test
+    fun smart_matchingAudio_externalForced_beatsEmbeddedForced() {
+        val streams = listOf(
+            audio(index = 1, language = "eng", isDefault = true),
+            subtitle(index = 2, language = "eng", isDefault = true, isForced = true),
+            subtitle(index = 3, language = "eng", isDefault = false, isForced = true, isExternal = true)
+        )
+        val pick = pickTracks(
+            streams = streams,
+            preferredAudioLanguage = "en",
+            preferredSubtitleLanguage = "en",
+            deviceSubtitleLanguage = "en",
+            alwaysDisplaySubtitles = false
+        )
+        assertEquals(3, pick.subtitleIndex)
+    }
+
+    @Test
     fun unspecifiedAudio_picksDefaultAudio() {
         val pick = pickTracks(
             streams = dualAudioStreams(),
@@ -270,7 +334,6 @@ class PlaybackTrackPickerTest {
             alwaysDisplaySubtitles = false
         )
         assertEquals(2, pick.audioIndex)
-        // Default EN audio → matches preferred EN sub → Forced
         assertEquals(4, pick.subtitleIndex)
     }
 
@@ -364,7 +427,6 @@ class PlaybackTrackPickerTest {
             preferDefaultAudioTrack = true
         )
         assertEquals(1, pick.audioIndex)
-        // JP audio vs EN sub preference → full subtitles, not Forced.
         assertEquals(3, pick.subtitleIndex)
     }
 
@@ -400,7 +462,8 @@ private fun subtitle(
     index: Int,
     language: String,
     isDefault: Boolean,
-    isForced: Boolean
+    isForced: Boolean,
+    isExternal: Boolean = false
 ): MediaStream = MediaStream(
     type = MediaStreamType.SUBTITLE,
     index = index,
@@ -409,7 +472,7 @@ private fun subtitle(
     isDefault = isDefault,
     isForced = isForced,
     isHearingImpaired = false,
-    isExternal = false,
+    isExternal = isExternal,
     isTextSubtitleStream = true,
     supportsExternalStream = false
 )
