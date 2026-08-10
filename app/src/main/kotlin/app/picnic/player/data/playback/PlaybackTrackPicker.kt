@@ -4,26 +4,15 @@ import java.util.Locale
 import org.jellyfin.sdk.model.api.MediaStream
 import org.jellyfin.sdk.model.api.MediaStreamType
 
-/** Result of client-side audio + subtitle pick at playback start. */
 data class TrackPick(
     val audioIndex: Int?,
     val subtitleIndex: Int?
 )
 
 /**
- * Device-local track selection for #15 stage 1. Beats Jellyfin server defaults for this
- * install. Pure logic — no I/O — so JVM unit tests can cover Smart / Always fixtures.
- *
- * Callers pass already-resolved codes (override → server → device); the null handling below is
- * a defensive fallback for direct/pure-test use.
- *
- * @param preferredAudioLanguage two-letter (or three-letter) ISO code, or null = no preference
- * @param preferredSubtitleLanguage two-letter (or three-letter) ISO code, or null = no preference
- *   (a null subtitle preference resolves to [deviceSubtitleLanguage])
- * @param deviceSubtitleLanguage language from the device locale; used when subtitle pref is null
- * @param alwaysDisplaySubtitles true = Always; false = Smart
- * @param preferDefaultAudioTrack true = take the file's default audio track, ignoring the
- *   audio-language preference (subtitles still follow whatever audio language that lands on)
+ * @param alwaysDisplaySubtitles true = Always, false = Smart
+ * @param preferDefaultAudioTrack ignores [preferredAudioLanguage]; subtitles still follow the
+ *   language of whichever audio track that lands on
  */
 fun pickTracks(
     streams: List<MediaStream>,
@@ -52,7 +41,6 @@ fun pickAudioIndex(
 ): Int? {
     val audios = streams.filter { it.type == MediaStreamType.AUDIO }
     if (audios.isEmpty()) return null
-    // Commentary-style extras are never auto-picked unless marked Default.
     val pool = audios.filter { !it.isCommentaryStyle() || it.isDefault }
     val candidates = pool.ifEmpty { audios }
 
@@ -77,11 +65,9 @@ fun pickSubtitleIndex(
         ?: return null
 
     if (alwaysDisplaySubtitles) {
-        return pickAnyInLanguage(subs, preferred)
+        return pickFullInLanguage(subs, preferred) ?: pickForcedInLanguage(subs, preferred)
     }
 
-    // Smart: compare selected audio language to preferred subtitle language.
-    // Match → Forced in preferred only (else none). No secondary-language fallback.
     val audioMatchesPreferred = selectedAudioLanguage != null &&
         languageMatches(selectedAudioLanguage, preferred)
     return if (audioMatchesPreferred) {
@@ -91,7 +77,7 @@ fun pickSubtitleIndex(
     }
 }
 
-/** True when [streamLang] and [preferred] name the same language (iso2/iso3 tolerant). */
+/** True when [streamLang] and [preferred] name the same language, iso2/iso3 tolerant. */
 fun languageMatches(streamLang: String?, preferred: String): Boolean {
     if (streamLang.isNullOrBlank()) return false
     return normalizeLanguage(streamLang) == normalizeLanguage(preferred)
@@ -105,18 +91,18 @@ internal fun normalizeLanguage(raw: String): String {
     return tag
 }
 
-private fun pickAnyInLanguage(subs: List<MediaStream>, language: String): Int? = preferDefaultElseFirst(
-    subs.filter { languageMatches(it.language, language) }
-)?.index
-
-/** Full (non-Forced) subtitle in [language]: Default else first among matches. */
 private fun pickFullInLanguage(subs: List<MediaStream>, language: String): Int? = preferDefaultElseFirst(
     subs.filter { languageMatches(it.language, language) && !it.isForced }
 )?.index
 
-private fun pickForcedInLanguage(subs: List<MediaStream>, language: String): Int? = preferDefaultElseFirst(
-    subs.filter { languageMatches(it.language, language) && it.isForced }
-)?.index
+private fun pickForcedInLanguage(subs: List<MediaStream>, language: String): Int? {
+    val forced = subs.filter { it.isForced }
+    val matches = forced.filter { languageMatches(it.language, language) }
+        .ifEmpty { forced.filter { it.language.isUndefinedLanguage() } }
+    return preferDefaultElseFirst(matches)?.index
+}
+
+private fun String?.isUndefinedLanguage(): Boolean = isNullOrBlank() || trim().lowercase(Locale.ROOT) in UNDEFINED_LANGUAGES
 
 private fun preferDefaultElseFirst(streams: List<MediaStream>): MediaStream? = streams.firstOrNull { it.isDefault } ?: streams.firstOrNull()
 
@@ -135,3 +121,5 @@ private fun iso3ToIso2(code: String): String? {
 }
 
 private val COMMENTARY = Regex("commentary", RegexOption.IGNORE_CASE)
+
+private val UNDEFINED_LANGUAGES = setOf("und", "unknown", "undetermined", "mul", "zxx")

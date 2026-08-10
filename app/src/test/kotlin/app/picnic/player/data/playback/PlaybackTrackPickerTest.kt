@@ -130,6 +130,137 @@ class PlaybackTrackPickerTest {
     }
 
     @Test
+    fun alwaysOn_forcedListedFirst_noDefaultFlags_picksFullTrack() {
+        val streams = listOf(
+            audio(index = 1, language = "eng", isDefault = true),
+            subtitle(index = 2, language = "eng", isDefault = false, isForced = true),
+            subtitle(index = 3, language = "eng", isDefault = false, isForced = false)
+        )
+        val pick = pickTracks(
+            streams = streams,
+            preferredAudioLanguage = "en",
+            preferredSubtitleLanguage = "en",
+            deviceSubtitleLanguage = "en",
+            alwaysDisplaySubtitles = true
+        )
+        assertEquals(3, pick.subtitleIndex)
+    }
+
+    @Test
+    fun alwaysOn_forcedFlaggedDefault_picksFullTrack() {
+        val streams = listOf(
+            audio(index = 1, language = "eng", isDefault = true),
+            subtitle(index = 2, language = "eng", isDefault = true, isForced = true),
+            subtitle(index = 3, language = "eng", isDefault = false, isForced = false)
+        )
+        val pick = pickTracks(
+            streams = streams,
+            preferredAudioLanguage = "en",
+            preferredSubtitleLanguage = "en",
+            deviceSubtitleLanguage = "en",
+            alwaysDisplaySubtitles = true
+        )
+        assertEquals(3, pick.subtitleIndex)
+    }
+
+    @Test
+    fun alwaysOn_onlyForcedInLanguage_picksForced() {
+        val streams = listOf(
+            audio(index = 1, language = "eng", isDefault = true),
+            subtitle(index = 2, language = "eng", isDefault = false, isForced = true)
+        )
+        val pick = pickTracks(
+            streams = streams,
+            preferredAudioLanguage = "en",
+            preferredSubtitleLanguage = "en",
+            deviceSubtitleLanguage = "en",
+            alwaysDisplaySubtitles = true
+        )
+        assertEquals(2, pick.subtitleIndex)
+    }
+
+    @Test
+    fun alwaysOn_onlyUndefinedLanguageForced_picksForced() {
+        val streams = listOf(
+            audio(index = 1, language = "eng", isDefault = true),
+            subtitle(index = 2, language = "und", isDefault = false, isForced = true)
+        )
+        val pick = pickTracks(
+            streams = streams,
+            preferredAudioLanguage = "en",
+            preferredSubtitleLanguage = "en",
+            deviceSubtitleLanguage = "en",
+            alwaysDisplaySubtitles = true
+        )
+        assertEquals(2, pick.subtitleIndex)
+    }
+
+    @Test
+    fun alwaysOn_undefinedLanguageForcedLosesToForcedInPreferredLanguage() {
+        val streams = listOf(
+            audio(index = 1, language = "eng", isDefault = true),
+            subtitle(index = 2, language = "und", isDefault = false, isForced = true),
+            subtitle(index = 3, language = "eng", isDefault = false, isForced = true)
+        )
+        val pick = pickTracks(
+            streams = streams,
+            preferredAudioLanguage = "en",
+            preferredSubtitleLanguage = "en",
+            deviceSubtitleLanguage = "en",
+            alwaysDisplaySubtitles = true
+        )
+        assertEquals(3, pick.subtitleIndex)
+    }
+
+    @Test
+    fun alwaysOn_singleFullTrackInLanguage_picksIt() {
+        val streams = listOf(
+            audio(index = 1, language = "eng", isDefault = true),
+            subtitle(index = 2, language = "eng", isDefault = false, isForced = false)
+        )
+        val pick = pickTracks(
+            streams = streams,
+            preferredAudioLanguage = "en",
+            preferredSubtitleLanguage = "en",
+            deviceSubtitleLanguage = "en",
+            alwaysDisplaySubtitles = true
+        )
+        assertEquals(2, pick.subtitleIndex)
+    }
+
+    @Test
+    fun alwaysOn_noTrackInLanguageAndNoForced_picksNone() {
+        val streams = listOf(
+            audio(index = 1, language = "eng", isDefault = true),
+            subtitle(index = 2, language = "deu", isDefault = true, isForced = false)
+        )
+        val pick = pickTracks(
+            streams = streams,
+            preferredAudioLanguage = "en",
+            preferredSubtitleLanguage = "en",
+            deviceSubtitleLanguage = "en",
+            alwaysDisplaySubtitles = true
+        )
+        assertNull(pick.subtitleIndex)
+    }
+
+    @Test
+    fun smart_matchingAudio_undefinedLanguageForced_picksForced() {
+        val streams = listOf(
+            audio(index = 1, language = "eng", isDefault = true),
+            subtitle(index = 2, language = "und", isDefault = false, isForced = true)
+        )
+        val pick = pickTracks(
+            streams = streams,
+            preferredAudioLanguage = "en",
+            preferredSubtitleLanguage = "en",
+            deviceSubtitleLanguage = "en",
+            alwaysDisplaySubtitles = false
+        )
+        assertEquals(2, pick.subtitleIndex)
+    }
+
+    @Test
     fun unspecifiedAudio_picksDefaultAudio() {
         val pick = pickTracks(
             streams = dualAudioStreams(),
