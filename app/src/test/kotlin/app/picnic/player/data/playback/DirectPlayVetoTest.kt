@@ -6,10 +6,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class DirectPlayVetoTest {
-
     private val veto = DirectPlayVeto()
 
-    // What a zlib-compressed Matroska track reports: "ContentCompAlgo 0 not supported".
     private val unreadableContainer = PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED
 
     @Test
@@ -31,7 +29,6 @@ class DirectPlayVetoTest {
     @Test
     fun theVetoOutlivesTheRetry() {
         veto.onPlaybackError(unreadableContainer)
-        // Every later renegotiation — subtitle pick, audio pick, quality change — must still see it.
         assertFalse(veto.allowsDirectPlay)
         assertFalse(veto.allowsDirectPlay)
     }
@@ -40,6 +37,24 @@ class DirectPlayVetoTest {
     fun aSecondFailureIsARealError() {
         veto.onPlaybackError(unreadableContainer)
         assertFalse(veto.onPlaybackError(unreadableContainer))
+    }
+
+    @Test
+    fun aSourceThatPreparesWithNothingToPlayTriggersOneRenegotiation() {
+        assertTrue(veto.onNoPlayableTracks())
+        assertFalse(veto.allowsDirectPlay)
+    }
+
+    @Test
+    fun aSecondEmptyPreparationIsARealError() {
+        veto.onNoPlayableTracks()
+        assertFalse(veto.onNoPlayableTracks())
+    }
+
+    @Test
+    fun anEmptyPreparationAfterAContainerErrorIsARealError() {
+        veto.onPlaybackError(unreadableContainer)
+        assertFalse(veto.onNoPlayableTracks())
     }
 
     @Test

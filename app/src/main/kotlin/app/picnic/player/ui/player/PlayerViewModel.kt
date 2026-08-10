@@ -275,6 +275,7 @@ class PlayerViewModel @Inject constructor(
     private val listener = object : Player.Listener {
         override fun onPlaybackStateChanged(playbackState: Int) {
             applyPendingSeek()
+            if (playbackState == Player.STATE_READY) recoverIfNothingToPlay()
         }
 
         override fun onEvents(player: Player, events: Player.Events) {
@@ -299,6 +300,20 @@ class PlayerViewModel @Inject constructor(
                 return
             }
             _state.update { it.copy(error = error.message ?: "Playback error", isLoading = false) }
+        }
+    }
+
+    // media3 raises nothing for a container it took no tracks from — it reaches READY and the position
+    // advances over a black screen — so the empty track list is the only signal there is.
+    private fun recoverIfNothingToPlay() {
+        if (player.currentTracks.groups.isNotEmpty()) return
+        if (directPlayVeto.onNoPlayableTracks()) {
+            reload(
+                quality = sessionController.qualityOverride.value,
+                failureNotice = "Couldn't play this file"
+            )
+        } else {
+            _state.update { it.copy(error = "This file has no playable video or audio", isLoading = false) }
         }
     }
 
