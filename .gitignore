@@ -8,6 +8,8 @@ captures/
 local.properties
 .kotlin/
 .media3-build/
+# Built by tools/build-ffmpeg-decoder.sh, in CI and on demand locally.
+/app/libs/
 
 # ide
 .idea/

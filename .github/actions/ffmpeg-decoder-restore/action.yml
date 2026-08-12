@@ -1,0 +1,22 @@
+name: Restore the FFmpeg decoder AAR
+description: Copy app/libs out of the runner's cache volume. Never builds — the FFmpeg decoder workflow does that.
+
+runs:
+  using: composite
+  steps:
+    - id: key
+      uses: ./.github/actions/ffmpeg-decoder-key
+
+    - name: Copy the decoder AAR into app/libs
+      shell: bash
+      run: |
+        set -euo pipefail
+        SOURCE="/cache/ffmpeg-decoder/${{ steps.key.outputs.key }}"
+        if [ ! -d "${SOURCE}" ]; then
+          echo "No decoder AAR at ${SOURCE}."
+          echo "Run the 'FFmpeg decoder' workflow, then retry this one."
+          exit 1
+        fi
+        mkdir -p app/libs
+        cp -a "${SOURCE}/." app/libs/
+        ls -l app/libs

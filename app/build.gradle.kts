@@ -78,6 +78,11 @@ android {
         // Launcher label (product name for release; the debug build overrides it so
         // both APKs are distinguishable side by side). About screen uses R.string.app_name.
         manifestPlaceholders["appLabel"] = "Picnic Player"
+        // One ABI folder is installed per app, so a narrower set than libass ships would
+        // leave arm64 devices with no decoder.
+        ndk {
+            abiFilters += listOf("armeabi-v7a", "arm64-v8a")
+        }
     }
 
     // Release signing pulls the keystore + credentials from environment/secrets
@@ -190,6 +195,24 @@ kotlin {
     }
 }
 
+val ffmpegDecoderAar = file("libs/media3-decoder-ffmpeg-${libs.versions.media3.get()}.aar")
+
+// A missing AAR otherwise surfaces as an unresolved-symbol wall in the Kotlin compiler.
+val checkFfmpegDecoderAar = tasks.register("checkFfmpegDecoderAar") {
+    doLast {
+        if (!ffmpegDecoderAar.exists()) {
+            throw GradleException(
+                "Missing ${ffmpegDecoderAar.name}. Build it with:\n" +
+                    "  tools/build-ffmpeg-decoder.sh \$ANDROID_NDK_HOME"
+            )
+        }
+    }
+}
+
+tasks.named("preBuild") {
+    dependsOn(checkFfmpegDecoderAar)
+}
+
 aboutLibraries {
     // Collapse per-variant/per-platform artifact rows (e.g. jellyfin-core +
     // jellyfin-core-android-debug) into one entry each. The .android plugin
@@ -197,6 +220,10 @@ aboutLibraries {
     library {
         duplicationMode = DuplicateMode.MERGE
         duplicationRule = DuplicateRule.SIMPLE
+    }
+    // A local AAR carries no POM, so the plugin cannot see FFmpeg. config/ declares it by hand.
+    collect {
+        configPath = file("config")
     }
 }
 
@@ -237,6 +264,8 @@ dependencies {
     implementation(libs.media3.ui)
     implementation(libs.media3.ui.compose)
     implementation(libs.media3.datasource.okhttp)
+    // Versioned path: a media3 bump must fail here, not load a decoder built against another core.
+    implementation(files(ffmpegDecoderAar))
 
     implementation(libs.coil.compose)
     implementation(libs.coil.network.okhttp)

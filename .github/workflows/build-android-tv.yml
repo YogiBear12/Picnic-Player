@@ -40,6 +40,9 @@ jobs:
       - name: Set up Android SDK
         uses: ./.github/actions/android-sdk
 
+      - name: Restore FFmpeg decoder AAR
+        uses: ./.github/actions/ffmpeg-decoder-restore
+
       - name: Restore debug signing key
         if: inputs.build_type == 'debug'
         env:

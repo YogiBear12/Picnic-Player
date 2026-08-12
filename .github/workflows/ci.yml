@@ -32,6 +32,9 @@ jobs:
       - name: Set up Android SDK
         uses: ./.github/actions/android-sdk
 
+      - name: Restore FFmpeg decoder AAR
+        uses: ./.github/actions/ffmpeg-decoder-restore
+
       - name: Assemble + lint + unit tests + ktlint
         id: quality
         run: |

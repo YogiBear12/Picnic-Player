@@ -1,0 +1,20 @@
+name: FFmpeg decoder cache key
+description: Directory name under /cache/ffmpeg-decoder, covering every input to the decoder AAR.
+
+outputs:
+  key:
+    description: Cache key for the decoder AAR.
+    value: ${{ steps.key.outputs.key }}
+
+runs:
+  using: composite
+  steps:
+    # The script pins the FFmpeg release, the decoder list and the architectures, so its hash
+    # plus the media3 version covers everything the AAR is built from.
+    - id: key
+      shell: bash
+      run: |
+        set -euo pipefail
+        MEDIA3="$(sed -n 's/^media3 = "\(.*\)"$/\1/p' gradle/libs.versions.toml)"
+        SCRIPT="$(sha256sum tools/build-ffmpeg-decoder.sh | cut -c1-16)"
+        echo "key=ffmpeg-decoder-${MEDIA3}-${SCRIPT}" >> "${GITHUB_OUTPUT}"

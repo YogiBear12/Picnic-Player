@@ -1,0 +1,15 @@
+{
+  "uniqueId": "org.ffmpeg:ffmpeg",
+  "artifactVersion": "n9.0",
+  "name": "FFmpeg",
+  "description": "Audio decoders bundled through the media3 FFmpeg decoder extension: aac, ac3, eac3, dca, flac, mp3, opus, vorbis, truehd, alac. Built from branch n9.0 with --disable-everything and no GPL flags. See tools/build-ffmpeg-decoder.sh for the exact configure invocation.",
+  "website": "https://ffmpeg.org",
+  "developers": [
+    {
+      "name": "The FFmpeg developers"
+    }
+  ],
+  "licenses": [
+    "LGPL-2.1-or-later"
+  ]
+}
