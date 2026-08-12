@@ -4,7 +4,6 @@ import android.media.MediaCodecInfo
 import android.media.MediaCodecList
 import android.media.MediaFormat
 import android.os.Build
-import android.util.Size
 
 class MediaCodecQuery(
     private val mediaCodecList: MediaCodecList,
@@ -34,20 +33,6 @@ class MediaCodecQuery(
             }
         }
         return maxLevel
-    }
-
-    fun getMaxResolution(mime: String): Size {
-        val resolutions = decoderInfos()
-            .mapNotNull { info -> getCapabilitiesOrNull(info, mime)?.videoCapabilities }
-            .mapNotNull { vc ->
-                val w = vc.supportedWidths?.upper ?: return@mapNotNull null
-                val h = vc.supportedHeights?.upper ?: return@mapNotNull null
-                w to h
-            }
-
-        val maxWidth = resolutions.maxOfOrNull { it.first } ?: 0
-        val maxHeight = resolutions.maxOfOrNull { it.second } ?: 0
-        return Size(maxWidth, maxHeight)
     }
 
     private fun supportsProfileLevel(info: MediaCodecInfo, mime: String, profile: Int, level: Int): Boolean {

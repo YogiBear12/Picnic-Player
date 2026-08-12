@@ -7,12 +7,40 @@ import android.os.Build
 class DeviceCapabilities(
     private val query: MediaCodecQuery
 ) {
+    fun supportsAvc(): Boolean = query.hasCodecForMime(MediaFormat.MIMETYPE_VIDEO_AVC)
+
+    fun supportsAvcHigh10(): Boolean = query.hasDecoder(
+        MediaFormat.MIMETYPE_VIDEO_AVC,
+        CodecProfileLevel.AVCProfileHigh10,
+        CodecProfileLevel.AVCLevel1
+    )
+
+    fun maxAvcLevel(): Int = avcStreamLevel(
+        maxOf(
+            query.getDecoderLevel(MediaFormat.MIMETYPE_VIDEO_AVC, CodecProfileLevel.AVCProfileHigh),
+            query.getDecoderLevel(MediaFormat.MIMETYPE_VIDEO_AVC, CodecProfileLevel.AVCProfileMain),
+            query.getDecoderLevel(MediaFormat.MIMETYPE_VIDEO_AVC, CodecProfileLevel.AVCProfileBaseline)
+        )
+    )
+
+    fun maxAvcHigh10Level(): Int = avcStreamLevel(
+        query.getDecoderLevel(MediaFormat.MIMETYPE_VIDEO_AVC, CodecProfileLevel.AVCProfileHigh10)
+    )
+
     fun supportsHevc(): Boolean = query.hasCodecForMime(MediaFormat.MIMETYPE_VIDEO_HEVC)
 
-    fun supportsHevcMain10(): Boolean = query.hasDecoder(
-        MediaFormat.MIMETYPE_VIDEO_HEVC,
-        CodecProfileLevel.HEVCProfileMain10,
-        CodecProfileLevel.HEVCMainTierLevel1
+    fun supportsHevcMain10(): Boolean = supportsHevcMain10Decode() || supportsHevcHDR10() || supportsHevcHDR10Plus()
+
+    fun maxHevcLevel(): Int = hevcStreamLevel(
+        query.getDecoderLevel(MediaFormat.MIMETYPE_VIDEO_HEVC, CodecProfileLevel.HEVCProfileMain)
+    )
+
+    fun maxHevcMain10Level(): Int = hevcStreamLevel(
+        maxOf(
+            query.getDecoderLevel(MediaFormat.MIMETYPE_VIDEO_HEVC, CodecProfileLevel.HEVCProfileMain10),
+            query.getDecoderLevel(MediaFormat.MIMETYPE_VIDEO_HEVC, CodecProfileLevel.HEVCProfileMain10HDR10),
+            query.getDecoderLevel(MediaFormat.MIMETYPE_VIDEO_HEVC, CodecProfileLevel.HEVCProfileMain10HDR10Plus)
+        )
     )
 
     fun supportsHevcHDR10(): Boolean = query.hasDecoder(
@@ -37,7 +65,7 @@ class DeviceCapabilities(
             CodecProfileLevel.DolbyVisionLevelHd24
         )
 
-    fun supportsAV1(): Boolean = query.hasCodecForMime("video/av01") // MimeTypes.VIDEO_AV1
+    fun supportsAV1(): Boolean = query.hasCodecForMime("video/av01")
 
     fun supportsAV1Main10(): Boolean = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
         query.hasDecoder(
@@ -67,13 +95,26 @@ class DeviceCapabilities(
             CodecProfileLevel.DolbyVisionLevelHd24
         )
 
-    fun getMaxAvcLevel(): Int = query.getDecoderLevel(
-        MediaFormat.MIMETYPE_VIDEO_AVC,
-        CodecProfileLevel.AVCProfileHigh
-    )
+    fun supportsVp9(): Boolean = query.hasCodecForMime(MediaFormat.MIMETYPE_VIDEO_VP9)
 
-    fun getMaxHevcLevel(): Int = query.getDecoderLevel(
+    fun supportsVp9TenBit(): Boolean = query.hasDecoder(
+        MediaFormat.MIMETYPE_VIDEO_VP9,
+        CodecProfileLevel.VP9Profile2,
+        CodecProfileLevel.VP9Level1
+    ) ||
+        query.hasDecoder(
+            MediaFormat.MIMETYPE_VIDEO_VP9,
+            CodecProfileLevel.VP9Profile2HDR,
+            CodecProfileLevel.VP9Level1
+        )
+
+    fun supportsVp8(): Boolean = query.hasCodecForMime(MediaFormat.MIMETYPE_VIDEO_VP8)
+
+    fun supportsMpeg2(): Boolean = query.hasCodecForMime(MediaFormat.MIMETYPE_VIDEO_MPEG2)
+
+    private fun supportsHevcMain10Decode(): Boolean = query.hasDecoder(
         MediaFormat.MIMETYPE_VIDEO_HEVC,
-        CodecProfileLevel.HEVCProfileMain
+        CodecProfileLevel.HEVCProfileMain10,
+        CodecProfileLevel.HEVCMainTierLevel1
     )
 }

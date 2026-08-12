@@ -35,19 +35,11 @@ object DynamicProfileBuilder {
             baseAudioCodecs
         }
 
+        val codecRules = videoCodecRules(capabilities.videoDecoderSupport())
+        val allowedVideoCodecs = codecRules.map { it.codec }.toTypedArray()
         val transcodeVideoCodecs = listOfNotNull(
             if (capabilities.supportsHevc()) "hevc" else null,
             "h264"
-        ).toTypedArray()
-
-        val allowedVideoCodecs = listOfNotNull(
-            "h264",
-            if (capabilities.supportsHevc()) "hevc" else null,
-            if (capabilities.supportsAV1()) "av1" else null,
-            "vp8",
-            "vp9",
-            "mpeg",
-            "mpeg2video"
         ).toTypedArray()
 
         val unsupportedHevcRanges = unsupportedHevcRangeTypes(
@@ -88,13 +80,9 @@ object DynamicProfileBuilder {
             transcodingProfile {
                 type = DlnaProfileType.VIDEO
                 context = EncodingContext.STREAMING
-                // One container only: offered a choice, the server picks fMP4, whose segments
-                // fail to parse on this device.
                 container = "ts"
                 protocol = MediaStreamProtocol.HLS
                 videoCodec(*transcodeVideoCodecs)
-                // Encode-only codecs: a passed-through bitstream restarts the audio track
-                // continuously here, halving playback speed.
                 audioCodec("aac", "mp3")
                 copyTimestamps = false
                 enableSubtitlesInManifest = true
@@ -113,29 +101,7 @@ object DynamicProfileBuilder {
                 }
             }
 
-            codecProfile {
-                type = CodecType.VIDEO
-                codec = "hevc"
-                conditions {
-                    if (!capabilities.supportsHevc()) {
-                        ProfileConditionValue.VIDEO_PROFILE equals "none"
-                    } else {
-                        ProfileConditionValue.VIDEO_PROFILE notEquals "none"
-                    }
-                }
-            }
-
-            codecProfile {
-                type = CodecType.VIDEO
-                codec = "av1"
-                conditions {
-                    if (!capabilities.supportsAV1()) {
-                        ProfileConditionValue.VIDEO_PROFILE equals "none"
-                    } else {
-                        ProfileConditionValue.VIDEO_PROFILE notEquals "none"
-                    }
-                }
-            }
+            codecRules.forEach { applyVideoCodecRule(it) }
 
             excludeUnsupportedVideoRanges("hevc", unsupportedHevcRanges)
             excludeUnsupportedVideoRanges("av1", unsupportedAv1Ranges)
@@ -176,12 +142,6 @@ object DynamicProfileBuilder {
         }
     }
 
-    /**
-     * Expert override ("Force direct play"): announce full compatibility so the server always
-     * returns a direct-play source. No transcoding profile, no codec conditions, bitrate cap
-     * lifted; downmix / DoVi settings are intentionally ignored. Genuinely unsupported media may
-     * fail to play — that's the accepted trade-off of the Advanced toggle.
-     */
     private fun forceDirectPlayProfile(): DeviceProfile = buildDeviceProfile {
         name = "Picnic Player (Direct)"
         maxStreamingBitrate = 1_000_000_000
@@ -210,13 +170,58 @@ object DynamicProfileBuilder {
     }
 }
 
-/**
- * Ask the server to remux/transcode when [codec] media uses an unsupported [VideoRangeType].
- *
- * Jellyfin only applies a codec profile when [applyConditions] match. The failing
- * `VIDEO_RANGE_TYPE notEquals …` condition then drives StreamBuilder away from Direct Play.
- * A plain "not equals" without apply-conditions would never attach to the right titles.
- */
+private fun DeviceCapabilities.videoDecoderSupport(): VideoDecoderSupport = VideoDecoderSupport(
+    avc = supportsAvc(),
+    avcHigh10 = supportsAvcHigh10(),
+    avcLevel = maxAvcLevel(),
+    avcHigh10Level = maxAvcHigh10Level(),
+    hevc = supportsHevc(),
+    hevcMain10 = supportsHevcMain10(),
+    hevcLevel = maxHevcLevel(),
+    hevcMain10Level = maxHevcMain10Level(),
+    av1 = supportsAV1(),
+    av1TenBit = supportsAV1Main10() || supportsAV1HDR10() || supportsAV1HDR10Plus(),
+    vp9 = supportsVp9(),
+    vp9TenBit = supportsVp9TenBit(),
+    vp8 = supportsVp8(),
+    mpeg2 = supportsMpeg2()
+)
+
+private fun DeviceProfileBuilder.applyVideoCodecRule(rule: VideoCodecRule) {
+    if (rule.playableProfiles.isNotEmpty()) {
+        codecProfile {
+            type = CodecType.VIDEO
+            codec = rule.codec
+            conditions {
+                ProfileConditionValue.VIDEO_PROFILE inCollection rule.playableProfiles
+            }
+        }
+    }
+
+    rule.maxBitDepth?.let { depth ->
+        codecProfile {
+            type = CodecType.VIDEO
+            codec = rule.codec
+            conditions {
+                ProfileConditionValue.VIDEO_BIT_DEPTH lowerThanOrEquals depth
+            }
+        }
+    }
+
+    rule.levelLimits.forEach { limit ->
+        codecProfile {
+            type = CodecType.VIDEO
+            codec = rule.codec
+            conditions {
+                ProfileConditionValue.VIDEO_LEVEL lowerThanOrEquals limit.maxLevel
+            }
+            applyConditions {
+                ProfileConditionValue.VIDEO_PROFILE inCollection limit.profiles
+            }
+        }
+    }
+}
+
 private fun DeviceProfileBuilder.excludeUnsupportedVideoRanges(
     codec: String,
     unsupportedRangeTypes: Set<String>
