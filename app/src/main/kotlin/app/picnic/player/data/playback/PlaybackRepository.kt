@@ -10,8 +10,6 @@ import app.picnic.player.data.media.LibraryChangeBus
 import app.picnic.player.data.playback.profile.DynamicProfileBuilder
 import app.picnic.player.data.playback.quality.QualityOption
 import app.picnic.player.data.playback.quality.QualityRung
-import app.picnic.player.data.playback.quality.SourceQuality
-import app.picnic.player.data.playback.quality.automaticRung
 import app.picnic.player.data.settings.SettingsStore
 import app.picnic.player.di.IoDispatcher
 import app.picnic.player.playback.StreamNegotiation
@@ -109,17 +107,15 @@ class PlaybackRepository @Inject constructor(
             )
         ).content
         val source = response.mediaSources.firstOrNull() ?: error("No playable source")
-        buildStreamInfo(session, negotiation.itemId, source, response.playSessionId, rung ?: imposedRung(source))
+        buildStreamInfo(session, negotiation.itemId, source, response.playSessionId, rung)
     }
-
-    private fun imposedRung(source: MediaSourceInfo): QualityRung = automaticRung(SourceQuality.of(source.bitrate, source.mediaStreams.orEmpty()))
 
     private fun buildStreamInfo(
         session: UserSession,
         itemId: UUID,
         source: MediaSourceInfo,
         playSessionId: String?,
-        rung: QualityRung
+        rung: QualityRung?
     ): StreamInfo {
         val base = session.server.baseUrl.trimEnd('/')
         val sourceId = source.id ?: itemId.toString()
@@ -141,7 +137,6 @@ class PlaybackRepository @Inject constructor(
             val url = base + path
             return streamInfo(url, PlayMethodKind.TRANSCODE, playSessionId, sourceId, source, rung, session)
         }
-        // Last resort: attempt a static stream anyway.
         val url =
             "$base/Videos/$itemId/stream?static=true&mediaSourceId=$sourceId&api_key=${session.accessToken}"
         return streamInfo(url, PlayMethodKind.DIRECT_STREAM, playSessionId, sourceId, source, session = session)

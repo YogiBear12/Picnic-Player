@@ -118,7 +118,6 @@ fun StatsForNerdsPanel(
                 Modifier.padding(horizontal = ContentInset),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // 1. Playback Info
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     SectionHeader("Playback Info")
 
@@ -191,7 +190,6 @@ fun StatsForNerdsPanel(
                     audioFormat?.bitrate?.toLong()?.takeIf { it > 0 }
                 }
 
-                // 2. Video Info
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     SectionHeader("Video Info")
                     SimpleTable(
@@ -206,7 +204,6 @@ fun StatsForNerdsPanel(
                     )
                 }
 
-                // 3. Audio Info
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     SectionHeader("Audio Info")
                     SimpleTable(
@@ -218,8 +215,6 @@ fun StatsForNerdsPanel(
                         keyWidth = 140.dp
                     )
                 }
-
-                // (Tracks removed)
             }
         }
         Spacer(Modifier.weight(1f))
@@ -301,14 +296,5 @@ private fun formatBytes(bytes: Long): String {
         mb >= 1.0 -> String.format(Locale.getDefault(), "%.2f MiB", mb)
         kb >= 1.0 -> String.format(Locale.getDefault(), "%.2f KiB", kb)
         else -> "$bytes B"
-    }
-}
-
-private fun formatBitrate(bitrate: Long): String {
-    val kbps = bitrate / 1000.0
-    val mbps = kbps / 1000.0
-    return when {
-        mbps >= 1.0 -> String.format(Locale.getDefault(), "%.2f Mbps", mbps)
-        else -> String.format(Locale.getDefault(), "%.0f Kbps", kbps)
     }
 }

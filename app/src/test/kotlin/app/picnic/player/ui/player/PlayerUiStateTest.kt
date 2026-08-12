@@ -1,36 +1,39 @@
 package app.picnic.player.ui.player
 
 import app.picnic.player.data.playback.PlayMethodKind
+import app.picnic.player.data.playback.quality.QualityOption
 import app.picnic.player.data.playback.quality.QualityRung
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 
 class PlayerUiStateTest {
-
     @Test
     fun aTranscodeIsRunningAtTheNegotiatedRung() {
         val state = PlayerUiState(playMethod = PlayMethodKind.TRANSCODE, streamRung = QualityRung.P1080_6)
-        assertEquals(QualityRung.P1080_6, state.activeQuality)
+        assertEquals(QualityOption.Transcode(QualityRung.P1080_6), state.activeQuality)
     }
 
     @Test
-    fun aRemuxIsNotRunningAtAnyRung() {
-        // The server negotiates a remux as a transcode and hands back a rung with it; once
-        // transcoding info reveals the video is untouched, the quality picker must stop showing
-        // that rung as the selected one.
+    fun aServerImposedTranscodeMatchesNoQualityOption() {
+        val state = PlayerUiState(playMethod = PlayMethodKind.TRANSCODE, streamRung = null)
+        assertNull(state.activeQuality)
+    }
+
+    @Test
+    fun aRemuxReadsAsOriginal() {
         val state = PlayerUiState(playMethod = PlayMethodKind.DIRECT_STREAM, streamRung = QualityRung.P1080_6)
-        assertNull(state.activeQuality)
+        assertEquals(QualityOption.Original, state.activeQuality)
     }
 
     @Test
-    fun directPlayIsNotRunningAtAnyRung() {
+    fun directPlayReadsAsOriginal() {
         val state = PlayerUiState(playMethod = PlayMethodKind.DIRECT_PLAY, streamRung = QualityRung.P1080_6)
-        assertNull(state.activeQuality)
+        assertEquals(QualityOption.Original, state.activeQuality)
     }
 
     @Test
-    fun anUnknownPlayMethodClaimsNoRung() {
-        assertNull(PlayerUiState(streamRung = QualityRung.P1080_6).activeQuality)
+    fun anUnknownPlayMethodReadsAsOriginal() {
+        assertEquals(QualityOption.Original, PlayerUiState(streamRung = QualityRung.P1080_6).activeQuality)
     }
 }

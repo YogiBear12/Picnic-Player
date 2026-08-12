@@ -6,9 +6,9 @@ import app.picnic.player.playback.AudioBoost
 import app.picnic.player.playback.NightMode
 import app.picnic.player.playback.SleepMode
 import app.picnic.player.playback.SleepTimerState
+import java.util.Locale
 import kotlin.math.abs
 
-/** Shared OSD time formatting: `m:ss` or `h:mm:ss`. */
 internal fun formatTime(ms: Long): String {
     val totalSeconds = (ms / 1000).coerceAtLeast(0)
     val hours = totalSeconds / 3600
@@ -21,7 +21,6 @@ internal fun formatTime(ms: Long): String {
     }
 }
 
-/** Signed decisecond subtitle-offset label, e.g. "+1.5s", "-0.5s", "0.0s". */
 internal fun formatDelay(ms: Long): String {
     val sign = if (ms > 0) {
         "+"
@@ -33,7 +32,6 @@ internal fun formatDelay(ms: Long): String {
     return "$sign%.1fs".format(abs(ms / 1000.0))
 }
 
-/** Playback speed label without trailing zeros, e.g. "1×", "1.5×", "0.75×". */
 internal fun formatSpeed(speed: Float): String {
     val text = if (speed % 1f == 0f) speed.toInt().toString() else speed.toString()
     return "$text×"
@@ -62,7 +60,6 @@ internal fun sleepModeLabel(mode: SleepMode): String = when (mode) {
     SleepMode.END_OF_QUEUE -> "End of queue"
 }
 
-/** Row summary for the sleep timer: shows remaining time while a duration timer counts down. */
 internal fun sleepSummary(state: SleepTimerState): String = when {
     state.mode == SleepMode.OFF -> "Off"
     state.mode.durationMinutes != null && state.remainingMs > 0 ->
@@ -70,14 +67,34 @@ internal fun sleepSummary(state: SleepTimerState): String = when {
     else -> sleepModeLabel(state.mode)
 }
 
-/**
- * A remux reads as Original: the server rewrote the container but the video is untouched, which is
- * what this line is about. Deliberate — do not "fix" it to report the audio re-encode.
- */
-internal fun qualitySummary(playMethod: PlayMethodKind?, rung: QualityRung?): String = when {
-    playMethod != PlayMethodKind.TRANSCODE -> "Original"
-    rung == null -> "Transcoding…"
-    else -> "Transcoding · ${rung.label}"
+internal data class ServerTranscode(
+    val resolution: String?,
+    val bitrate: String?
+) {
+    val details: List<String> get() = listOfNotNull(resolution, bitrate)
+}
+
+internal fun serverTranscode(
+    playMethod: PlayMethodKind?,
+    rung: QualityRung?,
+    height: Int?,
+    bitrate: Int?
+): ServerTranscode? {
+    if (playMethod != PlayMethodKind.TRANSCODE || rung != null) return null
+    return ServerTranscode(
+        resolution = height?.takeIf { it > 0 }?.let { ladderResolution(it) },
+        bitrate = bitrate?.takeIf { it > 0 }?.let { formatBitrate(it.toLong()) }
+    )
+}
+
+internal fun qualitySummary(playMethod: PlayMethodKind?, rung: QualityRung?, serverTranscode: ServerTranscode?): String {
+    val details = serverTranscode?.details.orEmpty()
+    return when {
+        playMethod != PlayMethodKind.TRANSCODE -> "Original"
+        rung != null -> "Transcoding · ${rung.label}"
+        details.isEmpty() -> "Transcoding…"
+        else -> "Transcoding · ${details.joinToString(" · ")}"
+    }
 }
 
 private fun ladderResolution(height: Int): String {
@@ -88,4 +105,13 @@ private fun ladderResolution(height: Int): String {
         .firstOrNull { height <= it }
         ?: height
     return "${tier}p"
+}
+
+internal fun formatBitrate(bitrate: Long): String {
+    val kbps = bitrate / 1000.0
+    val mbps = kbps / 1000.0
+    return when {
+        mbps >= 1.0 -> String.format(Locale.getDefault(), "%.2f Mbps", mbps)
+        else -> String.format(Locale.getDefault(), "%.0f Kbps", kbps)
+    }
 }

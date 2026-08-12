@@ -189,7 +189,11 @@ data class PlayerUiState(
     val streamRung: QualityRung? = null,
     val tracks: List<app.picnic.player.ui.player.osd.TrackSupport> = emptyList()
 ) {
-    val activeQuality: QualityRung? get() = streamRung.takeIf { playMethod == PlayMethodKind.TRANSCODE }
+    val activeQuality: QualityOption? get() = when {
+        playMethod != PlayMethodKind.TRANSCODE -> QualityOption.Original
+        streamRung != null -> QualityOption.Transcode(streamRung)
+        else -> null
+    }
 }
 
 @OptIn(FlowPreview::class)
@@ -674,8 +678,7 @@ class PlayerViewModel @Inject constructor(
     fun clearNotice() = _state.update { it.copy(notice = null) }
 
     fun selectQuality(option: QualityOption) {
-        val rung = (option as? QualityOption.Transcode)?.rung
-        if (rung == _state.value.activeQuality) return
+        if (option == _state.value.activeQuality) return
         val previous = sessionController.qualityOverride.value
         sessionController.setQualityOverride(option)
         reload(option, revertTo = previous)

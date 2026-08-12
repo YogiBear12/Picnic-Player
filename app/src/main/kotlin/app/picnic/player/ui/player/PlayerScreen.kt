@@ -90,6 +90,7 @@ import app.picnic.player.ui.player.osd.TrackPanel
 import app.picnic.player.ui.player.osd.TrackPanelWidth
 import app.picnic.player.ui.player.osd.TrickplayCell
 import app.picnic.player.ui.player.osd.qualitySummary
+import app.picnic.player.ui.player.osd.serverTranscode
 import app.picnic.player.ui.theme.PicnicColors
 import coil3.compose.rememberAsyncImagePainter
 import kotlinx.coroutines.delay
@@ -709,6 +710,12 @@ fun PlayerScreen(
             width = PlayerSettingsPanelWidth,
             modifier = Modifier.zIndex(3f)
         ) { active ->
+            val serverTranscode = serverTranscode(
+                state.playMethod,
+                state.streamRung,
+                state.transcodingInfo?.height,
+                state.transcodingInfo?.bitrate
+            )
             PlayerSettingsPanel(
                 subtitleDelayMs = state.subtitleDelayMs,
                 subtitleAppearance = settings.subtitleAppearance,
@@ -720,7 +727,7 @@ fun PlayerScreen(
                 onSubtitleInset = { viewModel.stepSubtitleInset(it) },
                 qualityOptions = state.qualityOptions,
                 selectedQuality = state.activeQuality,
-                qualitySummary = qualitySummary(state.playMethod, state.activeQuality),
+                qualitySummary = qualitySummary(state.playMethod, state.streamRung, serverTranscode),
                 onSelectQuality = { viewModel.selectQuality(it) },
                 playbackSpeed = state.playbackSpeed,
                 audioBoost = state.audioBoost,

@@ -50,7 +50,6 @@ import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import app.picnic.player.data.playback.quality.QualityOption
-import app.picnic.player.data.playback.quality.QualityRung
 import app.picnic.player.data.settings.SubtitleAppearance
 import app.picnic.player.data.settings.SubtitleBackground
 import app.picnic.player.playback.AudioBoost
@@ -156,7 +155,7 @@ fun PlayerSettingsPanel(
     onSubtitleArea: (Boolean) -> Unit,
     onSubtitleInset: (Boolean) -> Unit,
     qualityOptions: List<QualityOption>,
-    selectedQuality: QualityRung?,
+    selectedQuality: QualityOption?,
     qualitySummary: String,
     onSelectQuality: (QualityOption) -> Unit,
     playbackSpeed: Float,
@@ -350,7 +349,7 @@ private fun mainRows(
 
 private fun qualityRows(
     options: List<QualityOption>,
-    selected: QualityRung?,
+    selected: QualityOption?,
     onSelect: (QualityOption) -> Unit
 ): List<PanelRow> = options.map { option ->
     val rung = (option as? QualityOption.Transcode)?.rung
@@ -358,7 +357,7 @@ private fun qualityRows(
         key = rung ?: "original",
         primary = rung?.label ?: "Original",
         secondary = rung?.let { "${it.bitrateLabel} · ${it.sizeHint}" },
-        selected = rung == selected
+        selected = option == selected
     ) { onSelect(option) }
 }
 
