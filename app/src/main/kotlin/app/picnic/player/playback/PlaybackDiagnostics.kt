@@ -2,6 +2,7 @@
 
 package app.picnic.player.playback
 
+import android.content.Context
 import android.net.Uri
 import android.util.Log
 import androidx.media3.common.C
@@ -14,6 +15,8 @@ import androidx.media3.exoplayer.DecoderCounters
 import androidx.media3.exoplayer.DecoderReuseEvaluation
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.analytics.AnalyticsListener
+import androidx.media3.exoplayer.audio.AudioCapabilities
+import androidx.media3.exoplayer.mediacodec.MediaCodecUtil
 import androidx.media3.exoplayer.source.LoadEventInfo
 import androidx.media3.exoplayer.source.MediaLoadData
 import androidx.media3.extractor.Extractor
@@ -63,6 +66,40 @@ object PlaybackDiagnostics : AnalyticsListener {
             "$i=${trackTypeName(player.getRendererType(i))}"
         }
         log("renderers: $types")
+    }
+
+    // Callers run on the main thread: touching the AudioSink here throws a multi-thread check.
+    fun logAudioDecoderCandidates(context: Context, format: Format) {
+        if (!enabled) return
+        val mimeType = format.sampleMimeType ?: return
+        val infos = runCatching { MediaCodecUtil.getDecoderInfos(mimeType, false, false) }
+            .getOrElse {
+                log("decoder query failed for $mimeType: $it")
+                return
+            }
+        log("platform decoders for $mimeType: ${infos.size}")
+        infos.forEach { info ->
+            val supported = runCatching { info.isFormatSupported(context, format) }.getOrElse { "threw $it" }
+            val sampleRateOk = runCatching { info.isAudioSampleRateSupportedV21(format.sampleRate) }
+                .getOrElse { "threw $it" }
+            val channelsOk = runCatching { info.isAudioChannelCountSupportedV21(format.channelCount) }
+                .getOrElse { "threw $it" }
+            log(
+                "  ${info.name} hw=${info.hardwareAccelerated} supportsThisFormat=$supported " +
+                    "sampleRate${format.sampleRate}Ok=$sampleRateOk channels${format.channelCount}Ok=$channelsOk"
+            )
+        }
+    }
+
+    fun logAudioOutputCapabilities(context: Context, format: Format) {
+        if (!enabled) return
+        val capabilities = AudioCapabilities.getCapabilities(context)
+        log(
+            "audio output: maxChannels=${capabilities.maxChannelCount} " +
+                "pcm16=${capabilities.supportsEncoding(C.ENCODING_PCM_16BIT)} " +
+                "passthrough=${capabilities.isPassthroughPlaybackSupported(format)} " +
+                "trackChannels=${format.channelCount}"
+        )
     }
 
     fun logTracks(tracks: Tracks) {

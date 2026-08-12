@@ -119,6 +119,8 @@ class PlaybackEngine(private val context: Context, httpClient: OkHttpClient) {
                 decoderReuseEvaluation: DecoderReuseEvaluation?
             ) {
                 audioEffects.onChannelCount(format.channelCount)
+                PlaybackDiagnostics.logAudioDecoderCandidates(context, format)
+                PlaybackDiagnostics.logAudioOutputCapabilities(context, format)
             }
 
             override fun onAudioDecoderInitialized(
