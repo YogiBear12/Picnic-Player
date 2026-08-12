@@ -10,10 +10,13 @@ import androidx.media3.common.Format
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.okhttp.OkHttpDataSource
+import androidx.media3.exoplayer.DecoderCounters
 import androidx.media3.exoplayer.DecoderReuseEvaluation
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.analytics.AnalyticsListener
+import androidx.media3.exoplayer.audio.AudioCapabilities
+import androidx.media3.exoplayer.audio.AudioSink
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.extractor.DefaultExtractorsFactory
@@ -32,7 +35,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import okhttp3.OkHttpClient
 
-class PlaybackEngine(context: Context, httpClient: OkHttpClient) {
+class PlaybackEngine(private val context: Context, httpClient: OkHttpClient) {
 
     val assHandler: AssHandler
     val player: ExoPlayer
@@ -42,15 +45,24 @@ class PlaybackEngine(context: Context, httpClient: OkHttpClient) {
     /** Shared subtitle offset (µs). Read each frame by every text/ASS renderer. */
     private val subtitleDelayUs = AtomicLong(0L)
 
-    val audioEffects = AudioEffects { player.audioSessionId }
+    val audioEffects = AudioEffects()
+
+    private var audioRouteSink: AudioRouteSink? = null
+
+    // Read at codec selection, so a change only lands on the next stream load.
+    fun setAudioRoute(route: AudioRoute) {
+        audioRouteSink?.route = route
+    }
+
+    // Must report the capability, not the live route, or a forced decode strands the session on PCM.
+    fun currentAudioCanPassThrough(): Boolean {
+        val format = player.audioFormat ?: return false
+        return AudioCapabilities.getCapabilities(context).isPassthroughPlaybackSupported(format)
+    }
 
     private val _subtitleRenderRange = MutableStateFlow(SubtitleRenderRange.SDR)
 
-    /**
-     * Range of the picture cues are currently drawn over. Follows the video format through every
-     * change within a session — an autoplayed episode, a quality switch — so cue styling never
-     * carries the last item's range into this one.
-     */
+    // Must follow format changes within a session, or cue styling carries the last item's range.
     val subtitleRenderRange: StateFlow<SubtitleRenderRange> = _subtitleRenderRange.asStateFlow()
 
     init {
@@ -65,7 +77,7 @@ class PlaybackEngine(context: Context, httpClient: OkHttpClient) {
         val renderersFactory = SubtitleDelayRenderersFactory(
             AssRenderersFactory(
                 assHandler,
-                DefaultRenderersFactory(context)
+                AudioRouteRenderersFactory(context) { audioRouteSink = it }
                     .setEnableDecoderFallback(true)
                     .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
             ),
@@ -95,6 +107,34 @@ class PlaybackEngine(context: Context, httpClient: OkHttpClient) {
                 decoderReuseEvaluation: DecoderReuseEvaluation?
             ) {
                 _subtitleRenderRange.value = subtitleRenderRange(format)
+            }
+
+            override fun onAudioSessionIdChanged(eventTime: AnalyticsListener.EventTime, audioSessionId: Int) {
+                audioEffects.onAudioSessionId(audioSessionId)
+            }
+
+            override fun onAudioInputFormatChanged(
+                eventTime: AnalyticsListener.EventTime,
+                format: Format,
+                decoderReuseEvaluation: DecoderReuseEvaluation?
+            ) {
+                audioEffects.onChannelCount(format.channelCount)
+            }
+
+            override fun onAudioDecoderInitialized(
+                eventTime: AnalyticsListener.EventTime,
+                decoderName: String,
+                initializedTimestampMs: Long,
+                initializationDurationMs: Long
+            ) {
+                audioEffects.onDecoding(true)
+            }
+
+            override fun onAudioDisabled(
+                eventTime: AnalyticsListener.EventTime,
+                decoderCounters: DecoderCounters
+            ) {
+                audioEffects.onDecoding(false)
             }
         })
     }
@@ -129,6 +169,19 @@ class PlaybackEngine(context: Context, httpClient: OkHttpClient) {
         audioEffects.release()
         player.release()
     }
+}
+
+private class AudioRouteRenderersFactory(
+    context: Context,
+    private val onSinkBuilt: (AudioRouteSink) -> Unit
+) : DefaultRenderersFactory(context) {
+
+    override fun buildAudioSink(
+        context: Context,
+        enableFloatOutput: Boolean,
+        enableAudioTrackPlaybackParams: Boolean
+    ): AudioSink? = super.buildAudioSink(context, enableFloatOutput, enableAudioTrackPlaybackParams)
+        ?.let { AudioRouteSink(it).also(onSinkBuilt) }
 }
 
 private fun jellyfinDataSourceFactory(context: Context, httpClient: OkHttpClient): DataSource.Factory {

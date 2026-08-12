@@ -49,6 +49,8 @@ import app.picnic.player.data.settings.SettingsStore
 import app.picnic.player.data.settings.SubtitleArea
 import app.picnic.player.di.ApplicationScope
 import app.picnic.player.playback.AudioBoost
+import app.picnic.player.playback.AudioRoute
+import app.picnic.player.playback.AudioRoutePolicy
 import app.picnic.player.playback.BlackBarTrack
 import app.picnic.player.playback.BlackBars
 import app.picnic.player.playback.CueLatchedBars
@@ -79,6 +81,7 @@ import java.util.UUID
 import javax.inject.Inject
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
@@ -93,6 +96,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -108,6 +112,7 @@ import org.jellyfin.sdk.model.api.TranscodingInfo
 private const val LAST_FRAME_MS = 200L
 
 private const val PLAY_METHOD_ATTEMPTS = 5
+private const val AUDIO_ROUTE_SETTLE_MS = 1_500L
 
 sealed interface PlayerNavEvent {
     data object Exit : PlayerNavEvent
@@ -187,6 +192,7 @@ data class PlayerUiState(
     val activeQuality: QualityRung? get() = streamRung.takeIf { playMethod == PlayMethodKind.TRANSCODE }
 }
 
+@OptIn(FlowPreview::class)
 @HiltViewModel
 class PlayerViewModel @Inject constructor(
     @ApplicationContext private val appContext: Context,
@@ -267,6 +273,7 @@ class PlayerViewModel @Inject constructor(
     private var canTranscode = true
 
     private val directPlayVeto = DirectPlayVeto()
+    private var appliedAudioRoute = AudioRoute.NATIVE
     private var inPictureInPicture = false
     private var tornDown = false
     private var hasPresentedFirstFrame = false
@@ -400,6 +407,22 @@ class PlayerViewModel @Inject constructor(
         if (PlaybackDiagnostics.enabled) {
             player.addAnalyticsListener(PlaybackDiagnostics)
             PlaybackDiagnostics.logRenderers(player)
+        }
+        appliedAudioRoute = AudioRoutePolicy.requiredRoute(
+            sessionController.audioBoost.value,
+            sessionController.nightMode.value,
+            _state.value.playbackSpeed
+        )
+        engine.setAudioRoute(appliedAudioRoute)
+        viewModelScope.launch {
+            combine(
+                sessionController.audioBoost,
+                sessionController.nightMode,
+                _state.map { it.playbackSpeed }.distinctUntilChanged()
+            ) { boost, night, speed -> AudioRoutePolicy.requiredRoute(boost, night, speed) }
+                .distinctUntilChanged()
+                .debounce(AUDIO_ROUTE_SETTLE_MS)
+                .collect(::applyAudioRoute)
         }
         viewModelScope.launch {
             sessionController.audioBoost.collect { level ->
@@ -656,6 +679,19 @@ class PlayerViewModel @Inject constructor(
         val previous = sessionController.qualityOverride.value
         sessionController.setQualityOverride(option)
         reload(option, revertTo = previous)
+    }
+
+    private fun applyAudioRoute(required: AudioRoute) {
+        val reloadNeeded = AudioRoutePolicy.reloadNeeded(
+            required = required,
+            applied = appliedAudioRoute,
+            trackCanPassThrough = engine.currentAudioCanPassThrough()
+        )
+        appliedAudioRoute = required
+        engine.setAudioRoute(required)
+        if (reloadNeeded) {
+            reload(sessionController.qualityOverride.value, failureNotice = "Couldn't change audio")
+        }
     }
 
     private fun reload(
