@@ -10,6 +10,8 @@ enum class QualityRung(
     val height: Int,
     val qualifier: String? = null
 ) {
+    P2160_40(40_000_000, 3840, 2160, "High"),
+    P2160_20(20_000_000, 3840, 2160, "Medium"),
     P1080_12(12_000_000, 1920, 1080, "High"),
     P1080_8(8_000_000, 1920, 1080, "Medium"),
     P1080_6(6_000_000, 1920, 1080, "Low"),
@@ -17,14 +19,20 @@ enum class QualityRung(
     P720_3(3_000_000, 1280, 720, "Medium"),
     P480_2(2_000_000, 854, 480);
 
-    val label: String get() = if (qualifier == null) "${height}p" else "${height}p ($qualifier)"
+    val frameLabel: String get() = if (height >= 2160) "4K" else "${height}p"
+
+    val label: String get() = if (qualifier == null) frameLabel else "$frameLabel ($qualifier)"
 
     val bitrateLabel: String get() = formatMbps(videoBitrate)
 
     val sizeHint: String get() = "about ${formatHourlySize(videoBitrate)}/hr"
 
+    internal fun fitsWithin(frame: QualityRung): Boolean = width <= frame.width && height <= frame.height
+
     companion object {
         fun named(name: String?): QualityRung? = entries.firstOrNull { it.name == name }
+
+        fun conversionCeiling(allowFourK: Boolean): QualityRung = if (allowFourK) entries.first() else entries.first { it.height < 2160 }
     }
 }
 
@@ -36,7 +44,9 @@ sealed interface QualityOption {
 data class SourceQuality(
     val videoBitrate: Int?,
     val totalBitrate: Int?,
-    val videoCodec: String?
+    val videoCodec: String?,
+    val width: Int? = null,
+    val height: Int? = null
 ) {
     private val comparisonBitrate: Int?
         get() {
@@ -45,12 +55,24 @@ data class SourceQuality(
             return if (efficient) (bitrate * EFFICIENT_CODEC_FACTOR).roundToInt() else bitrate
         }
 
+    internal val frame: QualityRung?
+        get() {
+            val sourceWidth = width?.takeIf { it > 0 } ?: return null
+            val sourceHeight = height?.takeIf { it > 0 } ?: return null
+            return FRAMES.firstOrNull { sourceWidth >= it.width || sourceHeight >= it.height } ?: FRAMES.last()
+        }
+
     internal fun savesBandwidth(rung: QualityRung): Boolean = totalBitrate == null || totalBitrate <= 0 || rung.videoBitrate < totalBitrate
+
+    internal fun withinSourceFrame(rung: QualityRung): Boolean {
+        val sourceFrame = frame ?: return true
+        return rung.fitsWithin(sourceFrame)
+    }
 
     internal fun worthConverting(rung: QualityRung): Boolean {
         val comparison = comparisonBitrate
         val doesNotExceedSource = comparison == null || rung.videoBitrate <= comparison
-        return savesBandwidth(rung) && doesNotExceedSource
+        return savesBandwidth(rung) && doesNotExceedSource && withinSourceFrame(rung)
     }
 
     companion object {
@@ -68,7 +90,7 @@ data class SourceQuality(
                     (total - audio.sumOf { it.bitRate ?: 0 }).takeIf { it > 0 } ?: total
                 else -> total
             }
-            return SourceQuality(videoBitrate, total, video?.codec)
+            return SourceQuality(videoBitrate, total, video?.codec, video?.width, video?.height)
         }
     }
 }
@@ -78,14 +100,23 @@ private const val EFFICIENT_CODEC_FACTOR = 1.5
 
 private val EFFICIENT_CODECS = setOf("hevc", "h265", "av1", "vp9")
 
-fun rungsFor(source: SourceQuality): List<QualityRung> = QualityRung.entries.filter { source.worthConverting(it) }
+private val FRAMES = QualityRung.entries.distinctBy { it.width to it.height }
 
-fun qualityOptions(source: SourceQuality): List<QualityOption> = buildList {
+fun rungsFor(source: SourceQuality, ceiling: QualityRung): List<QualityRung> = QualityRung.entries.filter { it.fitsWithin(ceiling) && source.worthConverting(it) }
+
+fun qualityOptions(source: SourceQuality, ceiling: QualityRung): List<QualityOption> = buildList {
     add(QualityOption.Original)
-    rungsFor(source).forEach { add(QualityOption.Transcode(it)) }
+    rungsFor(source, ceiling).forEach { add(QualityOption.Transcode(it)) }
 }
 
-fun automaticRung(source: SourceQuality): QualityRung = QualityRung.entries.firstOrNull { source.savesBandwidth(it) } ?: QualityRung.entries.last()
+fun automaticRung(source: SourceQuality, ceiling: QualityRung): QualityRung = QualityRung.entries.firstOrNull { it.fitsWithin(ceiling) && source.savesBandwidth(it) }
+    ?: QualityRung.entries.last()
+
+fun clampToCeiling(source: SourceQuality, requested: QualityRung?, ceiling: QualityRung): QualityRung? {
+    val outputFrame = requested ?: source.frame ?: return null
+    if (outputFrame.fitsWithin(ceiling)) return null
+    return automaticRung(source, ceiling)
+}
 
 fun defaultQualityLabel(rung: QualityRung?): String = if (rung == null) "Original" else "${rung.label} · ${rung.bitrateLabel}"
 

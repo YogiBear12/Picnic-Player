@@ -10,6 +10,9 @@ import app.picnic.player.data.media.LibraryChangeBus
 import app.picnic.player.data.playback.profile.DynamicProfileBuilder
 import app.picnic.player.data.playback.quality.QualityOption
 import app.picnic.player.data.playback.quality.QualityRung
+import app.picnic.player.data.playback.quality.SourceQuality
+import app.picnic.player.data.playback.quality.clampToCeiling
+import app.picnic.player.data.settings.PlaybackSettings
 import app.picnic.player.data.settings.SettingsStore
 import app.picnic.player.di.IoDispatcher
 import app.picnic.player.playback.StreamNegotiation
@@ -87,6 +90,23 @@ class PlaybackRepository @Inject constructor(
         // choice, and must not fall back to it.
         val chosen = negotiation.quality ?: settings.defaultVideoQuality?.let { QualityOption.Transcode(it) }
         val rung = (chosen as? QualityOption.Transcode)?.rung
+        val ceiling = QualityRung.conversionCeiling(settings.allowFourKTranscoding)
+        val first = negotiate(negotiation, settings, rung)
+        val clamped = clampedRung(first.source, rung, ceiling)
+            ?: return@onIo buildStreamInfo(session, negotiation.itemId, first.source, first.playSessionId, rung)
+        stopEncoding(session, first.playSessionId)
+        val second = negotiate(negotiation, settings, clamped)
+        buildStreamInfo(session, negotiation.itemId, second.source, second.playSessionId, clamped)
+    }
+
+    private class Negotiated(val source: MediaSourceInfo, val playSessionId: String?)
+
+    private suspend fun negotiate(
+        negotiation: StreamNegotiation,
+        settings: PlaybackSettings,
+        rung: QualityRung?
+    ): Negotiated {
+        val session = negotiation.session
         val response = api(session).mediaInfoApi.getPostedPlaybackInfo(
             itemId = negotiation.itemId,
             data = PlaybackInfoDto(
@@ -107,7 +127,13 @@ class PlaybackRepository @Inject constructor(
             )
         ).content
         val source = response.mediaSources.firstOrNull() ?: error("No playable source")
-        buildStreamInfo(session, negotiation.itemId, source, response.playSessionId, rung)
+        return Negotiated(source, response.playSessionId)
+    }
+
+    private fun clampedRung(source: MediaSourceInfo, requested: QualityRung?, ceiling: QualityRung): QualityRung? {
+        if (source.supportsDirectPlay == true || source.transcodingUrl == null) return null
+        val quality = SourceQuality.of(source.bitrate, source.mediaStreams.orEmpty())
+        return clampToCeiling(quality, requested, ceiling)
     }
 
     private fun buildStreamInfo(

@@ -14,44 +14,20 @@ import javax.inject.Singleton
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
-/** Volume for the theme music that plays while browsing an item's details.
- *  DISABLED turns the feature off entirely. */
 enum class ThemeMusicVolume { DISABLED, QUIET, LOW, MEDIUM, HIGH, LOUD }
 
-/** Per-segment skip behaviour for a Jellyfin media-segment type.
- *  ASK_TO_SKIP shows the skip button; SKIP_AUTOMATICALLY seeks past it with no button;
- *  DO_NOT_SKIP shows no button and never seeks. */
 enum class SegmentAction { ASK_TO_SKIP, SKIP_AUTOMATICALLY, DO_NOT_SKIP }
 
-/** Text-cue size for rendered subtitles (SRT/VTT/…). Mapped to sp in the playback layer. */
 enum class SubtitleSize { SMALLER, SMALL, STANDARD, LARGE, LARGER }
 
-/** Text-cue colour for rendered subtitles. Mapped to ARGB in the playback layer. */
 enum class SubtitleColour { WHITE, YELLOW, CYAN, GREEN }
 
-/** Fill of the subtitle background: see-through black or fully opaque black. */
 enum class SubtitleBackgroundFill { TRANSLUCENT, SOLID }
 
-/**
- * Shape of the subtitle background. WRAPPED fills behind each line of text (Media3's default);
- * BOXED draws one rectangle behind the whole cue block.
- */
 enum class SubtitleBackground { OFF, WRAPPED, BOXED }
 
-/**
- * The rectangle text cues are anchored to: the display, the video's display rect, or the picture
- * inside that rect once the encoder's baked-in black bars are measured. AUTOMATIC falls back to
- * IMAGE on any item whose bars cannot be measured.
- */
 enum class SubtitleArea { SCREEN, IMAGE, AUTOMATIC }
 
-/**
- * How text-based subtitle cues are drawn (#54). ASS/SSA cues keep their authored
- * styling via libass and are untouched by these preferences.
- *
- * [backgroundFill] applies only while [background] is on. [insetPercent] lifts cues off the bottom
- * edge of [area], as a percentage of that area's height.
- */
 data class SubtitleAppearance(
     val size: SubtitleSize = SubtitleSize.STANDARD,
     val colour: SubtitleColour = SubtitleColour.WHITE,
@@ -71,83 +47,35 @@ data class PlaybackSettings(
     val skipForwardSeconds: Int = 30,
     val skipBackwardSeconds: Int = 10,
     val osdHideSeconds: Int = 3,
-    /** Card focus chrome uses artwork-derived colour; false = plain white. */
     val colouredFocus: Boolean = true,
-    /** Focused card glow gently pulses brightness; false = static glow. */
     val pulseFocusGlow: Boolean = true,
-    /** Dynamic colour-extracted wash on hero/detail backdrops; false = static ocean wash. */
     val ambientBackgrounds: Boolean = true,
-    /** Unwatched episode count badge caps at "99+" when true. */
     val capBadgeCount: Boolean = true,
-    /** Theme music volume on detail/episode screens; DISABLED (default) plays nothing. */
     val themeMusicVolume: ThemeMusicVolume = ThemeMusicVolume.DISABLED,
     val introAction: SegmentAction = SegmentAction.ASK_TO_SKIP,
     val recapAction: SegmentAction = SegmentAction.ASK_TO_SKIP,
     val outroAction: SegmentAction = SegmentAction.ASK_TO_SKIP,
     val previewAction: SegmentAction = SegmentAction.ASK_TO_SKIP,
     val commercialAction: SegmentAction = SegmentAction.SKIP_AUTOMATICALLY,
-    /** Seconds to count down before auto-playing the next episode. Clamped to 3..15. */
     val nextUpCountdownSeconds: Int = 5,
-    /** When ON, next-up overlay appears during the outro segment (requires Media Segments).
-     *  Silently falls back to the default at-end behaviour when no OUTRO segment is detected. */
     val displayNextUpDuringOutro: Boolean = true,
-    /** When ON (default), the app signs straight into the last-used profile on
-     *  launch; when OFF it opens the Select User screen instead. */
     val autoLoginLastUser: Boolean = true,
-    /** When ON, pressing the Home button during playback enters Picture-in-Picture mode. */
     val pictureInPicture: Boolean = false,
-    /** When ON, the app will automatically switch the TV's HDMI refresh rate to match the video's frame rate. */
     val matchRefreshRate: Boolean = false,
-    /** When ON, the app will automatically switch the TV's HDMI resolution to match the video's resolution. */
     val matchResolution: Boolean = false,
-    /** Downmix audio to stereo */
     val downmixStereo: Boolean = false,
-    /** Force Dolby Vision Profile 7 support */
     val forceDoviProfile7: Boolean = false,
-    /** Announce full compatibility so the server always direct-plays (never transcodes).
-     *  Advanced/expert: may cause playback errors on genuinely unsupported media. */
     val forceDirectPlay: Boolean = false,
-    /** Package name of the custom YouTube app to open trailers with */
+    val allowFourKTranscoding: Boolean = false,
     val trailerYouTubePackage: String? = null,
-    // ── Per-user, below. Scoped to the signed-in profile; factory defaults when signed out.
     val defaultVideoQuality: QualityRung? = null,
-    /**
-     * Local audio-language override (ISO 639), or null = no override (resolve to the Jellyfin
-     * server preference, else the device language). Device-local (#15); does not write Jellyfin
-     * UserConfiguration.
-     */
     val preferredAudioLanguage: String? = null,
-    /**
-     * When true, playback starts on the file's default audio track and
-     * [preferredAudioLanguage] is ignored. Series/season track memory and OSD picks still win.
-     */
     val preferDefaultAudioTrack: Boolean = false,
-    /**
-     * Local subtitle-language override (ISO 639), or null = no override (resolve to the Jellyfin
-     * server preference, else the device language).
-     */
     val preferredSubtitleLanguage: String? = null,
-    /** When true, Always show subtitles; when false, Smart (audio vs sub language). */
     val alwaysDisplaySubtitles: Boolean = false,
-    /** Style for rendered text subtitle cues (#54). */
     val subtitleAppearance: SubtitleAppearance = SubtitleAppearance()
 )
 
-/**
- * User-tunable settings persisted in DataStore.
- *
- * Most settings are app-wide. The fields under "User Preferences" in the Playback tab are
- * **per-user**: they are stored under [UserScope.key] and resolved against the signed-in
- * profile, so two people sharing a TV keep their own languages, subtitle styling and default
- * quality.
- *
- * The active profile is read from the [UserScope.ACTIVE_SESSION] key in this same DataStore
- * rather than from `CredentialStore.activeSessionFlow`. That flow is seeded asynchronously at
- * startup, so combining on it would publish factory defaults first and the real values a
- * moment later — a visible flash of wrong values in Settings. Reading the key out of the same
- * `Preferences` snapshot keeps the resolution atomic with the rest of the read and still
- * re-emits on profile switch, because switching writes that key.
- */
 @Singleton
 class SettingsStore @Inject constructor(
     private val dataStore: DataStore<Preferences>
@@ -178,6 +106,7 @@ class SettingsStore @Inject constructor(
             downmixStereo = p[DOWNMIX_STEREO] ?: false,
             forceDoviProfile7 = p[FORCE_DOVI_PROFILE_7] ?: false,
             forceDirectPlay = p[FORCE_DIRECT_PLAY] ?: false,
+            allowFourKTranscoding = p[ALLOW_FOUR_K_TRANSCODING] ?: false,
             trailerYouTubePackage = p[TRAILER_YOUTUBE_PACKAGE],
             defaultVideoQuality = QualityRung.named(p.userString(scope, DEFAULT_VIDEO_QUALITY)),
             preferredAudioLanguage = p.userString(scope, PREFERRED_AUDIO_LANGUAGE),
@@ -224,6 +153,7 @@ class SettingsStore @Inject constructor(
     suspend fun setDownmixStereo(value: Boolean) = put { it[DOWNMIX_STEREO] = value }
     suspend fun setForceDoviProfile7(value: Boolean) = put { it[FORCE_DOVI_PROFILE_7] = value }
     suspend fun setForceDirectPlay(value: Boolean) = put { it[FORCE_DIRECT_PLAY] = value }
+    suspend fun setAllowFourKTranscoding(value: Boolean) = put { it[ALLOW_FOUR_K_TRANSCODING] = value }
     suspend fun setTrailerYouTubePackage(value: String?) = put {
         if (value == null) {
             it.remove(TRAILER_YOUTUBE_PACKAGE)
@@ -256,9 +186,6 @@ class SettingsStore @Inject constructor(
         dataStore.edit(block)
     }
 
-    /** Writes a per-user key, or removes it when [value] is null/blank. No-op when signed
-     *  out — the settings UI is unreachable without a session, and an unscoped write would
-     *  land in a key nothing reads. */
     private suspend fun putUserString(name: String, value: String?) = putUser { p, scope ->
         val key = stringPreferencesKey(scope.key(name))
         if (value.isNullOrBlank()) p.remove(key) else p[key] = value
@@ -306,9 +233,9 @@ class SettingsStore @Inject constructor(
         val DOWNMIX_STEREO = booleanPreferencesKey("advanced.downmixStereo")
         val FORCE_DOVI_PROFILE_7 = booleanPreferencesKey("advanced.forceDoviProfile7")
         val FORCE_DIRECT_PLAY = booleanPreferencesKey("advanced.forceDirectPlay")
+        val ALLOW_FOUR_K_TRANSCODING = booleanPreferencesKey("advanced.allowFourKTranscoding")
         val TRAILER_YOUTUBE_PACKAGE = stringPreferencesKey("advanced.trailerYouTubePackage")
 
-        // Per-user: names only — the typed key is built per profile via UserScope.key.
         const val DEFAULT_VIDEO_QUALITY = "playback.defaultVideoQuality"
         const val PREFERRED_AUDIO_LANGUAGE = "playback.preferredAudioLanguage"
         const val PREFER_DEFAULT_AUDIO_TRACK = "playback.preferDefaultAudioTrack"

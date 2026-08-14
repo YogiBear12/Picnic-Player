@@ -889,7 +889,10 @@ class PlayerViewModel @Inject constructor(
         val options = if (!canTranscode) {
             emptyList()
         } else {
-            qualityOptions(SourceQuality.of(info.mediaSource?.bitrate, info.mediaStreams))
+            qualityOptions(
+                SourceQuality.of(info.mediaSource?.bitrate, info.mediaStreams),
+                QualityRung.conversionCeiling(prefs.allowFourKTranscoding)
+            )
         }
         _state.update { it.copy(qualityOptions = options, streamRung = info.rung) }
     }

@@ -380,6 +380,10 @@ class SettingsViewModel @Inject constructor(
         store.setForceDirectPlay(!settings.value.forceDirectPlay)
     }
 
+    fun toggleAllowFourKTranscoding() = viewModelScope.launch {
+        store.setAllowFourKTranscoding(!settings.value.allowFourKTranscoding)
+    }
+
     companion object {
         val SKIP_FORWARD_OPTIONS = listOf(10, 15, 30, 45, 60)
         val SKIP_BACKWARD_OPTIONS = listOf(5, 10, 15, 30)
@@ -770,6 +774,14 @@ private fun sectionsFor(
                         if (settings.forceDoviProfile7) "On" else "Off",
                         enabled = !settings.forceDirectPlay,
                         onActivate = viewModel::toggleForceDoviProfile7
+                    )
+                )
+                add(
+                    SettingItem(
+                        "Enable 4K transcoding",
+                        if (settings.allowFourKTranscoding) "On" else "Off",
+                        enabled = !settings.forceDirectPlay,
+                        onActivate = viewModel::toggleAllowFourKTranscoding
                     )
                 )
                 add(
