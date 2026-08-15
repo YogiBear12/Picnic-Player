@@ -97,7 +97,6 @@ private fun segmentPicker(
         PickerOption(label = action.display(), selected = action == current, onSelect = { onSelect(action) })
     }
 )
-
 internal fun sectionsFor(
     category: SettingsCategory,
     settings: PlaybackSettings,
@@ -115,333 +114,417 @@ internal fun sectionsFor(
 ): List<SettingSection> = when (category) {
     // Account, Requests and About render dedicated panels, not generic rows.
     SettingsCategory.ACCOUNT, SettingsCategory.REQUESTS, SettingsCategory.ABOUT -> emptyList()
-    SettingsCategory.EXPERIENCE -> listOf(
-        SettingSection(
-            null,
-            buildList {
-                add(
-                    SettingItem(
-                        "Sign in automatically",
-                        if (settings.autoLoginLastUser) "On" else "Off",
-                        "Skip the profile picker and sign in as the last-used profile",
-                        viewModel::toggleAutoLoginLastUser
-                    )
-                )
-                add(
-                    SettingItem(
-                        "Ambient backgrounds",
-                        if (settings.ambientBackgrounds) "On" else "Off",
-                        "Tint the background with colors extracted from the backdrop",
-                        viewModel::toggleAmbientBackgrounds
-                    )
-                )
-                add(
-                    SettingItem(
-                        "Ambient focus indicators",
-                        if (settings.colouredFocus) "On" else "Off",
-                        "Focus indicators dynamically change colors based on the focused card",
-                        viewModel::toggleColouredFocus
-                    )
-                )
-                add(
-                    SettingItem(
-                        "Live focus indicators",
-                        if (settings.pulseFocusGlow) "On" else "Off",
-                        "The glow from focus indicators gently pulse behind the card",
-                        viewModel::togglePulseFocusGlow
-                    )
-                )
-                add(
-                    SettingItem(
-                        "Limit episode badges",
-                        if (settings.capBadgeCount) "On" else "Off",
-                        "Unwatched episode counts are displayed as 99+ when the count exceeds 100",
-                        viewModel::toggleCapBadgeCount
-                    )
-                )
-                add(
-                    SettingItem(
-                        "Theme music",
-                        settings.themeMusicVolume.display(),
-                        "Play an item's theme music while browsing its details",
-                        onActivate = {
-                            showPicker(
-                                ActivePicker(
-                                    title = "Theme music",
-                                    options = ThemeMusicVolume.entries.map { volume ->
-                                        PickerOption(
-                                            label = volume.display(),
-                                            selected = volume == settings.themeMusicVolume,
-                                            onSelect = { viewModel.setThemeMusicVolume(volume) }
-                                        )
-                                    }
-                                )
-                            )
-                        }
-                    )
-                )
-            }
-        )
+    SettingsCategory.EXPERIENCE -> experienceSections(
+        settings,
+        imageCacheSize,
+        context,
+        viewModel,
+        youtubeApps,
+        pictureInPictureSupported,
+        serverAudioLanguage,
+        serverSubtitleLanguage,
+        showPicker,
+        onShowAudioLanguagePicker,
+        onShowSubtitleLanguagePicker,
+        onOpenSubtitleAppearance
     )
-    SettingsCategory.PLAYBACK -> listOf(
-        SettingSection(
-            "User Preferences",
-            listOf(
+    SettingsCategory.PLAYBACK -> playbackSections(
+        settings,
+        imageCacheSize,
+        context,
+        viewModel,
+        youtubeApps,
+        pictureInPictureSupported,
+        serverAudioLanguage,
+        serverSubtitleLanguage,
+        showPicker,
+        onShowAudioLanguagePicker,
+        onShowSubtitleLanguagePicker,
+        onOpenSubtitleAppearance
+    )
+    SettingsCategory.ADVANCED -> advancedSections(
+        settings,
+        imageCacheSize,
+        context,
+        viewModel,
+        youtubeApps,
+        pictureInPictureSupported,
+        serverAudioLanguage,
+        serverSubtitleLanguage,
+        showPicker,
+        onShowAudioLanguagePicker,
+        onShowSubtitleLanguagePicker,
+        onOpenSubtitleAppearance
+    )
+}
+
+private fun experienceSections(
+    settings: PlaybackSettings,
+    imageCacheSize: Long,
+    context: Context,
+    viewModel: SettingsViewModel,
+    youtubeApps: List<YouTubeAppInfo>,
+    pictureInPictureSupported: Boolean,
+    serverAudioLanguage: String?,
+    serverSubtitleLanguage: String?,
+    showPicker: (ActivePicker) -> Unit,
+    onShowAudioLanguagePicker: () -> Unit,
+    onShowSubtitleLanguagePicker: () -> Unit,
+    onOpenSubtitleAppearance: () -> Unit
+): List<SettingSection> = listOf(
+    SettingSection(
+        null,
+        buildList {
+            add(
                 SettingItem(
-                    "Default video quality",
-                    defaultQualityLabel(settings.defaultVideoQuality),
+                    "Sign in automatically",
+                    if (settings.autoLoginLastUser) "On" else "Off",
+                    "Skip the profile picker and sign in as the last-used profile",
+                    viewModel::toggleAutoLoginLastUser
+                )
+            )
+            add(
+                SettingItem(
+                    "Ambient backgrounds",
+                    if (settings.ambientBackgrounds) "On" else "Off",
+                    "Tint the background with colors extracted from the backdrop",
+                    viewModel::toggleAmbientBackgrounds
+                )
+            )
+            add(
+                SettingItem(
+                    "Ambient focus indicators",
+                    if (settings.colouredFocus) "On" else "Off",
+                    "Focus indicators dynamically change colors based on the focused card",
+                    viewModel::toggleColouredFocus
+                )
+            )
+            add(
+                SettingItem(
+                    "Live focus indicators",
+                    if (settings.pulseFocusGlow) "On" else "Off",
+                    "The glow from focus indicators gently pulse behind the card",
+                    viewModel::togglePulseFocusGlow
+                )
+            )
+            add(
+                SettingItem(
+                    "Limit episode badges",
+                    if (settings.capBadgeCount) "On" else "Off",
+                    "Unwatched episode counts are displayed as 99+ when the count exceeds 100",
+                    viewModel::toggleCapBadgeCount
+                )
+            )
+            add(
+                SettingItem(
+                    "Theme music",
+                    settings.themeMusicVolume.display(),
+                    "Play an item's theme music while browsing its details",
                     onActivate = {
                         showPicker(
-                            defaultQualityPicker(settings.defaultVideoQuality, viewModel::setDefaultVideoQuality)
-                        )
-                    }
-                ),
-                SettingItem(
-                    "Preferred audio language",
-                    if (settings.preferDefaultAudioTrack) {
-                        "Original language"
-                    } else {
-                        viewModel.languageLabel(
-                            resolveLanguageCode(
-                                settings.preferredAudioLanguage,
-                                serverAudioLanguage,
-                                viewModel.deviceLanguage
+                            ActivePicker(
+                                title = "Theme music",
+                                options = ThemeMusicVolume.entries.map { volume ->
+                                    PickerOption(
+                                        label = volume.display(),
+                                        selected = volume == settings.themeMusicVolume,
+                                        onSelect = { viewModel.setThemeMusicVolume(volume) }
+                                    )
+                                }
                             )
                         )
-                    },
-                    onActivate = onShowAudioLanguagePicker
-                ),
-                SettingItem(
-                    "Preferred subtitle language",
+                    }
+                )
+            )
+        }
+    )
+)
+
+private fun playbackSections(
+    settings: PlaybackSettings,
+    imageCacheSize: Long,
+    context: Context,
+    viewModel: SettingsViewModel,
+    youtubeApps: List<YouTubeAppInfo>,
+    pictureInPictureSupported: Boolean,
+    serverAudioLanguage: String?,
+    serverSubtitleLanguage: String?,
+    showPicker: (ActivePicker) -> Unit,
+    onShowAudioLanguagePicker: () -> Unit,
+    onShowSubtitleLanguagePicker: () -> Unit,
+    onOpenSubtitleAppearance: () -> Unit
+): List<SettingSection> = listOf(
+    SettingSection(
+        "User Preferences",
+        listOf(
+            SettingItem(
+                "Default video quality",
+                defaultQualityLabel(settings.defaultVideoQuality),
+                onActivate = {
+                    showPicker(
+                        defaultQualityPicker(settings.defaultVideoQuality, viewModel::setDefaultVideoQuality)
+                    )
+                }
+            ),
+            SettingItem(
+                "Preferred audio language",
+                if (settings.preferDefaultAudioTrack) {
+                    "Original language"
+                } else {
                     viewModel.languageLabel(
                         resolveLanguageCode(
-                            settings.preferredSubtitleLanguage,
-                            serverSubtitleLanguage,
+                            settings.preferredAudioLanguage,
+                            serverAudioLanguage,
                             viewModel.deviceLanguage
                         )
-                    ),
-                    onActivate = onShowSubtitleLanguagePicker
+                    )
+                },
+                onActivate = onShowAudioLanguagePicker
+            ),
+            SettingItem(
+                "Preferred subtitle language",
+                viewModel.languageLabel(
+                    resolveLanguageCode(
+                        settings.preferredSubtitleLanguage,
+                        serverSubtitleLanguage,
+                        viewModel.deviceLanguage
+                    )
                 ),
-                SettingItem(
-                    "Always display subtitles",
-                    if (settings.alwaysDisplaySubtitles) "On" else "Off",
-                    onActivate = viewModel::toggleAlwaysDisplaySubtitles
-                ),
-                SettingItem(
-                    "Subtitle appearance",
-                    "",
-                    onActivate = onOpenSubtitleAppearance,
-                    subPage = SubPageRow.SUBTITLE_APPEARANCE
-                )
-            )
-        ),
-        SettingSection(
-            "Controls",
-            listOf(
-                SettingItem(
-                    "Skip forward",
-                    "${settings.skipForwardSeconds}s",
-                    onActivate = {
-                        showPicker(
-                            secondsPicker(
-                                "Skip forward",
-                                SettingsViewModel.SKIP_FORWARD_OPTIONS,
-                                settings.skipForwardSeconds,
-                                viewModel::setSkipForwardSeconds
-                            )
-                        )
-                    }
-                ),
-                SettingItem(
-                    "Skip back",
-                    "${settings.skipBackwardSeconds}s",
-                    onActivate = {
-                        showPicker(
-                            secondsPicker(
-                                "Skip back",
-                                SettingsViewModel.SKIP_BACKWARD_OPTIONS,
-                                settings.skipBackwardSeconds,
-                                viewModel::setSkipBackwardSeconds
-                            )
-                        )
-                    }
-                ),
-                SettingItem(
-                    "Hide playback controls",
-                    "${settings.osdHideSeconds}s",
-                    onActivate = {
-                        showPicker(
-                            secondsPicker(
-                                "Hide playback controls",
-                                SettingsViewModel.HIDE_CONTROLS_OPTIONS,
-                                settings.osdHideSeconds,
-                                viewModel::setOsdHideSeconds
-                            )
-                        )
-                    }
-                )
-            )
-        ),
-        SettingSection(
-            "Next up behavior",
-            listOf(
-                SettingItem(
-                    "Display next up during outro",
-                    if (settings.displayNextUpDuringOutro) "On" else "Off",
-                    onActivate = viewModel::toggleDisplayNextUpDuringOutro
-                ),
-                SettingItem(
-                    "Next up countdown",
-                    "${settings.nextUpCountdownSeconds}s",
-                    onActivate = {
-                        showPicker(
-                            secondsPicker(
-                                "Next up countdown",
-                                SettingsViewModel.NEXT_UP_COUNTDOWN_OPTIONS,
-                                settings.nextUpCountdownSeconds,
-                                viewModel::setNextUpCountdownSeconds
-                            )
-                        )
-                    }
-                )
-            )
-        ),
-        SettingSection(
-            "Media Segments",
-            listOf(
-                SettingItem(
-                    "Intros",
-                    settings.introAction.display(),
-                    onActivate = { showPicker(segmentPicker("Intros", settings.introAction, viewModel::setIntroAction)) }
-                ),
-                SettingItem(
-                    "Recaps",
-                    settings.recapAction.display(),
-                    onActivate = { showPicker(segmentPicker("Recaps", settings.recapAction, viewModel::setRecapAction)) }
-                ),
-                SettingItem(
-                    "Outros",
-                    settings.outroAction.display(),
-                    onActivate = { showPicker(segmentPicker("Outros", settings.outroAction, viewModel::setOutroAction)) }
-                ),
-                SettingItem(
-                    "Previews",
-                    settings.previewAction.display(),
-                    onActivate = {
-                        showPicker(segmentPicker("Previews", settings.previewAction, viewModel::setPreviewAction))
-                    }
-                ),
-                SettingItem(
-                    "Commercials",
-                    settings.commercialAction.display(),
-                    onActivate = {
-                        showPicker(
-                            segmentPicker("Commercials", settings.commercialAction, viewModel::setCommercialAction)
-                        )
-                    }
-                )
+                onActivate = onShowSubtitleLanguagePicker
+            ),
+            SettingItem(
+                "Always display subtitles",
+                if (settings.alwaysDisplaySubtitles) "On" else "Off",
+                onActivate = viewModel::toggleAlwaysDisplaySubtitles
+            ),
+            SettingItem(
+                "Subtitle appearance",
+                "",
+                onActivate = onOpenSubtitleAppearance,
+                subPage = SubPageRow.SUBTITLE_APPEARANCE
             )
         )
-    )
-    SettingsCategory.ADVANCED -> listOf(
-        SettingSection(
-            null,
-            buildList {
-                if (pictureInPictureSupported) {
-                    add(
-                        SettingItem(
-                            "Enable Picture-in-Picture",
-                            if (settings.pictureInPicture) "On" else "Off",
-                            onActivate = viewModel::togglePictureInPicture
+    ),
+    SettingSection(
+        "Controls",
+        listOf(
+            SettingItem(
+                "Skip forward",
+                "${settings.skipForwardSeconds}s",
+                onActivate = {
+                    showPicker(
+                        secondsPicker(
+                            "Skip forward",
+                            SettingsViewModel.SKIP_FORWARD_OPTIONS,
+                            settings.skipForwardSeconds,
+                            viewModel::setSkipForwardSeconds
                         )
                     )
                 }
-                add(
-                    SettingItem(
-                        "Refresh rate switching",
-                        if (settings.matchRefreshRate) "On" else "Off",
-                        onActivate = viewModel::toggleMatchRefreshRate
+            ),
+            SettingItem(
+                "Skip back",
+                "${settings.skipBackwardSeconds}s",
+                onActivate = {
+                    showPicker(
+                        secondsPicker(
+                            "Skip back",
+                            SettingsViewModel.SKIP_BACKWARD_OPTIONS,
+                            settings.skipBackwardSeconds,
+                            viewModel::setSkipBackwardSeconds
+                        )
                     )
-                )
-                add(
-                    SettingItem(
-                        "Resolution switching",
-                        if (settings.matchResolution) "On" else "Off",
-                        onActivate = viewModel::toggleMatchResolution
+                }
+            ),
+            SettingItem(
+                "Hide playback controls",
+                "${settings.osdHideSeconds}s",
+                onActivate = {
+                    showPicker(
+                        secondsPicker(
+                            "Hide playback controls",
+                            SettingsViewModel.HIDE_CONTROLS_OPTIONS,
+                            settings.osdHideSeconds,
+                            viewModel::setOsdHideSeconds
+                        )
                     )
-                )
-                add(
-                    SettingItem(
-                        "Force direct play",
-                        if (settings.forceDirectPlay) "On" else "Off",
-                        onActivate = viewModel::toggleForceDirectPlay
+                }
+            )
+        )
+    ),
+    SettingSection(
+        "Next up behavior",
+        listOf(
+            SettingItem(
+                "Display next up during outro",
+                if (settings.displayNextUpDuringOutro) "On" else "Off",
+                onActivate = viewModel::toggleDisplayNextUpDuringOutro
+            ),
+            SettingItem(
+                "Next up countdown",
+                "${settings.nextUpCountdownSeconds}s",
+                onActivate = {
+                    showPicker(
+                        secondsPicker(
+                            "Next up countdown",
+                            SettingsViewModel.NEXT_UP_COUNTDOWN_OPTIONS,
+                            settings.nextUpCountdownSeconds,
+                            viewModel::setNextUpCountdownSeconds
+                        )
                     )
-                )
-                add(
-                    SettingItem(
-                        "Downmix to stereo",
-                        if (settings.downmixStereo) "On" else "Off",
-                        // Force direct play announces full compatibility, so this has no effect.
-                        enabled = !settings.forceDirectPlay,
-                        onActivate = viewModel::toggleDownmixStereo
+                }
+            )
+        )
+    ),
+    SettingSection(
+        "Media Segments",
+        listOf(
+            SettingItem(
+                "Intros",
+                settings.introAction.display(),
+                onActivate = { showPicker(segmentPicker("Intros", settings.introAction, viewModel::setIntroAction)) }
+            ),
+            SettingItem(
+                "Recaps",
+                settings.recapAction.display(),
+                onActivate = { showPicker(segmentPicker("Recaps", settings.recapAction, viewModel::setRecapAction)) }
+            ),
+            SettingItem(
+                "Outros",
+                settings.outroAction.display(),
+                onActivate = { showPicker(segmentPicker("Outros", settings.outroAction, viewModel::setOutroAction)) }
+            ),
+            SettingItem(
+                "Previews",
+                settings.previewAction.display(),
+                onActivate = {
+                    showPicker(segmentPicker("Previews", settings.previewAction, viewModel::setPreviewAction))
+                }
+            ),
+            SettingItem(
+                "Commercials",
+                settings.commercialAction.display(),
+                onActivate = {
+                    showPicker(
+                        segmentPicker("Commercials", settings.commercialAction, viewModel::setCommercialAction)
                     )
-                )
+                }
+            )
+        )
+    )
+)
+
+private fun advancedSections(
+    settings: PlaybackSettings,
+    imageCacheSize: Long,
+    context: Context,
+    viewModel: SettingsViewModel,
+    youtubeApps: List<YouTubeAppInfo>,
+    pictureInPictureSupported: Boolean,
+    serverAudioLanguage: String?,
+    serverSubtitleLanguage: String?,
+    showPicker: (ActivePicker) -> Unit,
+    onShowAudioLanguagePicker: () -> Unit,
+    onShowSubtitleLanguagePicker: () -> Unit,
+    onOpenSubtitleAppearance: () -> Unit
+): List<SettingSection> = listOf(
+    SettingSection(
+        null,
+        buildList {
+            if (pictureInPictureSupported) {
                 add(
                     SettingItem(
-                        "Force DoVi Profile 7 support",
-                        if (settings.forceDoviProfile7) "On" else "Off",
-                        enabled = !settings.forceDirectPlay,
-                        onActivate = viewModel::toggleForceDoviProfile7
-                    )
-                )
-                add(
-                    SettingItem(
-                        "Enable 4K transcoding",
-                        if (settings.allowFourKTranscoding) "On" else "Off",
-                        enabled = !settings.forceDirectPlay,
-                        onActivate = viewModel::toggleAllowFourKTranscoding
-                    )
-                )
-                add(
-                    SettingItem(
-                        "External application for trailers",
-                        youtubeApps.find { it.packageName == settings.trailerYouTubePackage }?.name ?: "System Default",
-                        onActivate = {
-                            showPicker(
-                                ActivePicker(
-                                    title = "External application for trailers",
-                                    options = buildList {
-                                        add(
-                                            PickerOption(
-                                                label = "System Default",
-                                                selected = settings.trailerYouTubePackage == null,
-                                                onSelect = { viewModel.setTrailerYouTubePackage(null) }
-                                            )
-                                        )
-                                        youtubeApps.forEach { app ->
-                                            add(
-                                                PickerOption(
-                                                    label = app.name,
-                                                    selected = app.packageName == settings.trailerYouTubePackage,
-                                                    icon = app.icon,
-                                                    onSelect = { viewModel.setTrailerYouTubePackage(app.packageName) }
-                                                )
-                                            )
-                                        }
-                                    }
-                                )
-                            )
-                        }
-                    )
-                )
-                add(
-                    SettingItem(
-                        "Clear image cache",
-                        Formatter.formatFileSize(context, imageCacheSize),
-                        onActivate = viewModel::clearImageCache
+                        "Enable Picture-in-Picture",
+                        if (settings.pictureInPicture) "On" else "Off",
+                        onActivate = viewModel::togglePictureInPicture
                     )
                 )
             }
-        )
+            add(
+                SettingItem(
+                    "Refresh rate switching",
+                    if (settings.matchRefreshRate) "On" else "Off",
+                    onActivate = viewModel::toggleMatchRefreshRate
+                )
+            )
+            add(
+                SettingItem(
+                    "Resolution switching",
+                    if (settings.matchResolution) "On" else "Off",
+                    onActivate = viewModel::toggleMatchResolution
+                )
+            )
+            add(
+                SettingItem(
+                    "Force direct play",
+                    if (settings.forceDirectPlay) "On" else "Off",
+                    onActivate = viewModel::toggleForceDirectPlay
+                )
+            )
+            add(
+                SettingItem(
+                    "Downmix to stereo",
+                    if (settings.downmixStereo) "On" else "Off",
+                    // Force direct play announces full compatibility, so this has no effect.
+                    enabled = !settings.forceDirectPlay,
+                    onActivate = viewModel::toggleDownmixStereo
+                )
+            )
+            add(
+                SettingItem(
+                    "Force DoVi Profile 7 support",
+                    if (settings.forceDoviProfile7) "On" else "Off",
+                    enabled = !settings.forceDirectPlay,
+                    onActivate = viewModel::toggleForceDoviProfile7
+                )
+            )
+            add(
+                SettingItem(
+                    "Enable 4K transcoding",
+                    if (settings.allowFourKTranscoding) "On" else "Off",
+                    enabled = !settings.forceDirectPlay,
+                    onActivate = viewModel::toggleAllowFourKTranscoding
+                )
+            )
+            add(
+                SettingItem(
+                    "External application for trailers",
+                    youtubeApps.find { it.packageName == settings.trailerYouTubePackage }?.name ?: "System Default",
+                    onActivate = {
+                        showPicker(
+                            ActivePicker(
+                                title = "External application for trailers",
+                                options = buildList {
+                                    add(
+                                        PickerOption(
+                                            label = "System Default",
+                                            selected = settings.trailerYouTubePackage == null,
+                                            onSelect = { viewModel.setTrailerYouTubePackage(null) }
+                                        )
+                                    )
+                                    youtubeApps.forEach { app ->
+                                        add(
+                                            PickerOption(
+                                                label = app.name,
+                                                selected = app.packageName == settings.trailerYouTubePackage,
+                                                icon = app.icon,
+                                                onSelect = { viewModel.setTrailerYouTubePackage(app.packageName) }
+                                            )
+                                        )
+                                    }
+                                }
+                            )
+                        )
+                    }
+                )
+            )
+            add(
+                SettingItem(
+                    "Clear image cache",
+                    Formatter.formatFileSize(context, imageCacheSize),
+                    onActivate = viewModel::clearImageCache
+                )
+            )
+        }
     )
-}
+)
