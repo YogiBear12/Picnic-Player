@@ -219,7 +219,7 @@ internal fun LibraryPane(
                                 }
                             },
                             onChromeVisibleChange = { collectionsChromeVisible = it },
-                            showGenres = false,
+                            offeredFilters = emptySet(),
                             upExitFocus = tabFocus,
                             emptyStateFocus = collectionsEmptyFocus,
                             onEmptyFilteredChange = { collectionsEmptyFiltered = it }

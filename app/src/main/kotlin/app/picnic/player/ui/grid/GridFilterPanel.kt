@@ -113,12 +113,11 @@ internal enum class GridFilterSection(val label: String, val icon: ImageVector) 
 /** Sections that make sense for the current facets (rail and panel must agree). */
 internal fun availableFilterSections(
     facets: GridFilterFacets,
-    showGenres: Boolean,
-    showContentType: Boolean
+    offered: Set<GridFilterSection>
 ): List<GridFilterSection> = GridFilterSection.entries.filter { section ->
     when (section) {
-        GridFilterSection.CONTENT_TYPE -> showContentType
-        GridFilterSection.GENRES -> showGenres && facets.genres.isNotEmpty()
+        GridFilterSection.CONTENT_TYPE -> GridFilterSection.CONTENT_TYPE in offered
+        GridFilterSection.GENRES -> GridFilterSection.GENRES in offered && facets.genres.isNotEmpty()
         GridFilterSection.STUDIOS -> facets.studios.isNotEmpty()
         GridFilterSection.PARENTAL -> facets.parentalRatings.isNotEmpty()
         GridFilterSection.DECADE -> facets.decades.isNotEmpty()
@@ -168,8 +167,7 @@ internal fun GridFilterPanel(
     filter: MediaGridFilter,
     sort: GridSortSpec,
     facets: GridFilterFacets,
-    showGenres: Boolean,
-    showContentType: Boolean,
+    offered: Set<GridFilterSection>,
     onFilterChange: (MediaGridFilter) -> Unit,
     onSortChange: (GridSortSpec) -> Unit,
     /** Atomic reset of BOTH filter and sort — two sequential single-side callbacks
@@ -190,7 +188,7 @@ internal fun GridFilterPanel(
         }
     }
 
-    val sections = availableFilterSections(facets, showGenres, showContentType)
+    val sections = availableFilterSections(facets, offered)
     // Level state lives OUTSIDE the popup: the popup window consumes Back itself and
     // reports it only through onDismissRequest, so that callback must walk the levels.
     var openSection by remember { mutableStateOf<GridFilterSection?>(null) }

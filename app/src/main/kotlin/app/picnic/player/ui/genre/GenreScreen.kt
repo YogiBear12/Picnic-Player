@@ -15,6 +15,7 @@ import androidx.tv.material3.ExperimentalTvMaterial3Api
 import app.picnic.player.ui.ambient.PublishBackdrop
 import app.picnic.player.ui.browse.DrawerCollapsedWidth
 import app.picnic.player.ui.browse.browseLayoutMetrics
+import app.picnic.player.ui.grid.GridFilterSection
 import app.picnic.player.ui.grid.GridStartInset
 import app.picnic.player.ui.grid.LibraryGridViewModel
 import app.picnic.player.ui.grid.MediaGridPane
@@ -51,11 +52,6 @@ fun GenreScreen(
         }
     }
 
-    // Full-screen destination (no live drawer). Match Library Grid geometry: drawer
-    // collapsed footprint + the shell's tiny breathing inset. The global variant shows
-    // no title (matches the old behaviour); the library-scoped variant disambiguates
-    // with "Genre · Library" — the same genre name lists fewer items here than the
-    // search tab's global grid.
     BoxWithConstraints(Modifier.fillMaxSize()) {
         MediaGridPane(
             state = state,
@@ -65,8 +61,7 @@ fun GenreScreen(
             onContentFocusSeeded = {},
             onItem = onItem,
             onChromeVisibleChange = {},
-            showGenres = false,
-            showContentType = true,
+            offeredFilters = setOf(GridFilterSection.CONTENT_TYPE),
             title = libraryName?.let { "$title · $it" },
             startInset = DrawerCollapsedWidth + GridStartInset
         )

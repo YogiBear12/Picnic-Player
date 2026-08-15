@@ -12,17 +12,13 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.picnic.player.ui.ambient.PublishBackdrop
 import app.picnic.player.ui.browse.DrawerCollapsedWidth
 import app.picnic.player.ui.browse.browseLayoutMetrics
+import app.picnic.player.ui.grid.GridFilterSection
 import app.picnic.player.ui.grid.GridStartInset
 import app.picnic.player.ui.grid.LibraryGridViewModel
 import app.picnic.player.ui.grid.MediaGridPane
 import java.util.UUID
 import org.jellyfin.sdk.model.api.BaseItemDto
 
-/**
- * One collection (box set): a grid of its children. Same full-screen geometry and grid
- * machinery as [app.picnic.player.ui.genre.GenreScreen]; the collection name is the
- * on-screen title.
- */
 @Composable
 fun CollectionScreen(
     collectionId: String,
@@ -56,8 +52,7 @@ fun CollectionScreen(
             onContentFocusSeeded = {},
             onItem = onItem,
             onChromeVisibleChange = {},
-            showGenres = false,
-            showContentType = true,
+            offeredFilters = setOf(GridFilterSection.CONTENT_TYPE),
             title = title,
             startInset = DrawerCollapsedWidth + GridStartInset
         )
