@@ -16,6 +16,8 @@ import javax.inject.Singleton
 import kotlin.coroutines.coroutineContext
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -33,7 +35,21 @@ class BlackBarProbe @Inject constructor(
 
     private data class Measured(val frames: List<TimedBars>, val frameHeight: Int)
 
-    suspend fun detect(sheets: List<TrickplaySheet>): BlackBarTrack = withContext(ioDispatcher) {
+    private val memo = Mutex()
+    private var measuredSheets: List<TrickplaySheet>? = null
+    private var measuredTrack: BlackBarTrack? = null
+
+    suspend fun detect(sheets: List<TrickplaySheet>): BlackBarTrack {
+        memo.withLock { if (sheets == measuredSheets) measuredTrack?.let { return it } }
+        val track = measureTrack(sheets)
+        memo.withLock {
+            measuredSheets = sheets
+            measuredTrack = track
+        }
+        return track
+    }
+
+    private suspend fun measureTrack(sheets: List<TrickplaySheet>): BlackBarTrack = withContext(ioDispatcher) {
         runCatching {
             val frames = mutableListOf<TimedBars>()
             var frameHeight = 0
