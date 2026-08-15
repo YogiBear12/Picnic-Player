@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import app.picnic.player.di.IoDispatcher
 import app.picnic.player.playback.BlackBarTrack
+import app.picnic.player.playback.PlaybackDiagnostics
 import app.picnic.player.playback.TimedBars
 import app.picnic.player.playback.barsInFrame
 import app.picnic.player.playback.blackBarSegments
@@ -40,7 +41,15 @@ class BlackBarProbe @Inject constructor(
     private var measuredTrack: BlackBarTrack? = null
 
     suspend fun detect(sheets: List<TrickplaySheet>): BlackBarTrack {
-        memo.withLock { if (sheets == measuredSheets) measuredTrack?.let { return it } }
+        memo.withLock {
+            if (sheets == measuredSheets) {
+                measuredTrack?.let {
+                    PlaybackDiagnostics.log("black bars: reusing ${sheets.size} measured sheet(s)")
+                    return it
+                }
+            }
+        }
+        PlaybackDiagnostics.log("black bars: measuring ${sheets.size} sheet(s)")
         val track = measureTrack(sheets)
         memo.withLock {
             measuredSheets = sheets
