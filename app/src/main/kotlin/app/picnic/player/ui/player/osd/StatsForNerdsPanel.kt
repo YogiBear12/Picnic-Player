@@ -28,6 +28,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.media3.common.MimeTypes
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
@@ -98,8 +99,9 @@ fun StatsForNerdsPanel(
 
     val mediaSource = state.mediaSource
     val videoStream = mediaSource?.mediaStreams?.firstOrNull { it.type == org.jellyfin.sdk.model.api.MediaStreamType.VIDEO }
-    val audioStream = mediaSource?.mediaStreams?.firstOrNull { it.type == org.jellyfin.sdk.model.api.MediaStreamType.AUDIO && it.index == state.selectedAudioId?.toIntOrNull() }
-        ?: mediaSource?.mediaStreams?.firstOrNull { it.type == org.jellyfin.sdk.model.api.MediaStreamType.AUDIO }
+    val audioStreams = mediaSource?.mediaStreams.orEmpty().filter { it.type == org.jellyfin.sdk.model.api.MediaStreamType.AUDIO }
+    val audioStream = audioStreams.firstOrNull { it.index == state.selectedAudioId?.toIntOrNull() }
+        ?: audioStreams.singleOrNull()
 
     Row(
         Modifier
@@ -159,17 +161,19 @@ fun StatsForNerdsPanel(
                 val aCodecOrig = audioStream?.codec?.uppercase()
 
                 val finalVideoCodec = if (vDirect) {
-                    if (vCodecOrig.isNotBlank()) "$vCodecOrig (direct)" else "Unknown (direct)"
+                    val direct = vCodecOrig.takeIf { it.isNotBlank() } ?: codecLabel(videoFormat?.sampleMimeType)
+                    "${direct ?: "Unknown"} (direct)"
                 } else {
-                    val tcCodec = state.transcodingInfo?.videoCodec?.uppercase() ?: "Unknown"
-                    "$tcCodec (transcode)"
+                    val tcCodec = codecLabel(videoFormat?.sampleMimeType) ?: state.transcodingInfo?.videoCodec?.uppercase()
+                    "${tcCodec ?: "Unknown"} (transcode)"
                 }
 
                 val finalAudioCodec = if (aDirect) {
-                    if (!aCodecOrig.isNullOrBlank()) "$aCodecOrig (direct)" else "Unknown (direct)"
+                    val direct = aCodecOrig?.takeIf { it.isNotBlank() } ?: codecLabel(audioFormat?.sampleMimeType)
+                    "${direct ?: "Unknown"} (direct)"
                 } else {
-                    val tcCodec = state.transcodingInfo?.audioCodec?.uppercase() ?: "Unknown"
-                    "$tcCodec (transcode)"
+                    val tcCodec = codecLabel(audioFormat?.sampleMimeType) ?: state.transcodingInfo?.audioCodec?.uppercase()
+                    "${tcCodec ?: "Unknown"} (transcode)"
                 }
 
                 val finalVideoBitrate = if (vDirect) {
@@ -302,4 +306,26 @@ private fun formatBytes(bytes: Long): String {
         kb >= 1.0 -> String.format(Locale.getDefault(), "%.2f KiB", kb)
         else -> "$bytes B"
     }
+}
+
+private fun codecLabel(mimeType: String?): String? = when (mimeType) {
+    null -> null
+    MimeTypes.VIDEO_H264 -> "H264"
+    MimeTypes.VIDEO_H265 -> "HEVC"
+    MimeTypes.VIDEO_AV1 -> "AV1"
+    MimeTypes.VIDEO_VP9 -> "VP9"
+    MimeTypes.VIDEO_MPEG2 -> "MPEG2"
+    MimeTypes.VIDEO_DOLBY_VISION -> "DOVI"
+    MimeTypes.AUDIO_AAC -> "AAC"
+    MimeTypes.AUDIO_AC3 -> "AC3"
+    MimeTypes.AUDIO_E_AC3 -> "EAC3"
+    MimeTypes.AUDIO_AC4 -> "AC4"
+    MimeTypes.AUDIO_DTS -> "DTS"
+    MimeTypes.AUDIO_DTS_HD -> "DTS-HD"
+    MimeTypes.AUDIO_TRUEHD -> "TRUEHD"
+    MimeTypes.AUDIO_OPUS -> "OPUS"
+    MimeTypes.AUDIO_FLAC -> "FLAC"
+    MimeTypes.AUDIO_MPEG -> "MP3"
+    MimeTypes.AUDIO_VORBIS -> "VORBIS"
+    else -> mimeType.substringAfter('/').uppercase()
 }
