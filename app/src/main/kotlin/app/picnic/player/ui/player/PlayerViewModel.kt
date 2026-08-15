@@ -43,6 +43,7 @@ import app.picnic.player.data.playback.quality.qualityOptions
 import app.picnic.player.data.playback.refinePlayMethod
 import app.picnic.player.data.playback.resolveLanguageCode
 import app.picnic.player.data.playback.ticksToMs
+import app.picnic.player.data.playback.trickplaySheetCacheKey
 import app.picnic.player.data.settings.PlaybackSettings
 import app.picnic.player.data.settings.SeriesTrackMemoryStore
 import app.picnic.player.data.settings.SettingsStore
@@ -981,7 +982,7 @@ class PlayerViewModel @Inject constructor(
         if (urls.isEmpty()) return
         val diskCache = appContext.imageLoader.diskCache ?: return
         appScope.launch {
-            urls.forEach { url -> runCatching { diskCache.remove(url) } }
+            urls.forEach { url -> runCatching { diskCache.remove(trickplaySheetCacheKey(url)) } }
         }
     }
 
@@ -996,6 +997,7 @@ class PlayerViewModel @Inject constructor(
                 loader.execute(
                     ImageRequest.Builder(appContext)
                         .data(url)
+                        .diskCacheKey(trickplaySheetCacheKey(url))
                         .size(Size.ORIGINAL)
                         .build()
                 )

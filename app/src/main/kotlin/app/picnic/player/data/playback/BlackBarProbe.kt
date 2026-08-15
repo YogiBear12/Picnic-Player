@@ -23,17 +23,12 @@ import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 
-/**
- * Measures an item's baked-in black bars from its trickplay sprite sheets. No decoder is opened
- * and the video stream is never read: the probe must never reach into playback.
- */
 @Singleton
 class BlackBarProbe @Inject constructor(
     @ApplicationContext private val appContext: Context,
     private val httpClient: Lazy<OkHttpClient>,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) {
-
     private data class Measured(val frames: List<TimedBars>, val frameHeight: Int)
 
     private val memo = Mutex()
@@ -113,7 +108,6 @@ class BlackBarProbe @Inject constructor(
         return BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
     }
 
-    /** Cache first: the sheets are already on disk, and the probe runs while the video is starting. */
     private fun bytesOf(url: String): ByteArray? = cached(url) ?: httpClient.get()
         .newCall(Request.Builder().url(url).build())
         .execute()
@@ -122,7 +116,7 @@ class BlackBarProbe @Inject constructor(
     private fun cached(url: String): ByteArray? {
         val disk = appContext.imageLoader.diskCache ?: return null
         return runCatching {
-            disk.openSnapshot(url)?.use { snapshot -> disk.fileSystem.read(snapshot.data) { readByteArray() } }
+            disk.openSnapshot(trickplaySheetCacheKey(url))?.use { snapshot -> disk.fileSystem.read(snapshot.data) { readByteArray() } }
         }.getOrNull()
     }
 

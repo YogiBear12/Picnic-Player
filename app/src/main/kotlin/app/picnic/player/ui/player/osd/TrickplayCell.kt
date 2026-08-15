@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import app.picnic.player.data.playback.TrickplayFrame
+import app.picnic.player.data.playback.trickplaySheetCacheKey
 import coil3.imageLoader
 import coil3.request.ImageRequest
 import coil3.request.SuccessResult
@@ -28,25 +29,17 @@ import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-/**
- * Draws one trickplay sprite-sheet cell (crops [frame] out of its sheet). The caller
- * sizes it via [modifier]. The sheet is decoded off the main thread and resolved from
- * Coil's memory cache (sheets are prefetched by the player), then cropped on the GPU.
- *
- * Shared by the scrub-preview overlay and the chapters row so the crop logic lives once.
- */
 @Composable
 fun TrickplayCell(
     frame: TrickplayFrame,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    // Keyed on the SHEET url only — the same sheet serves many cells, so we avoid
-    // re-decoding when only the cropped cell (column/row) changes.
     val sheet by produceState<ImageBitmap?>(initialValue = null, frame.url) {
         value = withContext(Dispatchers.Default) {
             val request = ImageRequest.Builder(context)
                 .data(frame.url)
+                .diskCacheKey(trickplaySheetCacheKey(frame.url))
                 .size(CoilSize.ORIGINAL)
                 .allowHardware(false) // we sample pixels via Canvas.drawImage
                 .build()
@@ -57,16 +50,13 @@ fun TrickplayCell(
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(6.dp))
-            .background(Color.Black) // letterbox/pillarbox bars + loading placeholder
+            .background(Color.Black)
     ) {
         val bitmap = sheet ?: return@Box
         val cellW = bitmap.width / frame.columns
         val cellH = bitmap.height / frame.rows
         if (cellW > 0 && cellH > 0) {
             Canvas(Modifier.fillMaxSize()) {
-                // Fit the frame inside the (fixed-aspect) box, centered, preserving its native
-                // aspect — non-16:9 content is letterboxed against the black bars, matching how
-                // the player itself renders the video.
                 val cellAspect = cellW.toFloat() / cellH.toFloat()
                 val boxAspect = size.width / size.height
                 val dstW: Float
