@@ -28,11 +28,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.media3.common.MimeTypes
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
-import app.picnic.player.playback.videoDynamicRange
+import app.picnic.player.playback.playingStream
 import app.picnic.player.ui.player.PlayerUiState
 import java.util.Locale
 import kotlin.time.Duration.Companion.seconds
@@ -97,11 +96,14 @@ fun StatsForNerdsPanel(
     val videoFormat = player?.videoFormat
     val audioFormat = player?.audioFormat
 
-    val mediaSource = state.mediaSource
-    val videoStream = mediaSource?.mediaStreams?.firstOrNull { it.type == org.jellyfin.sdk.model.api.MediaStreamType.VIDEO }
-    val audioStreams = mediaSource?.mediaStreams.orEmpty().filter { it.type == org.jellyfin.sdk.model.api.MediaStreamType.AUDIO }
-    val audioStream = audioStreams.firstOrNull { it.index == state.selectedAudioId?.toIntOrNull() }
-        ?: audioStreams.singleOrNull()
+    val playing = playingStream(
+        playMethod = state.playMethod,
+        transcodingInfo = state.transcodingInfo,
+        mediaStreams = state.mediaSource?.mediaStreams.orEmpty(),
+        selectedAudioIndex = state.selectedAudioId?.toIntOrNull(),
+        videoFormat = videoFormat,
+        audioFormat = audioFormat
+    )
 
     Row(
         Modifier
@@ -154,60 +156,14 @@ fun StatsForNerdsPanel(
                     )
                 }
 
-                val vDirect = state.playMethod == app.picnic.player.data.playback.PlayMethodKind.DIRECT_PLAY || state.transcodingInfo?.isVideoDirect == true
-                val aDirect = state.playMethod == app.picnic.player.data.playback.PlayMethodKind.DIRECT_PLAY || state.transcodingInfo?.isAudioDirect == true
-
-                val vCodecOrig = listOfNotNull(videoStream?.codec?.uppercase(), videoStream?.profile).joinToString(" ")
-                val aCodecOrig = audioStream?.codec?.uppercase()
-
-                val finalVideoCodec = if (vDirect) {
-                    val direct = vCodecOrig.takeIf { it.isNotBlank() } ?: codecLabel(videoFormat?.sampleMimeType)
-                    "${direct ?: "Unknown"} (direct)"
-                } else {
-                    val tcCodec = codecLabel(videoFormat?.sampleMimeType) ?: state.transcodingInfo?.videoCodec?.uppercase()
-                    "${tcCodec ?: "Unknown"} (transcode)"
-                }
-
-                val finalAudioCodec = if (aDirect) {
-                    val direct = aCodecOrig?.takeIf { it.isNotBlank() } ?: codecLabel(audioFormat?.sampleMimeType)
-                    "${direct ?: "Unknown"} (direct)"
-                } else {
-                    val tcCodec = codecLabel(audioFormat?.sampleMimeType) ?: state.transcodingInfo?.audioCodec?.uppercase()
-                    "${tcCodec ?: "Unknown"} (transcode)"
-                }
-
-                val finalVideoBitrate = if (vDirect) {
-                    videoStream?.bitRate?.toLong()?.takeIf { it > 0 } ?: videoFormat?.bitrate?.toLong()?.takeIf { it > 0 }
-                } else {
-                    videoFormat?.bitrate?.toLong()?.takeIf { it > 0 } ?: state.transcodingInfo?.bitrate?.toLong()
-                }
-
-                val finalAudioChannels = if (aDirect) {
-                    audioStream?.channels?.takeIf { it > 0 } ?: audioFormat?.channelCount?.takeIf { it > 0 }
-                } else {
-                    state.transcodingInfo?.audioChannels?.takeIf { it > 0 } ?: audioFormat?.channelCount?.takeIf { it > 0 }
-                }
-
-                val finalVideoDynamicRange = if (vDirect) {
-                    videoStream?.videoRangeType?.name ?: "Unknown"
-                } else {
-                    videoDynamicRange(videoFormat).label
-                }
-
-                val finalAudioBitrate = if (aDirect) {
-                    audioStream?.bitRate?.toLong()?.takeIf { it > 0 } ?: audioFormat?.bitrate?.toLong()?.takeIf { it > 0 }
-                } else {
-                    audioFormat?.bitrate?.toLong()?.takeIf { it > 0 }
-                }
-
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     SectionHeader("Video Info")
                     SimpleTable(
                         listOf(
-                            "Video resolution" to "${videoFormat?.width ?: 0}x${videoFormat?.height ?: 0}",
-                            "Video codec" to finalVideoCodec,
-                            "Video bitrate" to (finalVideoBitrate?.let { formatBitrate(it) } ?: "Unknown"),
-                            "Dynamic range type" to finalVideoDynamicRange
+                            "Video resolution" to "${playing.width ?: 0}x${playing.height ?: 0}",
+                            "Video codec" to sourceLabel(playing.videoCodec, playing.videoDirect),
+                            "Video bitrate" to (playing.videoBitrate?.let { formatBitrate(it) } ?: "Unknown"),
+                            "Dynamic range type" to (playing.dynamicRange?.name ?: "Unknown")
                         ),
                         keyWidth = 140.dp
                     )
@@ -217,9 +173,9 @@ fun StatsForNerdsPanel(
                     SectionHeader("Audio Info")
                     SimpleTable(
                         listOf(
-                            "Audio codec" to finalAudioCodec,
-                            "Audio channels" to (finalAudioChannels ?: "Unknown"),
-                            "Audio bitrate" to (finalAudioBitrate?.let { formatBitrate(it) } ?: "Unknown")
+                            "Audio codec" to sourceLabel(playing.audioCodec, playing.audioDirect),
+                            "Audio channels" to (playing.audioChannels ?: "Unknown"),
+                            "Audio bitrate" to (playing.audioBitrate?.let { formatBitrate(it) } ?: "Unknown")
                         ),
                         keyWidth = 140.dp
                     )
@@ -308,24 +264,4 @@ private fun formatBytes(bytes: Long): String {
     }
 }
 
-private fun codecLabel(mimeType: String?): String? = when (mimeType) {
-    null -> null
-    MimeTypes.VIDEO_H264 -> "H264"
-    MimeTypes.VIDEO_H265 -> "HEVC"
-    MimeTypes.VIDEO_AV1 -> "AV1"
-    MimeTypes.VIDEO_VP9 -> "VP9"
-    MimeTypes.VIDEO_MPEG2 -> "MPEG2"
-    MimeTypes.VIDEO_DOLBY_VISION -> "DOVI"
-    MimeTypes.AUDIO_AAC -> "AAC"
-    MimeTypes.AUDIO_AC3 -> "AC3"
-    MimeTypes.AUDIO_E_AC3 -> "EAC3"
-    MimeTypes.AUDIO_AC4 -> "AC4"
-    MimeTypes.AUDIO_DTS -> "DTS"
-    MimeTypes.AUDIO_DTS_HD -> "DTS-HD"
-    MimeTypes.AUDIO_TRUEHD -> "TRUEHD"
-    MimeTypes.AUDIO_OPUS -> "OPUS"
-    MimeTypes.AUDIO_FLAC -> "FLAC"
-    MimeTypes.AUDIO_MPEG -> "MP3"
-    MimeTypes.AUDIO_VORBIS -> "VORBIS"
-    else -> mimeType.substringAfter('/').uppercase()
-}
+private fun sourceLabel(codec: String?, direct: Boolean): String = "${codec ?: "Unknown"} (${if (direct) "direct" else "transcode"})"
