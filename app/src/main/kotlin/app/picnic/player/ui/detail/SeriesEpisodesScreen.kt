@@ -31,6 +31,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -67,6 +68,7 @@ import androidx.paging.Pager
 import androidx.paging.PagingConfig
 import androidx.paging.PagingData
 import androidx.paging.cachedIn
+import androidx.paging.compose.LazyPagingItems
 import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.compose.itemContentType
 import androidx.paging.compose.itemKey
@@ -508,39 +510,18 @@ fun SeriesEpisodesScreen(
     // (e.g. after marking watched) doesn't yank the list back to the first unwatched item.
     var lastScrolledSeasonId by rememberSaveable { mutableStateOf<String?>(null) }
 
-    // Reveal the whole page at once: hold a spinner over the ambient background until BOTH the
-    // season list and the initial episode list have arrived, so the season panel never appears
-    // blank next to a populated episode list. We only fetch the selected season's episodes (not
-    // every season's), so the wait is just the slower of two concurrent calls.
-    var initialLoadComplete by rememberSaveable { mutableStateOf(false) }
-    LaunchedEffect(viewModel.seasons, selectedSeasonId) {
-        snapshotFlow { episodes.itemCount }.collect { count ->
-            val selectedSeasonCountReady = viewModel.seasons.find { it.id.toString() == selectedSeasonId }?.childCount != null
-            if (viewModel.seasons.isNotEmpty() && count > 0 && selectedSeasonCountReady) {
-                initialLoadComplete = true
-            }
-        }
-    }
-    // Failsafe: a season with no episodes (or a slow/failed call) must never hang the spinner.
-    LaunchedEffect(Unit) {
-        delay(5000)
-        initialLoadComplete = true
-    }
-    // A load error drops the spinner immediately so the error state underneath is visible.
-    LaunchedEffect(Unit) {
-        snapshotFlow { episodes.loadState.refresh }.collect {
-            if (it is LoadState.Error) initialLoadComplete = true
-        }
-    }
-    LaunchedEffect(viewModel.seasonsError) {
-        if (viewModel.seasonsError != null) initialLoadComplete = true
-    }
+    val initialLoadComplete = rememberInitialLoadComplete(
+        seasons = viewModel.seasons,
+        seasonsError = viewModel.seasonsError,
+        selectedSeasonId = selectedSeasonId,
+        episodes = episodes
+    )
 
     // When episodes (re)load: restore focus to the episode we came back from, otherwise scroll
     // to the first in-progress/unwatched episode only when the season actually changed.
     var initialFocusRequested by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(Unit) {
-        snapshotFlow { initialLoadComplete to episodes.itemCount }.collect { (complete, count) ->
+        snapshotFlow { initialLoadComplete.value to episodes.itemCount }.collect { (complete, count) ->
             if (!complete || count == 0) return@collect
             val returningIndex = pendingFocusEpisodeId
                 ?.let { id -> episodes.itemSnapshotList.indexOfFirst { it?.id?.toString() == id } }
@@ -587,7 +568,7 @@ fun SeriesEpisodesScreen(
     Box(Modifier.fillMaxSize()) {
         // Kept composed while loading (alpha 0) so the season/episode focus + centering effects
         // position everything before it's revealed — no visible scroll jump on reveal.
-        Row(Modifier.fillMaxSize().graphicsLayer { alpha = if (initialLoadComplete) 1f else 0f }) {
+        Row(Modifier.fillMaxSize().graphicsLayer { alpha = if (initialLoadComplete.value) 1f else 0f }) {
             // Sidebar: poster fills panel width, season list fills remaining height below
             Column(
                 modifier = Modifier
@@ -824,7 +805,7 @@ fun SeriesEpisodesScreen(
             }
         }
 
-        if (!initialLoadComplete) {
+        if (!initialLoadComplete.value) {
             CircularProgressIndicator(
                 Modifier.align(Alignment.Center),
                 color = PicnicColors.Accent
@@ -870,6 +851,43 @@ fun SeriesEpisodesScreen(
             )
         }
     }
+}
+
+// Reveal the whole page at once: hold a spinner over the ambient background until BOTH the
+// season list and the initial episode list have arrived, so the season panel never appears
+// blank next to a populated episode list. We only fetch the selected season's episodes (not
+// every season's), so the wait is just the slower of two concurrent calls.
+@Composable
+private fun rememberInitialLoadComplete(
+    seasons: List<BaseItemDto>,
+    seasonsError: Throwable?,
+    selectedSeasonId: String?,
+    episodes: LazyPagingItems<BaseItemDto>
+): State<Boolean> {
+    val complete = rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(seasons, selectedSeasonId) {
+        snapshotFlow { episodes.itemCount }.collect { count ->
+            val selectedSeasonCountReady = seasons.find { it.id.toString() == selectedSeasonId }?.childCount != null
+            if (seasons.isNotEmpty() && count > 0 && selectedSeasonCountReady) {
+                complete.value = true
+            }
+        }
+    }
+    // Failsafe: a season with no episodes (or a slow/failed call) must never hang the spinner.
+    LaunchedEffect(Unit) {
+        delay(5000)
+        complete.value = true
+    }
+    // A load error drops the spinner immediately so the error state underneath is visible.
+    LaunchedEffect(Unit) {
+        snapshotFlow { episodes.loadState.refresh }.collect {
+            if (it is LoadState.Error) complete.value = true
+        }
+    }
+    LaunchedEffect(seasonsError) {
+        if (seasonsError != null) complete.value = true
+    }
+    return complete
 }
 
 @Composable
