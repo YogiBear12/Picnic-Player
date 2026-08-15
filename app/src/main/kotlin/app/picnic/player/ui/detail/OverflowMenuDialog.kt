@@ -1,20 +1,14 @@
 package app.picnic.player.ui.detail
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowForward
-import androidx.compose.material.icons.filled.Article
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.runtime.Composable
@@ -22,16 +16,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import androidx.tv.material3.ExperimentalTvMaterial3Api
-import androidx.tv.material3.MaterialTheme
-import androidx.tv.material3.Text
 import app.picnic.player.ui.common.ContextMenuAction
 import app.picnic.player.ui.common.ContextMenuDialog
+import app.picnic.player.ui.common.GlobalContextMenuDialog
 import app.picnic.player.ui.common.LocalAddToPlaylist
 import app.picnic.player.ui.common.MediaInfoDialog
 import app.picnic.player.ui.theme.PicnicColors
@@ -102,85 +91,16 @@ fun EpisodeContextMenu(
     onToggleFavorite: (Boolean) -> Unit,
     onGoToSeries: ((String) -> Unit)? = null
 ) {
-    val played = episode.userData?.played ?: false
-    val isFavorite = episode.userData?.isFavorite ?: false
-    val resumeTicks = episode.userData?.playbackPositionTicks?.takeIf { it > 0L }
     val addToPlaylist = LocalAddToPlaylist.current
-
-    var showSynopsis by remember { mutableStateOf(false) }
-    var showMediaInfo by remember { mutableStateOf(false) }
-
-    val actions = buildList {
-        if (resumeTicks != null) {
-            add(
-                ContextMenuAction("Resume", Icons.Default.PlayArrow) {
-                    onPlay(resumeTicks)
-                    onDismiss()
-                }
-            )
-            add(
-                ContextMenuAction("Restart", Icons.Default.Replay) {
-                    onPlay(1L)
-                    onDismiss()
-                }
-            )
-        } else {
-            add(
-                ContextMenuAction("Play", Icons.Default.PlayArrow) {
-                    onPlay(null)
-                    onDismiss()
-                }
-            )
-        }
-        add(
-            ContextMenuAction(
-                if (played) "Mark unwatched" else "Mark watched",
-                if (played) Icons.Default.VisibilityOff else Icons.Default.Visibility
-            ) {
-                onMarkWatched(!played)
-                onDismiss()
-            }
-        )
-        add(ContextMenuAction("View synopsis", Icons.Default.Article) { showSynopsis = true })
-
-        if (episode.seriesId != null && onGoToSeries != null) {
-            add(
-                ContextMenuAction("Go to series", Icons.Default.ArrowForward) {
-                    onGoToSeries(episode.seriesId.toString())
-                    onDismiss()
-                }
-            )
-        }
-
-        add(
-            ContextMenuAction(
-                if (isFavorite) "Remove from favorites" else "Add to favorites",
-                if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder
-            ) {
-                onToggleFavorite(!isFavorite)
-                onDismiss()
-            }
-        )
-
-        add(
-            ContextMenuAction("Add to playlist", Icons.AutoMirrored.Filled.PlaylistAdd) {
-                addToPlaylist(episode)
-                onDismiss()
-            }
-        )
-
-        add(ContextMenuAction("View media info", Icons.Default.Info) { showMediaInfo = true })
-    }
-
-    ContextMenuDialog(actions = actions, onDismiss = onDismiss)
-
-    if (showSynopsis) {
-        EpisodeSynopsisDialog(episode = episode, onDismiss = { showSynopsis = false })
-    }
-
-    if (showMediaInfo) {
-        MediaInfoDialog(item = episode, onDismiss = { showMediaInfo = false })
-    }
+    GlobalContextMenuDialog(
+        item = episode,
+        onDismiss = onDismiss,
+        onPlay = { _, startTicks -> onPlay(startTicks) },
+        onMarkWatched = onMarkWatched,
+        onToggleFavorite = onToggleFavorite,
+        onGoToSeries = onGoToSeries,
+        onAddToPlaylist = { addToPlaylist(episode) }
+    )
 }
 
 @Composable
@@ -279,35 +199,4 @@ fun OverflowMenuDialog(
     }
 
     ContextMenuDialog(actions = mainItems, onDismiss = onDismiss, openedByLongPress = false)
-}
-
-@Composable
-private fun EpisodeSynopsisDialog(
-    episode: BaseItemDto,
-    onDismiss: () -> Unit
-) {
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
-        androidx.tv.material3.Surface(
-            shape = MaterialTheme.shapes.medium,
-            colors = androidx.tv.material3.SurfaceDefaults.colors(
-                containerColor = PicnicColors.Surface,
-                contentColor = Color.White
-            ),
-            modifier = Modifier.width(600.dp).padding(32.dp)
-        ) {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.padding(24.dp)
-            ) {
-                Text(
-                    text = episode.overview?.takeIf { it.isNotBlank() } ?: "No synopsis available.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Color.White.copy(alpha = 0.85f)
-                )
-            }
-        }
-    }
 }

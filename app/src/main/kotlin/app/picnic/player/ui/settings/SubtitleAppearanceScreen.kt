@@ -126,12 +126,6 @@ private val PageInset = 40.dp
 private val MinHeaderHeight = 40.dp
 private const val ScopeAspect = 2.39f
 
-/**
- * Screen background: server splashscreen art layered over the ocean wash. The splash
- * URL 404s when no splashscreen is configured on the server — [AsyncImage] then draws
- * nothing and the ocean shows through. A dark scrim keeps the option card (left) and
- * preview cue (bottom) legible over bright artwork.
- */
 @Composable
 private fun SubtitleBackground(splashUrl: String?, modifier: Modifier = Modifier) {
     Box(modifier) {
@@ -159,8 +153,6 @@ private fun SubtitleBackground(splashUrl: String?, modifier: Modifier = Modifier
                 model = request,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
-                // Only Success flips the fade in; Error leaves alpha at 0 so the ocean
-                // base stays the background.
                 onState = { state -> if (state is AsyncImagePainter.State.Success) loaded = true },
                 modifier = Modifier
                     .fillMaxSize()
@@ -190,13 +182,6 @@ private fun SubtitleBackground(splashUrl: String?, modifier: Modifier = Modifier
     }
 }
 
-/**
- * Full-screen subtitle appearance page: option rows on the left, and a
- * live preview cue drawn over the whole screen exactly where playback puts
- * subtitles — same [SubtitleView], same [applyTo], same bottom padding — so
- * position and true size are never misrepresented by a scaled-down preview
- * window. Selecting a row cycles to its next value.
- */
 @Composable
 internal fun SubtitleAppearanceScreen(
     onBack: () -> Unit,
@@ -215,7 +200,6 @@ internal fun SubtitleAppearanceScreen(
         val barFraction = scopeBarFraction(maxWidth / maxHeight)
         val barHeight = maxHeight * barFraction
 
-        // Server splashscreen art, ocean wash showing through on 404/failure.
         SubtitleBackground(splashUrl, Modifier.fillMaxSize())
         ScopeBars(barHeight)
 
@@ -224,8 +208,6 @@ internal fun SubtitleAppearanceScreen(
                 .fillMaxSize()
                 .padding(horizontal = PageInset, vertical = 24.dp)
         ) {
-            // Held to the bar's height so the title sits inside the letterbox rather than
-            // straddling its edge; the floor covers displays wide enough to leave no bars.
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -248,47 +230,34 @@ internal fun SubtitleAppearanceScreen(
                     .padding(horizontal = PanelInsetHorizontal, vertical = PanelInsetVertical),
                 verticalArrangement = Arrangement.spacedBy(RowSpacing)
             ) {
-                AppearanceRow(
-                    label = "Size",
-                    value = appearance.size.display(),
-                    onStep = viewModel::cycleSize,
-                    modifier = Modifier
-                        .focusRequester(firstRowFocus)
-                        .focusProperties { up = FocusRequester.Cancel }
-                )
-                AppearanceRow(
-                    label = "Color",
-                    value = appearance.colour.display(),
-                    onStep = viewModel::cycleColour
-                )
-                AppearanceRow(
-                    label = "Background",
-                    value = appearance.background.display(),
-                    onStep = viewModel::cycleBackground
-                )
-                // The fill row stays mounted while the background is off (removing a focused row
-                // disposes the focused node — see OnboardingTextField); it only mutes.
-                AppearanceRow(
-                    label = "Background fill",
-                    value = appearance.backgroundFill.display(),
-                    enabled = appearance.background != SubtitleBackground.OFF,
-                    onStep = viewModel::cycleBackgroundFill
-                )
-                AppearanceRow(
-                    label = "Subtitle area",
-                    value = appearance.area.display(),
-                    onStep = viewModel::cycleArea
-                )
-                AppearanceRow(
-                    label = "Subtitle offset",
-                    value = appearance.insetDisplay(),
-                    onStep = viewModel::stepInset,
-                    modifier = Modifier.focusProperties { down = FocusRequester.Cancel }
-                )
+                val rows = subtitleAppearanceRows(appearance)
+                rows.forEachIndexed { index, row ->
+                    val step: (Boolean) -> Unit = when (row.setting) {
+                        SubtitleAppearanceSetting.SIZE -> viewModel::cycleSize
+                        SubtitleAppearanceSetting.COLOR -> viewModel::cycleColour
+                        SubtitleAppearanceSetting.BACKGROUND -> viewModel::cycleBackground
+                        SubtitleAppearanceSetting.BACKGROUND_FILL -> viewModel::cycleBackgroundFill
+                        SubtitleAppearanceSetting.AREA -> viewModel::cycleArea
+                        SubtitleAppearanceSetting.INSET -> viewModel::stepInset
+                    }
+                    AppearanceRow(
+                        label = row.label,
+                        value = row.value,
+                        enabled = row.enabled,
+                        onStep = step,
+                        modifier = when (index) {
+                            0 ->
+                                Modifier
+                                    .focusRequester(firstRowFocus)
+                                    .focusProperties { up = FocusRequester.Cancel }
+                            rows.lastIndex -> Modifier.focusProperties { down = FocusRequester.Cancel }
+                            else -> Modifier
+                        }
+                    )
+                }
             }
         }
 
-        // Preview cue over the full screen — playback-true position and size.
         AndroidView(
             factory = { context -> SubtitleView(context) },
             update = { view ->
@@ -337,7 +306,6 @@ private fun AppearanceRow(
                 left = FocusRequester.Cancel
                 right = FocusRequester.Cancel
             }
-            // Left = previous, Right/Select = next (a stepper, values wrap).
             .onKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
                 when (event.key) {

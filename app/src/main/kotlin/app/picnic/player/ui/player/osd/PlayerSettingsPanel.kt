@@ -51,14 +51,13 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import app.picnic.player.data.playback.quality.QualityOption
 import app.picnic.player.data.settings.SubtitleAppearance
-import app.picnic.player.data.settings.SubtitleBackground
 import app.picnic.player.playback.AudioBoost
 import app.picnic.player.playback.NightMode
 import app.picnic.player.playback.SleepMode
 import app.picnic.player.playback.SleepTimerState
 import app.picnic.player.ui.common.requestFocusWhenAttached
-import app.picnic.player.ui.settings.display
-import app.picnic.player.ui.settings.insetDisplay
+import app.picnic.player.ui.settings.SubtitleAppearanceSetting
+import app.picnic.player.ui.settings.subtitleAppearanceRows
 
 internal val PlayerSettingsPanelWidth = 380.dp
 
@@ -229,7 +228,7 @@ fun PlayerSettingsPanel(
             returnToMain()
         }
         Page.AUDIO -> audioRows(audioBoost, nightMode, onAudioBoost, onNightMode)
-        Page.SUBTITLE_APPEARANCE -> subtitleAppearanceRows(
+        Page.SUBTITLE_APPEARANCE -> subtitleAppearancePanelRows(
             subtitleAppearance,
             onSubtitleSize,
             onSubtitleColour,
@@ -399,7 +398,7 @@ private fun audioRows(
     )
 )
 
-private fun subtitleAppearanceRows(
+private fun subtitleAppearancePanelRows(
     appearance: SubtitleAppearance,
     onSize: (Boolean) -> Unit,
     onColour: (Boolean) -> Unit,
@@ -407,53 +406,32 @@ private fun subtitleAppearanceRows(
     onBackgroundFill: (Boolean) -> Unit,
     onArea: (Boolean) -> Unit,
     onInset: (Boolean) -> Unit
-): List<PanelRow> = listOf(
+): List<PanelRow> = subtitleAppearanceRows(appearance).map { row ->
+    val key = when (row.setting) {
+        SubtitleAppearanceSetting.SIZE -> RowKey.SUB_SIZE
+        SubtitleAppearanceSetting.COLOR -> RowKey.SUB_COLOR
+        SubtitleAppearanceSetting.BACKGROUND -> RowKey.SUB_BACKGROUND
+        SubtitleAppearanceSetting.BACKGROUND_FILL -> RowKey.SUB_BG_FILL
+        SubtitleAppearanceSetting.AREA -> RowKey.SUB_AREA
+        SubtitleAppearanceSetting.INSET -> RowKey.SUB_INSET
+    }
+    val step = when (row.setting) {
+        SubtitleAppearanceSetting.SIZE -> onSize
+        SubtitleAppearanceSetting.COLOR -> onColour
+        SubtitleAppearanceSetting.BACKGROUND -> onBackground
+        SubtitleAppearanceSetting.BACKGROUND_FILL -> onBackgroundFill
+        SubtitleAppearanceSetting.AREA -> onArea
+        SubtitleAppearanceSetting.INSET -> onInset
+    }
     PanelRow.Step(
-        key = RowKey.SUB_SIZE,
-        label = "Size",
-        value = appearance.size.display(),
-        onLeft = { onSize(false) },
-        onRight = { onSize(true) }
-    ),
-    PanelRow.Step(
-        key = RowKey.SUB_COLOR,
-        label = "Color",
-        value = appearance.colour.display(),
-        onLeft = { onColour(false) },
-        onRight = { onColour(true) }
-    ),
-    PanelRow.Step(
-        key = RowKey.SUB_BACKGROUND,
-        label = "Background",
-        value = appearance.background.display(),
-        onLeft = { onBackground(false) },
-        onRight = { onBackground(true) }
-    ),
-    // The fill stays listed while the background is off — removing a focused row disposes
-    // the focused node.
-    PanelRow.Step(
-        key = RowKey.SUB_BG_FILL,
-        label = "Background fill",
-        value = appearance.backgroundFill.display(),
-        enabled = appearance.background != SubtitleBackground.OFF,
-        onLeft = { onBackgroundFill(false) },
-        onRight = { onBackgroundFill(true) }
-    ),
-    PanelRow.Step(
-        key = RowKey.SUB_AREA,
-        label = "Subtitle area",
-        value = appearance.area.display(),
-        onLeft = { onArea(false) },
-        onRight = { onArea(true) }
-    ),
-    PanelRow.Step(
-        key = RowKey.SUB_INSET,
-        label = "Subtitle offset",
-        value = appearance.insetDisplay(),
-        onLeft = { onInset(false) },
-        onRight = { onInset(true) }
+        key = key,
+        label = row.label,
+        value = row.value,
+        enabled = row.enabled,
+        onLeft = { step(false) },
+        onRight = { step(true) }
     )
-)
+}
 
 @Composable
 private fun PanelHeader(title: String) {
@@ -480,10 +458,6 @@ private fun PanelHeader(title: String) {
     }
 }
 
-/**
- * The single row used by every page. Left/Right step a [PanelRow.Step] in place; Center
- * activates a [PanelRow.Nav] or [PanelRow.Select]; Back is handled by the panel.
- */
 @Composable
 private fun PanelRowItem(
     row: PanelRow,
