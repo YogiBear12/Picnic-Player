@@ -509,61 +509,7 @@ fun SeriesEpisodesScreen(
             ) {
                 Spacer(Modifier.height(76.dp))
                 val seriesItem = viewModel.seriesItem
-                if (seriesItem != null) {
-                    val logoUrl = JellyfinImages.logo(session, seriesItem, fillWidth = 400)
-                    if (logoUrl != null) {
-                        AsyncImage(
-                            model = logoUrl,
-                            contentDescription = seriesItem.name,
-                            contentScale = ContentScale.Fit,
-                            alignment = Alignment.Center,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(80.dp)
-                        )
-                    } else {
-                        Text(
-                            text = seriesItem.name ?: "Series",
-                            style = MaterialTheme.typography.headlineSmall,
-                            color = Color.White,
-                            modifier = Modifier.fillMaxWidth(),
-                            textAlign = TextAlign.Center
-                        )
-                    }
-
-                    Spacer(Modifier.height(16.dp))
-
-                    val yearStr = (seriesItem.productionYear ?: seriesItem.premiereDate?.year)?.toString() ?: ""
-                    val count = seriesItem.childCount ?: 0
-                    val seasonsStr = if (count == 1) "1 Season" else "$count Seasons"
-                    val meta = if (yearStr.isNotEmpty()) "$yearStr • $seasonsStr" else seasonsStr
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        HeroInfoLine(
-                            item = seriesItem,
-                            meta = meta,
-                            specs = HeroSpecs(
-                                certificate = null,
-                                resolution = null,
-                                dynamicRange = null,
-                                atmos = false,
-                                audio = null,
-                                hasSubtitles = false
-                            )
-                        )
-                    }
-
-                    Spacer(Modifier.height(8.dp))
-
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(1.dp)
-                            .background(Color.White.copy(alpha = 0.15f))
-                    )
-                }
+                if (seriesItem != null) SeriesHeader(seriesItem, session)
 
                 val seasonBringIntoViewSpec = remember {
                     @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
@@ -818,6 +764,63 @@ private fun rememberInitialLoadComplete(
         if (seasonsError != null) complete.value = true
     }
     return complete
+}
+
+@Composable
+private fun SeriesHeader(seriesItem: BaseItemDto, session: UserSession) {
+    val logoUrl = JellyfinImages.logo(session, seriesItem, fillWidth = 400)
+    if (logoUrl != null) {
+        AsyncImage(
+            model = logoUrl,
+            contentDescription = seriesItem.name,
+            contentScale = ContentScale.Fit,
+            alignment = Alignment.Center,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(80.dp)
+        )
+    } else {
+        Text(
+            text = seriesItem.name ?: "Series",
+            style = MaterialTheme.typography.headlineSmall,
+            color = Color.White,
+            modifier = Modifier.fillMaxWidth(),
+            textAlign = TextAlign.Center
+        )
+    }
+
+    Spacer(Modifier.height(16.dp))
+
+    val yearStr = (seriesItem.productionYear ?: seriesItem.premiereDate?.year)?.toString() ?: ""
+    val count = seriesItem.childCount ?: 0
+    val seasonsStr = if (count == 1) "1 Season" else "$count Seasons"
+    val meta = if (yearStr.isNotEmpty()) "$yearStr • $seasonsStr" else seasonsStr
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.Center
+    ) {
+        HeroInfoLine(
+            item = seriesItem,
+            meta = meta,
+            specs = HeroSpecs(
+                certificate = null,
+                resolution = null,
+                dynamicRange = null,
+                atmos = false,
+                audio = null,
+                hasSubtitles = false
+            )
+        )
+    }
+
+    Spacer(Modifier.height(8.dp))
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(1.dp)
+            .background(Color.White.copy(alpha = 0.15f))
+    )
 }
 
 @Composable
