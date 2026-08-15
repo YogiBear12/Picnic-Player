@@ -49,7 +49,7 @@ import kotlinx.coroutines.launch
 private val PageBackground = Color(0xFF0E1114)
 
 /**
- * Full-screen, D-pad-scrollable release notes for the update dialog (#111).
+ * Full-screen, D-pad-scrollable release notes for the update dialog.
  * Rendered as its own full-size [Dialog] window so it can escape the update
  * dialog's 420dp panel. Notes render through [MarkdownLite] — headings, bullets
  * and bold, which is all release bodies use.

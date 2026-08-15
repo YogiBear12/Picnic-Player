@@ -32,7 +32,7 @@ import org.jellyfin.sdk.model.api.ServerShuttingDownMessage
 import org.jellyfin.sdk.model.api.UserDataChangedMessage
 
 /**
- * Session-scoped owner of the Jellyfin websocket (ticket #119).
+ * Session-scoped owner of the Jellyfin websocket.
  *
  * Opens one socket when a session becomes active and tears it down on logout / expiry /
  * session switch, driven by [ActiveSession]. On connect it registers this device as a
@@ -41,11 +41,11 @@ import org.jellyfin.sdk.model.api.UserDataChangedMessage
  * that existing screens / the player already consume — so no screen changes are needed for
  * sync, and remote control reaches the player without the socket knowing about it.
  *
- * Slice 1 (Phases 0–2) — stay-in-sync:
+ * Stay-in-sync:
  *  - [LibraryChangedMessage] → [LibraryChange.LibraryContentChanged].
  *  - [UserDataChangedMessage], filtered to the current user → [LibraryChange.ItemUpdated].
  *
- * Slice 2 (Phases 3–4) — remote control + lifecycle notices:
+ * Remote control + lifecycle notices:
  *  - [PlaystateMessage] → [PlayerCommandBus] (pause/seek/next/…) applied to the active player.
  *  - Media-track [GeneralCommandMessage]s (`SetAudio/SubtitleStreamIndex`) → [PlayerCommandBus].
  *  - Display [GeneralCommandMessage]s (`DisplayMessage`/`SendString`) → [ServerMessageBus];
@@ -98,10 +98,10 @@ class WebSocketManager @Inject constructor(
             foreground.isResumed.collectLatest { resumed ->
                 if (!resumed) return@collectLatest
                 coroutineScope {
-                    // Stay-in-sync (Slice 1).
+                    // Stay-in-sync.
                     launch { fanOutLibraryChanges(socket) }
                     launch { fanOutUserDataChanges(socket, session.userId) }
-                    // Remote control + lifecycle (Slice 2).
+                    // Remote control + lifecycle.
                     launch { fanOutPlaystate(socket) }
                     launch { fanOutPlay(socket) }
                     launch { fanOutGeneralCommands(socket) }
@@ -134,7 +134,7 @@ class WebSocketManager @Inject constructor(
         }
     }
 
-    // --- Slice 2: remote control -------------------------------------------------------------
+    // --- Remote control -------------------------------------------------------------
 
     /** PlayState remote control → the active player (dropped safely when nothing is playing). */
     private suspend fun fanOutPlaystate(socket: SessionSocket) {
@@ -234,7 +234,7 @@ class WebSocketManager @Inject constructor(
 
     private fun dispatchKey(key: RemoteKey) = remoteControlBus.emit(RemoteControlAction.DispatchKey(key))
 
-    // --- Slice 2: server-lifecycle notices ---------------------------------------------------
+    // --- Server-lifecycle notices ---------------------------------------------------
 
     private suspend fun fanOutServerLifecycle(socket: SessionSocket) = coroutineScope {
         launch {

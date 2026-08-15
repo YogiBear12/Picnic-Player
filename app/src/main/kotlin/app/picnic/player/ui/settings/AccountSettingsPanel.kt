@@ -127,7 +127,7 @@ internal fun AccountSettingsPanel(
 /** Identity-gradient avatar circle; the profile image covers it once loaded. */
 @Composable
 private fun ProfileAvatar(name: String, imageUrl: String?) {
-    // Match Who's watching? / nav drawer (#131): no initial under a successful PNG load.
+    // Match Who's watching? / nav drawer: no initial under a successful PNG load.
     var avatarFailed by remember(imageUrl) { mutableStateOf(false) }
     Box(
         modifier = Modifier

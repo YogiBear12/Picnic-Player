@@ -26,7 +26,7 @@ enum class NavDrawerPage { Primary, More }
  * rather than in [BrowseShellHost].
  *
  * Customisable destinations (libraries + Discover) are split into pinned (primary page)
- * and unpinned (More page) via [NavLayout] (#88).
+ * and unpinned (More page) via [NavLayout].
  */
 @Singleton
 class NavRailState @Inject constructor() {

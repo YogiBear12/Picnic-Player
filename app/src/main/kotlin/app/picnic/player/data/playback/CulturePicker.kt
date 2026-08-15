@@ -46,7 +46,7 @@ data class PinnedLanguageOptions(
 
 /**
  * Reorders [base] (A–Z) so the device language sits pinned at the top, above a divider, and is
- * removed from the A–Z body below — the likeliest pick stays in reach (#149). When the device
+ * removed from the A–Z body below — the likeliest pick stays in reach. When the device
  * language is absent from the cultures, nothing is pinned and no divider is drawn.
  */
 fun pinnedLanguageOptions(

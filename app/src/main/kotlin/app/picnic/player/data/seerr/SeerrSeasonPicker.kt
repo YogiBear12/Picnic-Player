@@ -1,7 +1,7 @@
 package app.picnic.player.data.seerr
 
 /**
- * Per-season requestability for the TV season picker (#42).
+ * Per-season requestability for the TV season picker.
  *
  * Mirrors Seerr's TvRequestModal: seasons already in library (available /
  * partially available / processing) or on an active non-4k request are not
@@ -28,7 +28,7 @@ data class SeerrSeasonPickItem(
 }
 
 /**
- * Trailing badge copy for library-blocked season rows (#45).
+ * Trailing badge copy for library-blocked season rows.
  * Returns null when [mediaStatus] is not a picker-surfaced library state.
  */
 fun seasonLibraryBadgeLabel(mediaStatus: Int?): String? = when (mediaStatus) {

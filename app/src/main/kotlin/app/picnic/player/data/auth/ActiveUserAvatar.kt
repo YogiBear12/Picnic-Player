@@ -16,7 +16,7 @@ import kotlinx.coroutines.flow.stateIn
  *
  * The public-user list is refetched when the session changes rather than read from the local
  * cache: the URL is only as fresh as the image tag in it, and a stale tag means a replaced
- * avatar never reaches the screen (Coil serves a cached URL forever — see #191).
+ * avatar never reaches the screen (Coil serves a cached URL forever).
  */
 @Singleton
 class ActiveUserAvatar @Inject constructor(

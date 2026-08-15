@@ -3,7 +3,7 @@ package app.picnic.player.data.seerr
 import java.util.UUID
 
 /**
- * Hybrid Detail routing gate (#46).
+ * Hybrid Detail routing gate.
  *
  * Decides whether a Seerr title opens **Jellyfin Detail** (it is in the user's
  * library — play it) or **Seerr Detail** (it is not — request it). The gate is

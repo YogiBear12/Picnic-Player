@@ -73,7 +73,7 @@ class MediaRepository @Inject constructor(
     /**
      * The signed-in user's server-side config. Its `audioLanguagePreference` /
      * `subtitleLanguagePreference` are the server defaults shown in Settings when the
-     * app holds no local override (#149). Blank string = the user set no preference.
+     * app holds no local override. Blank string = the user set no preference.
      */
     suspend fun userConfiguration(session: UserSession): UserConfiguration? = onIo {
         api(session).userApi.getCurrentUser().content.configuration
@@ -207,9 +207,8 @@ class MediaRepository @Inject constructor(
 
     /**
      * Collections (box sets) that contain [itemId], for the detail screen's "Appears in"
-     * row. No stable server exposes a direct "collections containing item" endpoint yet
-     * (jellyfin/jellyfin#15515 is still open as of 10.11), so this enumerates the user's
-     * box sets and checks membership against their (cached) child id sets. Any failure
+     * row. No stable server exposes a direct "collections containing item" endpoint, so this
+     * enumerates the user's box sets and checks membership against their (cached) child id sets. Any failure
      * resolves to an empty list and the row simply doesn't show.
      */
     suspend fun collectionsContaining(session: UserSession, itemId: UUID): List<BaseItemDto> = onIo {

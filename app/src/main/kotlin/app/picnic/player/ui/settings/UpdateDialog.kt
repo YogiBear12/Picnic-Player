@@ -50,7 +50,7 @@ private val PanelCornerRadius = 20.dp
 private val ContentInset = 24.dp
 
 /**
- * Update flow dialog (#111): one glass panel whose content follows
+ * Update flow dialog: one glass panel whose content follows
  * [UpdateViewModel.Phase] — checking spinner, up-to-date, release notes +
  * install offer, download progress, or failure. [onDismiss] is the only exit;
  * the phase machine itself never closes the dialog so outcomes stay readable.

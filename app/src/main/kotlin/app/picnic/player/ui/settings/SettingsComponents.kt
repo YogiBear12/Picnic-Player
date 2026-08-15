@@ -77,7 +77,7 @@ internal fun ActionRow(
                 if (blockDown) down = FocusRequester.Cancel
             }
             .padding(horizontal = 20.dp, vertical = 16.dp)
-            // Only Select activates — Right is a direction, not a second Select (#138).
+            // Only Select activates — Right is a direction, not a second Select.
             .onKeyEvent { event ->
                 if (!enabled || event.type != KeyEventType.KeyDown) return@onKeyEvent false
                 when (event.key) {

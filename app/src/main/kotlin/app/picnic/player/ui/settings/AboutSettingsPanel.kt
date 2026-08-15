@@ -34,7 +34,7 @@ import app.picnic.player.ui.theme.PicnicColors
 
 /**
  * Settings → About: the app identity (logo, name, version, tagline), the in-app
- * update row (#111) and the open-source licenses page. Mirrors the Account
+ * update row and the open-source licenses page. Mirrors the Account
  * panel's centred-header + [ActionRow] structure. The licenses browser itself
  * is a full-screen page hosted by [SettingsScreen] (not a dialog), reached via
  * [onOpenLicenses].

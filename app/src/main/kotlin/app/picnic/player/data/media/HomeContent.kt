@@ -52,7 +52,7 @@ object HomeContent {
     /**
      * Assembles the home rows: Continue Watching (when non-empty) followed by a
      * "Recently added in {library}" row per **pinned** library that has items,
-     * in [pinnedLibraryIds] order (#88). Libraries absent from that list (unpinned)
+     * in [pinnedLibraryIds] order. Libraries absent from that list (unpinned)
      * contribute no home row.
      *
      * When [pinnedLibraryIds] is null, every library in [latestByLibrary] is included

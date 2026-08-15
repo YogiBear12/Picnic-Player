@@ -24,7 +24,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
@@ -427,33 +426,12 @@ fun SeriesEpisodesScreen(
     val selectedSeasonIndex = viewModel.seasons.indexOfFirst { it.id.toString() == selectedSeasonId }.coerceAtLeast(0)
     val selectedSeason = viewModel.seasons.getOrNull(selectedSeasonIndex)
 
-    // Created eagerly before selectedSeasonFr is derived so the map is always populated.
-    val seasonFocusRequesters: Map<Int, FocusRequester> = remember(viewModel.seasons) {
-        viewModel.seasons.indices.associateWith { FocusRequester() }
-    }
-    val selectedSeasonFr = seasonFocusRequesters[selectedSeasonIndex]
-    val seasonListState = rememberLazyListState()
-
-    // Bring the selected season into view once seasons load. Without this, arriving directly on
-    // a later season (e.g. from a Next Up episode card) leaves that season's ListItem off-screen
-    // and uncomposed, so D-pad Left / Back can't focus it and the episode list becomes a dead end.
-    LaunchedEffect(viewModel.seasons) {
-        if (viewModel.seasons.isEmpty()) return@LaunchedEffect
-        val index = selectedSeasonIndex.coerceAtLeast(0)
-        // Scroll so the selected season is slightly down the list (e.g. 4th item)
-        // so that previous seasons are naturally visible without scrolling.
-        val targetIndex = (index - 3).coerceAtLeast(0)
-        seasonListState.scrollToItem(targetIndex)
-    }
-
-    LaunchedEffect(seasonListState) {
-        snapshotFlow { seasonListState.layoutInfo.visibleItemsInfo }
-            .map { items -> items.map { it.index } }
-            .distinctUntilChanged()
-            .collect { visibleIndices ->
-                viewModel.prefetchSeasonCounts(visibleIndices)
-            }
-    }
+    val seasonRail = rememberSeasonRail(
+        seasons = viewModel.seasons,
+        selectedIndex = selectedSeasonIndex,
+        onVisibleIndices = viewModel::prefetchSeasonCounts
+    )
+    val selectedSeasonFr = seasonRail.requesterFor(selectedSeasonIndex)
 
     val episodeFocus = rememberEpisodeFocus()
     val episodes = viewModel.episodes.collectAsLazyPagingItems()
@@ -471,8 +449,6 @@ fun SeriesEpisodesScreen(
         episodes = episodes
     )
 
-    // When episodes (re)load: restore focus to the episode we came back from, otherwise scroll
-    // to the first in-progress/unwatched episode only when the season actually changed.
     var initialFocusRequested by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         // The season is part of the key: two seasons of equal length leave itemCount unchanged, so
@@ -628,7 +604,7 @@ fun SeriesEpisodesScreen(
                 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
                 CompositionLocalProvider(LocalBringIntoViewSpec provides seasonBringIntoViewSpec) {
                     LazyColumn(
-                        state = seasonListState,
+                        state = seasonRail.listState,
                         modifier = Modifier.weight(1f),
                         contentPadding = PaddingValues(top = 16.dp, bottom = 24.dp),
                         verticalArrangement = Arrangement.spacedBy(2.dp)
@@ -639,7 +615,7 @@ fun SeriesEpisodesScreen(
                         ) { index ->
                             val season = viewModel.seasons[index]
                             val isSelected = season.id.toString() == selectedSeasonId
-                            val fr = seasonFocusRequesters[index] ?: return@items
+                            val fr = seasonRail.requesterFor(index) ?: return@items
                             var seasonFocused by remember(season.id) { mutableStateOf(false) }
                             ListItem(
                                 selected = isSelected,
@@ -865,8 +841,6 @@ private fun EpisodeItem(
         val imageUrl = JellyfinImages.primary(session, episode, fillWidth = 300)
 
         Card(
-            // In-progress episode resumes from the saved position; the long-press menu
-            // offers "Restart" (play from beginning) for the same episode.
             onClick = {
                 val resumeTicks = episode.userData?.playbackPositionTicks?.takeIf { it > 0L }
                 onPlay(episode.id.toString(), resumeTicks)

@@ -28,14 +28,14 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-/** Primary slot in the Seerr Detail action row (#50). */
+/** Primary slot in the Seerr Detail action row. */
 enum class SeerrPrimaryAction {
-    /** Fully available + Jellyfin id — Play bridge / escape hatch (#43). */
+    /** Fully available + Jellyfin id — Play bridge / escape hatch. */
     Play,
     Request,
     RequestMore,
 
-    /** Media already requested — primary is a no-op (#45). */
+    /** Media already requested — primary is a no-op. */
     Pending,
 
     /** Cannot request — opens an info dialog with the reason. */
@@ -138,7 +138,7 @@ class SeerrDetailViewModel @AssistedInject constructor(
 
     fun canCancel(): Boolean = seerrRepository.canCancel(_state.value.user, primaryRequest())
 
-    /** Never-blank action row model for Seerr Detail (#50). */
+    /** Never-blank action row model for Seerr Detail. */
     fun actionRow(): SeerrActionRow {
         val s = _state.value
         val catalog = s.catalog

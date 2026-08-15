@@ -53,7 +53,7 @@ fun formatSeerrSeasonCountLabel(seasonCount: Int?): String? {
 }
 
 /**
- * Requested-season clause for Settings request rows (#58).
+ * Requested-season clause for Settings request rows.
  * Positive seasons collapse to compact ranges (`Seasons 1–5, 7–8`); a single
  * numbered season uses singular `Season 3`. Season `<= 0` → `Specials`.
  * When both are present, **Specials leads**: `Specials, Seasons 1–2`.

@@ -6,7 +6,7 @@ import org.jellyfin.sdk.model.api.MediaStream
 import org.jellyfin.sdk.model.api.MediaStreamType
 
 /**
- * One remembered audio or subtitle choice (#15 stage 2, R1 / O1).
+ * One remembered audio or subtitle choice.
  * [off] is subtitle-only: explicit Off with no language/title.
  */
 @Serializable

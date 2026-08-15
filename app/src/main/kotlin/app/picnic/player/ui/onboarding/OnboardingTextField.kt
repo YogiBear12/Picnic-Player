@@ -41,7 +41,7 @@ import app.picnic.player.ui.theme.PicnicColors
  * The field composable is always mounted — idle and editing differ only by
  * [OutlinedTextField.readOnly] and colors. Swapping between two different
  * composables here would dispose the focused node mid-interaction, and focus
- * would fall back to whatever the focus system picks first (issue #130).
+ * would fall back to whatever the focus system picks first.
  *
  * While idle, D-pad keys are routed to the focus system before the field can
  * read them, so left/right never move a cursor instead of leaving the field,

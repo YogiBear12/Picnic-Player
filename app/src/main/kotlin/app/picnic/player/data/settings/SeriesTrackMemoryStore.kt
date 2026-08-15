@@ -19,7 +19,7 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
 /**
- * Device-local series/season track memory (#15 stage 2).
+ * Device-local series/season track memory.
  *
  * Storage keys: one Preferences string per series —
  * `playback.seriesTrackMemory.<seriesId>` → JSON [SeriesTrackMemoryRecord].

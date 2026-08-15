@@ -91,7 +91,7 @@ fun SeerrDetailScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val catalog = state.catalog
 
-    // Hybrid Detail redirect (#46): once details load, any library id (HD, else
+    // Hybrid Detail redirect: once details load, any library id (HD, else
     // 4K) leaves Seerr Detail for Jellyfin Detail via the shared gate.
     val redirectId = jellyfinDetailIdOrNull(catalog?.jellyfinMediaId, catalog?.jellyfinMediaId4k)
     LaunchedEffect(redirectId) {

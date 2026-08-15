@@ -8,7 +8,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 
 /**
- * A remote-control command aimed at the **active** player (ticket #119, Slice 2, Phase 3).
+ * A remote-control command aimed at the **active** player.
  *
  * The websocket owner ([app.picnic.player.data.socket.WebSocketManager]) maps inbound
  * `PlaystateMessage` / audio-subtitle `GeneralCommand`s onto these and emits them here; the

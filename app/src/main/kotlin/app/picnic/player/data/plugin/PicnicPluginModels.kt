@@ -7,7 +7,7 @@ import kotlinx.serialization.Serializable
  * The companion plugin's one-shot discovery document (`GET /picnic/info`). JSON
  * uses Jellyfin's PascalCase serializer, hence the [SerialName]s. The full doc is
  * modelled so later features (reviews, streamers) read from the same fetch; only
- * [seerr] is consumed today (issue #107).
+ * [seerr] is consumed today.
  */
 @Serializable
 data class PicnicInfo(

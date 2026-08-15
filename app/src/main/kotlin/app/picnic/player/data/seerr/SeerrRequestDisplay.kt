@@ -1,7 +1,7 @@
 package app.picnic.player.data.seerr
 
 /**
- * Settings → Your requests row model (#44).
+ * Settings → Your requests row model.
  * [title] is inline from the list payload when present, else hydrated via
  * `/movie/{tmdbId}` or `/tv/{tmdbId}` (cached in [SeerrRepository]).
  */
@@ -67,7 +67,7 @@ internal fun requestDisplaysFromCache(
     val inlineTitle = req.mediaTitleOrNull()
     val inlinePoster = req.mediaPosterOrNull()
     val cached = req.titleCacheKeyOrNull()?.let { cache[it] }
-    // Start year only — same shape for movie and TV (#58); hero still uses ranges.
+    // Start year only — same shape for movie and TV; hero still uses ranges.
     val yearLabel = cached?.releaseDate?.take(4)?.takeIf { it.length == 4 }
     SeerrRequestDisplay(
         request = req,

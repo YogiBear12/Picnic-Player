@@ -283,7 +283,7 @@ class AuthRepository @Inject constructor(
     suspend fun logout() = credentials.clearActive()
 
     /**
-     * Deliberate sign-out from Settings > Account (#135) — a true logout. Unlike [logout]
+     * Deliberate sign-out from Settings > Account — a true logout. Unlike [logout]
      * (which only drops the active pointer), this best-effort revokes the access token on
      * the server (`POST /Sessions/Logout`), then [forgetUser]s the profile entirely: token,
      * stored session, seerr link and picker row all removed. The active server is kept, so

@@ -211,7 +211,7 @@ data class SeerrRequestMediaRef(
     val jellyfinMediaId4k: String? = null,
     /**
      * Display fields — usually absent on `GET /request` list payloads (title lives
-     * on TMDB detail). Parsed when present so we skip a hydrate round-trip (#44).
+     * on TMDB detail). Parsed when present so we skip a hydrate round-trip.
      */
     val title: String? = null,
     val name: String? = null,
@@ -424,7 +424,7 @@ data class SeerrCatalogItem(
     val creditRole: String? = null,
     /** Hybrid Person Known for: Seerr combined_credits episode count (TV metaline). */
     val episodeCount: Int? = null,
-    /** YouTube trailer URL from Seerr `relatedVideos`, when present (#128). */
+    /** YouTube trailer URL from Seerr `relatedVideos`, when present. */
     val trailerUrl: String? = null
 )
 

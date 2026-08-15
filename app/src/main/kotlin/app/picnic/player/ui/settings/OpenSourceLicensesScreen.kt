@@ -162,7 +162,7 @@ private fun LicenseListRow(
                 if (blockUp) up = FocusRequester.Cancel
                 if (blockDown) down = FocusRequester.Cancel
             }
-            // Only Select opens the library — Right is a direction, not a second Select (#138).
+            // Only Select opens the library — Right is a direction, not a second Select.
             .onKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
                 when (event.key) {

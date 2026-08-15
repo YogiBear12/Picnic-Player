@@ -22,7 +22,7 @@ class PicnicApp :
     SingletonImageLoader.Factory {
     @Inject lateinit var workerFactory: HiltWorkerFactory
 
-    // Session websocket owner (#119). Injected here so it starts observing the active
+    // Session websocket owner. Injected here so it starts observing the active
     // session at process start; constructing it on the main thread lets its foreground
     // observer register with ProcessLifecycleOwner as required.
     @Inject lateinit var webSocketManager: WebSocketManager

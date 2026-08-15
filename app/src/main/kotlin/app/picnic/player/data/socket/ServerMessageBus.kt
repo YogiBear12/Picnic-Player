@@ -8,11 +8,11 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 
 /**
- * A transient on-screen notice pushed from the server over the socket (ticket #119, Slice 2).
+ * A transient on-screen notice pushed from the server over the socket.
  *
  * Two sources feed it: remote `GeneralCommand`s that carry text to display
- * (`DisplayMessage` / `SendString`, Phase 3) and server-lifecycle events
- * (`ServerRestarting` / `ServerShuttingDown` / `RestartRequired`, Phase 4). The app-level
+ * (`DisplayMessage` / `SendString`) and server-lifecycle events
+ * (`ServerRestarting` / `ServerShuttingDown` / `RestartRequired`). The app-level
  * notice host (in `MainActivity`) is the sole collector and shows each briefly.
  */
 data class ServerNotice(

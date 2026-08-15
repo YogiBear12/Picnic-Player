@@ -8,7 +8,7 @@ import app.picnic.player.data.seerr.seerrDetailTarget
 
 /**
  * Resolves Discover / Search / Settings / Play-bridge destinations for a Seerr
- * title (#46). Shared so entry points cannot diverge on id-presence routing —
+ * title. Shared so entry points cannot diverge on id-presence routing —
  * the single [seerrDetailTarget] gate decides Jellyfin vs Seerr Detail.
  *
  * [DetailKey.itemId] is the library id the gate chose (SD/HD preferred, else 4K

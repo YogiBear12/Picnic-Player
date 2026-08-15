@@ -99,7 +99,7 @@ data class SeerrDetailKey(
 ) : NavKey
 
 /**
- * Hybrid Person (#62). [tmdbId] joins Seerr person APIs; [jellyfinPersonId] is
+ * Hybrid Person. [tmdbId] joins Seerr person APIs; [jellyfinPersonId] is
  * optional when opened from Jellyfin Cast. Legacy library-only Person uses UUID
  * without TMDB (no Missing row). Seerr Cast entry uses TMDB only.
  */

@@ -3,7 +3,7 @@ package app.picnic.player.data.seerr
 import java.time.LocalDate
 
 /**
- * Hybrid Person (#62) credit helpers — mix/dedupe, library-link filter, release-date sort.
+ * Hybrid Person credit helpers — mix/dedupe, library-link filter, release-date sort.
  */
 
 /** True when Seerr links the credit to any Jellyfin library id (SD/HD or 4K). */

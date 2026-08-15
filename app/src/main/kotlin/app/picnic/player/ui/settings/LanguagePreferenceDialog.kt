@@ -79,7 +79,7 @@ internal fun LanguagePreferenceDialog(
         rows.indexOf(selectedRow).takeIf { it >= 0 } ?: 0
     }
     // Open already scrolled to the selected row so the list never paints from the top
-    // then jumps to the checked row (#149). But when the selection is the pinned device
+    // then jumps to the checked row. But when the selection is the pinned device
     // language the list is already at its natural top — keep it there so that row stays
     // visible instead of scrolling it off.
     val startIndex = if (selectedIndex <= separatorAfterIndex) 0 else selectedIndex

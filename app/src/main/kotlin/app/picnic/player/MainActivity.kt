@@ -74,7 +74,7 @@ class MainActivity : ComponentActivity() {
         handleIntent(intent)
         observeRemoteControl()
 
-        // In-app updater (#111): sweep the APK cache (post-update self-clean) then
+        // In-app updater: sweep the APK cache (post-update self-clean) then
         // run the throttled release check. Both are no-ops when no host is configured.
         lifecycleScope.launch {
             updateRepository.bootCleanup()
@@ -104,7 +104,7 @@ class MainActivity : ComponentActivity() {
                 ) {
                     Box {
                         PicnicNavHost()
-                        // Transient server notices sit above every screen (#119, Slice 2).
+                        // Transient server notices sit above every screen.
                         ServerNoticeHost(notices = serverMessageBus.messages)
                     }
                 }
@@ -124,7 +124,7 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * Services app-level remote-control actions (#119, Slice 2): navigation, cast-target launch,
+     * Services app-level remote-control actions: navigation, cast-target launch,
      * and the phone-as-remote D-pad proxy. Collected only while STARTED so a backgrounded app
      * neither navigates nor injects keys. Runs on the main thread (lifecycleScope) as both
      * navigation and [dispatchKeyEvent] require.

@@ -5,7 +5,7 @@ import org.jellyfin.sdk.model.api.GeneralCommandType
 /**
  * The remote-control capabilities this device advertises via `postCapabilities`.
  *
- * Slice 2 turns this device into a controllable target: [SUPPORTED_COMMANDS] lists exactly the
+ * This device is a controllable target: [SUPPORTED_COMMANDS] lists exactly the
  * [GeneralCommandType]s [WebSocketManager] actually handles, so the server only ever offers
  * controls we honour. PlayState (pause/seek/…) and the Play cast command are separate message
  * types covered by `supportsMediaControl = true`, not [GeneralCommandType]s, so they are not

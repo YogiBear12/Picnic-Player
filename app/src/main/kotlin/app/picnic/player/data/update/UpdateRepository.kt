@@ -30,7 +30,7 @@ data class DownloadProgress(val bytesDownloaded: Long, val totalBytes: Long) {
 }
 
 /**
- * In-app updater (#111). Checks the configured release host, downloads the APK
+ * In-app updater. Checks the configured release host, downloads the APK
  * into `cacheDir/updates/` (never the public Downloads dir), hands it to the
  * system installer via FileProvider, and self-cleans on boot: after a successful
  * update the app relaunches as the new version, so [bootCleanup] deletes the

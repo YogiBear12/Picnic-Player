@@ -9,7 +9,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 
 /**
  * A remote-control action that must be applied at the **app/UI** level rather than to a
- * player (ticket #119, Slice 2, Phase 3): launching playback as a cast target, jumping to a
+ * player: launching playback as a cast target, jumping to a
  * screen, or proxying a phone's D-pad. The sole collector is `MainActivity`, which holds both
  * the navigation stack and the activity window needed to service these.
  *

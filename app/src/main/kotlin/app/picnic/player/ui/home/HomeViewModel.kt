@@ -121,7 +121,7 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             focusChangedFlow.debounce(200).collectLatest { prefetchStreamsAhead() }
         }
-        // Pin/reorder/unpin: rebuild home rows from the cached latest fetch (#88).
+        // Pin/reorder/unpin: rebuild home rows from the cached latest fetch.
         viewModelScope.launch {
             navRail.layoutEpoch.drop(1).collectLatest { rebuildRowsFromCache() }
         }

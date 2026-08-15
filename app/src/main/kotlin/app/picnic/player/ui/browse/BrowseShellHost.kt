@@ -140,7 +140,7 @@ fun BrowseShellHost(
     // a top-level destination lives on the stack, so Back always returns to the START
     // destination (Home), then exits — never a deep tab-by-tab history.
     //  - content focused → open the drawer on the active tab (focus moves in → it opens)
-    //  - drawer More page → Primary page (#88)
+    //  - drawer More page → Primary page
     //  - drawer, tab != Home → go Home (rail.select seeds Home's content focus → drawer closes)
     //  - drawer, tab == Home → exit the app
     BackHandler {
@@ -194,7 +194,7 @@ fun BrowseShellHost(
             // Drawer Right must RETURN this requester (not requestFocus) so the in-flight
             // focus transaction isn't rolled back — same contract as MediaGridPane rail exits.
             // Fresh read at exit time so Settings → content lands on the saved Home/Discover
-            // card, not a spatial neighbour lower on the sheet (#90).
+            // card, not a spatial neighbour lower on the sheet.
             val contentFocusOnRight: () -> FocusRequester = {
                 when (selectedKey) {
                     BrowseDest.Home.key ->

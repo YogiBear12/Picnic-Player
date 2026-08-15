@@ -71,7 +71,7 @@ class SeerrRepository @Inject constructor(
         val userId = session.userId
         var url = store.serverUrl(serverId)
         val showDiscover = store.showDiscover(serverId, userId)
-        // Companion-plugin prefill (#107): pull the admin-configured Seerr URL and store it
+        // Companion-plugin prefill: pull the admin-configured Seerr URL and store it
         // where a manually-entered URL would go, so the Account page is pre-populated. Only
         // when the field is empty or a value we ourselves prefilled — never clobber a URL the
         // user typed. Server-side `Seerr.Enabled` gates it.
@@ -217,7 +217,7 @@ class SeerrRepository @Inject constructor(
     /** Resolve TMDB genre ids → names (cached for the process lifetime). */
     private var cachedGenreNames: Map<Int, String>? = null
 
-    /** TMDB title/poster cache for Settings request rows (#44). Cleared with runtime. */
+    /** TMDB title/poster cache for Settings request rows. Cleared with runtime. */
     private val titleCache = ConcurrentHashMap<SeerrTitleCacheKey, SeerrCachedTitle>()
 
     private fun genreNamesById(): Map<Int, String> {

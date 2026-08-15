@@ -17,7 +17,7 @@ import kotlinx.coroutines.launch
 
 /**
  * Update state shared by the About row, the update dialog, and the badge dots
- * on the nav rail / settings rail (#111). The underlying [UpdateRepository] is a
+ * on the nav rail / settings rail. The underlying [UpdateRepository] is a
  * singleton, so every ViewModel instance observes the same update-available state.
  */
 @HiltViewModel
