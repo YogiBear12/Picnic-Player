@@ -33,10 +33,8 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
@@ -152,7 +150,6 @@ class SeriesEpisodesViewModel @Inject constructor(
     private val _selectedSeasonId = MutableStateFlow<String?>(null)
     private val _refreshTrigger = MutableStateFlow(0)
 
-    // Track local optimistic updates to apply to the PagingData stream
     private val episodeMutations = MutableStateFlow<Map<String, (BaseItemDto) -> BaseItemDto>>(emptyMap())
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -269,7 +266,6 @@ class SeriesEpisodesViewModel @Inject constructor(
 
         val missingIds = mutableListOf<UUID>()
         for (idx in visibleIndices) {
-            // Buffer around visible items
             for (i in (idx - 2)..(idx + 4)) {
                 val s = currentSeasons.getOrNull(i)
                 if (s != null && s.childCount == null) {
@@ -290,7 +286,6 @@ class SeriesEpisodesViewModel @Inject constructor(
                     }
                 }
             } catch (e: Exception) {
-                // Pre-fetch failed, ignore
             }
         }
     }
@@ -307,7 +302,6 @@ class SeriesEpisodesViewModel @Inject constructor(
         val currentSession = session ?: return
         val series = currentSeriesId?.let(UUID::fromString)
 
-        // Optimistic local update via mutation flow
         val currentMutations = episodeMutations.value.toMutableMap()
         currentMutations[episodeId] = { ep -> ep.copy(userData = ep.userData?.copy(played = played)) }
         episodeMutations.value = currentMutations
@@ -321,7 +315,6 @@ class SeriesEpisodesViewModel @Inject constructor(
         val currentSession = session ?: return
         val series = currentSeriesId?.let(UUID::fromString)
 
-        // Optimistic local update
         val currentMutations = episodeMutations.value.toMutableMap()
         currentMutations[episodeId] = { ep -> ep.copy(userData = ep.userData?.copy(isFavorite = favorite)) }
         episodeMutations.value = currentMutations
@@ -453,7 +446,6 @@ fun SeriesEpisodesScreen(
         seasonListState.scrollToItem(targetIndex)
     }
 
-    // Opportunistically fetch counts for seasons as they scroll into view
     LaunchedEffect(seasonListState) {
         snapshotFlow { seasonListState.layoutInfo.visibleItemsInfo }
             .map { items -> items.map { it.index } }
@@ -463,46 +455,8 @@ fun SeriesEpisodesScreen(
             }
     }
 
-    // Single stable requester for D-pad Right from season list into episodes.
-    val episodeListState = rememberLazyListState()
+    val episodeFocus = rememberEpisodeFocus()
     val episodes = viewModel.episodes.collectAsLazyPagingItems()
-    var episodeListHasFocus by remember { mutableStateOf(false) }
-    // Last-focused episode in the current season. Updated on item focus so season→Right
-    // lands on the episode the user left, not a stale load-time index whose requester may
-    // be unattached (off-screen LazyColumn item).
-    var targetEpisodeIndex by remember { mutableIntStateOf(0) }
-    val scope = rememberCoroutineScope()
-
-    val episodeFocusRequesters = remember {
-        object {
-            private val map = mutableMapOf<Int, FocusRequester>()
-            operator fun get(index: Int) = map.getOrPut(index) { FocusRequester() }
-        }
-    }
-
-    /** Scroll the target episode into composition, then focus it (safe for LazyColumn). */
-    fun focusTargetEpisode() {
-        scope.launch {
-            val count = episodes.itemCount
-            if (count <= 0) return@launch
-            val idx = targetEpisodeIndex.coerceIn(0, count - 1)
-            targetEpisodeIndex = idx
-            episodeListState.scrollToItem(idx)
-            episodeFocusRequesters[idx].requestFocusWhenAttached(maxFrames = 20)
-        }
-    }
-
-    // Season → Right: when the target episode is already on screen, let focusProperties move
-    // focus with no scroll (list stays put); only scroll it into view when it is off-screen.
-    // Returning false = "not consumed", so the declarative `right` target takes over.
-    fun rightToEpisodesConsumed(): Boolean {
-        val count = episodes.itemCount
-        if (count <= 0) return false
-        val idx = targetEpisodeIndex.coerceIn(0, count - 1)
-        if (episodeListState.layoutInfo.visibleItemsInfo.any { it.index == idx }) return false
-        focusTargetEpisode()
-        return true
-    }
 
     var contextMenuEpisode by remember { mutableStateOf<BaseItemDto?>(null) }
     var contextMenuSeason by remember { mutableStateOf<BaseItemDto?>(null) }
@@ -521,43 +475,45 @@ fun SeriesEpisodesScreen(
     // to the first in-progress/unwatched episode only when the season actually changed.
     var initialFocusRequested by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(Unit) {
-        snapshotFlow { initialLoadComplete.value to episodes.itemCount }.collect { (complete, count) ->
-            if (!complete || count == 0) return@collect
-            val returningIndex = pendingFocusEpisodeId
-                ?.let { id -> episodes.itemSnapshotList.indexOfFirst { it?.id?.toString() == id } }
-                ?.takeIf { it >= 0 }
-            if (returningIndex != null) {
-                targetEpisodeIndex = returningIndex
-                episodeListState.scrollToItem(returningIndex)
-                lastScrolledSeasonId = selectedSeasonId
-                // Request focus on the specific item's requester. This will safely wait for it to be attached.
-                val fr = episodeFocusRequesters[returningIndex]
-                fr.requestFocusWhenAttached(maxFrames = 20)
-                pendingFocusEpisodeId = null
-                initialFocusRequested = true
-                return@collect
-            }
-            if (selectedSeasonId != lastScrolledSeasonId) {
-                val target = episodes.itemSnapshotList.indexOfFirst { ep ->
-                    ep != null && ((ep.userData?.playbackPositionTicks ?: 0L) > 0L || ep.userData?.played != true)
-                }.coerceAtLeast(0)
-                targetEpisodeIndex = target
-                episodeListState.scrollToItem(target)
-                lastScrolledSeasonId = selectedSeasonId
-            }
+        // The season is part of the key: two seasons of equal length leave itemCount unchanged, so
+        // keying on the count alone silently skips the switch and the list keeps the old position.
+        snapshotFlow { Triple(initialLoadComplete.value, selectedSeasonId, episodes.itemCount) }
+            .collect { (complete, _, count) ->
+                if (!complete || count == 0) return@collect
+                val returningIndex = pendingFocusEpisodeId
+                    ?.let { id -> episodes.itemSnapshotList.indexOfFirst { it?.id?.toString() == id } }
+                    ?.takeIf { it >= 0 }
+                if (returningIndex != null) {
+                    lastScrolledSeasonId = selectedSeasonId
+                    episodeFocus.restoreTo(returningIndex)
+                    pendingFocusEpisodeId = null
+                    initialFocusRequested = true
+                    return@collect
+                }
+                if (selectedSeasonId != lastScrolledSeasonId) {
+                    // Only the first landing resumes; a later season switch is deliberate, so it starts at the top.
+                    val target = if (initialFocusRequested) {
+                        0
+                    } else {
+                        episodes.itemSnapshotList.indexOfFirst { ep ->
+                            ep != null && ((ep.userData?.playbackPositionTicks ?: 0L) > 0L || ep.userData?.played != true)
+                        }.coerceAtLeast(0)
+                    }
+                    episodeFocus.scrollTo(target)
+                    lastScrolledSeasonId = selectedSeasonId
+                }
 
-            if (!initialFocusRequested) {
-                val fr = episodeFocusRequesters[targetEpisodeIndex]
-                fr.requestFocusWhenAttached(maxFrames = 20)
-                initialFocusRequested = true
+                if (!initialFocusRequested) {
+                    episodeFocus.targetRequester.requestFocusWhenAttached(maxFrames = 20)
+                    initialFocusRequested = true
+                }
             }
-        }
     }
 
     // Back from episodes → focus selected season; Back from seasons → nav pop (default).
     // With no seasons to land on (empty/failed season load) fall through to leaving the
     // screen — otherwise Back is consumed as a no-op and focus is trapped in the episode list.
-    BackHandler(enabled = episodeListHasFocus) {
+    BackHandler(enabled = episodeFocus.hasFocus) {
         if (selectedSeasonFr != null && viewModel.seasons.isNotEmpty()) {
             selectedSeasonFr.requestFocus()
         } else {
@@ -569,7 +525,6 @@ fun SeriesEpisodesScreen(
         // Kept composed while loading (alpha 0) so the season/episode focus + centering effects
         // position everything before it's revealed — no visible scroll jump on reveal.
         Row(Modifier.fillMaxSize().graphicsLayer { alpha = if (initialLoadComplete.value) 1f else 0f }) {
-            // Sidebar: poster fills panel width, season list fills remaining height below
             Column(
                 modifier = Modifier
                     .width(300.dp)
@@ -730,10 +685,10 @@ fun SeriesEpisodesScreen(
                                     .focusRequester(fr)
                                     // Prefer last-focused episode when it is already composed;
                                     // onKeyEvent below covers the off-screen / unattached case.
-                                    .focusProperties { right = episodeFocusRequesters[targetEpisodeIndex] }
+                                    .focusProperties { right = episodeFocus.targetRequester }
                                     .onKeyEvent { event ->
                                         if (event.key == Key.DirectionRight && event.type == KeyEventType.KeyDown) {
-                                            rightToEpisodesConsumed()
+                                            episodeFocus.rightConsumed(episodes.itemCount)
                                         } else {
                                             false
                                         }
@@ -751,7 +706,6 @@ fun SeriesEpisodesScreen(
                 }
             }
 
-            // Episode list
             Box(Modifier.fillMaxSize()) {
                 // A failed page load must surface, not render a silently blank pane.
                 val refreshError = episodes.loadState.refresh as? LoadState.Error
@@ -772,11 +726,11 @@ fun SeriesEpisodesScreen(
                     }
                 }
                 LazyColumn(
-                    state = episodeListState,
+                    state = episodeFocus.listState,
                     modifier = Modifier
                         .fillMaxSize()
                         .focusRestorer()
-                        .onFocusChanged { episodeListHasFocus = it.hasFocus },
+                        .onFocusChanged { episodeFocus.hasFocus = it.hasFocus },
                     contentPadding = PaddingValues(start = 44.dp, end = 40.dp, top = 24.dp, bottom = 24.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
@@ -791,8 +745,8 @@ fun SeriesEpisodesScreen(
                                 episode = episode,
                                 session = session,
                                 leftFocus = selectedSeasonFr,
-                                enterFr = episodeFocusRequesters[index],
-                                onFocused = { targetEpisodeIndex = index },
+                                enterFr = episodeFocus.requesterFor(index),
+                                onFocused = { episodeFocus.onEpisodeFocused(index) },
                                 onPlay = { id, resumeTicks ->
                                     pendingFocusEpisodeId = id
                                     onPlay(id, resumeTicks)
