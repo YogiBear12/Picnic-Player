@@ -850,6 +850,7 @@ class PlayerViewModel @Inject constructor(
                 playbackRepository.trickplayTileUrl(activeSession, id, sheetWidth, tileIndex)
             }
         }
+        evictTrickplaySheets(trickplay.value)
         prefetchTrickplayTiles(sheets?.tileUrls().orEmpty())
         trickplay.value = sheets
         val chapterMarks = item.chapters?.mapIndexed { index, ch ->
@@ -973,6 +974,15 @@ class PlayerViewModel @Inject constructor(
             displayLanguage = languageLine,
             selected = selected
         )
+    }
+
+    private fun evictTrickplaySheets(sheets: Trickplay?) {
+        val urls = sheets?.tileUrls().orEmpty()
+        if (urls.isEmpty()) return
+        val diskCache = appContext.imageLoader.diskCache ?: return
+        appScope.launch {
+            urls.forEach { url -> runCatching { diskCache.remove(url) } }
+        }
     }
 
     private fun prefetchTrickplayTiles(urls: List<String>) {
@@ -1113,6 +1123,7 @@ class PlayerViewModel @Inject constructor(
         tornDown = true
         sessionController.playerTornDown()
         viewingJob.cancelChildren()
+        evictTrickplaySheets(trickplay.value)
         trickplay.value = null
         val s = session
         val info = stream
