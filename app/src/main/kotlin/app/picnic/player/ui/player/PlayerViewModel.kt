@@ -66,8 +66,8 @@ import app.picnic.player.playback.StreamLoader
 import app.picnic.player.playback.StreamRequest
 import app.picnic.player.playback.StreamResult
 import app.picnic.player.playback.StreamTarget
-import app.picnic.player.playback.SubtitleRenderRange
 import app.picnic.player.playback.ThemeMusicPlayer
+import app.picnic.player.playback.VideoDynamicRange
 import app.picnic.player.playback.externalSubtitleCount
 import app.picnic.player.ui.browse.ShortDateFormat
 import app.picnic.player.ui.browse.TICKS_PER_MINUTE
@@ -483,14 +483,14 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
-    val subtitleRenderRange: StateFlow<SubtitleRenderRange> = engine.subtitleRenderRange
+    val videoDynamicRange: StateFlow<VideoDynamicRange> = engine.videoDynamicRange
 
     val blackBars: StateFlow<BlackBars> = latchedBars.bars
 
     fun attachSubtitleView(
         subtitleView: SubtitleView,
         bottomPaddingFraction: Float,
-        range: SubtitleRenderRange
+        range: VideoDynamicRange
     ) = engine.attachSubtitleView(
         subtitleView,
         settings.value.subtitleAppearance,

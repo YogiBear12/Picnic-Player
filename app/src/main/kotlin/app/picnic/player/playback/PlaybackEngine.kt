@@ -36,34 +36,29 @@ import kotlinx.coroutines.flow.asStateFlow
 import okhttp3.OkHttpClient
 
 class PlaybackEngine(private val context: Context, httpClient: OkHttpClient) {
-
     val assHandler: AssHandler
     val player: ExoPlayer
 
     private var assOverlay: AssSubtitleView? = null
 
-    /** Shared subtitle offset (µs). Read each frame by every text/ASS renderer. */
     private val subtitleDelayUs = AtomicLong(0L)
 
     val audioEffects = AudioEffects()
 
     private var audioRouteSink: AudioRouteSink? = null
 
-    // Read at codec selection, so a change only lands on the next stream load.
     fun setAudioRoute(route: AudioRoute) {
         audioRouteSink?.route = route
     }
 
-    // Must report the capability, not the live route, or a forced decode strands the session on PCM.
     fun currentAudioCanPassThrough(): Boolean {
         val format = player.audioFormat ?: return false
         return AudioCapabilities.getCapabilities(context).isPassthroughPlaybackSupported(format)
     }
 
-    private val _subtitleRenderRange = MutableStateFlow(SubtitleRenderRange.SDR)
+    private val _videoDynamicRange = MutableStateFlow(VideoDynamicRange.SDR)
 
-    // Must follow format changes within a session, or cue styling carries the last item's range.
-    val subtitleRenderRange: StateFlow<SubtitleRenderRange> = _subtitleRenderRange.asStateFlow()
+    val videoDynamicRange: StateFlow<VideoDynamicRange> = _videoDynamicRange.asStateFlow()
 
     init {
         val renderType =
@@ -106,7 +101,7 @@ class PlaybackEngine(private val context: Context, httpClient: OkHttpClient) {
                 format: Format,
                 decoderReuseEvaluation: DecoderReuseEvaluation?
             ) {
-                _subtitleRenderRange.value = subtitleRenderRange(format)
+                _videoDynamicRange.value = videoDynamicRange(format)
             }
 
             override fun onAudioSessionIdChanged(eventTime: AnalyticsListener.EventTime, audioSessionId: Int) {
@@ -141,28 +136,23 @@ class PlaybackEngine(private val context: Context, httpClient: OkHttpClient) {
         })
     }
 
-    /** Style the text-cue view (SRT/VTT/…). ASS renders in [assOverlayView], not here. */
     fun attachSubtitleView(
         subtitleView: SubtitleView,
         appearance: SubtitleAppearance,
         bottomPaddingFraction: Float,
-        range: SubtitleRenderRange
+        range: VideoDynamicRange
     ) {
         subtitleView.setBackgroundColor(Color.TRANSPARENT)
         appearance.applyTo(subtitleView, bottomPaddingFraction, range)
     }
 
-    /**
-     * The libass overlay. The host must size it to exactly the video display rect: libass maps
-     * its frame coordinates onto this view's bounds.
-     */
     fun assOverlayView(context: Context): AssSubtitleView {
         val view = assOverlay ?: AssSubtitleView(context, assHandler).also { assOverlay = it }
         (view.parent as? ViewGroup)?.removeView(view)
         return view
     }
 
-    /** Set the subtitle offset in ms (positive = later, negative = earlier). Session-only. */
+    /** Positive = later, negative = earlier. Session-only, never persisted. */
     fun setSubtitleDelayMs(ms: Long) {
         subtitleDelayUs.set(ms * 1000)
     }
@@ -177,7 +167,6 @@ private class AudioRouteRenderersFactory(
     context: Context,
     private val onSinkBuilt: (AudioRouteSink) -> Unit
 ) : DefaultRenderersFactory(context) {
-
     override fun buildAudioSink(
         context: Context,
         enableFloatOutput: Boolean,

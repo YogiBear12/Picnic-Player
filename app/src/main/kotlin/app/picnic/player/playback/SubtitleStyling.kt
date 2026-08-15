@@ -44,12 +44,7 @@ internal fun Int.scaleRgb(scale: Float): Int {
     return (this and 0xFF.shl(24)) or channel(16) or channel(8) or channel(0)
 }
 
-/**
- * Only the text colour answers to [range]: outline and fill are black either way, emitting no light
- * to hold back. The fill goes to a different Media3 slot per style — BOXED to windowColor (one
- * rectangle behind the block), WRAPPED to backgroundColor (hugs each line).
- */
-fun SubtitleAppearance.toCaptionStyle(range: SubtitleRenderRange): CaptionStyleCompat {
+fun SubtitleAppearance.toCaptionStyle(range: VideoDynamicRange): CaptionStyleCompat {
     val fill = if (background != SubtitleBackground.OFF) {
         val alpha = when (backgroundFill) {
             SubtitleBackgroundFill.TRANSLUCENT -> 128
@@ -60,10 +55,7 @@ fun SubtitleAppearance.toCaptionStyle(range: SubtitleRenderRange): CaptionStyleC
         Color.TRANSPARENT
     }
     val boxed = background == SubtitleBackground.BOXED
-    val foreground = when (range) {
-        SubtitleRenderRange.SDR -> colour.toArgb()
-        SubtitleRenderRange.HDR -> colour.toArgb().scaleRgb(HdrLuminanceScale)
-    }
+    val foreground = if (range.isHdr) colour.toArgb().scaleRgb(HdrLuminanceScale) else colour.toArgb()
     return CaptionStyleCompat(
         /* foregroundColor= */ foreground,
         /* backgroundColor= */ if (boxed) Color.TRANSPARENT else fill,
@@ -77,7 +69,7 @@ fun SubtitleAppearance.toCaptionStyle(range: SubtitleRenderRange): CaptionStyleC
 fun SubtitleAppearance.applyTo(
     view: SubtitleView,
     bottomPaddingFraction: Float,
-    range: SubtitleRenderRange = SubtitleRenderRange.SDR
+    range: VideoDynamicRange = VideoDynamicRange.SDR
 ) {
     view.setApplyEmbeddedStyles(false)
     view.setStyle(toCaptionStyle(range))

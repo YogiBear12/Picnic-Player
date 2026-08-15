@@ -496,7 +496,7 @@ fun PlayerScreen(
             )
             // Spans the box whatever the area: a SubtitleView clips cues to its own bounds, so one
             // sized to the video rect could never place a cue in the bars.
-            val subtitleRange by viewModel.subtitleRenderRange.collectAsStateWithLifecycle()
+            val videoDynamicRange by viewModel.videoDynamicRange.collectAsStateWithLifecycle()
             val blackBars by viewModel.blackBars.collectAsStateWithLifecycle()
             val appearance = settings.subtitleAppearance
             val videoRectHeight = presentationState.videoSizeDp?.let { video ->
@@ -511,7 +511,7 @@ fun PlayerScreen(
             AndroidView(
                 factory = { context -> SubtitleView(context) },
                 update = { subtitleView ->
-                    viewModel.attachSubtitleView(subtitleView, bottomPadding, subtitleRange)
+                    viewModel.attachSubtitleView(subtitleView, bottomPadding, videoDynamicRange)
                     subtitleView.setCues(textCues)
                 },
                 onReset = { it.setCues(emptyList()) },

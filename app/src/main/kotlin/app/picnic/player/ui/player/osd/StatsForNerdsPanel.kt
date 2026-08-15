@@ -31,7 +31,7 @@ import androidx.compose.ui.unit.dp
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
-import app.picnic.player.playback.subtitleRenderRange
+import app.picnic.player.playback.videoDynamicRange
 import app.picnic.player.ui.player.PlayerUiState
 import java.util.Locale
 import kotlin.time.Duration.Companion.seconds
@@ -184,6 +184,12 @@ fun StatsForNerdsPanel(
                     state.transcodingInfo?.audioChannels?.takeIf { it > 0 } ?: audioFormat?.channelCount?.takeIf { it > 0 }
                 }
 
+                val finalVideoDynamicRange = if (vDirect) {
+                    videoStream?.videoRangeType?.name ?: "Unknown"
+                } else {
+                    videoDynamicRange(videoFormat).label
+                }
+
                 val finalAudioBitrate = if (aDirect) {
                     audioStream?.bitRate?.toLong()?.takeIf { it > 0 } ?: audioFormat?.bitrate?.toLong()?.takeIf { it > 0 }
                 } else {
@@ -197,8 +203,7 @@ fun StatsForNerdsPanel(
                             "Video resolution" to "${videoFormat?.width ?: 0}x${videoFormat?.height ?: 0}",
                             "Video codec" to finalVideoCodec,
                             "Video bitrate" to (finalVideoBitrate?.let { formatBitrate(it) } ?: "Unknown"),
-                            "Dynamic range type" to (videoStream?.videoRangeType?.name ?: "Unknown"),
-                            "Subtitle range" to subtitleRenderRange(videoFormat).name
+                            "Dynamic range type" to finalVideoDynamicRange
                         ),
                         keyWidth = 140.dp
                     )
