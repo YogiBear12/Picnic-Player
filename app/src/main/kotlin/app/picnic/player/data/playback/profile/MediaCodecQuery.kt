@@ -12,9 +12,13 @@ class MediaCodecQuery(
     private val MediaCodecInfo.isSoftwareCodec: Boolean
         get() = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && isSoftwareOnly
 
-    private fun decoderInfos(): Sequence<MediaCodecInfo> = mediaCodecList.codecInfos.asSequence()
-        .filter { !it.isEncoder }
-        .filter { softwareCodecsEnabled || !it.isSoftwareCodec }
+    private val decoders: List<MediaCodecInfo> by lazy {
+        mediaCodecList.codecInfos
+            .filter { !it.isEncoder }
+            .filter { softwareCodecsEnabled || !it.isSoftwareCodec }
+    }
+
+    private fun decoderInfos(): List<MediaCodecInfo> = decoders
 
     fun hasCodecForMime(mime: String): Boolean = decoderInfos().any { info ->
         info.supportedTypes.any { it.equals(mime, ignoreCase = true) }
@@ -54,9 +58,12 @@ class MediaCodecQuery(
         return decoderLevel >= requiredLevel
     }
 
-    private fun getCapabilitiesOrNull(info: MediaCodecInfo, mime: String): MediaCodecInfo.CodecCapabilities? = try {
-        info.getCapabilitiesForType(mime)
-    } catch (e: IllegalArgumentException) {
-        null
+    private fun getCapabilitiesOrNull(info: MediaCodecInfo, mime: String): MediaCodecInfo.CodecCapabilities? {
+        if (info.supportedTypes.none { it.equals(mime, ignoreCase = true) }) return null
+        return try {
+            info.getCapabilitiesForType(mime)
+        } catch (e: IllegalArgumentException) {
+            null
+        }
     }
 }

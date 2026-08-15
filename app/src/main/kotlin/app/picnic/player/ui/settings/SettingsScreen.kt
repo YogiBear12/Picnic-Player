@@ -143,7 +143,7 @@ class SettingsViewModel @Inject constructor(
     private val _cultureOptions = MutableStateFlow<List<CulturePickerOption>>(emptyList())
     val cultureOptions: StateFlow<List<CulturePickerOption>> = _cultureOptions
 
-    /** Server-side per-user language defaults (#149); null until loaded, blank = user set none. */
+    /** Server-side per-user language defaults; null until loaded, blank = user set none. */
     private val _serverAudioLanguage = MutableStateFlow<String?>(null)
     val serverAudioLanguage: StateFlow<String?> = _serverAudioLanguage
 
@@ -158,7 +158,7 @@ class SettingsViewModel @Inject constructor(
     val selectedCategory: StateFlow<SettingsCategory> = _selectedCategory
 
     /**
-     * Request row to restore focus to after Seerr/Jellyfin Detail pop (#43/#44).
+     * Request row to restore focus to after Seerr/Jellyfin Detail pop.
      * Set on activate; cleared after restore completes, or on disconnect.
      * While non-null, [selectCategory] ignores non-REQUESTS switches so incidental
      * Account rail focus on Settings recompose cannot clear restore state.
@@ -202,7 +202,7 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun selectCategory(category: SettingsCategory) {
-        // Pending restore (#44): CategoryRailItem calls this on focus. After Detail
+        // Pending restore: CategoryRailItem calls this on focus. After Detail
         // pop, Account (entries.first) often gets brief focus before the Requests
         // panel seeds — must not switch category or clear focusedRequestId.
         if (_focusedRequestId.value != null && category != SettingsCategory.REQUESTS) {
@@ -264,11 +264,11 @@ class SettingsViewModel @Inject constructor(
 
     /**
      * Reloads Your requests. Suspend so callers (esp. focus seed-on-return) can await a
-     * settled list before restoring focus — fire-and-forget raced Cancel→Back (#44 leftover).
+     * settled list before restoring focus — fire-and-forget raced Cancel→Back.
      */
     suspend fun refreshMyRequests() {
         val requests = runCatching { seerrRepository.myRequests() }.getOrDefault(emptyList())
-        // Show rows immediately (inline/cache/placeholder), then fill titles (#44).
+        // Show rows immediately (inline/cache/placeholder), then fill titles.
         _myRequests.value = seerrRepository.requestDisplaysCached(requests)
         _myRequests.value = runCatching {
             seerrRepository.hydrateRequestDisplays(requests)
@@ -1283,7 +1283,7 @@ private fun SettingRow(
                 if (blockDown) down = FocusRequester.Cancel
             }
             .padding(horizontal = 20.dp, vertical = 16.dp)
-            // Only Select activates — Right is a direction, not a second Select (#138).
+            // Only Select activates — Right is a direction, not a second Select.
             .onKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
                 when (event.key) {

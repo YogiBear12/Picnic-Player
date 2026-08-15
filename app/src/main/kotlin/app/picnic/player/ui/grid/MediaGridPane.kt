@@ -429,5 +429,3 @@ internal val GridSideInset = 24.dp
 internal val GridVerticalSpacing = 10.dp
 
 internal val GridStartInset = 4.dp
-
-private fun FocusRequester.tryRequestFocus() = runCatching { requestFocus() }

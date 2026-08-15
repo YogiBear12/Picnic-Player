@@ -92,25 +92,16 @@ import org.jellyfin.sdk.model.api.BaseItemKind
 
 private val DrawerHPad = 12.dp
 
-/** Closed sheet footprint: collapsed item width + container padding. Content starts here. */
-internal val DrawerCollapsedWidth = 56.dp + DrawerHPad * 2 // 80dp
+internal val DrawerCollapsedWidth = 56.dp + DrawerHPad * 2
 
 private val DrawerIconSize = 22.dp
 private val DrawerAvatarSize = 28.dp
 
-/** Compact rows: overrides tv-material's 56dp one-line item height so more rows fit on screen. */
 private val DrawerRowHeight = 40.dp
 
-/** Header (profile) + footer (Settings) chrome rows sit a little shorter than the nav rows. */
 private val DrawerChromeRowHeight = 34.dp
 private val DrawerRowSpacing = 4.dp
 
-/**
- * Vertical TV navigation drawer on tv-material [NavigationDrawer]. Supports
- * pin/unpin/reorder of customisable destinations and a More page for unpinned
- * items (#88). Long-press a customisable row ([NavigationDrawerItem]'s
- * [onLongClick]) to open Actions — drawer width stays unchanged.
- */
 @Composable
 internal fun BrowseSideNavDrawer(
     session: UserSession?,
@@ -153,8 +144,6 @@ internal fun BrowseSideNavDrawer(
         BackHandler { onExitReorder() }
     }
 
-    // Page swaps dispose the focused row (More / Back). Re-seed inside the drawer on the
-    // next frame so NavigationDrawer never sees an empty focus owner and closes itself.
     LaunchedEffect(drawerPage) {
         val from = previousPage
         previousPage = drawerPage
@@ -172,16 +161,12 @@ internal fun BrowseSideNavDrawer(
         }
     }
 
-    // Keep focus glued to the row being reordered across list moves (same idea as
-    // EditablePickerRow after ←/→ swap).
     LaunchedEffect(reorderKey, destinations) {
         val key = reorderKey ?: return@LaunchedEffect
         repeat(2) { withFrameNanos { } }
         itemFocusRequesters[key]?.let { runCatching { it.requestFocus() } }
     }
 
-    // Moving focus before the row leaves would show two steps, so this waits for the layout the
-    // pin produced and lands on the neighbour in the same frame the row goes.
     var refocusAfter by remember { mutableStateOf<Pair<String, NavLayout>?>(null) }
     LaunchedEffect(layout) {
         val (key, before) = refocusAfter ?: return@LaunchedEffect
@@ -215,8 +200,6 @@ internal fun BrowseSideNavDrawer(
     }
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
-        // Fixed against the SCREEN, not the drawer row: expanding the sheet must push the
-        // content off screen, never squeeze it into the remaining width.
         val browseContentWidth = maxWidth - DrawerCollapsedWidth
         NavigationDrawer(
             drawerState = drawerState,
@@ -225,11 +208,6 @@ internal fun BrowseSideNavDrawer(
                     modifier = Modifier
                         .fillMaxHeight()
                         .onFocusChanged { onChromeFocusedChange(it.hasFocus) }
-                        // Redirect binds to the GROUP (properties before focusGroup): entering
-                        // the drawer resolves to the ACTIVE destination during the focus search
-                        // itself, never a spatial winner. Right back into the pane returns the
-                        // saved content requester — Settings sits at the bottom of the sheet,
-                        // so a spatial Right would otherwise land on a lower Home row (#90).
                         .focusProperties {
                             onEnter = {
                                 itemFocusRequesters[selectedKey]
@@ -248,8 +226,6 @@ internal fun BrowseSideNavDrawer(
                 ) {
                     when (drawerPage) {
                         NavDrawerPage.Primary -> {
-                            // Avatar pinned at the top; destinations scroll between it and the
-                            // Settings row pinned at the bottom, so both chrome rows stay visible.
                             PicnicDrawerItem(
                                 selected = false,
                                 onClick = onSwapUser,
@@ -352,8 +328,6 @@ internal fun BrowseSideNavDrawer(
                 }
             }
         ) {
-            // Anchored at Start with unbounded measurement: the block keeps its width when the
-            // Row hands it less space, so the drawer pushes it right and off screen (no reflow).
             Box(
                 Modifier
                     .fillMaxHeight()
@@ -364,11 +338,6 @@ internal fun BrowseSideNavDrawer(
     }
 }
 
-/**
- * Vertically scrolling list of drawer rows with faded top/bottom edges. Native [verticalScroll]:
- * focus-driven scrolling (bringIntoView) is automatic for the focusable rows, so D-pad moving onto
- * an off-screen row scrolls it into view. The fade signals more rows above/below.
- */
 @Composable
 private fun ScrollingRows(
     modifier: Modifier = Modifier,
@@ -382,20 +351,12 @@ private fun ScrollingRows(
                 bottomFade = scrollState.canScrollForward
             )
             .verticalScroll(scrollState)
-            // Content padding (inside the scroll): keeps an edge row's highlight off the viewport
-            // clip when bringIntoView aligns it flush, so its rounded corners stay whole and it
-            // never touches the pinned header/footer.
             .padding(vertical = DrawerRowSpacing),
         verticalArrangement = Arrangement.spacedBy(DrawerRowSpacing),
         content = content
     )
 }
 
-/**
- * Same footprint as a plain [PicnicDrawerItem] when idle. In reorder mode: Plex-style
- * accent chevrons are drawn *over* the row (no extra layout height) so neighbours do
- * not shift. Up/Down swap; Select confirms via KeyUp consumption.
- */
 @Composable
 private fun androidx.tv.material3.NavigationDrawerScope.CustomisableDrawerRow(
     dest: BrowseDest,
@@ -486,7 +447,6 @@ private fun androidx.tv.material3.NavigationDrawerScope.CustomisableDrawerRow(
     }
 }
 
-/** One drawer entry: tv-material item with the Picnic focus palette (white pill on focus). */
 @Composable
 private fun androidx.tv.material3.NavigationDrawerScope.PicnicDrawerItem(
     selected: Boolean,
@@ -497,8 +457,6 @@ private fun androidx.tv.material3.NavigationDrawerScope.PicnicDrawerItem(
     onLongClick: (() -> Unit)? = null,
     height: Dp = DrawerRowHeight
 ) {
-    // Rounded rectangle instead of tv-material's default pill; applied to every state so the
-    // focus highlight, selection and press all share the same corner radius.
     val rowShape = RoundedCornerShape(10.dp)
     NavigationDrawerItem(
         selected = selected,
@@ -515,8 +473,6 @@ private fun androidx.tv.material3.NavigationDrawerScope.PicnicDrawerItem(
             focusedDisabledShape = rowShape,
             pressedSelectedShape = rowShape
         ),
-        // No focus scale: the flat rounded-rect highlight is the focus cue, and an overscaled
-        // pill would be clipped by the scroll viewport / pinned header + footer edges.
         scale = NavigationDrawerItemScale.None,
         colors = NavigationDrawerItemDefaults.colors(
             containerColor = Color.Transparent,
@@ -528,7 +484,6 @@ private fun androidx.tv.material3.NavigationDrawerScope.PicnicDrawerItem(
             focusedSelectedContainerColor = Color.White,
             focusedSelectedContentColor = Color.Black
         ),
-        // Outer height constraint wins over the item's internal 56dp one-line height.
         modifier = modifier.height(height)
     ) {
         Text(
@@ -540,7 +495,6 @@ private fun androidx.tv.material3.NavigationDrawerScope.PicnicDrawerItem(
     }
 }
 
-/** Small cyan dot marking "update available" on chrome items (#111). */
 @Composable
 internal fun UpdateBadgeDot(modifier: Modifier = Modifier) {
     Box(
@@ -551,11 +505,8 @@ internal fun UpdateBadgeDot(modifier: Modifier = Modifier) {
     )
 }
 
-/** Passive circular avatar (the enclosing drawer item owns focus + click). */
 @Composable
 private fun DrawerAvatar(session: UserSession, imageUrl: String?) {
-    // Same layering as the Who's watching? picker: gradient underlay always, initial
-    // only when the load fails — so transparent PNG avatars do not show a letter (#131).
     var avatarFailed by remember(session.userId) { mutableStateOf(false) }
     Box(
         Modifier
@@ -592,7 +543,6 @@ internal fun drawerLabelFor(dest: BrowseDest): String = when (dest) {
 
 private fun BrowseDest.isCustomisable(): Boolean = this is BrowseDest.Library || this == BrowseDest.Discover || this == BrowseDest.Playlists
 
-/** Filled + outlined icon pair for a destination. */
 private fun iconsFor(dest: BrowseDest): Pair<ImageVector, ImageVector> = when (dest) {
     BrowseDest.Search -> Icons.Filled.Search to Icons.Outlined.Search
     BrowseDest.Home -> Icons.Filled.Home to Icons.Outlined.Home

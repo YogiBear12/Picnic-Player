@@ -43,12 +43,6 @@ private val MenuWidth = 380.dp
 private val MenuMaxHeight = 460.dp
 private val MenuCornerRadius = 28.dp
 
-/**
- * The one context menu; callers supply [actions] and nothing else.
- *
- * A click-opened menu must pass `openedByLongPress = false`: its opening release fires before this
- * window exists, so the guard would never disarm and would eat the first real selection.
- */
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 fun ContextMenuDialog(
@@ -58,7 +52,7 @@ fun ContextMenuDialog(
 ) {
     BackHandler { onDismiss() }
     val guard = rememberLongPressGuard()
-    val focusRequesters = remember(actions.size) { List(actions.size) { FocusRequester() } }
+    val firstFocus = remember { FocusRequester() }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -93,13 +87,13 @@ fun ContextMenuDialog(
                     ),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .focusRequester(focusRequesters[index])
+                        .then(if (index == 0) Modifier.focusRequester(firstFocus) else Modifier)
                 )
             }
         }
 
         LaunchedEffect(Unit) {
-            focusRequesters.firstOrNull()?.requestFocusWhenAttached()
+            if (actions.isNotEmpty()) firstFocus.requestFocusWhenAttached()
         }
     }
 }

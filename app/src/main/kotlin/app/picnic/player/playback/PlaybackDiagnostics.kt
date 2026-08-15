@@ -23,10 +23,11 @@ import androidx.media3.extractor.Extractor
 import androidx.media3.extractor.ExtractorInput
 import androidx.media3.extractor.ExtractorOutput
 import androidx.media3.extractor.ExtractorsFactory
-import androidx.media3.extractor.PositionHolder
+import androidx.media3.extractor.ForwardingExtractor
+import androidx.media3.extractor.ForwardingExtractorOutput
+import androidx.media3.extractor.ForwardingExtractorsFactory
 import androidx.media3.extractor.SeekMap
 import androidx.media3.extractor.TrackOutput
-import androidx.media3.extractor.text.SubtitleParser
 import app.picnic.player.BuildConfig
 import app.picnic.player.data.playback.StreamInfo
 import java.io.IOException
@@ -241,9 +242,9 @@ object PlaybackDiagnostics : AnalyticsListener {
 
 fun instrumentExtractors(delegate: ExtractorsFactory): ExtractorsFactory = if (PlaybackDiagnostics.enabled) LoggingExtractorsFactory(delegate) else delegate
 
-private class LoggingExtractorsFactory(private val delegate: ExtractorsFactory) : ExtractorsFactory {
+private class LoggingExtractorsFactory(delegate: ExtractorsFactory) : ForwardingExtractorsFactory(delegate) {
 
-    override fun createExtractors(): Array<Extractor> = delegate.createExtractors().map { LoggingExtractor(it) }.toTypedArray()
+    override fun createExtractors(): Array<Extractor> = super.createExtractors().map { LoggingExtractor(it) }.toTypedArray()
 
     override fun createExtractors(uri: Uri, responseHeaders: Map<String, List<String>>): Array<Extractor> {
         PlaybackDiagnostics.log("--- extractor selection for ${redact(uri.toString())} ---")
@@ -253,28 +254,11 @@ private class LoggingExtractorsFactory(private val delegate: ExtractorsFactory) 
                 PlaybackDiagnostics.log("header $key: ${entry.value.joinToString()}")
             }
         }
-        return delegate.createExtractors(uri, responseHeaders).map { LoggingExtractor(it) }.toTypedArray()
-    }
-
-    override fun setSubtitleParserFactory(subtitleParserFactory: SubtitleParser.Factory): ExtractorsFactory {
-        delegate.setSubtitleParserFactory(subtitleParserFactory)
-        return this
-    }
-
-    @Deprecated("Delegates a deprecated media3 hook", ReplaceWith("this"))
-    override fun experimentalSetTextTrackTranscodingEnabled(enabled: Boolean): ExtractorsFactory {
-        @Suppress("DEPRECATION")
-        delegate.experimentalSetTextTrackTranscodingEnabled(enabled)
-        return this
-    }
-
-    override fun experimentalSetCodecsToParseWithinGopSampleDependencies(codecsToParse: Int): ExtractorsFactory {
-        delegate.experimentalSetCodecsToParseWithinGopSampleDependencies(codecsToParse)
-        return this
+        return super.createExtractors(uri, responseHeaders).map { LoggingExtractor(it) }.toTypedArray()
     }
 }
 
-private class LoggingExtractor(private val delegate: Extractor) : Extractor {
+private class LoggingExtractor(private val delegate: Extractor) : ForwardingExtractor(delegate) {
 
     private val name: String get() = delegate.javaClass.simpleName
 
@@ -293,34 +277,26 @@ private class LoggingExtractor(private val delegate: Extractor) : Extractor {
         PlaybackDiagnostics.log("extractor in use: ${delegate.javaClass.name}")
         delegate.init(LoggingExtractorOutput(output))
     }
-
-    override fun read(input: ExtractorInput, seekPosition: PositionHolder): Int = delegate.read(input, seekPosition)
-
-    override fun seek(position: Long, timeUs: Long) = delegate.seek(position, timeUs)
-
-    override fun release() = delegate.release()
-
-    override fun getUnderlyingImplementation(): Extractor = delegate.underlyingImplementation
 }
 
-private class LoggingExtractorOutput(private val delegate: ExtractorOutput) : ExtractorOutput {
+private class LoggingExtractorOutput(delegate: ExtractorOutput) : ForwardingExtractorOutput(delegate) {
 
     private var emitted = 0
 
     override fun track(id: Int, type: Int): TrackOutput {
         emitted++
         PlaybackDiagnostics.log("extractor emitted track id=$id type=${trackTypeName(type)}")
-        return delegate.track(id, type)
+        return super.track(id, type)
     }
 
     override fun endTracks() {
         PlaybackDiagnostics.log("extractor endTracks: $emitted track(s) emitted")
-        delegate.endTracks()
+        super.endTracks()
     }
 
     override fun seekMap(seekMap: SeekMap) {
         PlaybackDiagnostics.log("seekMap ${seekMap.javaClass.simpleName} durationUs=${seekMap.durationUs} seekable=${seekMap.isSeekable}")
-        delegate.seekMap(seekMap)
+        super.seekMap(seekMap)
     }
 }
 

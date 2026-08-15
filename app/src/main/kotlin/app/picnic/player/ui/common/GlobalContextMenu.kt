@@ -22,7 +22,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -30,13 +29,6 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
-
-/** An extra, caller-supplied context-menu row (e.g. Reorder / Remove from playlist). */
-data class ContextMenuExtra(
-    val label: String,
-    val icon: ImageVector,
-    val onClick: () -> Unit
-)
 
 @Composable
 fun GlobalContextMenuDialog(
@@ -47,7 +39,7 @@ fun GlobalContextMenuDialog(
     onToggleFavorite: (Boolean) -> Unit,
     onGoToSeries: ((String) -> Unit)?,
     onAddToPlaylist: (() -> Unit)? = null,
-    extraActions: List<ContextMenuExtra> = emptyList()
+    extraActions: List<ContextMenuAction> = emptyList()
 ) {
     val played = item.userData?.played ?: false
     val isFavorite = item.userData?.isFavorite ?: false
@@ -129,10 +121,10 @@ fun GlobalContextMenuDialog(
 
         extraActions.forEach { extra ->
             add(
-                ContextMenuAction(extra.label, extra.icon) {
+                extra.copy(onClick = {
                     extra.onClick()
                     onDismiss()
-                }
+                })
             )
         }
     }

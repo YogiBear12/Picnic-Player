@@ -3,7 +3,6 @@ package app.picnic.player.ui.common
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
 
-/** Kinds the player can load directly; anything else has no single stream to start. */
 val PlayableKinds = setOf(
     BaseItemKind.MOVIE,
     BaseItemKind.EPISODE,

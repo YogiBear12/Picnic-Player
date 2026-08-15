@@ -6,7 +6,6 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class QualitySummaryTest {
-
     private fun imposed(height: Int?, bitrate: Int?) = serverTranscode(PlayMethodKind.TRANSCODE, null, height, bitrate)
 
     @Test
@@ -29,6 +28,12 @@ class QualitySummaryTest {
     @Test
     fun serverImposedTranscodeReportsWhatTheServerSendsWithoutALadderQualifier() {
         assertEquals("Transcoding · 1080p · 4.63 Mbps", qualitySummary(PlayMethodKind.TRANSCODE, null, imposed(1080, 4_634_321)))
+    }
+
+    @Test
+    fun serverImposedTranscodeNamesFourKTheSameWayThePickerDoes() {
+        assertEquals("Transcoding · 4K · 18.00 Mbps", qualitySummary(PlayMethodKind.TRANSCODE, null, imposed(2160, 18_000_000)))
+        assertEquals("Transcoding · 4K", qualitySummary(PlayMethodKind.TRANSCODE, null, imposed(2160, 0)))
     }
 
     @Test

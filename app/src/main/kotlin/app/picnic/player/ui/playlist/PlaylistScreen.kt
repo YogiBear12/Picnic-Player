@@ -78,7 +78,7 @@ import app.picnic.player.ui.browse.CardTimeLeftBadge
 import app.picnic.player.ui.browse.CardWatchedBadge
 import app.picnic.player.ui.browse.minutesLeft
 import app.picnic.player.ui.browse.runtimeMinutes
-import app.picnic.player.ui.common.ContextMenuExtra
+import app.picnic.player.ui.common.ContextMenuAction
 import app.picnic.player.ui.common.GlobalContextMenuDialog
 import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.common.watchProgress
@@ -343,13 +343,13 @@ private fun PlaylistContent(
             extraActions = buildList {
                 if (items.size > 1 && entryId != null) {
                     add(
-                        ContextMenuExtra("Reorder", Icons.Default.SwapVert) {
+                        ContextMenuAction("Reorder", Icons.Default.SwapVert) {
                             reorderKey = entryId
                         }
                     )
                 }
                 add(
-                    ContextMenuExtra("Remove from playlist", Icons.Default.Delete) {
+                    ContextMenuAction("Remove from playlist", Icons.Default.Delete) {
                         entryId?.let { viewModel.removeEntry(it) }
                     }
                 )

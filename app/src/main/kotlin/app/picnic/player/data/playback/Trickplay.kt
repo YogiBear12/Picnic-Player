@@ -52,7 +52,6 @@ class Trickplay(
         return (0 until count).map(tileUrl)
     }
 
-    /** Every sheet with its grid, in play order. Empty when the geometry is unusable. */
     fun sheets(): List<TrickplaySheet> {
         val columns = tiles.tileWidth.coerceAtLeast(1)
         val rows = tiles.tileHeight.coerceAtLeast(1)

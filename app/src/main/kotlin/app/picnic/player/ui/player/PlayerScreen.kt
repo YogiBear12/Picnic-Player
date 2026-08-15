@@ -229,7 +229,7 @@ fun PlayerScreen(
         onExit()
     }
 
-    // Remote control (#119, Slice 2): the VM applies pause/seek/track changes itself, but Stop and
+    // Remote control: the VM applies pause/seek/track changes itself, but Stop and
     // NextTrack need navigation, which only the screen owns — service them through its callbacks.
     LaunchedEffect(Unit) {
         viewModel.navEvents.collect { event ->

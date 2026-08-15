@@ -13,12 +13,6 @@ import app.picnic.player.data.settings.SubtitleColour
 import app.picnic.player.data.settings.SubtitleSize
 import kotlin.math.roundToInt
 
-/**
- * Styles text-based cues (SRT/VTT/…) only; ASS/SSA renders through libass with its authored
- * styling. The appearance page previews itself by calling [applyTo], the same entry point playback
- * uses.
- */
-
 fun SubtitleSize.toHeightFraction(): Float = when (this) {
     SubtitleSize.SMALLER -> 0.0258f
     SubtitleSize.SMALL -> 0.0331f

@@ -75,7 +75,7 @@ private val ExitEasing = CubicBezierEasing(0.3f, 0.0f, 0.8f, 0.15f) // Emphasize
  * shell (and its single drawer instance) re-enters composition on Back. Its open/closed
  * [DrawerState] is therefore hoisted HERE — above that disposal boundary — so it survives
  * back-nav in its last state (resting Closed) instead of the drawer reconstructing a default
- * state and replaying its open→close animation each time (#106).
+ * state and replaying its open→close animation each time.
  */
 @OptIn(ExperimentalSharedTransitionApi::class, ExperimentalTvMaterial3Api::class)
 @Composable
@@ -87,8 +87,8 @@ fun PicnicNavHost(
     val backdropController = LocalBackdropController.current
     val rail = railViewModel.rail
 
-    // Drawer open/closed state, hoisted above the disposable BrowseKey entry (see class doc,
-    // #106). rememberSaveable also carries it across process death.
+    // Drawer open/closed state, hoisted above the disposable BrowseKey entry (see class doc).
+    // rememberSaveable also carries it across process death.
     val drawerState = rememberSaveable(saver = DrawerState.Saver) { DrawerState(DrawerValue.Closed) }
 
     fun resetStackTo(key: NavKey) {
@@ -345,7 +345,7 @@ fun PicnicNavHost(
                             ambUrl = key.ambUrl,
                             onPlayLibraryItem = { jellyfinId ->
                                 // Replace Seerr Detail so Back skips the request screen
-                                // after available-redirect / Play bridge (#43).
+                                // after available-redirect / Play bridge.
                                 navViewModel.replaceTop(DetailKey(jellyfinId, key.bgUrl, key.ambUrl))
                             },
                             onRecommendedItem = { item, bg, amb ->

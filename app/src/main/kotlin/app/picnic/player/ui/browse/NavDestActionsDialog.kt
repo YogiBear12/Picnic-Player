@@ -8,10 +8,6 @@ import androidx.compose.runtime.Composable
 import app.picnic.player.ui.common.ContextMenuAction
 import app.picnic.player.ui.common.ContextMenuDialog
 
-/**
- * Compact Actions picker for a customisable drawer destination (#88):
- * Pin/Unpin + Reorder only. Opened via [NavigationDrawerItem] long-click.
- */
 @Composable
 internal fun NavDestActionsDialog(
     dest: BrowseDest,

@@ -68,17 +68,11 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-/** Partitioned Settings → Requests lists (#77). Declined/Failed omitted. */
 internal data class SettingsRequestSections(
     val active: List<SeerrRequestDisplay>,
     val completed: List<SeerrRequestDisplay>
 )
 
-/**
- * Your Requests = Pending + In Progress (Approved); null/unknown status treated as
- * Pending (same as [requestRowStatusLabel]). Completed = Completed only. Sorted A–Z
- * by display title (case-insensitive, stable).
- */
 internal fun partitionSettingsRequestSections(
     requests: List<SeerrRequestDisplay>
 ): SettingsRequestSections {
@@ -104,11 +98,6 @@ internal fun partitionSettingsRequestSections(
     return SettingsRequestSections(active = active, completed = completed)
 }
 
-/**
- * Settings → Requests: purely the request lists. The Seerr connection lives in
- * Account, and the whole category is hidden from the rail while unlinked — the
- * unlinked branch here is only a safety net for transient states.
- */
 @Composable
 internal fun RequestsSettingsPanel(
     viewModel: SettingsViewModel,
@@ -129,13 +118,6 @@ internal fun RequestsSettingsPanel(
     var contextRequest by remember { mutableStateOf<SeerrRequestDisplay?>(null) }
     val panelScope = rememberCoroutineScope()
 
-    // Refresh then seed in one effect so Cancel→Back awaits the post-cancel list (#44).
-    // Keyed on linkState (not Unit alone): Linked enter refreshes; rememberFocusedRequest on
-    // activate must not retrigger seed/clear while still on this panel.
-    // SettingsViewModel.selectCategory ignores non-REQUESTS while focusedRequestId is set so
-    // incidental Account rail focus cannot dispose this panel before seed completes.
-    // #77: seed against visible Your Requests; missing id → first active card; empty active
-    // → Completed header (if any) else Requests rail. Remembered Completed row expands section.
     LaunchedEffect(seerr.linkState) {
         if (seerr.linkState != SeerrLinkState.Linked) {
             if (viewModel.focusedRequestId.value != null) {
@@ -166,7 +148,6 @@ internal fun RequestsSettingsPanel(
             activeIndex >= 0 -> focusRow(seeded.active, activeIndex, activeListState)
             completedIndex >= 0 -> {
                 completedExpanded = true
-                // Let the collapsed LazyColumn enter composition before attaching focus.
                 repeat(2) { withFrameNanos { } }
                 focusRow(seeded.completed, completedIndex, completedListState)
             }
@@ -188,10 +169,6 @@ internal fun RequestsSettingsPanel(
 
     val hasAnyRequest = sections.active.isNotEmpty() || sections.completed.isNotEmpty()
 
-    // Empty states centre in the panel (no scrolling needed); the populated
-    // panel owns its vertical scroll. Nothing here is focusable and [enterFr] is
-    // deliberately left unattached, so Right from the rail cannot enter a panel
-    // with no content to land on — focus stays put on the rail (#140).
     if (seerr.linkState != SeerrLinkState.Linked || !hasAnyRequest) {
         Box(
             modifier = modifier.fillMaxSize().onFocusChanged { onFocusChanged(it.hasFocus) },
@@ -252,7 +229,6 @@ internal fun RequestsSettingsPanel(
                 }
             }
         }
-        // Hide Completed section when empty — cleaner TV chrome than a 0-count header.
         if (sections.completed.isNotEmpty()) {
             Spacer(Modifier.height(4.dp))
             ActionRow(
@@ -260,9 +236,6 @@ internal fun RequestsSettingsPanel(
                 value = if (completedExpanded) "Hide" else "Show",
                 leftFocus = leftFocus,
                 focusRequester = completedHeaderFr,
-                // With no active requests this header is the first focusable thing
-                // in the panel, so it must own the rail's entry target — otherwise
-                // Right from the rail lands on the non-focusable empty-state text (#140).
                 enterFr = if (sections.active.isEmpty()) enterFr else null,
                 blockUp = sections.active.isEmpty(),
                 blockDown = !completedExpanded,
@@ -312,10 +285,6 @@ internal fun RequestsSettingsPanel(
                 onOpenSeerrDetail?.invoke(row.request)
             },
             onCancel = {
-                // Cancelling drops the row from the refreshed list, disposing the
-                // focused node — without an explicit target focus falls back to the
-                // rail. Re-home to the top of the section the row came from, and
-                // only fall back to the rail when the panel has nothing left.
                 val fromCompleted = sections.completed.any { it.request.id == row.request.id }
                 contextRequest = null
                 panelScope.launch {
@@ -348,7 +317,6 @@ internal fun RequestsSettingsPanel(
     }
 }
 
-/** Settings row meta: `MOVIE • 2019` / `SERIES • 2022 • Seasons 1–5, 7–8`. */
 internal fun requestRowMetaLine(row: SeerrRequestDisplay): String {
     val parts = mutableListOf(requestRowTypeLabel(row.request))
     row.yearLabel?.let { parts += it }
@@ -359,7 +327,6 @@ internal fun requestRowMetaLine(row: SeerrRequestDisplay): String {
     return parts.joinToString(" • ")
 }
 
-/** Settings row type chip: MOVIE / SERIES (tv → SERIES), else MEDIA. */
 internal fun requestRowTypeLabel(request: SeerrMediaRequest): String = when (resolvedRequestMediaType(request)) {
     SeerrMediaType.MOVIE -> "MOVIE"
     SeerrMediaType.TV -> "SERIES"
@@ -392,10 +359,6 @@ internal fun requestContextMenuActions(
     if (canCancel) add(RequestMenuEntry(RequestMenuAction.CANCEL, "Cancel request"))
 }
 
-/**
- * Status chip for Settings request rows (#58).
- * Maps Seerr [SeerrMediaRequest.status] only — not mediaInfo.status.
- */
 internal fun requestRowStatusLabel(request: SeerrMediaRequest): String = when (request.status) {
     SeerrRequestStatus.PENDING -> "Pending"
     SeerrRequestStatus.APPROVED -> "In Progress"
@@ -405,7 +368,6 @@ internal fun requestRowStatusLabel(request: SeerrMediaRequest): String = when (r
     else -> "Pending"
 }
 
-/** Status → chip colour: green = ready to watch, cyan = moving, amber = waiting, red = dead. */
 private fun requestRowStatusColor(request: SeerrMediaRequest): Color = when (request.status) {
     SeerrRequestStatus.COMPLETED -> PicnicColors.Success
     SeerrRequestStatus.APPROVED -> PicnicColors.Cyan
@@ -455,8 +417,6 @@ private fun RequestRow(
                 if (blockDown) down = FocusRequester.Cancel
             }
             .padding(horizontal = 16.dp, vertical = 12.dp)
-            // Only Select opens the request — Right is a direction, not a second
-            // Select, and must not push a detail page off the Settings screen (#138).
             .onKeyEvent { event ->
                 val isCenter = event.key == Key.DirectionCenter || event.key == Key.Enter
                 if (!isCenter) return@onKeyEvent false

@@ -8,52 +8,32 @@ import androidx.media3.extractor.Extractor
 import androidx.media3.extractor.ExtractorInput
 import androidx.media3.extractor.ExtractorOutput
 import androidx.media3.extractor.ExtractorsFactory
+import androidx.media3.extractor.ForwardingExtractor
+import androidx.media3.extractor.ForwardingExtractorOutput
+import androidx.media3.extractor.ForwardingExtractorsFactory
 import androidx.media3.extractor.PositionHolder
-import androidx.media3.extractor.SeekMap
 import androidx.media3.extractor.TrackOutput
 import androidx.media3.extractor.mkv.MatroskaExtractor
-import androidx.media3.extractor.text.SubtitleParser
 import java.io.EOFException
 
 private const val SCAN_WINDOW_BYTES = 8 * 1024
 
 fun recoverLateTracks(delegate: ExtractorsFactory): ExtractorsFactory = LateTracksExtractorsFactory(delegate)
 
-private class LateTracksExtractorsFactory(private val delegate: ExtractorsFactory) : ExtractorsFactory {
+private class LateTracksExtractorsFactory(delegate: ExtractorsFactory) : ForwardingExtractorsFactory(delegate) {
+    override fun createExtractors(): Array<Extractor> = super.createExtractors().map(::wrap).toTypedArray()
 
-    override fun createExtractors(): Array<Extractor> = delegate.createExtractors().map(::wrap).toTypedArray()
-
-    override fun createExtractors(uri: Uri, responseHeaders: Map<String, List<String>>): Array<Extractor> = delegate.createExtractors(uri, responseHeaders).map(::wrap).toTypedArray()
+    override fun createExtractors(uri: Uri, responseHeaders: Map<String, List<String>>): Array<Extractor> = super.createExtractors(uri, responseHeaders).map(::wrap).toTypedArray()
 
     private fun wrap(extractor: Extractor): Extractor = if (extractor.underlyingImplementation is MatroskaExtractor) LateTracksExtractor(extractor) else extractor
-
-    override fun setSubtitleParserFactory(subtitleParserFactory: SubtitleParser.Factory): ExtractorsFactory {
-        delegate.setSubtitleParserFactory(subtitleParserFactory)
-        return this
-    }
-
-    @Deprecated("Delegates a deprecated media3 hook", ReplaceWith("this"))
-    override fun experimentalSetTextTrackTranscodingEnabled(enabled: Boolean): ExtractorsFactory {
-        @Suppress("DEPRECATION")
-        delegate.experimentalSetTextTrackTranscodingEnabled(enabled)
-        return this
-    }
-
-    override fun experimentalSetCodecsToParseWithinGopSampleDependencies(codecsToParse: Int): ExtractorsFactory {
-        delegate.experimentalSetCodecsToParseWithinGopSampleDependencies(codecsToParse)
-        return this
-    }
 }
 
 private enum class RecoveryState { SCAN, SEEK_TO_TRACKS, READING_TRACKS, SEEK_TO_START, PASSTHROUGH }
 
-private class LateTracksExtractor(private val delegate: Extractor) : Extractor {
-
+private class LateTracksExtractor(private val delegate: Extractor) : ForwardingExtractor(delegate) {
     private var output: LateTracksOutput? = null
     private var tracksPosition = 0L
     private var state = RecoveryState.SCAN
-
-    override fun sniff(input: ExtractorInput): Boolean = delegate.sniff(input)
 
     override fun init(output: ExtractorOutput) {
         val wrapped = LateTracksOutput(output)
@@ -61,8 +41,6 @@ private class LateTracksExtractor(private val delegate: Extractor) : Extractor {
         delegate.init(wrapped)
     }
 
-    // The jump has to be decided before the delegate parses anything: its read() only returns once it
-    // has a sample to hand over, and with no tracks registered that is never, so it runs to the last byte.
     override fun read(input: ExtractorInput, seekPosition: PositionHolder): Int {
         if (state == RecoveryState.SCAN) {
             val found = scanTracksPosition(input)
@@ -101,12 +79,6 @@ private class LateTracksExtractor(private val delegate: Extractor) : Extractor {
         return result
     }
 
-    override fun seek(position: Long, timeUs: Long) = delegate.seek(position, timeUs)
-
-    override fun release() = delegate.release()
-
-    override fun getUnderlyingImplementation(): Extractor = delegate.underlyingImplementation
-
     private fun scanTracksPosition(input: ExtractorInput): Long? {
         if (input.position != 0L) return null
         val length = input.length
@@ -122,8 +94,7 @@ private class LateTracksExtractor(private val delegate: Extractor) : Extractor {
     }
 }
 
-private class LateTracksOutput(private val delegate: ExtractorOutput) : ExtractorOutput {
-
+private class LateTracksOutput(delegate: ExtractorOutput) : ForwardingExtractorOutput(delegate) {
     private val outputs = mutableMapOf<Int, TrackOutput>()
 
     val trackCount: Int get() = outputs.size
@@ -131,15 +102,11 @@ private class LateTracksOutput(private val delegate: ExtractorOutput) : Extracto
     var tracksEnded = false
         private set
 
-    // Reused, not re-requested: the restart reaches Tracks a second time, and media3 answers a repeat
-    // call with a discarded output that silently swallows every sample routed to it.
-    override fun track(id: Int, type: Int): TrackOutput = outputs.getOrPut(id) { delegate.track(id, type) }
+    override fun track(id: Int, type: Int): TrackOutput = outputs.getOrPut(id) { super.track(id, type) }
 
     override fun endTracks() {
         if (tracksEnded) return
         tracksEnded = true
-        delegate.endTracks()
+        super.endTracks()
     }
-
-    override fun seekMap(seekMap: SeekMap) = delegate.seekMap(seekMap)
 }

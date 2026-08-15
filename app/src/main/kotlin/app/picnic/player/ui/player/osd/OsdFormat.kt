@@ -97,15 +97,7 @@ internal fun qualitySummary(playMethod: PlayMethodKind?, rung: QualityRung?, ser
     }
 }
 
-private fun ladderResolution(height: Int): String {
-    val tier = QualityRung.entries
-        .map { it.height }
-        .distinct()
-        .sorted()
-        .firstOrNull { height <= it }
-        ?: height
-    return "${tier}p"
-}
+private fun ladderResolution(height: Int): String = QualityRung.entries.sortedBy { it.height }.firstOrNull { height <= it.height }?.frameLabel ?: "${height}p"
 
 internal fun formatBitrate(bitrate: Long): String {
     val kbps = bitrate / 1000.0

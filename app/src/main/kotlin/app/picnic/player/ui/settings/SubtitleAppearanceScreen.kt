@@ -191,7 +191,7 @@ private fun SubtitleBackground(splashUrl: String?, modifier: Modifier = Modifier
 }
 
 /**
- * Full-screen subtitle appearance page (#54): option rows on the left, and a
+ * Full-screen subtitle appearance page: option rows on the left, and a
  * live preview cue drawn over the whole screen exactly where playback puts
  * subtitles — same [SubtitleView], same [applyTo], same bottom padding — so
  * position and true size are never misrepresented by a scaled-down preview
@@ -267,7 +267,7 @@ internal fun SubtitleAppearanceScreen(
                     onStep = viewModel::cycleBackground
                 )
                 // The fill row stays mounted while the background is off (removing a focused row
-                // disposes the focused node — see OnboardingTextField / #130); it only mutes.
+                // disposes the focused node — see OnboardingTextField); it only mutes.
                 AppearanceRow(
                     label = "Background fill",
                     value = appearance.backgroundFill.display(),

@@ -12,7 +12,6 @@ fun videoRectHeightFraction(videoWidth: Float, videoHeight: Float, boxWidth: Flo
     return (videoHeight * scale / boxHeight).coerceIn(0f, 1f)
 }
 
-/** Where [area]'s bottom edge falls in a container-height fraction, plus the inset above it. */
 fun subtitleBottomPaddingFraction(
     area: SubtitleArea,
     insetPercent: Int,
