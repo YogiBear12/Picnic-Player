@@ -41,7 +41,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -541,7 +540,6 @@ fun SeriesEpisodesScreen(
                     state = episodeFocus.listState,
                     modifier = Modifier
                         .fillMaxSize()
-                        .focusRestorer()
                         .onFocusChanged { episodeFocus.hasFocus = it.hasFocus },
                     contentPadding = PaddingValues(start = 44.dp, end = 40.dp, top = 24.dp, bottom = 24.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -595,7 +593,12 @@ fun SeriesEpisodesScreen(
                     viewModel.markFavorite(ep.id.toString(), fav)
                     contextMenuEpisode = null
                 },
-                onGoToSeries = onGoToSeries
+                onGoToSeries = onGoToSeries?.let { go ->
+                    { targetSeriesId ->
+                        pendingFocusEpisodeId = ep.id.toString()
+                        go(targetSeriesId)
+                    }
+                }
             )
         }
 
