@@ -8,8 +8,6 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
-import androidx.compose.foundation.gestures.BringIntoViewSpec
-import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,7 +25,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
@@ -48,11 +45,7 @@ import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onKeyEvent
-import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -75,8 +68,6 @@ import androidx.tv.material3.Button
 import androidx.tv.material3.Card
 import androidx.tv.material3.CardDefaults
 import androidx.tv.material3.ExperimentalTvMaterial3Api
-import androidx.tv.material3.ListItem
-import androidx.tv.material3.ListItemDefaults
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import app.picnic.player.data.auth.AuthRepository
@@ -511,121 +502,20 @@ fun SeriesEpisodesScreen(
                 val seriesItem = viewModel.seriesItem
                 if (seriesItem != null) SeriesHeader(seriesItem, session)
 
-                val seasonBringIntoViewSpec = remember {
-                    @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
-                    object : BringIntoViewSpec {
-                        override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float {
-                            // Anchor focus to roughly the 4th item's position to match standard TV LazyRow/Column behavior.
-                            // We use `size * 3f` which perfectly aligns with our initial `scrollToItem(index - 3)`
-                            // to ensure there's no visual jump when focus first lands.
-                            val targetForLeadingEdge = size * 3f
-                            return offset - targetForLeadingEdge
-                        }
-                    }
-                }
-
-                // A failed season fetch must surface here, not render a silently blank panel.
-                val seasonsError = viewModel.seasonsError
-                if (viewModel.seasons.isEmpty() && seasonsError != null) {
-                    Column(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxWidth()
-                            .padding(top = 24.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Text("Couldn't load seasons", color = PicnicColors.OnDark, textAlign = TextAlign.Center)
-                        Text(
-                            seasonsError.message ?: seasonsError.javaClass.simpleName,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = PicnicColors.OnDarkMuted,
-                            textAlign = TextAlign.Center,
-                            maxLines = 4
-                        )
-                        Button(onClick = { viewModel.loadSeasons(seriesId) }) { Text("Retry") }
-                    }
-                }
-
-                @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
-                CompositionLocalProvider(LocalBringIntoViewSpec provides seasonBringIntoViewSpec) {
-                    LazyColumn(
-                        state = seasonRail.listState,
-                        modifier = Modifier.weight(1f),
-                        contentPadding = PaddingValues(top = 16.dp, bottom = 24.dp),
-                        verticalArrangement = Arrangement.spacedBy(2.dp)
-                    ) {
-                        items(
-                            count = viewModel.seasons.size,
-                            key = { viewModel.seasons[it].id.toString() }
-                        ) { index ->
-                            val season = viewModel.seasons[index]
-                            val isSelected = season.id.toString() == selectedSeasonId
-                            val fr = seasonRail.requesterFor(index) ?: return@items
-                            var seasonFocused by remember(season.id) { mutableStateOf(false) }
-                            ListItem(
-                                selected = isSelected,
-                                onClick = {
-                                    selectedSeasonId = season.id.toString()
-                                    viewModel.loadEpisodes(seriesId, season.id.toString())
-                                },
-                                onLongClick = { contextMenuSeason = season },
-                                headlineContent = {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(
-                                            text = season.name ?: "Season",
-                                            color = Color.White,
-                                            textAlign = if (isSelected) TextAlign.Start else TextAlign.Center,
-                                            maxLines = 1,
-                                            softWrap = false,
-                                            overflow = TextOverflow.Ellipsis,
-                                            modifier = Modifier
-                                                .weight(1f, fill = true)
-                                                .then(if (seasonFocused) Modifier.basicMarquee() else Modifier)
-                                        )
-                                        val count = season.childCount
-                                        if (isSelected && count != null && count > 0) {
-                                            Text(
-                                                text = if (count == 1) "1 episode" else "$count episodes",
-                                                color = Color.White.copy(alpha = 0.6f),
-                                                style = MaterialTheme.typography.labelSmall,
-                                                modifier = Modifier.padding(start = 8.dp)
-                                            )
-                                        }
-                                    }
-                                },
-                                colors = ListItemDefaults.colors(
-                                    containerColor = if (isSelected) Color.White.copy(alpha = 0.40f) else Color.Transparent,
-                                    focusedContainerColor = Color.White.copy(alpha = 0.25f),
-                                    contentColor = Color.White
-                                ),
-                                modifier = Modifier
-                                    .focusRequester(fr)
-                                    // Prefer last-focused episode when it is already composed;
-                                    // onKeyEvent below covers the off-screen / unattached case.
-                                    .focusProperties { right = episodeFocus.targetRequester }
-                                    .onKeyEvent { event ->
-                                        if (event.key == Key.DirectionRight && event.type == KeyEventType.KeyDown) {
-                                            episodeFocus.rightConsumed(episodes.itemCount)
-                                        } else {
-                                            false
-                                        }
-                                    }
-                                    .onFocusChanged {
-                                        seasonFocused = it.isFocused
-                                        if (it.isFocused && !isSelected) {
-                                            selectedSeasonId = season.id.toString()
-                                            viewModel.loadEpisodes(seriesId, season.id.toString())
-                                        }
-                                    }
-                            )
-                        }
-                    }
-                }
+                SeasonList(
+                    seasons = viewModel.seasons,
+                    seasonsError = viewModel.seasonsError,
+                    selectedSeasonId = selectedSeasonId,
+                    rail = seasonRail,
+                    rightTarget = { episodeFocus.targetRequester },
+                    onRightPressed = { episodeFocus.rightConsumed(episodes.itemCount) },
+                    onSelect = { id ->
+                        selectedSeasonId = id
+                        viewModel.loadEpisodes(seriesId, id)
+                    },
+                    onRetry = { viewModel.loadSeasons(seriesId) },
+                    onLongPress = { contextMenuSeason = it }
+                )
             }
 
             Box(Modifier.fillMaxSize()) {
