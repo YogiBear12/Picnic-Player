@@ -10,19 +10,17 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.focus.FocusRequester
+import java.util.UUID
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import org.jellyfin.sdk.model.api.BaseItemDto
 
 @Stable
-class SeasonRail(
-    val listState: LazyListState,
-    private val requesters: Map<Int, FocusRequester>
-) {
-    fun requesterFor(index: Int): FocusRequester? = requesters[index]
+class SeasonRail(val listState: LazyListState) {
+    private val requesters = mutableMapOf<Int, FocusRequester>()
 
-    // Scroll so the selected season is slightly down the list (e.g. 4th item)
-    // so that previous seasons are naturally visible without scrolling.
+    fun requesterFor(index: Int): FocusRequester? = if (index < 0) null else requesters.getOrPut(index) { FocusRequester() }
+
     suspend fun bringIntoView(index: Int) {
         listState.scrollToItem((index - 3).coerceAtLeast(0))
     }
@@ -35,14 +33,12 @@ fun rememberSeasonRail(
     onVisibleIndices: (List<Int>) -> Unit
 ): SeasonRail {
     val listState = rememberLazyListState()
-    val requesters = remember(seasons) { seasons.indices.associateWith { FocusRequester() } }
-    val rail = remember(listState, requesters) { SeasonRail(listState, requesters) }
+    val rail = remember(listState) { SeasonRail(listState) }
 
-    // Bring the selected season into view once seasons load. Without this, arriving directly on
-    // a later season (e.g. from a Next Up episode card) leaves that season's ListItem off-screen
-    // and uncomposed, so D-pad Left / Back can't focus it and the episode list becomes a dead end.
-    LaunchedEffect(seasons) {
-        if (seasons.isEmpty()) return@LaunchedEffect
+    val seasonIds: List<UUID> = remember(seasons) { seasons.map { it.id } }
+
+    LaunchedEffect(seasonIds) {
+        if (seasonIds.isEmpty()) return@LaunchedEffect
         rail.bringIntoView(selectedIndex.coerceAtLeast(0))
     }
 
