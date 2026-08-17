@@ -5,7 +5,6 @@ package app.picnic.player.ui.player
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
@@ -28,22 +27,18 @@ import app.picnic.player.data.playback.PlaybackTickInput
 import app.picnic.player.data.playback.PlaybackTickSettings
 import app.picnic.player.data.playback.PlayerCommand
 import app.picnic.player.data.playback.PlayerCommandBus
-import app.picnic.player.data.playback.RememberedTrack
 import app.picnic.player.data.playback.SegmentKind
 import app.picnic.player.data.playback.StreamInfo
-import app.picnic.player.data.playback.TrackMemoryKind
 import app.picnic.player.data.playback.Trickplay
 import app.picnic.player.data.playback.TrickplayCache
 import app.picnic.player.data.playback.TrickplayFrame
 import app.picnic.player.data.playback.msToTicks
-import app.picnic.player.data.playback.pickTracksWithMemory
 import app.picnic.player.data.playback.playbackTick
 import app.picnic.player.data.playback.quality.QualityOption
 import app.picnic.player.data.playback.quality.QualityRung
 import app.picnic.player.data.playback.quality.SourceQuality
 import app.picnic.player.data.playback.quality.qualityOptions
 import app.picnic.player.data.playback.refinePlayMethod
-import app.picnic.player.data.playback.resolveLanguageCode
 import app.picnic.player.data.playback.ticksToMs
 import app.picnic.player.data.settings.PlaybackSettings
 import app.picnic.player.data.settings.SeriesTrackMemoryStore
@@ -56,12 +51,10 @@ import app.picnic.player.playback.AudioRoutePolicy
 import app.picnic.player.playback.BlackBarTrack
 import app.picnic.player.playback.BlackBars
 import app.picnic.player.playback.CueLatchedBars
-import app.picnic.player.playback.JellyfinTrackSelection
 import app.picnic.player.playback.NightMode
 import app.picnic.player.playback.PlaybackDiagnostics
 import app.picnic.player.playback.PlaybackEngineFactory
 import app.picnic.player.playback.PlaybackSessionController
-import app.picnic.player.playback.SideloadedTrackId
 import app.picnic.player.playback.SleepMode
 import app.picnic.player.playback.StreamLoader
 import app.picnic.player.playback.StreamRequest
@@ -69,8 +62,6 @@ import app.picnic.player.playback.StreamResult
 import app.picnic.player.playback.StreamTarget
 import app.picnic.player.playback.ThemeMusicPlayer
 import app.picnic.player.playback.VideoDynamicRange
-import app.picnic.player.playback.externalSubtitleCount
-import app.picnic.player.util.LanguageDisplay
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.IOException
@@ -102,8 +93,6 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
-import org.jellyfin.sdk.model.api.MediaStream
-import org.jellyfin.sdk.model.api.MediaStreamType
 
 private const val LAST_FRAME_MS = 200L
 
@@ -149,18 +138,32 @@ class PlayerViewModel @Inject constructor(
     private var stream: StreamInfo? = null
     private var itemId: UUID? = null
     private var seriesId: UUID? = null
-    private var seasonId: UUID? = null
-    private var itemType: BaseItemKind? = null
-    private var mediaStreams: List<MediaStream> = emptyList()
-    private var selectedAudioIndex: Int? = null
-    private var selectedSubtitleIndex: Int? = null
-    private val exhaustedSubtitles = mutableSetOf<Int>()
-    private var attachedSubtitleIndex: Int? = null
     private val latchedBars = CueLatchedBars()
     private var loaded = false
 
     private val viewingJob = SupervisorJob(viewModelScope.coroutineContext[Job])
     private val viewingScope = CoroutineScope(viewModelScope.coroutineContext + viewingJob)
+
+    private val tracks = PlayerTracks(
+        player = player,
+        authRepository = authRepository,
+        mediaRepository = mediaRepository,
+        seriesTrackMemoryStore = seriesTrackMemoryStore,
+        scope = viewModelScope,
+        onOptionsChanged = { options ->
+            _state.update {
+                it.copy(
+                    audioTracks = options.audio,
+                    subtitleTracks = options.subtitle,
+                    selectedAudioId = options.selectedAudioId,
+                    selectedSubtitleId = options.selectedSubtitleId
+                )
+            }
+        },
+        onReload = { notice ->
+            reload(sessionController.qualityOverride.value, failureNotice = notice)
+        }
+    )
 
     private val trickplayCache = TrickplayCache(appContext, appScope, viewingScope)
 
@@ -216,7 +219,7 @@ class PlayerViewModel @Inject constructor(
             }
         }
         override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
-            applyTrackSelections()
+            this@PlayerViewModel.tracks.applySelections()
         }
         override fun onCues(cueGroup: androidx.media3.common.text.CueGroup) {
             latchedBars.onCueBoundary(player.currentPosition)
@@ -306,10 +309,7 @@ class PlayerViewModel @Inject constructor(
             wasCanceled: Boolean
         ) {
             if (wasCanceled) return
-            val uri = loadEventInfo.uri.toString()
-            stream?.externalSubtitles.orEmpty()
-                .firstOrNull { uri.startsWith(it.url.substringBefore('?')) }
-                ?.let { exhaustedSubtitles += it.streamIndex }
+            tracks.onLoadFailed(loadEventInfo.uri.toString())
         }
     }
 
@@ -473,8 +473,8 @@ class PlayerViewModel @Inject constructor(
                     positionTicks = startTicks ?: 0L,
                     mediaSourceId = mediaSourceId,
                     quality = sessionController.qualityOverride.value,
-                    audioStreamIndex = selectedAudioIndex,
-                    subtitleStreamIndex = selectedSubtitleIndex,
+                    audioStreamIndex = tracks.audioIndex,
+                    subtitleStreamIndex = tracks.subtitleIndex,
                     resumePlaying = true,
                     replacing = null
                 )
@@ -485,13 +485,13 @@ class PlayerViewModel @Inject constructor(
             }
             adopt(result.stream, subtitleDelayMs = 0, speed = 1.0f)
             itemDeferred.await()?.let { applyItemMetadata(activeSession, id, it) }
-            initDefaultTrackIndices()
-            if (needsAttach(selectedSubtitleIndex)) {
+            tracks.initDefaults(settings.value)
+            if (tracks.needsAttach(tracks.subtitleIndex)) {
                 reload(sessionController.qualityOverride.value, failureNotice = "Couldn't load subtitles")
             } else {
-                applyTrackSelections()
+                tracks.applySelections()
             }
-            rebuildTrackOptions()
+            tracks.publishOptions()
             _state.update { it.copy(subtitleDelayMs = 0, playbackSpeed = 1.0f, showStatsForNerds = false) }
             startTicker()
             startProgressReports()
@@ -584,42 +584,11 @@ class PlayerViewModel @Inject constructor(
 
     fun trickplayFor(positionMs: Long): TrickplayFrame? = trickplayCache.frameFor(positionMs)
 
-    fun selectAudio(streamIndex: String) {
-        selectedAudioIndex = streamIndex.toIntOrNull() ?: return
-        persistOsdTrackMemory(audio = true)
-        if (isConverting()) renegotiate() else applyTrackSelections()
-    }
+    fun selectAudio(streamIndex: String) = tracks.selectAudio(streamIndex)
 
-    fun selectSubtitle(streamIndex: String?) {
-        val previous = selectedSubtitleIndex
-        selectedSubtitleIndex = streamIndex?.toIntOrNull()
-        persistOsdTrackMemory(audio = false)
-        val burnedIn = isBurnedIn(previous) || isBurnedIn(selectedSubtitleIndex)
-        val retryExhausted = selectedSubtitleIndex?.let { exhaustedSubtitles.remove(it) } == true
-        when {
-            isConverting() && burnedIn -> renegotiate()
-            retryExhausted || needsAttach(selectedSubtitleIndex) ->
-                reload(sessionController.qualityOverride.value, failureNotice = "Couldn't load subtitles")
-            else -> applyTrackSelections()
-        }
-    }
-
-    private fun needsAttach(streamIndex: Int?): Boolean = isSideloaded(streamIndex) && streamIndex != attachedSubtitleIndex
-
-    private fun isSideloaded(streamIndex: Int?): Boolean {
-        val index = streamIndex ?: return false
-        return stream?.externalSubtitles.orEmpty().any { it.streamIndex == index }
-    }
-
-    private fun isBurnedIn(streamIndex: Int?): Boolean {
-        val index = streamIndex ?: return false
-        return mediaStreams.firstOrNull { it.index == index }?.deliveryMethod ==
-            org.jellyfin.sdk.model.api.SubtitleDeliveryMethod.ENCODE
-    }
+    fun selectSubtitle(streamIndex: String?) = tracks.selectSubtitle(streamIndex)
 
     private fun isConverting() = stream?.playMethod == PlayMethodKind.TRANSCODE
-
-    private fun renegotiate() = reload(sessionController.qualityOverride.value)
 
     fun clearNotice() = _state.update { it.copy(notice = null) }
 
@@ -669,8 +638,8 @@ class PlayerViewModel @Inject constructor(
                     positionTicks = resumeMs.msToTicks(),
                     mediaSourceId = current?.mediaSourceId,
                     quality = quality,
-                    audioStreamIndex = selectedAudioIndex,
-                    subtitleStreamIndex = selectedSubtitleIndex,
+                    audioStreamIndex = tracks.audioIndex,
+                    subtitleStreamIndex = tracks.subtitleIndex,
                     resumePlaying = player.playWhenReady,
                     replacing = current,
                     allowDirectPlay = directPlayVeto.allowsDirectPlay
@@ -689,9 +658,8 @@ class PlayerViewModel @Inject constructor(
 
     private fun adopt(info: StreamInfo, subtitleDelayMs: Long, speed: Float) {
         stream = info
-        mediaStreams = info.mediaStreams
+        tracks.adopt(info)
         refreshQualityOptions(info)
-        rebuildTrackOptions()
         engine.setSubtitleDelayMs(subtitleDelayMs)
         player.setPlaybackSpeed(speed)
         _state.update {
@@ -708,90 +676,13 @@ class PlayerViewModel @Inject constructor(
         updateTranscodingInfoJob()
     }
 
-    private var serverAudioLanguage: String? = null
-    private var serverSubtitleLanguage: String? = null
-    private var serverLanguagePrefsLoaded = false
-
     private suspend fun ensureTranscodePermission(session: UserSession) {
         canTranscode = runCatching { mediaRepository.canTranscodeVideo(session) }.getOrDefault(true)
     }
 
-    private suspend fun ensureServerLanguagePrefs() {
-        if (serverLanguagePrefsLoaded) return
-        serverLanguagePrefsLoaded = true
-        val session = authRepository.activeSession() ?: return
-        val config = runCatching { mediaRepository.userConfiguration(session) }.getOrNull()
-        serverAudioLanguage = config?.audioLanguagePreference
-        serverSubtitleLanguage = config?.subtitleLanguagePreference
-    }
-
-    private suspend fun initDefaultTrackIndices() {
-        val prefs = settings.value
-        ensureServerLanguagePrefs()
-        val deviceLanguage = java.util.Locale.getDefault().language
-        val memory = if (itemType == BaseItemKind.EPISODE) {
-            seriesId?.let { sid ->
-                seriesTrackMemoryStore.effectiveMemory(sid.toString(), seasonId?.toString())
-            }
-        } else {
-            null
-        }
-        val pick = pickTracksWithMemory(
-            streams = mediaStreams,
-            memory = memory,
-            preferredAudioLanguage = resolveLanguageCode(
-                prefs.preferredAudioLanguage,
-                serverAudioLanguage,
-                deviceLanguage
-            ),
-            preferredSubtitleLanguage = resolveLanguageCode(
-                prefs.preferredSubtitleLanguage,
-                serverSubtitleLanguage,
-                deviceLanguage
-            ),
-            deviceSubtitleLanguage = deviceLanguage,
-            alwaysDisplaySubtitles = prefs.alwaysDisplaySubtitles,
-            preferDefaultAudioTrack = prefs.preferDefaultAudioTrack
-        )
-        selectedAudioIndex = pick.audioIndex
-        selectedSubtitleIndex = pick.subtitleIndex
-    }
-
-    private fun persistOsdTrackMemory(audio: Boolean) {
-        if (itemType != BaseItemKind.EPISODE) return
-        val series = seriesId ?: return
-        val season = seasonId?.toString()
-        val pick = if (audio) {
-            val stream = mediaStreams.firstOrNull {
-                it.type == MediaStreamType.AUDIO && it.index == selectedAudioIndex
-            } ?: return
-            RememberedTrack.of(stream) ?: return
-        } else {
-            val index = selectedSubtitleIndex
-            if (index == null) {
-                RememberedTrack.off()
-            } else {
-                val stream = mediaStreams.firstOrNull {
-                    it.type == MediaStreamType.SUBTITLE && it.index == index
-                } ?: return
-                RememberedTrack.of(stream) ?: return
-            }
-        }
-        val kind = if (audio) TrackMemoryKind.AUDIO else TrackMemoryKind.SUBTITLE
-        viewModelScope.launch {
-            seriesTrackMemoryStore.rememberOsdPick(
-                seriesId = series.toString(),
-                seasonId = season,
-                kind = kind,
-                pick = pick
-            )
-        }
-    }
-
     private fun applyItemMetadata(activeSession: UserSession, id: UUID, item: BaseItemDto) {
         seriesId = item.seriesId
-        seasonId = item.seasonId
-        itemType = item.type
+        tracks.onItemMetadata(item.type, item.seriesId, item.seasonId)
         val sheets = playbackRepository.trickplayFromItem(item)?.let { (sheetWidth, tiles) ->
             Trickplay(tiles) { tileIndex ->
                 playbackRepository.trickplayTileUrl(activeSession, id, sheetWidth, tileIndex)
@@ -843,86 +734,10 @@ class PlayerViewModel @Inject constructor(
         _state.update { it.copy(qualityOptions = options, streamRung = info.rung) }
     }
 
-    private fun mediaItemFor(info: StreamInfo): MediaItem {
-        val wanted = selectedSubtitleIndex ?: info.defaultSubtitleStreamIndex
-        val attach = info.externalSubtitles.filter { it.streamIndex == wanted }
-        attachedSubtitleIndex = attach.firstOrNull()?.streamIndex
-        val subtitles = attach.map { subtitle ->
-            MediaItem.SubtitleConfiguration.Builder(android.net.Uri.parse(subtitle.url))
-                .setId(SideloadedTrackId.of(subtitle.streamIndex))
-                .setMimeType(subtitle.mimeType)
-                .setLanguage(subtitle.language)
-                .setLabel(subtitle.title)
-                .build()
-        }
-        return MediaItem.Builder()
-            .setUri(info.url)
-            .setSubtitleConfigurations(subtitles)
-            .build()
-    }
-
-    private fun applyTrackSelections() {
-        if (mediaStreams.isEmpty()) return
-        if (isConverting() && isBurnedIn(selectedSubtitleIndex)) {
-            player.trackSelectionParameters = player.trackSelectionParameters
-                .buildUpon()
-                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
-                .build()
-            rebuildTrackOptions()
-            return
-        }
-        val result = JellyfinTrackSelection.createTrackSelections(
-            trackSelectionParams = player.trackSelectionParameters,
-            tracks = player.currentTracks,
-            supportsDirectPlay = !isConverting(),
-            audioIndex = selectedAudioIndex,
-            subtitleIndex = selectedSubtitleIndex,
-            mediaStreams = mediaStreams
-        )
-        PlaybackDiagnostics.logTrackSelectionOutcome(
-            result = result,
-            audioIndex = selectedAudioIndex,
-            subtitleIndex = selectedSubtitleIndex,
-            externalSubtitleCount = mediaStreams.externalSubtitleCount,
-            supportsDirectPlay = !isConverting()
-        )
-        if (result.bothSelected) {
-            player.trackSelectionParameters = result.trackSelectionParameters
-        }
-        rebuildTrackOptions()
-    }
-
-    private fun rebuildTrackOptions() {
-        if (mediaStreams.isEmpty()) return
-        val audio = mediaStreams
-            .filter { it.type == MediaStreamType.AUDIO }
-            .map { stream -> stream.toTrackOption(stream.index == selectedAudioIndex) }
-        val subtitle = mediaStreams
-            .filter { it.type == MediaStreamType.SUBTITLE }
-            .map { stream -> stream.toTrackOption(stream.index == selectedSubtitleIndex) }
-        _state.update {
-            it.copy(
-                audioTracks = audio,
-                subtitleTracks = subtitle,
-                selectedAudioId = selectedAudioIndex?.toString(),
-                selectedSubtitleId = selectedSubtitleIndex?.toString()
-            )
-        }
-    }
-
-    private fun MediaStream.toTrackOption(selected: Boolean): TrackOption {
-        val (languageLine, secondary) = LanguageDisplay.trackLines(
-            LanguageDisplay.name(language),
-            displayTitle
-        )
-        return TrackOption(
-            id = index.toString(),
-            label = secondary,
-            language = language,
-            displayLanguage = languageLine,
-            selected = selected
-        )
-    }
+    private fun mediaItemFor(info: StreamInfo): MediaItem = MediaItem.Builder()
+        .setUri(info.url)
+        .setSubtitleConfigurations(tracks.subtitleConfigurationsFor(info))
+        .build()
 
     private fun startTicker() {
         ticker?.cancel()
