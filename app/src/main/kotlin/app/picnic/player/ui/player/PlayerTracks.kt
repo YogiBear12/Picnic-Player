@@ -43,7 +43,7 @@ class PlayerTracks(
     private val seriesTrackMemoryStore: SeriesTrackMemoryStore,
     private val scope: CoroutineScope,
     private val onOptionsChanged: (TrackOptions) -> Unit,
-    private val onReload: (failureNotice: String) -> Unit
+    private val onReload: (ReloadReason) -> Unit
 ) {
     var audioIndex: Int? = null
         private set
@@ -126,20 +126,25 @@ class PlayerTracks(
     fun selectAudio(streamIndex: String) {
         audioIndex = streamIndex.toIntOrNull() ?: return
         persistOsdTrackMemory(audio = true)
-        if (converting) onReload("Couldn't change quality") else applySelections()
+        if (converting) onReload(ReloadReason.AUDIO_CHANGE) else applySelections()
     }
 
     fun selectSubtitle(streamIndex: String?) {
         val previous = subtitleIndex
-        subtitleIndex = streamIndex?.toIntOrNull()
+        val next = streamIndex?.toIntOrNull()
+        subtitleIndex = next
         persistOsdTrackMemory(audio = false)
-        val burnedIn = isBurnedIn(previous) || isBurnedIn(subtitleIndex)
-        val retryExhausted = subtitleIndex?.let { exhausted.remove(it) } == true
-        when {
-            converting && burnedIn -> onReload("Couldn't change quality")
-            retryExhausted || needsAttach(subtitleIndex) -> onReload("Couldn't load subtitles")
-            else -> applySelections()
+        if (requiresNewStream(previous, next)) {
+            onReload(ReloadReason.SUBTITLE_CHANGE)
+        } else {
+            applySelections()
         }
+    }
+
+    private fun requiresNewStream(previous: Int?, next: Int?): Boolean {
+        val burnedIn = converting && (isBurnedIn(previous) || isBurnedIn(next))
+        val retryExhausted = next != null && exhausted.remove(next)
+        return burnedIn || retryExhausted || needsAttach(next)
     }
 
     fun needsAttach(streamIndex: Int?): Boolean = isSideloaded(streamIndex) && streamIndex != attachedSubtitleIndex

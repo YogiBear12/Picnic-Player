@@ -160,9 +160,7 @@ class PlayerViewModel @Inject constructor(
                 )
             }
         },
-        onReload = { notice ->
-            reload(sessionController.qualityOverride.value, failureNotice = notice)
-        }
+        onReload = { reason -> reload(reason) }
     )
 
     private val trickplayCache = TrickplayCache(appContext, appScope, viewingScope)
@@ -227,10 +225,7 @@ class PlayerViewModel @Inject constructor(
         }
         override fun onPlayerError(error: PlaybackException) {
             if (directPlayVeto.onPlaybackError(error.errorCode)) {
-                reload(
-                    quality = sessionController.qualityOverride.value,
-                    failureNotice = "Couldn't play this file"
-                )
+                reload(ReloadReason.PLAYBACK_FAILED)
                 return
             }
             _state.update { it.copy(error = error.message ?: "Playback error", isLoading = false) }
@@ -241,10 +236,7 @@ class PlayerViewModel @Inject constructor(
         if (player.currentTracks.groups.isNotEmpty()) return
         PlaybackDiagnostics.log("prepared with no playable tracks; remuxAlreadyTried=${!directPlayVeto.allowsDirectPlay}")
         if (directPlayVeto.onNoPlayableTracks()) {
-            reload(
-                quality = sessionController.qualityOverride.value,
-                failureNotice = "Couldn't play this file"
-            )
+            reload(ReloadReason.PLAYBACK_FAILED)
         } else {
             _state.update { it.copy(error = "This file has no playable video or audio", isLoading = false) }
         }
@@ -487,7 +479,7 @@ class PlayerViewModel @Inject constructor(
             itemDeferred.await()?.let { applyItemMetadata(activeSession, id, it) }
             tracks.initDefaults(settings.value)
             if (tracks.needsAttach(tracks.subtitleIndex)) {
-                reload(sessionController.qualityOverride.value, failureNotice = "Couldn't load subtitles")
+                reload(ReloadReason.SUBTITLE_CHANGE)
             } else {
                 tracks.applySelections()
             }
@@ -596,7 +588,7 @@ class PlayerViewModel @Inject constructor(
         if (option == _state.value.activeQuality) return
         val previous = sessionController.qualityOverride.value
         sessionController.setQualityOverride(option)
-        reload(option, revertTo = previous)
+        reload(ReloadReason.QUALITY_CHANGE, quality = option, revertTo = previous)
     }
 
     private fun applyAudioRoute(required: AudioRoute) {
@@ -608,14 +600,14 @@ class PlayerViewModel @Inject constructor(
         appliedAudioRoute = required
         engine.setAudioRoute(required)
         if (reloadNeeded) {
-            reload(sessionController.qualityOverride.value, failureNotice = "Couldn't change audio")
+            reload(ReloadReason.AUDIO_CHANGE)
         }
     }
 
     private fun reload(
-        quality: QualityOption?,
-        revertTo: QualityOption? = quality,
-        failureNotice: String = "Couldn't change quality"
+        reason: ReloadReason,
+        quality: QualityOption? = sessionController.qualityOverride.value,
+        revertTo: QualityOption? = quality
     ) {
         val activeSession = session ?: return
         val id = itemId ?: return
@@ -649,7 +641,7 @@ class PlayerViewModel @Inject constructor(
                 is StreamResult.Loaded -> adopt(result.stream, delayMs, speed)
                 is StreamResult.Failed -> {
                     sessionController.setQualityOverride(revertTo)
-                    _state.update { it.copy(notice = failureNotice) }
+                    _state.update { it.copy(notice = reason.failureNotice) }
                     result.restored?.let { adopt(it, delayMs, speed) }
                 }
             }
