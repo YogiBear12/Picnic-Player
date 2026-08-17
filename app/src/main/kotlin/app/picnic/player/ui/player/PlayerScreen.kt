@@ -98,33 +98,17 @@ import kotlinx.coroutines.isActive
 
 private val OsdHorizontalPadding = 56.dp
 
-// Match the chapter card size (ChapterRow CardWidth × CardImageHeight, 16:9).
 private val TrickplayPreviewWidth = 180.dp
 private val TrickplayPreviewHeight = 101.dp
 private val TrickplayGapAboveScrubBar = 10.dp
 
-// Fraction of the screen the video shrinks to (top-left) while the next-up overlay is shown, plus
-// the margin it sits in from the top-left corner. Tuned to the next-up reference design.
 private const val NextUpPlayerScale = 0.35f
 private val NextUpPlayerInset = 56.dp
 
-/**
- * How far past a segment's start playback may be for the skip pill to auto-appear. Natural
- * playback crosses the boundary within one ~500ms tick; landing deeper than this means the
- * user seeked into the middle of the segment, where skip lives only in the OSD.
- */
 private const val SkipPillEntryWindowMs = 2_000L
 
 private const val NOTICE_VISIBLE_MS = 3_000L
 
-/**
- * Full-screen player. [PlayerSurface] uses SurfaceView for better performance;
- * libass ASS overlay is a transparent [SubtitleView].
- *
- * [onPlayNext] is called with the next item's id when the user selects the next-up thumbnail
- * or the countdown reaches zero. The nav host navigates to a fresh player route (popUpTo the
- * current player so Back skips the finished episode).
- */
 @Composable
 fun PlayerScreen(
     itemId: String,
@@ -144,16 +128,11 @@ fun PlayerScreen(
     SideEffect { view.keepScreenOn = state.isPlaying }
     DisposableEffect(Unit) { onDispose { view.keepScreenOn = false } }
 
-    // Starts hidden: an OSD that auto-opens over the loading screen also swallows a skip button for
-    // a segment that begins at t=0, since the pill only auto-shows while the OSD is down.
     val chrome = remember { PlayerChrome() }
     var pulseTick by remember { mutableIntStateOf(0) }
     var pulsePlaying by remember { mutableStateOf(true) }
     var pulseVisible by remember { mutableStateOf(false) }
-    var scrubPreview by remember { mutableStateOf<TrickplayPreview?>(null) }
-    var scrubbing by remember { mutableStateOf(false) }
-    var wasPlayingBeforeScrub by remember { mutableStateOf(false) }
-    var scrubBarBottomInset by remember { mutableStateOf(0.dp) }
+    val scrub = rememberPlayerScrub(viewModel.player)
     val rootFocus = remember { FocusRequester() }
     val audioFocus = remember { FocusRequester() }
     val subtitleFocus = remember { FocusRequester() }
@@ -163,7 +142,6 @@ fun PlayerScreen(
     val osdSkipFocus = remember { FocusRequester() }
     val subAdjustFocus = remember { FocusRequester() }
 
-    // Subtitle-delay live-adjust mode (entered from the settings panel): holding L/R accelerates.
     var subAdjustHeldDir by remember { mutableIntStateOf(0) }
 
     val pipState = rememberPipController(
@@ -184,8 +162,6 @@ fun PlayerScreen(
         }
     }
 
-    // The VM ends the viewing when the app leaves the screen; PiP is the one case where it must
-    // not, so keep it told which mode the window is in.
     LaunchedEffect(inPipMode) { viewModel.onPipModeChanged(inPipMode) }
 
     val jellyfinDisplayHints = remember(state.mediaSource) {
@@ -198,12 +174,8 @@ fun PlayerScreen(
         jellyfinHints = jellyfinDisplayHints
     )
 
-    // Next-up overlay is active once playback has ended (or entered an outro in opt-in mode) and a
-    // next episode is known. Declared early so focus/back effects can react to it.
     val showNextUpOverlay = state.endedAwaitingNext && state.nextUp != null && !inPipMode
 
-    // The OSD and track panels must never sit under the next-up screen; close them immediately when
-    // it appears (otherwise an open OSD lingers until its inactivity timeout).
     LaunchedEffect(showNextUpOverlay) { chrome.onNextUpVisibleChanged(showNextUpOverlay) }
     LaunchedEffect(inPipMode) { chrome.onPipModeChanged(inPipMode) }
 
@@ -222,15 +194,11 @@ fun PlayerScreen(
         chrome.closePanel()
     }
 
-    // Real exit to browse: end the viewing (playback stops here, not when this entry is finally
-    // disposed after the fade), then leave.
     fun exitPlayer() {
         viewModel.endViewing()
         onExit()
     }
 
-    // Remote control: the VM applies pause/seek/track changes itself, but Stop and
-    // NextTrack need navigation, which only the screen owns — service them through its callbacks.
     LaunchedEffect(Unit) {
         viewModel.navEvents.collect { event ->
             when (event) {
@@ -243,10 +211,6 @@ fun PlayerScreen(
         }
     }
 
-    // Single owner of OSD focus seeding: whenever the OSD is interactive (no panel open),
-    // focus the button that opened the just-closed panel, else the scrubber (a fresh reveal
-    // or a Chapters close). Replaces ModernOsd's self-seed, which raced this and won,
-    // dropping focus onto the scrubber instead of the audio/subtitle/settings button.
     LaunchedEffect(chrome.panel, chrome.osdVisible) {
         if (chrome.panel != Panel.NONE || !chrome.osdVisible) return@LaunchedEffect
         val target = when (chrome.lastPanel) {
@@ -259,24 +223,11 @@ fun PlayerScreen(
         chrome.consumeLastPanel()
     }
 
-    // Pause on scrub start, restore the pre-scrub play state on commit or cancel. Driven off the
-    // scrubbing flag alone: commit vs cancel differ only in whether a seek fired (the OSD owns that).
-    LaunchedEffect(scrubbing) {
-        if (scrubbing) {
-            wasPlayingBeforeScrub = viewModel.player.isPlaying
-            viewModel.player.pause()
-        } else if (wasPlayingBeforeScrub) {
-            viewModel.player.play()
-        }
-    }
-
-    LaunchedEffect(chrome.revealTick, chrome.osdVisible, chrome.panel, state.isPlaying, scrubbing) {
-        // Hold the OSD open while an active scrub is in progress, else it would hide mid-scrub and
-        // strand a paused video with no controls.
-        if (chrome.osdVisible && chrome.panel == Panel.NONE && !scrubbing) {
+    LaunchedEffect(chrome.revealTick, chrome.osdVisible, chrome.panel, state.isPlaying, scrub.active) {
+        if (chrome.osdVisible && chrome.panel == Panel.NONE && !scrub.active) {
             delay(settings.osdHideSeconds.toLong().coerceAtLeast(2) * 1000)
             chrome.hideOsd()
-            scrubPreview = null
+            scrub.clearPreview()
         }
     }
     LaunchedEffect(pulseTick) {
@@ -286,15 +237,12 @@ fun PlayerScreen(
             pulseVisible = false
         }
     }
-    // Quick-skip burst timeout: each press restarts this; ~1s of quiet hides + resets.
     LaunchedEffect(chrome.quickSkipTick) {
         if (chrome.quickSkipTick > 0) {
             delay(1000)
             chrome.endQuickSkip()
         }
     }
-    // Subtitle-delay live adjust: holding L/R accelerates from the 100ms fine step to the 1s coarse
-    // step via a single effect keyed on the held direction (no coroutine-per-tick).
     val latestSubDelay = rememberUpdatedState(state.subtitleDelayMs)
     LaunchedEffect(subAdjustHeldDir) {
         if (subAdjustHeldDir == 0) return@LaunchedEffect
@@ -313,19 +261,11 @@ fun PlayerScreen(
         if (chrome.subtitleAdjust) runCatching { subAdjustFocus.requestFocus() }
     }
     LaunchedEffect(chrome.videoHasFocus, chrome.skipPillDismissed) {
-        // Also re-runs when the skip pill is dismissed/times out so focus returns to the video
-        // surface (the pill held focus) instead of being orphaned.
         if (chrome.videoHasFocus) runCatching { rootFocus.requestFocus() }
     }
     LaunchedEffect(state.currentSegment) {
         val segment = state.currentSegment
         if (segment != null) {
-            // The pill auto-appears only when playback entered the segment at its start (natural
-            // boundary crossing). Seeking into the middle of a segment keeps it dismissed — skip
-            // then lives only in the OSD.
-            // Focus for the pill is requested from inside its AnimatedVisibility content (below),
-            // once the node has actually composed — requesting here races the pill's layout and
-            // loses on a janky cold start (the node isn't attached yet, so the request times out).
             chrome.onSegmentChanged(
                 segmentActive = true,
                 enteredAtStart = state.positionMs - segment.startMs <= SkipPillEntryWindowMs
@@ -342,31 +282,21 @@ fun PlayerScreen(
         }
     }
 
-    // When endedAwaitingNext becomes true with no next item, fall through to today's exit.
     LaunchedEffect(state.endedAwaitingNext) {
         if (state.endedAwaitingNext && state.nextUp == null) {
             exitPlayer()
         }
     }
 
-    // Back during the overlay: if the video is still playing (outro mode) return to it; otherwise
-    // (playback already ended) fall through to today's exit.
     val onNextUpBack: () -> Unit = {
         if (state.videoStillPlaying) viewModel.dismissNextUp() else exitPlayer()
     }
 
-    // Back is routed through the chrome rather than the focused node: enableOnBackInvokedCallback
-    // sends it straight to the OnBackPressedDispatcher, so widgets never see it.
     BackHandler {
         subAdjustHeldDir = 0
         when (chrome.onBack(segmentActive = state.currentSegment != null)) {
             BackOutcome.Handled -> Unit
-            BackOutcome.ClosedOsd -> {
-                // Cancel any active scrub: keep the current position, drop the target. Clearing
-                // scrubbing lets the pause/resume effect restore the pre-scrub play state.
-                scrubbing = false
-                scrubPreview = null
-            }
+            BackOutcome.ClosedOsd -> scrub.cancel()
             BackOutcome.NextUp -> onNextUpBack()
             BackOutcome.ExitPlayer -> exitPlayer()
         }
@@ -407,8 +337,6 @@ fun PlayerScreen(
                 }
             }
     ) {
-        // Next-up backdrop: full-screen image of the upcoming episode, painted beneath the shrunk
-        // video and the card. Fades in with the overlay.
         AnimatedVisibility(
             visible = showNextUpOverlay,
             modifier = Modifier
@@ -426,15 +354,10 @@ fun PlayerScreen(
                         modifier = Modifier.fillMaxSize()
                     )
                 }
-                // Scrim for overall contrast under the card.
                 Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.4f)))
             }
         }
 
-        // Shrink the video to a small inset window in the top-left while the next-up overlay is
-        // active, leaving room for the backdrop and the bottom-right card. animateFloatAsState keeps
-        // the resize on a GPU layer and preserves the aspect ratio (both dimensions scale together).
-        // The top-left margin is derived from the same animation progress so it tracks the shrink.
         val playerScale by animateFloatAsState(
             targetValue = if (showNextUpOverlay) NextUpPlayerScale else 1f,
             animationSpec = tween(400),
@@ -443,23 +366,15 @@ fun PlayerScreen(
         val insetFraction = ((1f - playerScale) / (1f - NextUpPlayerScale)).coerceIn(0f, 1f)
         val playerInset = NextUpPlayerInset * insetFraction
 
-        // Text and bitmap cues are placed against different rectangles, so each gets its own view.
         val (bitmapCues, textCues) = state.subtitleCues.partition { it.bitmap != null }
 
-        // Size the surface to the video's true display aspect ratio (accounts for anamorphic
-        // pixel ratios), so 4:3 content is pillar-boxed instead of stretched to the 16:9 screen.
-        // videoSizeDp is null until the first frame's size is known; ContentScale.Fit letterboxes.
         val presentationState = rememberPresentationState(viewModel.player)
         BoxWithConstraints(
             modifier = Modifier
                 .align(Alignment.TopStart)
                 .padding(start = playerInset, top = playerInset)
                 .fillMaxSize(playerScale)
-                // Round the corners as the video shrinks (0 at full screen → media-card radius),
-                // matching the rest of the app's cards. TEXTURE_VIEW clips cleanly.
                 .clip(RoundedCornerShape(12.dp * insetFraction))
-                // Black fill so pillar/letterbox bars stay black inside the card — otherwise the
-                // next-up backdrop (drawn beneath) shows through the bars for non-16:9 content.
                 .background(Color.Black)
                 .then(pipState.sourceRectModifier())
                 .zIndex(if (showNextUpOverlay) 2f else 0f),
@@ -473,8 +388,6 @@ fun PlayerScreen(
                     presentationState.videoSizeDp
                 )
             )
-            // libass overlay, sized exactly to the video display rect (libass maps frame
-            // coordinates onto its bounds). Tracks pillar/letterboxing and the next-up shrink.
             AndroidView(
                 factory = { context -> viewModel.assOverlayView(context) },
                 modifier = Modifier.resizeWithContentScale(
@@ -482,9 +395,6 @@ fun PlayerScreen(
                     presentationState.videoSizeDp
                 )
             )
-            // PGS/DVB bitmaps, painted into whichever rect their plane belongs in — the picture
-            // when the plane matches it, the screen when the video was cropped out from under it.
-            // Lives inside the video box so it shrinks with the next-up overlay either way.
             AndroidView(
                 factory = { context -> SubtitleView(context) },
                 update = { it.setCues(bitmapCues) },
@@ -494,8 +404,6 @@ fun PlayerScreen(
                     bitmapSubtitleFrame(bitmapCues, presentationState.videoSizeDp)
                 )
             )
-            // Spans the box whatever the area: a SubtitleView clips cues to its own bounds, so one
-            // sized to the video rect could never place a cue in the bars.
             val videoDynamicRange by viewModel.videoDynamicRange.collectAsStateWithLifecycle()
             val blackBars by viewModel.blackBars.collectAsStateWithLifecycle()
             val appearance = settings.subtitleAppearance
@@ -546,8 +454,6 @@ fun PlayerScreen(
 
         state.error?.let { Text(it, color = Color.White, modifier = Modifier.align(Alignment.Center)) }
 
-        // Opening any panel slides the OSD off the bottom; closing one slides it back and the
-        // focus-seeding effect above returns focus to the button that opened it.
         AnimatedVisibility(
             visible = chrome.osdVisible && state.error == null && !showNextUpOverlay && chrome.panel == Panel.NONE,
             modifier = Modifier
@@ -568,12 +474,12 @@ fun PlayerScreen(
                 skipBackwardSeconds = settings.skipBackwardSeconds,
                 onDismiss = {
                     chrome.hideOsd()
-                    scrubPreview = null
+                    scrub.clearPreview()
                 },
                 onInteract = { chrome.keepAlive() },
-                onScrubPreviewChange = { scrubPreview = it },
-                onScrubbingChange = { scrubbing = it },
-                onScrubBarBottomInset = { scrubBarBottomInset = it },
+                onScrubPreviewChange = scrub::onPreviewChange,
+                onScrubbingChange = scrub::onActiveChange,
+                onScrubBarBottomInset = scrub::onBarBottomInset,
                 trickplayFor = viewModel::trickplayFor,
                 audioFocusRequester = audioFocus,
                 subtitleFocusRequester = subtitleFocus,
@@ -613,9 +519,6 @@ fun PlayerScreen(
             exit = fadeOut()
         ) {
             state.currentSegment?.let { segment ->
-                // Request focus once the pill is actually in composition. Keyed on kind so a
-                // back-to-back segment change (intro -> recap without the pill hiding) re-grabs
-                // focus. Runs late-but-correct if cold-start jank delays this subtree's layout.
                 LaunchedEffect(segment.kind) {
                     skipFocus.requestFocusWhenAttached()
                 }
@@ -625,9 +528,6 @@ fun PlayerScreen(
                     modifier = Modifier
                         .focusRequester(skipFocus)
                         .onKeyEvent { event ->
-                            // Back is handled by the screen's BackHandler (enableOnBackInvokedCallback
-                            // routes Back past focused nodes anyway). Here we only trap the D-pad so
-                            // arrows don't move focus off the pill while it's showing.
                             if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
                             when (event.key) {
                                 Key.DirectionUp, Key.DirectionDown, Key.DirectionLeft, Key.DirectionRight -> true
@@ -638,12 +538,10 @@ fun PlayerScreen(
             }
         }
 
-        if (chrome.osdVisible && chrome.panel == Panel.NONE && scrubPreview != null && scrubBarBottomInset > 0.dp) {
-            val preview = scrubPreview!!
+        val preview = scrub.preview
+        if (chrome.osdVisible && chrome.panel == Panel.NONE && preview != null && scrub.barBottomInset > 0.dp) {
             val frame = preview.frame
             val previewW = TrickplayPreviewWidth
-            // Fixed card matching the chapter card, regardless of source aspect — the frame is
-            // letterboxed inside it (see TrickplayCell), so the hover preview stays consistent.
             val previewH = TrickplayPreviewHeight
             BoxWithConstraints(
                 Modifier
@@ -659,12 +557,10 @@ fun PlayerScreen(
                     height = previewH,
                     modifier = Modifier
                         .align(Alignment.BottomStart)
-                        // Lambda overload: the offset tracks the scrub fraction, so deferring it to
-                        // the layout phase avoids recomposing on every step (UseOfNonLambdaOffsetOverload).
                         .offset {
                             IntOffset(
                                 x = xOffset.roundToPx(),
-                                y = -(scrubBarBottomInset + TrickplayGapAboveScrubBar).roundToPx()
+                                y = -(scrub.barBottomInset + TrickplayGapAboveScrubBar).roundToPx()
                             )
                         }
                 )
@@ -775,8 +671,6 @@ fun PlayerScreen(
             }
         }
 
-        // Subtitle-delay live adjust: invisible key-catcher (L/R steps, Back returns to the panel)
-        // plus a centered HUD. OSD + panel are hidden so the subtitles stay visible at the bottom.
         if (chrome.subtitleAdjust) {
             Box(
                 Modifier
@@ -859,10 +753,6 @@ fun PlayerScreen(
             }
         }
 
-        // Next-up card occupies the bottom band below the shrunk video; the video stays visible
-        // at the top. Shown when STATE_ENDED fires (default) or an OUTRO segment is entered (opt-in).
-        // In outro mode the countdown spans the remaining episode time plus the configured delay, so
-        // it lines up with the actual end of the episode. Captured once when the overlay appears.
         val nextUpCountdownStart = remember(showNextUpOverlay) {
             if (showNextUpOverlay && state.videoStillPlaying) {
                 val remainingSec = ((state.durationMs - state.positionMs) / 1000L)
