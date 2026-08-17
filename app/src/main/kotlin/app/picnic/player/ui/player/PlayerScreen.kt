@@ -42,7 +42,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
@@ -127,13 +126,7 @@ fun PlayerScreen(
     val chrome = remember { PlayerChrome() }
     val pulse = rememberPlayerPulse()
     val scrub = rememberPlayerScrub(viewModel.player)
-    val rootFocus = remember { FocusRequester() }
-    val audioFocus = remember { FocusRequester() }
-    val subtitleFocus = remember { FocusRequester() }
-    val settingsFocus = remember { FocusRequester() }
-    val scrubberFocus = remember { FocusRequester() }
-    val skipFocus = remember { FocusRequester() }
-    val osdSkipFocus = remember { FocusRequester() }
+    val osdFocus = remember { PlayerOsdFocus() }
     val subtitleAdjust = rememberSubtitleDelayAdjust(
         active = chrome.subtitleAdjust,
         delayMs = state.subtitleDelayMs,
@@ -204,13 +197,7 @@ fun PlayerScreen(
 
     LaunchedEffect(chrome.panel, chrome.osdVisible) {
         if (chrome.panel != Panel.NONE || !chrome.osdVisible) return@LaunchedEffect
-        val target = when (chrome.lastPanel) {
-            Panel.AUDIO -> audioFocus
-            Panel.SUBTITLE -> subtitleFocus
-            Panel.SETTINGS -> settingsFocus
-            Panel.CHAPTERS, Panel.NONE -> scrubberFocus
-        }
-        target.requestFocusWhenAttached()
+        osdFocus.seedFor(chrome.lastPanel)
         chrome.consumeLastPanel()
     }
 
@@ -228,7 +215,7 @@ fun PlayerScreen(
         }
     }
     LaunchedEffect(chrome.videoHasFocus, chrome.skipPillDismissed) {
-        if (chrome.videoHasFocus) runCatching { rootFocus.requestFocus() }
+        if (chrome.videoHasFocus) osdFocus.requestVideo()
     }
     LaunchedEffect(state.currentSegment) {
         val segment = state.currentSegment
@@ -239,7 +226,7 @@ fun PlayerScreen(
             )
         } else {
             chrome.onSegmentChanged(segmentActive = false, enteredAtStart = false)
-            if (chrome.videoHasFocus) runCatching { rootFocus.requestFocus() }
+            if (chrome.videoHasFocus) osdFocus.requestVideo()
         }
     }
     LaunchedEffect(state.currentSegment, chrome.skipPillDismissed) {
@@ -273,7 +260,7 @@ fun PlayerScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
-            .focusRequester(rootFocus)
+            .focusRequester(osdFocus.video)
             .focusable(chrome.videoHasFocus)
             .onKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
@@ -448,11 +435,11 @@ fun PlayerScreen(
                 onScrubbingChange = scrub::onActiveChange,
                 onScrubBarBottomInset = scrub::onBarBottomInset,
                 trickplayFor = viewModel::trickplayFor,
-                audioFocusRequester = audioFocus,
-                subtitleFocusRequester = subtitleFocus,
-                settingsFocusRequester = settingsFocus,
-                scrubberFocusRequester = scrubberFocus,
-                osdSkipFocusRequester = osdSkipFocus,
+                audioFocusRequester = osdFocus.audio,
+                subtitleFocusRequester = osdFocus.subtitle,
+                settingsFocusRequester = osdFocus.settings,
+                scrubberFocusRequester = osdFocus.scrubber,
+                osdSkipFocusRequester = osdFocus.osdSkip,
                 showSkipInOsd = chrome.skipInOsd(state.currentSegment != null),
                 onSkip = { viewModel.skipCurrentSegment() },
                 focusEnabled = chrome.panel == Panel.NONE
@@ -487,13 +474,13 @@ fun PlayerScreen(
         ) {
             state.currentSegment?.let { segment ->
                 LaunchedEffect(segment.kind) {
-                    skipFocus.requestFocusWhenAttached()
+                    osdFocus.skipPill.requestFocusWhenAttached()
                 }
                 SkipSegmentButton(
                     kind = segment.kind,
                     onClick = { viewModel.skipCurrentSegment() },
                     modifier = Modifier
-                        .focusRequester(skipFocus)
+                        .focusRequester(osdFocus.skipPill)
                         .onKeyEvent { event ->
                             if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
                             when (event.key) {
