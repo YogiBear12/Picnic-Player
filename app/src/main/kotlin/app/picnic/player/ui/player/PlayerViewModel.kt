@@ -663,7 +663,8 @@ class PlayerViewModel @Inject constructor(
                 playMethod = info.playMethod,
                 mediaSourceId = info.mediaSourceId,
                 mediaSource = info.mediaSource,
-                transcodingInfo = null
+                transcodingInfo = null,
+                directPlayBlockedBy = info.directPlayBlockedBy
             )
         }
         settlePlayMethod(info)

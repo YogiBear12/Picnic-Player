@@ -91,7 +91,8 @@ data class PlayerUiState(
     val notice: String? = null,
     val qualityOptions: List<QualityOption> = emptyList(),
     val streamRung: QualityRung? = null,
-    val tracks: List<TrackSupport> = emptyList()
+    val tracks: List<TrackSupport> = emptyList(),
+    val directPlayBlockedBy: List<String> = emptyList()
 ) {
     val activeQuality: QualityOption? get() = when {
         playMethod != PlayMethodKind.TRANSCODE -> QualityOption.Original

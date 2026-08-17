@@ -1,6 +1,7 @@
 package app.picnic.player.data.playback
 
 import android.content.Context
+import android.net.Uri
 import androidx.media3.common.MimeTypes
 import app.picnic.player.data.auth.UserSession
 import app.picnic.player.data.device.DeviceIdentityStore
@@ -15,6 +16,7 @@ import app.picnic.player.data.playback.quality.clampToCeiling
 import app.picnic.player.data.settings.PlaybackSettings
 import app.picnic.player.data.settings.SettingsStore
 import app.picnic.player.di.IoDispatcher
+import app.picnic.player.playback.PlaybackDiagnostics
 import app.picnic.player.playback.StreamNegotiation
 import app.picnic.player.playback.StreamNegotiator
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -53,10 +55,6 @@ data class MediaSegment(
     val endMs: Long
 )
 
-/**
- * Stream negotiation (PlaybackInfo + device profile), trickplay, and
- * playback-progress reporting via the Jellyfin SDK.
- */
 @Singleton
 class PlaybackRepository @Inject constructor(
     private val jellyfin: JellyfinFactory,
@@ -80,23 +78,21 @@ class PlaybackRepository @Inject constructor(
         }
     }
 
-    /** Runs a network + deserialize [block] off the caller's dispatcher — see MediaRepository.onIo. */
     private suspend inline fun <T> onIo(crossinline block: suspend () -> T): T = withContext(ioDispatcher) { block() }
 
     override suspend fun resolveStream(negotiation: StreamNegotiation): StreamInfo = onIo {
         val session = negotiation.session
         val settings = settingsStore.settings.first()
-        // No explicit choice follows the Default video quality setting; choosing Original is a
-        // choice, and must not fall back to it.
         val chosen = negotiation.quality ?: settings.defaultVideoQuality?.let { QualityOption.Transcode(it) }
         val rung = (chosen as? QualityOption.Transcode)?.rung
         val ceiling = QualityRung.conversionCeiling(settings.allowFourKTranscoding)
-        val first = negotiate(negotiation, settings, rung)
+        val first = negotiate(negotiation, settings, rung, pass = 1)
+        val blockedBy = transcodeReasons(first.source)
         val clamped = clampedRung(first.source, rung, ceiling)
-            ?: return@onIo buildStreamInfo(session, negotiation.itemId, first.source, first.playSessionId, rung)
+            ?: return@onIo buildStreamInfo(session, negotiation.itemId, first.source, first.playSessionId, rung, blockedBy)
         stopEncoding(session, first.playSessionId)
-        val second = negotiate(negotiation, settings, clamped)
-        buildStreamInfo(session, negotiation.itemId, second.source, second.playSessionId, clamped)
+        val second = negotiate(negotiation, settings, clamped, pass = 2)
+        buildStreamInfo(session, negotiation.itemId, second.source, second.playSessionId, clamped, blockedBy)
     }
 
     private class Negotiated(val source: MediaSourceInfo, val playSessionId: String?)
@@ -104,7 +100,8 @@ class PlaybackRepository @Inject constructor(
     private suspend fun negotiate(
         negotiation: StreamNegotiation,
         settings: PlaybackSettings,
-        rung: QualityRung?
+        rung: QualityRung?,
+        pass: Int
     ): Negotiated {
         val session = negotiation.session
         val response = api(session).mediaInfoApi.getPostedPlaybackInfo(
@@ -117,8 +114,6 @@ class PlaybackRepository @Inject constructor(
                 mediaSourceId = negotiation.mediaSourceId,
                 audioStreamIndex = negotiation.audioStreamIndex,
                 subtitleStreamIndex = negotiation.subtitleStreamIndex,
-                // Direct play off still allows a remux: the server rewrites the container and
-                // copies both streams, so nothing is re-encoded.
                 enableDirectPlay = negotiation.allowDirectPlay,
                 allowVideoStreamCopy = true,
                 allowAudioStreamCopy = true,
@@ -127,6 +122,7 @@ class PlaybackRepository @Inject constructor(
             )
         ).content
         val source = response.mediaSources.firstOrNull() ?: error("No playable source")
+        PlaybackDiagnostics.logNegotiation(pass, rung, source)
         return Negotiated(source, response.playSessionId)
     }
 
@@ -136,18 +132,22 @@ class PlaybackRepository @Inject constructor(
         return clampToCeiling(quality, requested, ceiling)
     }
 
+    private fun transcodeReasons(source: MediaSourceInfo): List<String> {
+        val url = source.transcodingUrl ?: return emptyList()
+        val reasons = Uri.parse(url).getQueryParameter("TranscodeReasons") ?: return emptyList()
+        return reasons.split(',').map { it.trim() }.filter { it.isNotEmpty() }
+    }
+
     private fun buildStreamInfo(
         session: UserSession,
         itemId: UUID,
         source: MediaSourceInfo,
         playSessionId: String?,
-        rung: QualityRung?
+        rung: QualityRung?,
+        directPlayBlockedBy: List<String>
     ): StreamInfo {
         val base = session.server.baseUrl.trimEnd('/')
         val sourceId = source.id ?: itemId.toString()
-        // `static=true` is the original file, byte for byte — only ever right when the server
-        // granted direct play. Anything else it offers, it offers because the file as stored is not
-        // what should be sent, so take the stream it planned instead.
         if (source.supportsDirectPlay == true) {
             val url = buildString {
                 append(base).append("/Videos/").append(itemId).append("/stream")
@@ -156,16 +156,15 @@ class PlaybackRepository @Inject constructor(
                 source.container?.let { append("&container=").append(it) }
                 append("&api_key=").append(session.accessToken)
             }
-            return streamInfo(url, PlayMethodKind.DIRECT_PLAY, playSessionId, sourceId, source, session = session)
+            return streamInfo(url, PlayMethodKind.DIRECT_PLAY, playSessionId, sourceId, source, session = session, directPlayBlockedBy = directPlayBlockedBy)
         }
         source.transcodingUrl?.let { path ->
-            // Played exactly as returned: editing it yields a stream the server did not plan.
             val url = base + path
-            return streamInfo(url, PlayMethodKind.TRANSCODE, playSessionId, sourceId, source, rung, session)
+            return streamInfo(url, PlayMethodKind.TRANSCODE, playSessionId, sourceId, source, rung, session, directPlayBlockedBy)
         }
         val url =
             "$base/Videos/$itemId/stream?static=true&mediaSourceId=$sourceId&api_key=${session.accessToken}"
-        return streamInfo(url, PlayMethodKind.DIRECT_STREAM, playSessionId, sourceId, source, session = session)
+        return streamInfo(url, PlayMethodKind.DIRECT_STREAM, playSessionId, sourceId, source, session = session, directPlayBlockedBy = directPlayBlockedBy)
     }
 
     private fun externalSubtitles(session: UserSession, source: MediaSourceInfo): List<ExternalSubtitle> {
@@ -205,7 +204,8 @@ class PlaybackRepository @Inject constructor(
         sourceId: String,
         source: MediaSourceInfo,
         rung: QualityRung? = null,
-        session: UserSession? = null
+        session: UserSession? = null,
+        directPlayBlockedBy: List<String> = emptyList()
     ): StreamInfo = StreamInfo(
         url = url,
         playMethod = method,
@@ -217,10 +217,9 @@ class PlaybackRepository @Inject constructor(
         defaultSubtitleStreamIndex = source.defaultSubtitleStreamIndex,
         mediaSource = source,
         rung = rung,
-        externalSubtitles = session?.let { externalSubtitles(it, source) }.orEmpty()
+        externalSubtitles = session?.let { externalSubtitles(it, source) }.orEmpty(),
+        directPlayBlockedBy = directPlayBlockedBy
     )
-
-    // --- progress reporting (resume + Continue Watching) --------------------
 
     override suspend fun reportStarted(session: UserSession, info: StreamInfo, itemId: UUID, positionTicks: Long): Unit = onIo {
         api(session).playStateApi.reportPlaybackStart(
@@ -278,7 +277,6 @@ class PlaybackRepository @Inject constructor(
                 failed = false
             )
         )
-        // Resume position / watched state moved on the server — let other screens recompute.
         changeBus.emit(LibraryChange.ItemUpdated(itemId.toString(), seriesId?.toString()))
     }
 
@@ -288,9 +286,6 @@ class PlaybackRepository @Inject constructor(
         PlayMethodKind.TRANSCODE -> PlayMethod.TRANSCODE
     }
 
-    // --- media segments -----------------------------------------------------
-
-    /** Media segments for [itemId] (intro/outro/recap/...), empty if none/unsupported. */
     suspend fun mediaSegments(session: UserSession, itemId: UUID): List<MediaSegment> = onIo {
         runCatching {
             val response = api(session).mediaSegmentsApi.getItemSegments(itemId).content
@@ -315,20 +310,16 @@ class PlaybackRepository @Inject constructor(
         }.getOrDefault(emptyList())
     }
 
-    // --- trickplay ----------------------------------------------------------
-
     fun trickplayTileUrl(session: UserSession, itemId: UUID, width: Int, tileIndex: Int): String {
         val base = session.server.baseUrl.trimEnd('/')
         return "$base/Videos/$itemId/Trickplay/$width/$tileIndex.jpg?api_key=${session.accessToken}"
     }
 
-    /** Chapter image URL for chapter [index] on [itemId], tagged for cache-busting. */
     fun chapterImageUrl(session: UserSession, itemId: UUID, index: Int, imageTag: String): String {
         val base = session.server.baseUrl.trimEnd('/')
         return "$base/Items/$itemId/Images/Chapter/$index?tag=$imageTag&api_key=${session.accessToken}"
     }
 
-    /** Best trickplay tile-set (largest width ≤ [maxWidth]) from an item DTO, or null. */
     fun trickplayFromItem(item: BaseItemDto, maxWidth: Int = 480): Pair<Int, TrickplayTiles>? {
         val bySource = item.trickplay ?: return null
         val byWidth = bySource.values.firstOrNull() ?: return null
@@ -343,13 +334,11 @@ class PlaybackRepository @Inject constructor(
             tileHeight = info.tileHeight,
             thumbnailCount = info.thumbnailCount,
             intervalMs = info.interval.let { raw ->
-                // Jellyfin versions may return ms or ticks; values > ~1 h in "ms" are ticks.
                 if (raw > 3_600_000) raw / 10_000 else raw
             }
         )
     }
 
-    /** Best trickplay tile-set (largest width ≤ [maxWidth]) for [itemId], or null. */
     suspend fun trickplay(
         session: UserSession,
         itemId: UUID,
@@ -359,10 +348,6 @@ class PlaybackRepository @Inject constructor(
         trickplayFromItem(item, maxWidth)
     }
 
-    /**
-     * Live transcoding/remux stats for the current device session.
-     * Prefers a session whose [mediaSourceId] matches and that already has [TranscodingInfo].
-     */
     suspend fun getTranscodingInfo(
         session: UserSession,
         mediaSourceId: String? = null

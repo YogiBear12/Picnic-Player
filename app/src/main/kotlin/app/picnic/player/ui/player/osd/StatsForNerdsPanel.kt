@@ -137,7 +137,9 @@ fun StatsForNerdsPanel(
                         "Playback" to playMethodLabel
                     )
 
-                    val reasons = state.transcodingInfo?.transcodeReasons.orEmpty()
+                    val reasons = state.directPlayBlockedBy.ifEmpty {
+                        state.transcodingInfo?.transcodeReasons.orEmpty().map { it.toString() }
+                    }
                     if (reasons.isNotEmpty()) {
                         val reasonLabel = if (
                             state.playMethod == app.picnic.player.data.playback.PlayMethodKind.DIRECT_STREAM

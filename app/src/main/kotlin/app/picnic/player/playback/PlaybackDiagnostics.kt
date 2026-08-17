@@ -31,7 +31,9 @@ import androidx.media3.extractor.TrackOutput
 import app.picnic.player.BuildConfig
 import app.picnic.player.data.playback.StreamInfo
 import java.io.IOException
+import org.jellyfin.sdk.model.api.MediaSourceInfo
 import org.jellyfin.sdk.model.api.MediaStream
+import org.jellyfin.sdk.model.api.MediaStreamType
 
 const val PLAYBACK_LOG_TAG = "PicnicPlayback"
 
@@ -41,6 +43,23 @@ object PlaybackDiagnostics : AnalyticsListener {
 
     fun log(message: String) {
         if (enabled) Log.d(PLAYBACK_LOG_TAG, message)
+    }
+
+    fun logNegotiation(pass: Int, requestedRung: Any?, source: MediaSourceInfo) {
+        if (!enabled) return
+        val video = source.mediaStreams.orEmpty().firstOrNull { it.type == MediaStreamType.VIDEO }
+        val audio = source.mediaStreams.orEmpty().firstOrNull { it.type == MediaStreamType.AUDIO && it.isDefault }
+        log(
+            "negotiation pass=$pass requestedRung=$requestedRung " +
+                "supportsDirectPlay=${source.supportsDirectPlay} supportsDirectStream=${source.supportsDirectStream} " +
+                "bitrate=${source.bitrate} container=${source.container}"
+        )
+        log(
+            "negotiation pass=$pass video=${video?.codec} ${video?.width}x${video?.height} " +
+                "range=${video?.videoRangeType} profile=${video?.profile} level=${video?.level} " +
+                "audio=${audio?.codec} ch=${audio?.channels}"
+        )
+        log("negotiation pass=$pass transcodingUrl=${source.transcodingUrl?.let(::redact)}")
     }
 
     fun logStream(info: StreamInfo) {
