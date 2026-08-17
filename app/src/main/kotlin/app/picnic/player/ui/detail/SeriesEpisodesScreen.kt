@@ -44,7 +44,6 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.key.key
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -60,7 +59,6 @@ import androidx.paging.cachedIn
 import androidx.paging.compose.LazyPagingItems
 import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.compose.itemContentType
-import androidx.paging.compose.itemKey
 import androidx.paging.map
 import androidx.tv.material3.Border
 import androidx.tv.material3.Button
@@ -91,6 +89,7 @@ import app.picnic.player.ui.browse.HeroSpecs
 import app.picnic.player.ui.browse.ShortDateFormat
 import app.picnic.player.ui.browse.minutesLeft
 import app.picnic.player.ui.browse.runtimeMinutes
+import app.picnic.player.ui.common.ArtworkImage
 import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.theme.PicnicColors
 import coil3.compose.AsyncImage
@@ -546,7 +545,6 @@ fun SeriesEpisodesScreen(
                 ) {
                     items(
                         count = episodes.itemCount,
-                        key = episodes.itemKey { it.id.toString() },
                         contentType = episodes.itemContentType { "episode" }
                     ) { index ->
                         val episode = episodes[index]
@@ -765,14 +763,21 @@ private fun EpisodeItem(
                 .then(if (enterFr != null) Modifier.focusRequester(enterFr) else Modifier)
         ) {
             Box(Modifier.fillMaxSize()) {
-                AsyncImage(
-                    model = imageUrl,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
+                Box(
+                    Modifier
                         .fillMaxSize()
-                        .background(Color.DarkGray)
+                        .background(PicnicColors.ArtworkPlaceholder)
                 )
+                if (imageUrl != null) {
+                    ArtworkImage(
+                        url = imageUrl,
+                        contentDescription = null,
+                        crossfade = true,
+                        holdLastImage = true,
+                        label = "episode='${episode.name}'",
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
                 val epProgress = ((episode.userData?.playedPercentage ?: 0.0) / 100.0).toFloat()
                 if (epProgress > 0.01f) {
                     Box(

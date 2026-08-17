@@ -52,14 +52,9 @@ import app.picnic.player.ui.ambient.rememberCardFocusGlow
 import app.picnic.player.ui.common.ArtworkImage
 import app.picnic.player.ui.common.ArtworkLogTag
 import app.picnic.player.ui.common.watchProgress
+import app.picnic.player.ui.theme.PicnicColors
 import org.jellyfin.sdk.model.api.BaseItemDto
 
-/**
- * Poster (or landscape) card with the shared Picnic focus chrome — border + glow accent
- * pulled from the artwork palette, scale 1.1 on focus. Sized exactly [BrowseCardStyle.width]
- * x [BrowseCardStyle.height]; the focus scale/glow overflow the bounds and must be given
- * breathing room by the caller (a slot box for rows, row spacing for the grid).
- */
 @Composable
 internal fun BrowsePosterCard(
     item: BaseItemDto,
@@ -74,11 +69,7 @@ internal fun BrowsePosterCard(
     leftFocus: FocusRequester? = null,
     overrideImageUrl: String? = null
 ) {
-    // Request artwork at the card's pixel width (server-resized) so the hardware bitmaps stay
-    // small — large posters blow GPU memory in a big grid and posters go blank.
     val widthPx = with(LocalDensity.current) { style.width.roundToPx() }
-    // Callers with their own image policy (search's episode stills) pass [overrideImageUrl];
-    // it also suppresses the logo overlay — an override caller labels the card itself.
     val thumbUrl = if (style.landscape && overrideImageUrl == null) {
         JellyfinImages.thumb(session, item, fillWidth = widthPx)
     } else {
@@ -88,9 +79,6 @@ internal fun BrowsePosterCard(
     val showOverlay = style.landscape && overrideImageUrl == null && thumbUrl == null
     val progress = item.watchProgress()
     val shape = RoundedCornerShape(12.dp)
-    // Extract the palette as the card composes so the accent is ready when focus lands — no white
-    // flash. The same artwork at accent size: a fraction of the displayed image's bytes, and a URL
-    // of its own so the two fetches can never contend over one cache entry.
     val accentUrl = overrideImageUrl ?: cardArtworkUrl(session, item, style.landscape, AccentSourceWidth)
     val accentBlurHash = if (overrideImageUrl == null) cardArtworkBlurHash(item, style.landscape) else null
     val focusAccent = rememberCardFocusAccent(accentUrl, accentBlurHash)
@@ -128,13 +116,8 @@ internal fun BrowsePosterCard(
         modifier = cardModifier
     ) {
         Box(Modifier.fillMaxSize()) {
-            // Placeholder is an UNDERLAY, always composed: visible while the image loads,
-            // through every retry, and permanently when there is no artwork. The loaded
-            // image is opaque and simply covers it — the card is never blank.
             PosterPlaceholder(item.name)
             if (imageUrl == null) {
-                // Diagnostic: a permanently blank card with artwork visible on the server
-                // means URL RESOLUTION failed, not loading — log what tags the item carried.
                 androidx.compose.runtime.LaunchedEffect(item.id) {
                     android.util.Log.w(
                         ArtworkLogTag,
@@ -220,15 +203,8 @@ internal fun BrowsePosterCard(
     }
 }
 
-/** Source width for the focus-accent fetch — enough pixels to pick a colour, nothing more. */
 private const val AccentSourceWidth = 48
 
-/**
- * A card's artwork at [fillWidth] px: landscape cards prefer a thumb, then a backdrop, then the
- * poster; portrait cards take the row poster. Card-sized throughout — the full-size backdrop is
- * the hero's, not a card's. Resolving per width lets the accent read the same picture the card
- * shows without re-fetching the displayed image.
- */
 private fun cardArtworkUrl(
     session: UserSession,
     item: BaseItemDto,
@@ -242,7 +218,6 @@ private fun cardArtworkUrl(
     JellyfinImages.rowPoster(session, item, fillWidth = fillWidth)
 }
 
-/** BlurHash for whatever [cardArtworkUrl] resolves to, in the same fallback order. */
 private fun cardArtworkBlurHash(item: BaseItemDto, landscape: Boolean): String? = if (landscape) {
     JellyfinImages.thumbBlurHash(item)
         ?: JellyfinImages.backdropBlurHash(item)
@@ -251,13 +226,12 @@ private fun cardArtworkBlurHash(item: BaseItemDto, landscape: Boolean): String? 
     JellyfinImages.rowPosterBlurHash(item)
 }
 
-/** Shown when an item has no artwork (or it fails to load) — icon + title, never a blank card. */
 @Composable
 private fun PosterPlaceholder(name: String?) {
     Box(
         Modifier
             .fillMaxSize()
-            .background(Color(0xFF232A31)),
+            .background(PicnicColors.ArtworkPlaceholder),
         contentAlignment = Alignment.Center
     ) {
         androidx.compose.foundation.layout.Column(
@@ -303,7 +277,6 @@ internal fun BoxScope.CardWatchedBadge() {
     }
 }
 
-/** "42m left" on an in-progress card — same chrome as the other corner badges. */
 @Composable
 internal fun BoxScope.CardTimeLeftBadge(minutes: Int) {
     Box(
@@ -342,10 +315,6 @@ internal fun BoxScope.CardCountBadge(count: Int) {
     }
 }
 
-/**
- * Row variant: wraps [BrowsePosterCard] in a slot box that reserves vertical room for the
- * focus scale + glow, so a focused card never clips against neighbouring rows.
- */
 @Composable
 internal fun BrowseMediaCard(
     item: BaseItemDto,
