@@ -37,9 +37,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -93,7 +91,6 @@ import app.picnic.player.ui.player.osd.serverTranscode
 import app.picnic.player.ui.theme.PicnicColors
 import coil3.compose.rememberAsyncImagePainter
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
 
 private val OsdHorizontalPadding = 56.dp
 
@@ -137,9 +134,11 @@ fun PlayerScreen(
     val scrubberFocus = remember { FocusRequester() }
     val skipFocus = remember { FocusRequester() }
     val osdSkipFocus = remember { FocusRequester() }
-    val subAdjustFocus = remember { FocusRequester() }
-
-    var subAdjustHeldDir by remember { mutableIntStateOf(0) }
+    val subtitleAdjust = rememberSubtitleDelayAdjust(
+        active = chrome.subtitleAdjust,
+        delayMs = state.subtitleDelayMs,
+        onDelayChange = viewModel::setSubtitleDelayMs
+    )
 
     val pipState = rememberPipController(
         player = viewModel.player,
@@ -228,23 +227,6 @@ fun PlayerScreen(
             chrome.endQuickSkip()
         }
     }
-    val latestSubDelay = rememberUpdatedState(state.subtitleDelayMs)
-    LaunchedEffect(subAdjustHeldDir) {
-        if (subAdjustHeldDir == 0) return@LaunchedEffect
-        var elapsed = 0L
-        while (isActive) {
-            val coarse = elapsed >= 600L
-            val stepMs = if (coarse) 1000L else 100L
-            val next = (latestSubDelay.value + subAdjustHeldDir * stepMs).coerceIn(-60_000L, 60_000L)
-            if (next != latestSubDelay.value) viewModel.setSubtitleDelayMs(next)
-            val wait = if (coarse) 90L else 140L
-            delay(wait)
-            elapsed += wait
-        }
-    }
-    LaunchedEffect(chrome.subtitleAdjust) {
-        if (chrome.subtitleAdjust) runCatching { subAdjustFocus.requestFocus() }
-    }
     LaunchedEffect(chrome.videoHasFocus, chrome.skipPillDismissed) {
         if (chrome.videoHasFocus) runCatching { rootFocus.requestFocus() }
     }
@@ -278,7 +260,7 @@ fun PlayerScreen(
     }
 
     BackHandler {
-        subAdjustHeldDir = 0
+        subtitleAdjust.release()
         when (chrome.onBack(segmentActive = state.currentSegment != null)) {
             BackOutcome.Handled -> Unit
             BackOutcome.ClosedOsd -> scrub.cancel()
@@ -661,26 +643,26 @@ fun PlayerScreen(
                 Modifier
                     .fillMaxSize()
                     .zIndex(3f)
-                    .focusRequester(subAdjustFocus)
+                    .focusRequester(subtitleAdjust.focusRequester)
                     .focusable()
                     .onKeyEvent { event ->
                         when {
                             event.type == KeyEventType.KeyUp &&
                                 (event.key == Key.DirectionLeft || event.key == Key.DirectionRight) -> {
-                                subAdjustHeldDir = 0
+                                subtitleAdjust.release()
                                 true
                             }
                             event.type != KeyEventType.KeyDown -> false
                             event.key == Key.DirectionLeft -> {
-                                subAdjustHeldDir = -1
+                                subtitleAdjust.holdEarlier()
                                 true
                             }
                             event.key == Key.DirectionRight -> {
-                                subAdjustHeldDir = 1
+                                subtitleAdjust.holdLater()
                                 true
                             }
                             event.key == Key.Back || event.key == Key.DirectionCenter || event.key == Key.Enter -> {
-                                subAdjustHeldDir = 0
+                                subtitleAdjust.release()
                                 chrome.exitSubtitleAdjust()
                                 true
                             }
