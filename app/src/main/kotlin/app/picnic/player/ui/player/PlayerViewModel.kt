@@ -96,7 +96,7 @@ import org.jellyfin.sdk.model.api.BaseItemKind
 
 private const val LAST_FRAME_MS = 200L
 
-private const val PLAY_METHOD_ATTEMPTS = 5
+private const val TRANSCODING_INFO_ATTEMPTS = 5
 private const val AUDIO_ROUTE_SETTLE_MS = 1_500L
 
 @OptIn(FlowPreview::class)
@@ -306,7 +306,6 @@ class PlayerViewModel @Inject constructor(
     }
 
     private var transcodingInfoJob: Job? = null
-    private var playMethodJob: Job? = null
 
     init {
         themeMusicPlayer.stop()
@@ -514,30 +513,6 @@ class PlayerViewModel @Inject constructor(
 
     fun toggleStatsForNerds() {
         _state.update { it.copy(showStatsForNerds = !it.showStatsForNerds) }
-        updateTranscodingInfoJob()
-    }
-
-    private fun updateTranscodingInfoJob() {
-        val pipelineTranscode = stream?.playMethod == PlayMethodKind.TRANSCODE
-        if (_state.value.showStatsForNerds && pipelineTranscode) {
-            if (transcodingInfoJob == null) {
-                transcodingInfoJob = viewingScope.launch {
-                    val session = authRepository.activeSession() ?: return@launch
-                    while (isActive) {
-                        refreshTranscodingInfoOnce(
-                            session,
-                            mediaSourceId = stream?.mediaSourceId,
-                            initialMethod = stream?.playMethod
-                                ?: PlayMethodKind.TRANSCODE
-                        )
-                        delay(2.seconds)
-                    }
-                }
-            }
-        } else {
-            transcodingInfoJob?.cancel()
-            transcodingInfoJob = null
-        }
     }
 
     private suspend fun refreshTranscodingInfoOnce(
@@ -555,12 +530,12 @@ class PlayerViewModel @Inject constructor(
         return true
     }
 
-    private fun settlePlayMethod(info: StreamInfo) {
+    private fun settleTranscodingInfo(info: StreamInfo) {
         if (info.playMethod != PlayMethodKind.TRANSCODE) return
-        playMethodJob?.cancel()
-        playMethodJob = viewingScope.launch {
+        transcodingInfoJob?.cancel()
+        transcodingInfoJob = viewingScope.launch {
             val activeSession = session ?: return@launch
-            repeat(PLAY_METHOD_ATTEMPTS) {
+            repeat(TRANSCODING_INFO_ATTEMPTS) {
                 if (refreshTranscodingInfoOnce(activeSession, info.mediaSourceId, PlayMethodKind.TRANSCODE)) {
                     return@launch
                 }
@@ -664,8 +639,7 @@ class PlayerViewModel @Inject constructor(
                 directPlayBlockedBy = info.directPlayBlockedBy
             )
         }
-        settlePlayMethod(info)
-        updateTranscodingInfoJob()
+        settleTranscodingInfo(info)
     }
 
     private suspend fun ensureTranscodePermission(session: UserSession) {
