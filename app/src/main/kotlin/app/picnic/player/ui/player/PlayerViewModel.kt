@@ -11,6 +11,8 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.analytics.AnalyticsListener
+import androidx.media3.exoplayer.source.LoadEventInfo
+import androidx.media3.exoplayer.source.MediaLoadData
 import androidx.media3.ui.SubtitleView
 import app.picnic.player.data.auth.AuthRepository
 import app.picnic.player.data.auth.UserSession
@@ -71,6 +73,7 @@ import app.picnic.player.playback.externalSubtitleCount
 import app.picnic.player.util.LanguageDisplay
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import java.io.IOException
 import java.util.UUID
 import javax.inject.Inject
 import kotlin.time.Duration.Companion.seconds
@@ -151,6 +154,8 @@ class PlayerViewModel @Inject constructor(
     private var mediaStreams: List<MediaStream> = emptyList()
     private var selectedAudioIndex: Int? = null
     private var selectedSubtitleIndex: Int? = null
+    private val exhaustedSubtitles = mutableSetOf<Int>()
+    private var attachedSubtitleIndex: Int? = null
     private val latchedBars = CueLatchedBars()
     private var loaded = false
 
@@ -291,6 +296,20 @@ class PlayerViewModel @Inject constructor(
             bitrateEstimate: Long
         ) {
             _state.update { it.copy(estimatedBitrate = bitrateEstimate) }
+        }
+
+        override fun onLoadError(
+            eventTime: AnalyticsListener.EventTime,
+            loadEventInfo: LoadEventInfo,
+            mediaLoadData: MediaLoadData,
+            error: IOException,
+            wasCanceled: Boolean
+        ) {
+            if (wasCanceled) return
+            val uri = loadEventInfo.uri.toString()
+            stream?.externalSubtitles.orEmpty()
+                .firstOrNull { uri.startsWith(it.url.substringBefore('?')) }
+                ?.let { exhaustedSubtitles += it.streamIndex }
         }
     }
 
@@ -467,6 +486,11 @@ class PlayerViewModel @Inject constructor(
             adopt(result.stream, subtitleDelayMs = 0, speed = 1.0f)
             itemDeferred.await()?.let { applyItemMetadata(activeSession, id, it) }
             initDefaultTrackIndices()
+            if (needsAttach(selectedSubtitleIndex)) {
+                reload(sessionController.qualityOverride.value, failureNotice = "Couldn't load subtitles")
+            } else {
+                applyTrackSelections()
+            }
             rebuildTrackOptions()
             _state.update { it.copy(subtitleDelayMs = 0, playbackSpeed = 1.0f, showStatsForNerds = false) }
             startTicker()
@@ -571,7 +595,20 @@ class PlayerViewModel @Inject constructor(
         selectedSubtitleIndex = streamIndex?.toIntOrNull()
         persistOsdTrackMemory(audio = false)
         val burnedIn = isBurnedIn(previous) || isBurnedIn(selectedSubtitleIndex)
-        if (isConverting() && burnedIn) renegotiate() else applyTrackSelections()
+        val retryExhausted = selectedSubtitleIndex?.let { exhaustedSubtitles.remove(it) } == true
+        when {
+            isConverting() && burnedIn -> renegotiate()
+            retryExhausted || needsAttach(selectedSubtitleIndex) ->
+                reload(sessionController.qualityOverride.value, failureNotice = "Couldn't load subtitles")
+            else -> applyTrackSelections()
+        }
+    }
+
+    private fun needsAttach(streamIndex: Int?): Boolean = isSideloaded(streamIndex) && streamIndex != attachedSubtitleIndex
+
+    private fun isSideloaded(streamIndex: Int?): Boolean {
+        val index = streamIndex ?: return false
+        return stream?.externalSubtitles.orEmpty().any { it.streamIndex == index }
     }
 
     private fun isBurnedIn(streamIndex: Int?): Boolean {
@@ -807,7 +844,10 @@ class PlayerViewModel @Inject constructor(
     }
 
     private fun mediaItemFor(info: StreamInfo): MediaItem {
-        val subtitles = info.externalSubtitles.map { subtitle ->
+        val wanted = selectedSubtitleIndex ?: info.defaultSubtitleStreamIndex
+        val attach = info.externalSubtitles.filter { it.streamIndex == wanted }
+        attachedSubtitleIndex = attach.firstOrNull()?.streamIndex
+        val subtitles = attach.map { subtitle ->
             MediaItem.SubtitleConfiguration.Builder(android.net.Uri.parse(subtitle.url))
                 .setId(SideloadedTrackId.of(subtitle.streamIndex))
                 .setMimeType(subtitle.mimeType)
