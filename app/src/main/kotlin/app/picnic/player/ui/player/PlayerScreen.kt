@@ -38,7 +38,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
@@ -129,9 +128,7 @@ fun PlayerScreen(
     DisposableEffect(Unit) { onDispose { view.keepScreenOn = false } }
 
     val chrome = remember { PlayerChrome() }
-    var pulseTick by remember { mutableIntStateOf(0) }
-    var pulsePlaying by remember { mutableStateOf(true) }
-    var pulseVisible by remember { mutableStateOf(false) }
+    val pulse = rememberPlayerPulse()
     val scrub = rememberPlayerScrub(viewModel.player)
     val rootFocus = remember { FocusRequester() }
     val audioFocus = remember { FocusRequester() }
@@ -179,15 +176,10 @@ fun PlayerScreen(
     LaunchedEffect(showNextUpOverlay) { chrome.onNextUpVisibleChanged(showNextUpOverlay) }
     LaunchedEffect(inPipMode) { chrome.onPipModeChanged(inPipMode) }
 
-    fun pulse(playing: Boolean) {
-        pulsePlaying = playing
-        pulseTick++
-    }
-
     fun togglePlay() {
         val willPlay = !state.isPlaying
         viewModel.playPause()
-        pulse(willPlay)
+        pulse.show(willPlay)
     }
 
     fun closePanel() {
@@ -228,13 +220,6 @@ fun PlayerScreen(
             delay(settings.osdHideSeconds.toLong().coerceAtLeast(2) * 1000)
             chrome.hideOsd()
             scrub.clearPreview()
-        }
-    }
-    LaunchedEffect(pulseTick) {
-        if (pulseTick > 0) {
-            pulseVisible = true
-            delay(750)
-            pulseVisible = false
         }
     }
     LaunchedEffect(chrome.quickSkipTick) {
@@ -730,7 +715,7 @@ fun PlayerScreen(
         )
 
         AnimatedVisibility(
-            visible = pulseVisible,
+            visible = pulse.visible,
             modifier = Modifier.align(Alignment.Center),
             enter = scaleIn(initialScale = 0.72f, animationSpec = tween(200)) +
                 fadeIn(animationSpec = tween(200)),
@@ -745,7 +730,7 @@ fun PlayerScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    if (pulsePlaying) Icons.Filled.PlayArrow else Icons.Filled.Pause,
+                    if (pulse.playing) Icons.Filled.PlayArrow else Icons.Filled.Pause,
                     contentDescription = null,
                     tint = Color.White,
                     modifier = Modifier.size(56.dp)
