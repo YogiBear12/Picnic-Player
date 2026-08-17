@@ -9,7 +9,6 @@ import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
-import androidx.media3.common.text.Cue
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.ui.SubtitleView
@@ -62,7 +61,6 @@ import app.picnic.player.playback.PlaybackEngineFactory
 import app.picnic.player.playback.PlaybackSessionController
 import app.picnic.player.playback.SideloadedTrackId
 import app.picnic.player.playback.SleepMode
-import app.picnic.player.playback.SleepTimerState
 import app.picnic.player.playback.StreamLoader
 import app.picnic.player.playback.StreamRequest
 import app.picnic.player.playback.StreamResult
@@ -70,8 +68,6 @@ import app.picnic.player.playback.StreamTarget
 import app.picnic.player.playback.ThemeMusicPlayer
 import app.picnic.player.playback.VideoDynamicRange
 import app.picnic.player.playback.externalSubtitleCount
-import app.picnic.player.ui.browse.ShortDateFormat
-import app.picnic.player.ui.browse.TICKS_PER_MINUTE
 import app.picnic.player.util.LanguageDisplay
 import coil3.imageLoader
 import coil3.request.ImageRequest
@@ -108,94 +104,11 @@ import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
 import org.jellyfin.sdk.model.api.MediaStream
 import org.jellyfin.sdk.model.api.MediaStreamType
-import org.jellyfin.sdk.model.api.TranscodingInfo
 
 private const val LAST_FRAME_MS = 200L
 
 private const val PLAY_METHOD_ATTEMPTS = 5
 private const val AUDIO_ROUTE_SETTLE_MS = 1_500L
-
-sealed interface PlayerNavEvent {
-    data object Exit : PlayerNavEvent
-
-    data class PlayNext(val itemId: String) : PlayerNavEvent
-}
-
-data class TrackOption(
-    val id: String,
-    val label: String?,
-    val language: String?,
-    val displayLanguage: String,
-    val selected: Boolean
-)
-
-data class TrickplayPreview(
-    val frame: TrickplayFrame,
-    val fraction: Float
-)
-
-data class ChapterMark(
-    val index: Int,
-    val title: String,
-    val startMs: Long,
-    val imageUrl: String?
-)
-
-data class NextUpItem(
-    val id: String,
-    val title: String,
-    val seasonEpisode: String,
-    val meta: String,
-    val overview: String,
-    val backdropUrl: String?,
-    val thumbUrl: String?
-)
-
-data class PlayerUiState(
-    val isPlaying: Boolean = false,
-    val positionMs: Long = 0,
-    val durationMs: Long = 0,
-    val bufferedMs: Long = 0,
-    val buffering: Boolean = true,
-    val error: String? = null,
-    val isLoading: Boolean = true,
-    val backdropUrl: String? = null,
-    val title: String = "",
-    val subtitle: String = "",
-    val audioTracks: List<TrackOption> = emptyList(),
-    val subtitleTracks: List<TrackOption> = emptyList(),
-    val selectedAudioId: String? = null,
-    val selectedSubtitleId: String? = null,
-    val subtitleCues: List<Cue> = emptyList(),
-    val currentSegment: MediaSegment? = null,
-    val nextUp: NextUpItem? = null,
-    val endedAwaitingNext: Boolean = false,
-    val videoStillPlaying: Boolean = false,
-    val chapters: List<ChapterMark> = emptyList(),
-    val subtitleDelayMs: Long = 0,
-    val playbackSpeed: Float = 1.0f,
-    val audioBoost: AudioBoost = AudioBoost.OFF,
-    val nightMode: NightMode = NightMode.OFF,
-    val sleep: SleepTimerState = SleepTimerState(),
-    val showStatsForNerds: Boolean = false,
-    val playMethod: PlayMethodKind? = null,
-    val mediaSourceId: String? = null,
-    val mediaSource: org.jellyfin.sdk.model.api.MediaSourceInfo? = null,
-    val transcodingInfo: TranscodingInfo? = null,
-    val videoDecoderName: String? = null,
-    val audioDecoderName: String? = null,
-    val estimatedBitrate: Long? = null,
-    val notice: String? = null,
-    val qualityOptions: List<QualityOption> = emptyList(),
-    val streamRung: QualityRung? = null,
-    val tracks: List<app.picnic.player.ui.player.osd.TrackSupport> = emptyList()
-) {
-    val activeQuality: QualityOption? get() = when {
-        playMethod != PlayMethodKind.TRANSCODE -> QualityOption.Original
-        streamRung != null -> QualityOption.Transcode(streamRung)
-        else -> null
-    }
-}
 
 @OptIn(FlowPreview::class)
 @HiltViewModel
@@ -319,8 +232,6 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
-    // media3 raises nothing for a container it took no tracks from — it reaches READY and the position
-    // advances over a black screen — so the empty track list is the only signal there is.
     private fun recoverIfNothingToPlay() {
         if (player.currentTracks.groups.isNotEmpty()) return
         PlaybackDiagnostics.log("prepared with no playable tracks; remuxAlreadyTried=${!directPlayVeto.allowsDirectPlay}")
@@ -1143,31 +1054,4 @@ class PlayerViewModel @Inject constructor(
     }
 
     override fun onCleared() = endPlayback()
-}
-
-private fun buildNextUpItem(session: UserSession, item: BaseItemDto): NextUpItem {
-    val seasonNum = item.parentIndexNumber
-    val epNum = item.indexNumber
-    val seasonEpisode = if (seasonNum != null && epNum != null) "S$seasonNum E$epNum" else ""
-
-    val metaParts = mutableListOf<String>()
-    item.premiereDate?.let { date ->
-        runCatching { metaParts += date.format(ShortDateFormat) }
-    }
-    item.runTimeTicks?.takeIf { it > 0L }?.let { ticks ->
-        metaParts += "${(ticks / TICKS_PER_MINUTE).coerceAtLeast(1)}m"
-    }
-    item.communityRating?.let { rating ->
-        metaParts += "${"%.1f".format(rating)} ★"
-    }
-
-    return NextUpItem(
-        id = item.id.toString(),
-        title = item.name.orEmpty(),
-        seasonEpisode = seasonEpisode,
-        meta = metaParts.joinToString(" • "),
-        overview = item.overview.orEmpty(),
-        backdropUrl = JellyfinImages.backdrop(session, item),
-        thumbUrl = JellyfinImages.thumb(session, item)
-    )
 }
