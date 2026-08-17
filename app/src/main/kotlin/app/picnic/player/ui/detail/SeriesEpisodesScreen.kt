@@ -2,6 +2,7 @@
 
 package app.picnic.player.ui.detail
 
+import android.os.SystemClock
 import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
@@ -79,7 +80,6 @@ import app.picnic.player.di.IoDispatcher
 import app.picnic.player.playback.LocalThemeMusicPlayer
 import app.picnic.player.ui.ambient.BackdropSpec
 import app.picnic.player.ui.ambient.CardFocusBorderWidth
-import app.picnic.player.ui.ambient.LocalAmbientBackgrounds
 import app.picnic.player.ui.ambient.PublishBackdrop
 import app.picnic.player.ui.ambient.rememberCardFocusGlow
 import app.picnic.player.ui.browse.CardTimeLeftBadge
@@ -98,9 +98,11 @@ import java.util.UUID
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
@@ -113,6 +115,26 @@ import org.jellyfin.sdk.api.client.extensions.tvShowsApi
 import org.jellyfin.sdk.model.api.BaseItemDto
 
 private const val TAG = "SeriesEpisodes"
+private const val SeasonSettleMs = 200L
+
+private fun <T> Flow<T>.collapseBursts(windowMs: Long): Flow<T> = channelFlow {
+    var lastValueAt = 0L
+    var trailing: Job? = null
+    collect { value ->
+        trailing?.cancel()
+        val now = SystemClock.uptimeMillis()
+        val quiet = now - lastValueAt >= windowMs
+        lastValueAt = now
+        if (quiet) {
+            send(value)
+        } else {
+            trailing = launch {
+                delay(windowMs)
+                send(value)
+            }
+        }
+    }
+}
 
 @HiltViewModel
 class SeriesEpisodesViewModel @Inject constructor(
@@ -131,18 +153,17 @@ class SeriesEpisodesViewModel @Inject constructor(
     var seasonsError by mutableStateOf<Throwable?>(null)
         private set
 
-    // The series/season currently on screen — so the change bus can reload the right episodes
-    // when an episode's watched/progress state changes (here, in the player, or elsewhere).
     private var currentSeriesId: String? = null
 
     private val _selectedSeasonId = MutableStateFlow<String?>(null)
     private val _refreshTrigger = MutableStateFlow(0)
+    private val _visibleSeasonIndices = MutableStateFlow<List<Int>>(emptyList())
 
     private val episodeMutations = MutableStateFlow<Map<String, (BaseItemDto) -> BaseItemDto>>(emptyMap())
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val episodes: Flow<PagingData<BaseItemDto>> = combine(
-        _selectedSeasonId.filterNotNull().distinctUntilChanged(),
+        _selectedSeasonId.filterNotNull().distinctUntilChanged().collapseBursts(SeasonSettleMs),
         _refreshTrigger
     ) { seasonId, _ -> seasonId }
         .flatMapLatest { seasonId ->
@@ -187,11 +208,14 @@ class SeriesEpisodesViewModel @Inject constructor(
             session = authRepository.activeSession()
         }
         viewModelScope.launch {
+            _visibleSeasonIndices
+                .collapseBursts(SeasonSettleMs)
+                .collect { indices -> runCatching { fetchSeasonCounts(indices) } }
+        }
+        viewModelScope.launch {
             changeBus.events.collect { change ->
                 if (change !is LibraryChange.ItemUpdated) return@collect
                 val seriesId = currentSeriesId ?: return@collect
-                // With Paging, we can't easily check if episodes contains the item synchronously,
-                // so we just refresh if it might be this series.
                 val affectsThisSeries = change.seriesId == seriesId || change.itemId == seriesId
                 if (affectsThisSeries) {
                     _refreshTrigger.value++
@@ -201,14 +225,9 @@ class SeriesEpisodesViewModel @Inject constructor(
         }
     }
 
-    // Loads seasons + series metadata only. Episode loading is driven by the selected
-    // season from the screen so it survives composition disposal (e.g. returning from player).
     fun loadSeasons(seriesId: String) {
         val currentSession = session ?: return
         currentSeriesId = seriesId
-        // The series metadata (for the poster) and the season list are independent calls. Run them
-        // in separate coroutines so the season list isn't blocked behind the series-item fetch —
-        // otherwise the left panel stays blank until both complete.
         viewModelScope.launch {
             runCatching { mediaRepository.item(currentSession, UUID.fromString(seriesId)) }
                 .onSuccess { seriesItem = it }
@@ -217,12 +236,8 @@ class SeriesEpisodesViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 seasonsError = null
-                // On IO: the SDK reads the response body on the calling dispatcher, and
-                // viewModelScope is Main — a blocking socket read there throws
-                // NetworkOnMainThreadException (blank season panel) and janks release builds.
                 val fastResponse = withContext(ioDispatcher) {
                     val api = jellyfin.api(currentSession.server.baseUrl, currentSession.accessToken)
-                    // Fast path: load seasons instantly without expensive CHILD_COUNT
                     api.tvShowsApi.getSeasons(
                         seriesId = UUID.fromString(seriesId),
                         userId = UUID.fromString(currentSession.userId),
@@ -231,7 +246,6 @@ class SeriesEpisodesViewModel @Inject constructor(
                 }
                 val fetchedSeasons = fastResponse.content.items ?: emptyList()
 
-                // Preserve any counts we already have in case this is a reload (e.g. from changeBus)
                 val existingCounts = seasons.associate { it.id.toString() to it.childCount }
                 val mergedSeasons = fetchedSeasons.map { s ->
                     val existing = existingCounts[s.id.toString()]
@@ -240,7 +254,6 @@ class SeriesEpisodesViewModel @Inject constructor(
 
                 seasons = mergedSeasons.sortedWith(compareBy({ it.indexNumber == 0 }, { it.indexNumber }))
             } catch (e: Exception) {
-                // A swallowed failure here renders as a silently blank season panel.
                 Log.e(TAG, "Season list load failed (series=$seriesId)", e)
                 seasonsError = e
             }
@@ -248,6 +261,10 @@ class SeriesEpisodesViewModel @Inject constructor(
     }
 
     fun prefetchSeasonCounts(visibleIndices: List<Int>) {
+        _visibleSeasonIndices.value = visibleIndices
+    }
+
+    private suspend fun fetchSeasonCounts(visibleIndices: List<Int>) {
         val currentSession = session ?: return
         val currentSeasons = seasons
         if (currentSeasons.isEmpty()) return
@@ -264,23 +281,16 @@ class SeriesEpisodesViewModel @Inject constructor(
         val distinctMissingIds = missingIds.distinct()
         if (distinctMissingIds.isEmpty()) return
 
-        viewModelScope.launch {
-            try {
-                val fetchedCounts = mediaRepository.seasonCounts(currentSession, distinctMissingIds)
-                if (fetchedCounts.isNotEmpty()) {
-                    seasons = seasons.map { s ->
-                        val count = fetchedCounts[s.id]
-                        if (count != null && count > 0) s.copy(childCount = count) else s
-                    }
-                }
-            } catch (e: Exception) {
+        val fetchedCounts = mediaRepository.seasonCounts(currentSession, distinctMissingIds)
+        if (fetchedCounts.isNotEmpty()) {
+            seasons = seasons.map { s ->
+                val count = fetchedCounts[s.id]
+                if (count != null && count > 0) s.copy(childCount = count) else s
             }
         }
     }
 
     fun loadEpisodes(seriesId: String, seasonId: String) {
-        // Must not record the season before a session exists: the pager reads [session] at
-        // collect time and distinctUntilChanged would suppress the retry that arrives with it.
         if (session == null) return
         currentSeriesId = seriesId
         _selectedSeasonId.value = seasonId
@@ -328,8 +338,6 @@ class SeriesEpisodesViewModel @Inject constructor(
             runCatching {
                 mediaRepository.setWatched(currentSession, UUID.fromString(seasonId), played, series)
             }
-            // Season markPlayed cascades to episodes on the server; clear optimistic episode
-            // patches and reload so badges match the new season play state.
             episodeMutations.value = emptyMap()
             _refreshTrigger.value++
             currentSeriesId?.let { loadSeasons(it) }
@@ -362,8 +370,6 @@ fun SeriesEpisodesScreen(
     ambUrl: String?,
     onPlay: (String, Long?) -> Unit,
     onBack: () -> Unit,
-    // When arriving from an episode card (e.g. Next Up), open on that episode's season
-    // and put focus on the episode itself instead of the default first-unwatched.
     initialSeasonId: String? = null,
     initialFocusEpisodeId: String? = null,
     onGoToSeries: ((String) -> Unit)? = null,
@@ -373,9 +379,6 @@ fun SeriesEpisodesScreen(
         if (viewModel.session != null) viewModel.loadSeasons(seriesId)
     }
 
-    // The series owns the theme here. Arriving from the series' detail screen finds the
-    // owner already attached, so the track keeps playing instead of restarting; before the
-    // early session return so the acquire/release pair runs exactly once per composition.
     val themeMusic = LocalThemeMusicPlayer.current
     DisposableEffect(seriesId) {
         val ownerId = runCatching { UUID.fromString(seriesId) }.getOrNull()
@@ -388,12 +391,7 @@ fun SeriesEpisodesScreen(
     val paletteUrl = ambUrl
         ?: viewModel.seriesItem?.let { JellyfinImages.primary(session, it, fillWidth = 240) }
     PublishBackdrop(BackdropSpec(backdropUrl = null, ambientUrl = paletteUrl))
-    // Saveable so the chosen season survives composition disposal when navigating to the player.
-    // Seeded from the launching episode's season so its listing opens on the right season.
     var selectedSeasonId by rememberSaveable { mutableStateOf(initialSeasonId) }
-    // The episode that launched playback — focus is restored to it when the screen returns.
-    // Seeded from the launching episode so it starts focused on first load (reuses the same
-    // return-from-player focus path below).
     var pendingFocusEpisodeId by rememberSaveable { mutableStateOf(initialFocusEpisodeId) }
 
     LaunchedEffect(viewModel.seasons) {
@@ -402,15 +400,10 @@ fun SeriesEpisodesScreen(
         }
     }
 
-    // Drive episode loading from the selected season (not from loadSeasons), so returning from
-    // the player reloads the season the user was actually on rather than resetting to season 1.
     LaunchedEffect(selectedSeasonId, viewModel.session) {
         val sid = selectedSeasonId ?: return@LaunchedEffect
         viewModel.loadEpisodes(seriesId, sid)
     }
-
-    // OFF → static ocean wash; skip colour extraction entirely.
-    val ambientOn = LocalAmbientBackgrounds.current
 
     val selectedSeasonIndex = viewModel.seasons.indexOfFirst { it.id.toString() == selectedSeasonId }.coerceAtLeast(0)
     val selectedSeason = viewModel.seasons.getOrNull(selectedSeasonIndex)
@@ -427,8 +420,6 @@ fun SeriesEpisodesScreen(
 
     var contextMenuEpisode by remember { mutableStateOf<BaseItemDto?>(null) }
     var contextMenuSeason by remember { mutableStateOf<BaseItemDto?>(null) }
-    // Tracks the season we last auto-scrolled, so refreshing the same season's episodes
-    // (e.g. after marking watched) doesn't yank the list back to the first unwatched item.
     var lastScrolledSeasonId by rememberSaveable { mutableStateOf<String?>(null) }
 
     val initialLoadComplete = rememberInitialLoadComplete(
@@ -440,8 +431,6 @@ fun SeriesEpisodesScreen(
 
     var initialFocusRequested by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(Unit) {
-        // The season is part of the key: two seasons of equal length leave itemCount unchanged, so
-        // keying on the count alone silently skips the switch and the list keeps the old position.
         snapshotFlow { Triple(initialLoadComplete.value, selectedSeasonId, episodes.itemCount) }
             .collect { (complete, _, count) ->
                 if (!complete || count == 0) return@collect
@@ -456,7 +445,6 @@ fun SeriesEpisodesScreen(
                     return@collect
                 }
                 if (selectedSeasonId != lastScrolledSeasonId) {
-                    // Only the first landing resumes; a later season switch is deliberate, so it starts at the top.
                     val target = if (initialFocusRequested) {
                         0
                     } else {
@@ -475,9 +463,6 @@ fun SeriesEpisodesScreen(
             }
     }
 
-    // Back from episodes → focus selected season; Back from seasons → nav pop (default).
-    // With no seasons to land on (empty/failed season load) fall through to leaving the
-    // screen — otherwise Back is consumed as a no-op and focus is trapped in the episode list.
     BackHandler(enabled = episodeFocus.hasFocus) {
         if (selectedSeasonFr != null && viewModel.seasons.isNotEmpty()) {
             selectedSeasonFr.requestFocus()
@@ -487,8 +472,6 @@ fun SeriesEpisodesScreen(
     }
 
     Box(Modifier.fillMaxSize()) {
-        // Kept composed while loading (alpha 0) so the season/episode focus + centering effects
-        // position everything before it's revealed — no visible scroll jump on reveal.
         Row(Modifier.fillMaxSize().graphicsLayer { alpha = if (initialLoadComplete.value) 1f else 0f }) {
             Column(
                 modifier = Modifier
@@ -509,7 +492,6 @@ fun SeriesEpisodesScreen(
                     onRightPressed = { episodeFocus.rightConsumed(episodes.itemCount) },
                     onSelect = { id ->
                         selectedSeasonId = id
-                        viewModel.loadEpisodes(seriesId, id)
                     },
                     onRetry = { viewModel.loadSeasons(seriesId) },
                     onLongPress = { contextMenuSeason = it }
@@ -517,7 +499,6 @@ fun SeriesEpisodesScreen(
             }
 
             Box(Modifier.fillMaxSize()) {
-                // A failed page load must surface, not render a silently blank pane.
                 val refreshError = episodes.loadState.refresh as? LoadState.Error
                 if (refreshError != null) {
                     Column(
@@ -620,10 +601,6 @@ fun SeriesEpisodesScreen(
     }
 }
 
-// Reveal the whole page at once: hold a spinner over the ambient background until BOTH the
-// season list and the initial episode list have arrived, so the season panel never appears
-// blank next to a populated episode list. We only fetch the selected season's episodes (not
-// every season's), so the wait is just the slower of two concurrent calls.
 @Composable
 private fun rememberInitialLoadComplete(
     seasons: List<BaseItemDto>,
@@ -640,12 +617,10 @@ private fun rememberInitialLoadComplete(
             }
         }
     }
-    // Failsafe: a season with no episodes (or a slow/failed call) must never hang the spinner.
     LaunchedEffect(Unit) {
         delay(5000)
         complete.value = true
     }
-    // A load error drops the spinner immediately so the error state underneath is visible.
     LaunchedEffect(Unit) {
         snapshotFlow { episodes.loadState.refresh }.collect {
             if (it is LoadState.Error) complete.value = true
