@@ -13,7 +13,6 @@ import androidx.media3.common.Player
 
 @Stable
 class PlayerScrub {
-
     var active by mutableStateOf(false)
         private set
 
@@ -48,7 +47,7 @@ class PlayerScrub {
 
     internal fun syncPlayback(player: Player) {
         if (active) {
-            resumeWhenDone = player.isPlaying
+            resumeWhenDone = player.playWhenReady
             player.pause()
         } else if (resumeWhenDone) {
             player.play()
