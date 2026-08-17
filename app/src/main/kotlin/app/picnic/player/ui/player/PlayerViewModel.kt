@@ -31,6 +31,7 @@ import app.picnic.player.data.playback.SegmentKind
 import app.picnic.player.data.playback.StreamInfo
 import app.picnic.player.data.playback.TrackMemoryKind
 import app.picnic.player.data.playback.Trickplay
+import app.picnic.player.data.playback.TrickplayCache
 import app.picnic.player.data.playback.TrickplayFrame
 import app.picnic.player.data.playback.msToTicks
 import app.picnic.player.data.playback.pickTracksWithMemory
@@ -42,7 +43,6 @@ import app.picnic.player.data.playback.quality.qualityOptions
 import app.picnic.player.data.playback.refinePlayMethod
 import app.picnic.player.data.playback.resolveLanguageCode
 import app.picnic.player.data.playback.ticksToMs
-import app.picnic.player.data.playback.trickplaySheetCacheKey
 import app.picnic.player.data.settings.PlaybackSettings
 import app.picnic.player.data.settings.SeriesTrackMemoryStore
 import app.picnic.player.data.settings.SettingsStore
@@ -69,9 +69,6 @@ import app.picnic.player.playback.ThemeMusicPlayer
 import app.picnic.player.playback.VideoDynamicRange
 import app.picnic.player.playback.externalSubtitleCount
 import app.picnic.player.util.LanguageDisplay
-import coil3.imageLoader
-import coil3.request.ImageRequest
-import coil3.size.Size
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.UUID
@@ -154,16 +151,16 @@ class PlayerViewModel @Inject constructor(
     private var mediaStreams: List<MediaStream> = emptyList()
     private var selectedAudioIndex: Int? = null
     private var selectedSubtitleIndex: Int? = null
-    private val trickplay = MutableStateFlow<Trickplay?>(null)
     private val latchedBars = CueLatchedBars()
     private var loaded = false
 
     private val viewingJob = SupervisorJob(viewModelScope.coroutineContext[Job])
     private val viewingScope = CoroutineScope(viewModelScope.coroutineContext + viewingJob)
 
+    private val trickplayCache = TrickplayCache(appContext, appScope, viewingScope)
+
     private var ticker: Job? = null
     private var progressJob: Job? = null
-    private var trickplayPrefetchJob: Job? = null
     private var reloadJob: Job? = null
 
     private val streamTarget = object : StreamTarget {
@@ -304,13 +301,13 @@ class PlayerViewModel @Inject constructor(
         themeMusicPlayer.stop()
         viewModelScope.launch {
             combine(
-                trickplay,
+                trickplayCache.current,
                 settings.map { it.subtitleAppearance.area }.distinctUntilChanged(),
                 ::Pair
             ).collectLatest { (trickplay, area) ->
                 val sheets = trickplay?.sheets().orEmpty()
                 val track = if (area == SubtitleArea.AUTOMATIC && sheets.isNotEmpty()) {
-                    trickplayPrefetchJob?.join()
+                    trickplayCache.awaitPrefetch()
                     blackBarProbe.detect(sheets)
                 } else {
                     BlackBarTrack.None
@@ -561,7 +558,7 @@ class PlayerViewModel @Inject constructor(
         endPlayback()
     }
 
-    fun trickplayFor(positionMs: Long): TrickplayFrame? = trickplay.value?.frameFor(positionMs)
+    fun trickplayFor(positionMs: Long): TrickplayFrame? = trickplayCache.frameFor(positionMs)
 
     fun selectAudio(streamIndex: String) {
         selectedAudioIndex = streamIndex.toIntOrNull() ?: return
@@ -762,9 +759,7 @@ class PlayerViewModel @Inject constructor(
                 playbackRepository.trickplayTileUrl(activeSession, id, sheetWidth, tileIndex)
             }
         }
-        evictTrickplaySheets(trickplay.value)
-        prefetchTrickplayTiles(sheets?.tileUrls().orEmpty())
-        trickplay.value = sheets
+        trickplayCache.replaceWith(sheets)
         val chapterMarks = item.chapters?.mapIndexed { index, ch ->
             ChapterMark(
                 index = index,
@@ -888,34 +883,6 @@ class PlayerViewModel @Inject constructor(
         )
     }
 
-    private fun evictTrickplaySheets(sheets: Trickplay?) {
-        val urls = sheets?.tileUrls().orEmpty()
-        if (urls.isEmpty()) return
-        val diskCache = appContext.imageLoader.diskCache ?: return
-        appScope.launch {
-            urls.forEach { url -> runCatching { diskCache.remove(trickplaySheetCacheKey(url)) } }
-        }
-    }
-
-    private fun prefetchTrickplayTiles(urls: List<String>) {
-        trickplayPrefetchJob?.cancel()
-        trickplayPrefetchJob = null
-        if (urls.isEmpty()) return
-        trickplayPrefetchJob = viewingScope.launch {
-            val loader = appContext.imageLoader
-            for (url in urls) {
-                if (!isActive) return@launch
-                loader.execute(
-                    ImageRequest.Builder(appContext)
-                        .data(url)
-                        .diskCacheKey(trickplaySheetCacheKey(url))
-                        .size(Size.ORIGINAL)
-                        .build()
-                )
-            }
-        }
-    }
-
     private fun startTicker() {
         ticker?.cancel()
         ticker = viewingScope.launch {
@@ -1036,8 +1003,7 @@ class PlayerViewModel @Inject constructor(
         tornDown = true
         sessionController.playerTornDown()
         viewingJob.cancelChildren()
-        evictTrickplaySheets(trickplay.value)
-        trickplay.value = null
+        trickplayCache.clear()
         val s = session
         val info = stream
         val id = itemId
