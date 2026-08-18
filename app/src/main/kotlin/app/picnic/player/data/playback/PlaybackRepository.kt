@@ -46,7 +46,7 @@ import org.jellyfin.sdk.model.api.RepeatMode
 import org.jellyfin.sdk.model.api.SubtitleDeliveryMethod
 import org.jellyfin.sdk.model.api.TranscodingInfo
 
-enum class SegmentKind { INTRO, OUTRO, RECAP, PREVIEW, COMMERCIAL, UNKNOWN }
+enum class SegmentKind { INTRO, OUTRO, RECAP, PREVIEW, COMMERCIAL }
 
 data class MediaSegment(
     val id: String,
@@ -290,24 +290,23 @@ class PlaybackRepository @Inject constructor(
         runCatching {
             val response = api(session).mediaSegmentsApi.getItemSegments(itemId).content
             response.items.mapNotNull { dto ->
-                val kind = when (dto.type) {
-                    MediaSegmentType.INTRO -> SegmentKind.INTRO
-                    MediaSegmentType.OUTRO -> SegmentKind.OUTRO
-                    MediaSegmentType.RECAP -> SegmentKind.RECAP
-                    MediaSegmentType.PREVIEW -> SegmentKind.PREVIEW
-                    MediaSegmentType.COMMERCIAL -> SegmentKind.COMMERCIAL
-                    MediaSegmentType.UNKNOWN -> SegmentKind.UNKNOWN
-                    null -> return@mapNotNull null
-                }
-                if (kind == SegmentKind.UNKNOWN) return@mapNotNull null
                 MediaSegment(
-                    id = dto.id?.toString() ?: return@mapNotNull null,
-                    kind = kind,
-                    startMs = (dto.startTicks ?: 0L) / 10_000L,
-                    endMs = (dto.endTicks ?: 0L) / 10_000L
+                    id = dto.id.toString(),
+                    kind = dto.type.toSegmentKind() ?: return@mapNotNull null,
+                    startMs = dto.startTicks.ticksToMs(),
+                    endMs = dto.endTicks.ticksToMs()
                 )
             }
         }.getOrDefault(emptyList())
+    }
+
+    private fun MediaSegmentType.toSegmentKind(): SegmentKind? = when (this) {
+        MediaSegmentType.INTRO -> SegmentKind.INTRO
+        MediaSegmentType.OUTRO -> SegmentKind.OUTRO
+        MediaSegmentType.RECAP -> SegmentKind.RECAP
+        MediaSegmentType.PREVIEW -> SegmentKind.PREVIEW
+        MediaSegmentType.COMMERCIAL -> SegmentKind.COMMERCIAL
+        MediaSegmentType.UNKNOWN -> null
     }
 
     fun trickplayTileUrl(session: UserSession, itemId: UUID, width: Int, tileIndex: Int): String {

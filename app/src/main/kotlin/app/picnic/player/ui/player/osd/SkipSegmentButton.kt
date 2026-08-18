@@ -24,7 +24,6 @@ fun SkipSegmentButton(
         SegmentKind.OUTRO -> "Skip Outro"
         SegmentKind.PREVIEW -> "Skip Preview"
         SegmentKind.COMMERCIAL -> "Skip Ad"
-        SegmentKind.UNKNOWN -> "Skip"
     }
 
     Surface(
