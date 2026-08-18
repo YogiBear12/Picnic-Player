@@ -170,7 +170,7 @@ class PlayerViewModel @Inject constructor(
     private var reloadJob: Job? = null
 
     private val streamTarget = object : StreamTarget {
-        override val positionMs: Long get() = player.currentPosition
+        override val positionMs: Long get() = resumeAwarePositionMs()
 
         override fun stop() = player.stop()
 
