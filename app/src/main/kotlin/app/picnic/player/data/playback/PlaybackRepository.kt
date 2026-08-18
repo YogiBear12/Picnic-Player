@@ -9,10 +9,12 @@ import app.picnic.player.data.jellyfin.JellyfinFactory
 import app.picnic.player.data.media.LibraryChange
 import app.picnic.player.data.media.LibraryChangeBus
 import app.picnic.player.data.playback.profile.DynamicProfileBuilder
+import app.picnic.player.data.playback.quality.ConversionPlan
+import app.picnic.player.data.playback.quality.NegotiatedSource
 import app.picnic.player.data.playback.quality.QualityOption
 import app.picnic.player.data.playback.quality.QualityRung
 import app.picnic.player.data.playback.quality.SourceQuality
-import app.picnic.player.data.playback.quality.clampToCeiling
+import app.picnic.player.data.playback.quality.conversionPlan
 import app.picnic.player.data.settings.PlaybackSettings
 import app.picnic.player.data.settings.SettingsStore
 import app.picnic.player.di.IoDispatcher
@@ -88,11 +90,15 @@ class PlaybackRepository @Inject constructor(
         val ceiling = QualityRung.conversionCeiling(settings.allowFourKTranscoding)
         val first = negotiate(negotiation, settings, rung, pass = 1)
         val blockedBy = transcodeReasons(first.source)
-        val clamped = clampedRung(first.source, rung, ceiling)
-            ?: return@onIo buildStreamInfo(session, negotiation.itemId, first.source, first.playSessionId, rung, blockedBy)
-        stopEncoding(session, first.playSessionId)
-        val second = negotiate(negotiation, settings, clamped, pass = 2)
-        buildStreamInfo(session, negotiation.itemId, second.source, second.playSessionId, clamped, blockedBy)
+        when (val plan = conversionPlan(first.source.negotiated(), rung, ceiling)) {
+            ConversionPlan.AsNegotiated ->
+                buildStreamInfo(session, negotiation.itemId, first.source, first.playSessionId, rung, blockedBy)
+            is ConversionPlan.Renegotiate -> {
+                stopEncoding(session, first.playSessionId)
+                val second = negotiate(negotiation, settings, plan.rung, pass = 2)
+                buildStreamInfo(session, negotiation.itemId, second.source, second.playSessionId, plan.rung, blockedBy)
+            }
+        }
     }
 
     private class Negotiated(val source: MediaSourceInfo, val playSessionId: String?)
@@ -126,11 +132,11 @@ class PlaybackRepository @Inject constructor(
         return Negotiated(source, response.playSessionId)
     }
 
-    private fun clampedRung(source: MediaSourceInfo, requested: QualityRung?, ceiling: QualityRung): QualityRung? {
-        if (source.supportsDirectPlay == true || source.transcodingUrl == null) return null
-        val quality = SourceQuality.of(source.bitrate, source.mediaStreams.orEmpty())
-        return clampToCeiling(quality, requested, ceiling)
-    }
+    private fun MediaSourceInfo.negotiated(): NegotiatedSource = NegotiatedSource(
+        supportsDirectPlay = supportsDirectPlay,
+        transcodingUrl = transcodingUrl,
+        quality = SourceQuality.of(bitrate, mediaStreams.orEmpty())
+    )
 
     private fun transcodeReasons(source: MediaSourceInfo): List<String> {
         val url = source.transcodingUrl ?: return emptyList()

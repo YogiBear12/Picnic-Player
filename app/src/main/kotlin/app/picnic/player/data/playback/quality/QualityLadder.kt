@@ -76,8 +76,6 @@ data class SourceQuality(
     }
 
     companion object {
-        // Servers up to 10.11 report the container total as the video stream's bitrate when the
-        // probe omits a per-stream value, so a value equal to the total is derived from instead.
         fun of(totalBitrate: Int?, streams: List<MediaStream>): SourceQuality {
             val total = totalBitrate?.takeIf { it > 0 }
             val video = streams.firstOrNull { it.type == MediaStreamType.VIDEO }
@@ -95,7 +93,6 @@ data class SourceQuality(
     }
 }
 
-// h264 output needs ~1.5x the bitrate of an HEVC/AV1/VP9 source for the same picture.
 private const val EFFICIENT_CODEC_FACTOR = 1.5
 
 private val EFFICIENT_CODECS = setOf("hevc", "h265", "av1", "vp9")
@@ -113,8 +110,8 @@ fun automaticRung(source: SourceQuality, ceiling: QualityRung): QualityRung = Qu
     ?: QualityRung.entries.last()
 
 fun clampToCeiling(source: SourceQuality, requested: QualityRung?, ceiling: QualityRung): QualityRung? {
-    val outputFrame = requested ?: source.frame ?: return null
-    if (outputFrame.fitsWithin(ceiling)) return null
+    if (requested == null) return automaticRung(source, ceiling)
+    if (requested.fitsWithin(ceiling)) return null
     return automaticRung(source, ceiling)
 }
 
@@ -135,4 +132,28 @@ private fun formatHourlySize(bitrate: Int): String {
     val gigabytes = (megabytes / 1_000.0 * 2.0).roundToInt() / 2.0
     val text = if (gigabytes % 1.0 == 0.0) gigabytes.roundToInt().toString() else gigabytes.toString()
     return "$text GB"
+}
+
+data class NegotiatedSource(
+    val supportsDirectPlay: Boolean?,
+    val transcodingUrl: String?,
+    val quality: SourceQuality
+) {
+    val serverIsConverting: Boolean get() = supportsDirectPlay != true && transcodingUrl != null
+}
+
+sealed interface ConversionPlan {
+    data object AsNegotiated : ConversionPlan
+
+    data class Renegotiate(val rung: QualityRung) : ConversionPlan
+}
+
+fun conversionPlan(
+    source: NegotiatedSource,
+    requested: QualityRung?,
+    ceiling: QualityRung
+): ConversionPlan {
+    if (!source.serverIsConverting) return ConversionPlan.AsNegotiated
+    val rung = clampToCeiling(source.quality, requested, ceiling) ?: return ConversionPlan.AsNegotiated
+    return ConversionPlan.Renegotiate(rung)
 }

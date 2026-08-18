@@ -179,15 +179,66 @@ class QualityLadderTest {
     }
 
     @Test
-    fun clampToCeiling_leavesANonFourKSourceAlone() {
+    fun clampToCeiling_appliesAProfileToAServerChosenConversionThatAlreadyFits() {
         val hd = source(20_000_000, 21_000_000, width = 1920, height = 1080)
-        assertNull(clampToCeiling(hd, null, capped))
+        assertEquals(QualityRung.P1080_12, clampToCeiling(hd, null, capped))
     }
 
     @Test
-    fun clampToCeiling_cannotJudgeASourceWithoutDimensions() {
-        assertNull(clampToCeiling(source(80_000_000, 82_000_000), null, capped))
+    fun clampToCeiling_appliesAProfileWhenTheSourceHasNoDimensions() {
+        assertEquals(QualityRung.P1080_12, clampToCeiling(source(80_000_000, 82_000_000), null, capped))
     }
+
+    @Test
+    fun conversionPlan_neverRenegotiatesASourceGrantedDirectPlay() {
+        val plan = conversionPlan(
+            NegotiatedSource(supportsDirectPlay = true, transcodingUrl = "/videos/x/master.m3u8", quality = uhd),
+            requested = null,
+            ceiling = capped
+        )
+        assertEquals(ConversionPlan.AsNegotiated, plan)
+    }
+
+    @Test
+    fun conversionPlan_neverRenegotiatesWithoutATranscodingUrl() {
+        val plan = conversionPlan(
+            NegotiatedSource(supportsDirectPlay = null, transcodingUrl = null, quality = uhd),
+            requested = null,
+            ceiling = capped
+        )
+        assertEquals(ConversionPlan.AsNegotiated, plan)
+    }
+
+    @Test
+    fun conversionPlan_appliesAProfileToAServerChosenConversion() {
+        val hd = source(8_770_000, 8_770_000, width = 1920, height = 816)
+        val plan = conversionPlan(converting(hd), requested = null, ceiling = capped)
+        assertEquals(ConversionPlan.Renegotiate(QualityRung.P1080_8), plan)
+    }
+
+    @Test
+    fun conversionPlan_dropsAServerChosenFourKConversionToTheCeiling() {
+        val plan = conversionPlan(converting(uhd), requested = null, ceiling = capped)
+        assertEquals(ConversionPlan.Renegotiate(QualityRung.P1080_12), plan)
+    }
+
+    @Test
+    fun conversionPlan_honoursAnExplicitRungWithinTheCeiling() {
+        val plan = conversionPlan(converting(uhd), requested = QualityRung.P1080_8, ceiling = capped)
+        assertEquals(ConversionPlan.AsNegotiated, plan)
+    }
+
+    @Test
+    fun conversionPlan_clampsAnExplicitRungAboveTheCeiling() {
+        val plan = conversionPlan(converting(uhd), requested = QualityRung.P2160_20, ceiling = capped)
+        assertEquals(ConversionPlan.Renegotiate(QualityRung.P1080_12), plan)
+    }
+
+    private fun converting(quality: SourceQuality) = NegotiatedSource(
+        supportsDirectPlay = false,
+        transcodingUrl = "/videos/x/master.m3u8",
+        quality = quality
+    )
 
     @Test
     fun rungLabels_readAsResolutionAndQualifier() {
