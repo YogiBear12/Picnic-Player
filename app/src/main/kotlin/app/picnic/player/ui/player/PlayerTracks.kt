@@ -187,10 +187,6 @@ class PlayerTracks(
 
     fun applySelections() {
         if (mediaStreams.isEmpty()) return
-        if (needsBurnIn(subtitleIndex)) {
-            onReload(ReloadReason.SUBTITLE_CHANGE)
-            return
-        }
         if (converting && isBurnedIn(subtitleIndex)) {
             player.trackSelectionParameters = player.trackSelectionParameters
                 .buildUpon()
