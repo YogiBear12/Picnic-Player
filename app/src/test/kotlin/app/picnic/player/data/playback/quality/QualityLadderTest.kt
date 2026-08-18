@@ -8,7 +8,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class QualityLadderTest {
-
     @Test
     fun sourceQuality_prefersReportedStreamBitrate() {
         val source = SourceQuality.of(10_000_000, streams(videoBitrate = 8_500_000, audioBitrates = listOf(640_000)))
@@ -163,33 +162,6 @@ class QualityLadderTest {
     }
 
     @Test
-    fun clampToCeiling_leavesARequestWithinTheCeilingAlone() {
-        assertNull(clampToCeiling(uhd, QualityRung.P1080_8, capped))
-        assertNull(clampToCeiling(uhd, QualityRung.P2160_20, fourK))
-    }
-
-    @Test
-    fun clampToCeiling_dropsAFourKRequestToTheCeiling() {
-        assertEquals(QualityRung.P1080_12, clampToCeiling(uhd, QualityRung.P2160_20, capped))
-    }
-
-    @Test
-    fun clampToCeiling_dropsAServerChosenFourKConversion() {
-        assertEquals(QualityRung.P1080_12, clampToCeiling(uhd, null, capped))
-    }
-
-    @Test
-    fun clampToCeiling_appliesAProfileToAServerChosenConversionThatAlreadyFits() {
-        val hd = source(20_000_000, 21_000_000, width = 1920, height = 1080)
-        assertEquals(QualityRung.P1080_12, clampToCeiling(hd, null, capped))
-    }
-
-    @Test
-    fun clampToCeiling_appliesAProfileWhenTheSourceHasNoDimensions() {
-        assertEquals(QualityRung.P1080_12, clampToCeiling(source(80_000_000, 82_000_000), null, capped))
-    }
-
-    @Test
     fun conversionPlan_neverRenegotiatesASourceGrantedDirectPlay() {
         val plan = conversionPlan(
             NegotiatedSource(supportsDirectPlay = true, transcodingUrl = "/videos/x/master.m3u8", quality = uhd),
@@ -224,8 +196,29 @@ class QualityLadderTest {
 
     @Test
     fun conversionPlan_honoursAnExplicitRungWithinTheCeiling() {
-        val plan = conversionPlan(converting(uhd), requested = QualityRung.P1080_8, ceiling = capped)
-        assertEquals(ConversionPlan.AsNegotiated, plan)
+        assertEquals(
+            ConversionPlan.AsNegotiated,
+            conversionPlan(converting(uhd), requested = QualityRung.P1080_8, ceiling = capped)
+        )
+        assertEquals(
+            ConversionPlan.AsNegotiated,
+            conversionPlan(converting(uhd), requested = QualityRung.P2160_20, ceiling = fourK)
+        )
+    }
+
+    @Test
+    fun conversionPlan_appliesAProfileWhenTheSourceHasNoDimensions() {
+        val plan = conversionPlan(converting(source(80_000_000, 82_000_000)), requested = null, ceiling = capped)
+        assertEquals(ConversionPlan.Renegotiate(QualityRung.P1080_12), plan)
+    }
+
+    @Test
+    fun conversionPlan_appliesAProfileToAConversionThatAlreadyFits() {
+        val hd = source(20_000_000, 21_000_000, width = 1920, height = 1080)
+        assertEquals(
+            ConversionPlan.Renegotiate(QualityRung.P1080_12),
+            conversionPlan(converting(hd), requested = null, ceiling = capped)
+        )
     }
 
     @Test

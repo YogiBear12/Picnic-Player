@@ -109,12 +109,6 @@ fun qualityOptions(source: SourceQuality, ceiling: QualityRung): List<QualityOpt
 fun automaticRung(source: SourceQuality, ceiling: QualityRung): QualityRung = QualityRung.entries.firstOrNull { it.fitsWithin(ceiling) && source.savesBandwidth(it) }
     ?: QualityRung.entries.last()
 
-fun clampToCeiling(source: SourceQuality, requested: QualityRung?, ceiling: QualityRung): QualityRung? {
-    if (requested == null) return automaticRung(source, ceiling)
-    if (requested.fitsWithin(ceiling)) return null
-    return automaticRung(source, ceiling)
-}
-
 fun defaultQualityLabel(rung: QualityRung?): String = if (rung == null) "Original" else "${rung.label} · ${rung.bitrateLabel}"
 
 private fun formatMbps(bitrate: Int): String {
@@ -154,6 +148,6 @@ fun conversionPlan(
     ceiling: QualityRung
 ): ConversionPlan {
     if (!source.serverIsConverting) return ConversionPlan.AsNegotiated
-    val rung = clampToCeiling(source.quality, requested, ceiling) ?: return ConversionPlan.AsNegotiated
-    return ConversionPlan.Renegotiate(rung)
+    if (requested != null && requested.fitsWithin(ceiling)) return ConversionPlan.AsNegotiated
+    return ConversionPlan.Renegotiate(automaticRung(source.quality, ceiling))
 }
