@@ -38,7 +38,6 @@ import org.jellyfin.sdk.model.api.MediaStreamType
 const val PLAYBACK_LOG_TAG = "PicnicPlayback"
 
 object PlaybackDiagnostics : AnalyticsListener {
-
     val enabled: Boolean = BuildConfig.DEBUG
 
     fun log(message: String) {
@@ -88,7 +87,6 @@ object PlaybackDiagnostics : AnalyticsListener {
         log("renderers: $types")
     }
 
-    // Callers run on the main thread: touching the AudioSink here throws a multi-thread check.
     fun logAudioDecoderCandidates(context: Context, format: Format) {
         if (!enabled) return
         val mimeType = format.sampleMimeType ?: return
@@ -262,7 +260,6 @@ object PlaybackDiagnostics : AnalyticsListener {
 fun instrumentExtractors(delegate: ExtractorsFactory): ExtractorsFactory = if (PlaybackDiagnostics.enabled) LoggingExtractorsFactory(delegate) else delegate
 
 private class LoggingExtractorsFactory(delegate: ExtractorsFactory) : ForwardingExtractorsFactory(delegate) {
-
     override fun createExtractors(): Array<Extractor> = super.createExtractors().map { LoggingExtractor(it) }.toTypedArray()
 
     override fun createExtractors(uri: Uri, responseHeaders: Map<String, List<String>>): Array<Extractor> {
@@ -278,7 +275,6 @@ private class LoggingExtractorsFactory(delegate: ExtractorsFactory) : Forwarding
 }
 
 private class LoggingExtractor(private val delegate: Extractor) : ForwardingExtractor(delegate) {
-
     private val name: String get() = delegate.javaClass.simpleName
 
     override fun sniff(input: ExtractorInput): Boolean {
@@ -299,7 +295,6 @@ private class LoggingExtractor(private val delegate: Extractor) : ForwardingExtr
 }
 
 private class LoggingExtractorOutput(delegate: ExtractorOutput) : ForwardingExtractorOutput(delegate) {
-
     private var emitted = 0
 
     override fun track(id: Int, type: Int): TrackOutput {
@@ -374,7 +369,7 @@ private fun formatSupportName(support: Int): String = when (support) {
     else -> "UNKNOWN($support)"
 }
 
-private fun stateName(state: Int): String = when (state) {
+internal fun stateName(state: Int): String = when (state) {
     Player.STATE_IDLE -> "IDLE"
     Player.STATE_BUFFERING -> "BUFFERING"
     Player.STATE_READY -> "READY"

@@ -62,6 +62,7 @@ import app.picnic.player.playback.StreamResult
 import app.picnic.player.playback.StreamTarget
 import app.picnic.player.playback.ThemeMusicPlayer
 import app.picnic.player.playback.VideoDynamicRange
+import app.picnic.player.playback.stateName
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.IOException
@@ -223,6 +224,17 @@ class PlayerViewModel @Inject constructor(
             latchedBars.onCueBoundary(player.currentPosition)
             _state.update { it.copy(subtitleCues = cueGroup.cues) }
         }
+        override fun onPositionDiscontinuity(
+            oldPosition: Player.PositionInfo,
+            newPosition: Player.PositionInfo,
+            reason: Int
+        ) {
+            if (!PlaybackDiagnostics.enabled) return
+            PlaybackDiagnostics.log(
+                "position ${oldPosition.positionMs} -> ${newPosition.positionMs} reason=${discontinuityName(reason)}"
+            )
+        }
+
         override fun onPlayerError(error: PlaybackException) {
             if (directPlayVeto.onPlaybackError(error.errorCode)) {
                 reload(ReloadReason.PLAYBACK_FAILED)
@@ -247,9 +259,27 @@ class PlayerViewModel @Inject constructor(
     private fun applyPendingSeek() {
         val target = pendingSeekMs
         if (target <= 0) return
-        if (player.playbackState != Player.STATE_READY || player.duration <= 0) return
+        if (player.playbackState != Player.STATE_READY || player.duration <= 0) {
+            PlaybackDiagnostics.log(
+                "pending seek $target held: state=${stateName(player.playbackState)} duration=${player.duration}"
+            )
+            return
+        }
         pendingSeekMs = 0
+        PlaybackDiagnostics.log(
+            "pending seek $target applied: duration=${player.duration} position=${player.currentPosition}"
+        )
         player.seekTo(target)
+    }
+
+    private fun discontinuityName(reason: Int): String = when (reason) {
+        Player.DISCONTINUITY_REASON_AUTO_TRANSITION -> "AUTO_TRANSITION"
+        Player.DISCONTINUITY_REASON_SEEK -> "SEEK"
+        Player.DISCONTINUITY_REASON_SEEK_ADJUSTMENT -> "SEEK_ADJUSTMENT"
+        Player.DISCONTINUITY_REASON_SKIP -> "SKIP"
+        Player.DISCONTINUITY_REASON_REMOVE -> "REMOVE"
+        Player.DISCONTINUITY_REASON_INTERNAL -> "INTERNAL"
+        else -> "UNKNOWN($reason)"
     }
 
     private fun getDecoderString(decoderName: String): String = try {
@@ -594,6 +624,9 @@ class PlayerViewModel @Inject constructor(
 
         reloadJob?.cancel()
         reloadJob = viewingScope.launch {
+            PlaybackDiagnostics.log(
+                "reload reason=$reason resumeMs=$resumeMs position=${player.currentPosition} pendingSeek=$pendingSeekMs"
+            )
             _state.update {
                 it.copy(buffering = true, error = null, notice = null, subtitleCues = emptyList())
             }
