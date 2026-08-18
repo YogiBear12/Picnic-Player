@@ -1,18 +1,26 @@
 package app.picnic.player.ui.player
 
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import app.picnic.player.data.playback.MediaSegment
+import kotlinx.coroutines.delay
 
 enum class Panel { NONE, AUDIO, SUBTITLE, CHAPTERS, SETTINGS }
 
 enum class BackOutcome { Handled, ClosedOsd, NextUp, ExitPlayer }
 
+private const val MinOsdHideSeconds = 2L
+private const val QuickSkipBurstMs = 1_000L
+private const val SkipPillVisibleMs = 10_000L
+
 @Stable
 class PlayerChrome {
-
     var osdVisible by mutableStateOf(false)
         private set
 
@@ -159,4 +167,42 @@ class PlayerChrome {
         osdVisible = false
         panel = Panel.NONE
     }
+
+    internal suspend fun awaitOsdTimeout(osdHideSeconds: Int, scrubbing: Boolean) {
+        if (!osdVisible || panel != Panel.NONE || scrubbing) return
+        delay(osdHideSeconds.toLong().coerceAtLeast(MinOsdHideSeconds) * 1000)
+        hideOsd()
+    }
+
+    internal suspend fun awaitQuickSkipEnd() {
+        if (quickSkipTick == 0) return
+        delay(QuickSkipBurstMs)
+        endQuickSkip()
+    }
+
+    internal suspend fun awaitSkipPillTimeout(segmentActive: Boolean) {
+        if (!segmentActive || skipPillDismissed) return
+        delay(SkipPillVisibleMs)
+        dismissSkipPill()
+    }
+}
+
+@Composable
+fun rememberPlayerChrome(
+    osdHideSeconds: Int,
+    scrubbing: Boolean,
+    isPlaying: Boolean,
+    segment: MediaSegment?
+): PlayerChrome {
+    val chrome = remember { PlayerChrome() }
+    LaunchedEffect(chrome.revealTick, chrome.osdVisible, chrome.panel, isPlaying, scrubbing) {
+        chrome.awaitOsdTimeout(osdHideSeconds, scrubbing)
+    }
+    LaunchedEffect(chrome.quickSkipTick) {
+        chrome.awaitQuickSkipEnd()
+    }
+    LaunchedEffect(segment, chrome.skipPillDismissed) {
+        chrome.awaitSkipPillTimeout(segment != null)
+    }
+    return chrome
 }

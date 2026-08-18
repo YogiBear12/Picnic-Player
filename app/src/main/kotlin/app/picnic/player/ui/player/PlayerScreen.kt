@@ -49,7 +49,6 @@ import app.picnic.player.ui.player.osd.SkipIndicator
 import app.picnic.player.ui.player.osd.SkipIndicatorState
 import app.picnic.player.ui.player.osd.SkipSegmentButton
 import app.picnic.player.ui.player.osd.StatsForNerdsPanel
-import kotlinx.coroutines.delay
 
 internal val OsdHorizontalPadding = 56.dp
 
@@ -83,9 +82,14 @@ fun PlayerScreen(
     SideEffect { view.keepScreenOn = state.isPlaying }
     DisposableEffect(Unit) { onDispose { view.keepScreenOn = false } }
 
-    val chrome = remember { PlayerChrome() }
     val pulse = rememberPlayerPulse()
     val scrub = rememberPlayerScrub(viewModel.player)
+    val chrome = rememberPlayerChrome(
+        osdHideSeconds = settings.osdHideSeconds,
+        scrubbing = scrub.active,
+        isPlaying = state.isPlaying,
+        segment = state.currentSegment
+    )
     val osdFocus = remember { PlayerOsdFocus() }
     val subtitleAdjust = rememberSubtitleDelayAdjust(
         active = chrome.subtitleAdjust,
@@ -161,19 +165,6 @@ fun PlayerScreen(
         chrome.consumeLastPanel()
     }
 
-    LaunchedEffect(chrome.revealTick, chrome.osdVisible, chrome.panel, state.isPlaying, scrub.active) {
-        if (chrome.osdVisible && chrome.panel == Panel.NONE && !scrub.active) {
-            delay(settings.osdHideSeconds.toLong().coerceAtLeast(2) * 1000)
-            chrome.hideOsd()
-            scrub.clearPreview()
-        }
-    }
-    LaunchedEffect(chrome.quickSkipTick) {
-        if (chrome.quickSkipTick > 0) {
-            delay(1000)
-            chrome.endQuickSkip()
-        }
-    }
     LaunchedEffect(chrome.videoHasFocus, chrome.skipPillDismissed) {
         if (chrome.videoHasFocus) osdFocus.requestVideo()
     }
@@ -187,12 +178,6 @@ fun PlayerScreen(
         } else {
             chrome.onSegmentChanged(segmentActive = false, enteredAtStart = false)
             if (chrome.videoHasFocus) osdFocus.requestVideo()
-        }
-    }
-    LaunchedEffect(state.currentSegment, chrome.skipPillDismissed) {
-        if (state.currentSegment != null && !chrome.skipPillDismissed) {
-            delay(10_000)
-            chrome.dismissSkipPill()
         }
     }
 
