@@ -57,6 +57,7 @@ class PlayerTracks(
 
     private val exhausted = mutableSetOf<Int>()
     private var attachedSubtitleIndex: Int? = null
+    private var requestedSubtitleIndex: Int? = null
 
     private var itemType: BaseItemKind? = null
     private var seriesId: UUID? = null
@@ -75,6 +76,10 @@ class PlayerTracks(
             ExternalSubtitleRef(it.streamIndex, it.url.substringBefore('?'))
         }
         publishOptions()
+    }
+
+    fun onStreamRequested(streamIndex: Int?) {
+        requestedSubtitleIndex = streamIndex
     }
 
     fun onItemMetadata(type: BaseItemKind?, series: UUID?, season: UUID?) {
@@ -142,10 +147,14 @@ class PlayerTracks(
     }
 
     private fun requiresNewStream(previous: Int?, next: Int?): Boolean {
-        val burnedIn = converting && (isBurnedIn(previous) || isBurnedIn(next))
+        val leavingBurnedIn = converting && isBurnedIn(previous)
         val retryExhausted = next != null && exhausted.remove(next)
-        return burnedIn || retryExhausted || needsAttach(next)
+        return leavingBurnedIn || needsBurnIn(next) || retryExhausted || needsAttach(next)
     }
+
+    fun needsStreamForSelection(): Boolean = needsAttach(subtitleIndex) || needsBurnIn(subtitleIndex)
+
+    private fun needsBurnIn(streamIndex: Int?): Boolean = converting && isBurnedIn(streamIndex) && streamIndex != requestedSubtitleIndex
 
     fun needsAttach(streamIndex: Int?): Boolean = isSideloaded(streamIndex) && streamIndex != attachedSubtitleIndex
 
@@ -181,6 +190,10 @@ class PlayerTracks(
 
     fun applySelections() {
         if (mediaStreams.isEmpty()) return
+        if (needsBurnIn(subtitleIndex)) {
+            onReload(ReloadReason.SUBTITLE_CHANGE)
+            return
+        }
         if (converting && isBurnedIn(subtitleIndex)) {
             player.trackSelectionParameters = player.trackSelectionParameters
                 .buildUpon()
