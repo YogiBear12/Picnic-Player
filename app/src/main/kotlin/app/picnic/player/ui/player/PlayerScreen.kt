@@ -328,13 +328,38 @@ fun PlayerScreen(
             TrickplayPreviewOverlay(preview, scrub.barBottomInset)
         }
 
-        PlayerPanels(
+        TrackSidePanel(
+            visible = chrome.panel == Panel.AUDIO,
+            title = "Audio",
+            options = state.audioTracks,
+            allowOff = false,
+            onSelect = { id ->
+                id?.let(viewModel::selectAudio)
+                closePanel()
+            },
+            onClose = ::closePanel
+        )
+        TrackSidePanel(
+            visible = chrome.panel == Panel.SUBTITLE,
+            title = "Subtitles",
+            options = state.subtitleTracks,
+            allowOff = true,
+            onSelect = { id ->
+                viewModel.selectSubtitle(id)
+                closePanel()
+            },
+            onClose = ::closePanel
+        )
+        PlayerSettingsSidePanel(
+            visible = chrome.panel == Panel.SETTINGS,
             viewModel = viewModel,
-            chrome = chrome,
             state = state,
-            settings = settings,
-            pipState = pipState,
-            onClosePanel = ::closePanel
+            subtitleAppearance = settings.subtitleAppearance,
+            focusSubtitleDelay = chrome.returningFromSubtitleAdjust,
+            onFocusSubtitleDelayConsumed = chrome::consumeSubtitleAdjustReturn,
+            onAdjustSubtitleDelay = chrome::enterSubtitleAdjust,
+            onEnterPip = pipState::enterPip,
+            onClose = ::closePanel
         )
 
         PlayerNotice(state.notice, viewModel::clearNotice)
