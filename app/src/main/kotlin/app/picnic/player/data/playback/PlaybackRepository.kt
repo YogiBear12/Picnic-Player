@@ -92,11 +92,11 @@ class PlaybackRepository @Inject constructor(
         val blockedBy = transcodeReasons(first.source)
         when (val plan = conversionPlan(first.source.negotiated(), rung, ceiling)) {
             ConversionPlan.AsNegotiated ->
-                buildStreamInfo(session, negotiation.itemId, first.source, first.playSessionId, rung, blockedBy)
+                buildStreamInfo(negotiation, first.source, first.playSessionId, rung, blockedBy)
             is ConversionPlan.Renegotiate -> {
                 stopEncoding(session, first.playSessionId)
                 val second = negotiate(negotiation, settings, plan.rung, pass = 2)
-                buildStreamInfo(session, negotiation.itemId, second.source, second.playSessionId, plan.rung, blockedBy)
+                buildStreamInfo(negotiation, second.source, second.playSessionId, plan.rung, blockedBy)
             }
         }
     }
@@ -145,13 +145,15 @@ class PlaybackRepository @Inject constructor(
     }
 
     private fun buildStreamInfo(
-        session: UserSession,
-        itemId: UUID,
+        negotiation: StreamNegotiation,
         source: MediaSourceInfo,
         playSessionId: String?,
         rung: QualityRung?,
         directPlayBlockedBy: List<String>
     ): StreamInfo {
+        val session = negotiation.session
+        val itemId = negotiation.itemId
+        val subtitleStreamIndex = negotiation.subtitleStreamIndex
         val base = session.server.baseUrl.trimEnd('/')
         val sourceId = source.id ?: itemId.toString()
         if (source.supportsDirectPlay == true) {
@@ -162,15 +164,15 @@ class PlaybackRepository @Inject constructor(
                 source.container?.let { append("&container=").append(it) }
                 append("&api_key=").append(session.accessToken)
             }
-            return streamInfo(url, PlayMethodKind.DIRECT_PLAY, playSessionId, sourceId, source, session = session, directPlayBlockedBy = directPlayBlockedBy)
+            return streamInfo(url, PlayMethodKind.DIRECT_PLAY, playSessionId, sourceId, source, negotiatedSubtitleStreamIndex = subtitleStreamIndex, session = session, directPlayBlockedBy = directPlayBlockedBy)
         }
         source.transcodingUrl?.let { path ->
             val url = base + path
-            return streamInfo(url, PlayMethodKind.TRANSCODE, playSessionId, sourceId, source, rung, session, directPlayBlockedBy)
+            return streamInfo(url, PlayMethodKind.TRANSCODE, playSessionId, sourceId, source, negotiatedSubtitleStreamIndex = subtitleStreamIndex, rung = rung, session = session, directPlayBlockedBy = directPlayBlockedBy)
         }
         val url =
             "$base/Videos/$itemId/stream?static=true&mediaSourceId=$sourceId&api_key=${session.accessToken}"
-        return streamInfo(url, PlayMethodKind.DIRECT_STREAM, playSessionId, sourceId, source, session = session, directPlayBlockedBy = directPlayBlockedBy)
+        return streamInfo(url, PlayMethodKind.DIRECT_STREAM, playSessionId, sourceId, source, negotiatedSubtitleStreamIndex = subtitleStreamIndex, session = session, directPlayBlockedBy = directPlayBlockedBy)
     }
 
     private fun externalSubtitles(session: UserSession, source: MediaSourceInfo): List<ExternalSubtitle> {
@@ -209,6 +211,7 @@ class PlaybackRepository @Inject constructor(
         playSessionId: String?,
         sourceId: String,
         source: MediaSourceInfo,
+        negotiatedSubtitleStreamIndex: Int?,
         rung: QualityRung? = null,
         session: UserSession? = null,
         directPlayBlockedBy: List<String> = emptyList()
@@ -221,6 +224,7 @@ class PlaybackRepository @Inject constructor(
         mediaStreams = source.mediaStreams.orEmpty(),
         defaultAudioStreamIndex = source.defaultAudioStreamIndex,
         defaultSubtitleStreamIndex = source.defaultSubtitleStreamIndex,
+        negotiatedSubtitleStreamIndex = negotiatedSubtitleStreamIndex,
         mediaSource = source,
         rung = rung,
         externalSubtitles = session?.let { externalSubtitles(it, source) }.orEmpty(),

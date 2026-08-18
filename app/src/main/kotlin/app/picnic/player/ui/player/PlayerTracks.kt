@@ -57,7 +57,7 @@ class PlayerTracks(
 
     private val exhausted = mutableSetOf<Int>()
     private var attachedSubtitleIndex: Int? = null
-    private var requestedSubtitleIndex: Int? = null
+    private var negotiatedSubtitleIndex: Int? = null
 
     private var itemType: BaseItemKind? = null
     private var seriesId: UUID? = null
@@ -72,14 +72,11 @@ class PlayerTracks(
     fun adopt(info: StreamInfo) {
         mediaStreams = info.mediaStreams
         converting = info.playMethod == PlayMethodKind.TRANSCODE
+        negotiatedSubtitleIndex = info.negotiatedSubtitleStreamIndex
         externalSubtitles = info.externalSubtitles.map {
             ExternalSubtitleRef(it.streamIndex, it.url.substringBefore('?'))
         }
         publishOptions()
-    }
-
-    fun onStreamRequested(streamIndex: Int?) {
-        requestedSubtitleIndex = streamIndex
     }
 
     fun onItemMetadata(type: BaseItemKind?, series: UUID?, season: UUID?) {
@@ -154,9 +151,9 @@ class PlayerTracks(
 
     fun needsStreamForSelection(): Boolean = needsAttach(subtitleIndex) || needsBurnIn(subtitleIndex)
 
-    private fun needsBurnIn(streamIndex: Int?): Boolean = converting && isBurnedIn(streamIndex) && streamIndex != requestedSubtitleIndex
+    private fun needsBurnIn(streamIndex: Int?): Boolean = converting && isBurnedIn(streamIndex) && streamIndex != negotiatedSubtitleIndex
 
-    fun needsAttach(streamIndex: Int?): Boolean = isSideloaded(streamIndex) && streamIndex != attachedSubtitleIndex
+    private fun needsAttach(streamIndex: Int?): Boolean = isSideloaded(streamIndex) && streamIndex != attachedSubtitleIndex
 
     private fun isSideloaded(streamIndex: Int?): Boolean {
         val index = streamIndex ?: return false

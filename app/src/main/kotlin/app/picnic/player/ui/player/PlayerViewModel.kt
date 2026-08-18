@@ -456,7 +456,6 @@ class PlayerViewModel @Inject constructor(
                 autoSkipped.clear()
             }
 
-            tracks.onStreamRequested(tracks.subtitleIndex)
             val result = streamLoader.load(
                 StreamRequest(
                     session = activeSession,
@@ -598,7 +597,6 @@ class PlayerViewModel @Inject constructor(
             _state.update {
                 it.copy(buffering = true, error = null, notice = null, subtitleCues = emptyList())
             }
-            tracks.onStreamRequested(tracks.subtitleIndex)
             val result = streamLoader.load(
                 StreamRequest(
                     session = activeSession,

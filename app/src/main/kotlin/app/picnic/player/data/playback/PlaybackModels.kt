@@ -29,6 +29,7 @@ data class StreamInfo(
     val mediaStreams: List<MediaStream> = emptyList(),
     val defaultAudioStreamIndex: Int? = null,
     val defaultSubtitleStreamIndex: Int? = null,
+    val negotiatedSubtitleStreamIndex: Int? = null,
     val mediaSource: org.jellyfin.sdk.model.api.MediaSourceInfo? = null,
     val rung: app.picnic.player.data.playback.quality.QualityRung? = null,
     val externalSubtitles: List<ExternalSubtitle> = emptyList(),
