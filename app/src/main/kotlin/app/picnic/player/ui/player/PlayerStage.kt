@@ -30,6 +30,9 @@ import app.picnic.player.data.settings.SubtitleAppearance
 import app.picnic.player.playback.subtitleBottomPaddingFraction
 import app.picnic.player.playback.videoRectHeightFraction
 
+private const val NextUpPlayerScale = 0.35f
+private val NextUpPlayerInset = 56.dp
+
 @Composable
 fun BoxScope.PlayerStage(
     viewModel: PlayerViewModel,

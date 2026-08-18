@@ -50,18 +50,7 @@ import app.picnic.player.ui.player.osd.SkipIndicatorState
 import app.picnic.player.ui.player.osd.SkipSegmentButton
 import app.picnic.player.ui.player.osd.StatsForNerdsPanel
 
-internal val OsdHorizontalPadding = 56.dp
-
-internal val TrickplayPreviewWidth = 180.dp
-internal val TrickplayPreviewHeight = 101.dp
-internal val TrickplayGapAboveScrubBar = 10.dp
-
-internal const val NextUpPlayerScale = 0.35f
-internal val NextUpPlayerInset = 56.dp
-
 private const val SkipPillEntryWindowMs = 2_000L
-
-internal const val NOTICE_VISIBLE_MS = 3_000L
 
 @Composable
 fun PlayerScreen(

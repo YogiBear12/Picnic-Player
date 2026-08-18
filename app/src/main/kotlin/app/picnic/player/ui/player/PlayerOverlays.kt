@@ -44,12 +44,18 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
-import app.picnic.player.data.playback.TrickplayFrame
 import app.picnic.player.ui.player.osd.SubtitleDelayHud
 import app.picnic.player.ui.player.osd.TrickplayCell
 import app.picnic.player.ui.theme.PicnicColors
 import coil3.compose.rememberAsyncImagePainter
 import kotlinx.coroutines.delay
+
+private const val NoticeVisibleMs = 3_000L
+
+private val OsdHorizontalPadding = 56.dp
+private val TrickplayPreviewWidth = 180.dp
+private val TrickplayPreviewHeight = 101.dp
+private val TrickplayGapAboveScrubBar = 10.dp
 
 @Composable
 fun BoxScope.NextUpScrim(backdropUrl: String?, visible: Boolean) {
@@ -102,7 +108,7 @@ fun BoxScope.PlayerLoadingState(state: PlayerUiState) {
 fun BoxScope.PlayerNotice(notice: String?, onExpired: () -> Unit) {
     notice ?: return
     LaunchedEffect(notice) {
-        delay(NOTICE_VISIBLE_MS)
+        delay(NoticeVisibleMs)
         onExpired()
     }
     Box(
@@ -203,12 +209,12 @@ fun BoxScope.TrickplayPreviewOverlay(preview: TrickplayPreview, barBottomInset: 
         val xOffset = OsdHorizontalPadding +
             (barWidth * preview.fraction - TrickplayPreviewWidth / 2f)
                 .coerceIn(0.dp, barWidth - TrickplayPreviewWidth)
-        TrickplayPreviewImage(
+        TrickplayCell(
             frame = preview.frame,
-            width = TrickplayPreviewWidth,
-            height = TrickplayPreviewHeight,
             modifier = Modifier
                 .align(Alignment.BottomStart)
+                .width(TrickplayPreviewWidth)
+                .height(TrickplayPreviewHeight)
                 .offset {
                     IntOffset(
                         x = xOffset.roundToPx(),
@@ -217,19 +223,4 @@ fun BoxScope.TrickplayPreviewOverlay(preview: TrickplayPreview, barBottomInset: 
                 }
         )
     }
-}
-
-@Composable
-private fun TrickplayPreviewImage(
-    frame: TrickplayFrame,
-    width: Dp,
-    height: Dp,
-    modifier: Modifier = Modifier
-) {
-    TrickplayCell(
-        frame = frame,
-        modifier = modifier
-            .width(width)
-            .height(height)
-    )
 }
