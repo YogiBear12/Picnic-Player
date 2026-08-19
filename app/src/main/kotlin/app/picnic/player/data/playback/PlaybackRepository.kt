@@ -113,7 +113,7 @@ class PlaybackRepository @Inject constructor(
         val response = api(session).mediaInfoApi.getPostedPlaybackInfo(
             itemId = negotiation.itemId,
             data = PlaybackInfoDto(
-                userId = UUID.fromString(session.userId),
+                userId = session.userUuid,
                 deviceProfile = DynamicProfileBuilder.build(context, settings, rung),
                 startTimeTicks = negotiation.startTicks,
                 maxStreamingBitrate = rung?.videoBitrate,

@@ -15,25 +15,12 @@ import kotlinx.coroutines.flow.map
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
-/**
- * Persists onboarded servers and user sessions. Servers and the user
- * list are non-secret JSON in DataStore; **access tokens are encrypted** via
- * [SecureStore] (Keystore AES/GCM) and stored separately, keyed per user. A
- * server is only written once a login on it succeeds.
- */
 @Singleton
 class CredentialStore @Inject constructor(
     private val dataStore: DataStore<Preferences>,
     private val json: Json,
     private val secure: SecureStore
 ) {
-    /**
-     * Reactive mirror of the active session (or null). Emits whenever the active user
-     * changes — login, quick-switch, logout, session-expiry, or forgetting the active
-     * user/server. Seeded from disk by [refreshActiveSession] at startup. Additive: the
-     * pull-based [activeSession] read is unchanged; this only adds a push signal for
-     * observers that must react to sign-in/out (e.g. the session websocket).
-     */
     private val _activeSessionFlow = MutableStateFlow<UserSession?>(null)
     val activeSessionFlow: StateFlow<UserSession?> = _activeSessionFlow.asStateFlow()
 
@@ -43,7 +30,6 @@ class CredentialStore @Inject constructor(
 
     suspend fun sessionsForServer(serverId: String): List<StoredSession> = sessions().filter { it.serverId == serverId }
 
-    /** Persists the server (upsert), the user, the encrypted token, and makes it active. */
     suspend fun saveSession(session: UserSession) {
         upsertServer(session.server)
         val stored = StoredSession(session.server.id, session.userId, session.username)
@@ -59,7 +45,7 @@ class CredentialStore @Inject constructor(
         val stored = sessions().firstOrNull { it.serverId == serverId && it.userId == userId }
             ?: return null
         val token = read(tokenKey(serverId, userId))?.let { secure.decrypt(it) } ?: return null
-        return UserSession(server, userId, stored.username, token)
+        return runCatching { UserSession(server, userId, stored.username, token) }.getOrNull()
     }
 
     suspend fun activeSession(): UserSession? {
@@ -73,23 +59,17 @@ class CredentialStore @Inject constructor(
         publishActiveSession()
     }
 
-    /** Clears only the active user session (soft user logout); the active server
-     *  is kept so cold start lands on that server's Profile Picker. */
     suspend fun clearActive() {
         remove(ACTIVE)
         publishActiveSession()
     }
 
-    /** Seeds [activeSessionFlow] from disk. Call once at startup (the ACTIVE key
-     *  persists across process death, but the reactive flow starts empty). */
     suspend fun refreshActiveSession() = publishActiveSession()
 
     private suspend fun publishActiveSession() {
         _activeSessionFlow.value = activeSession()
     }
 
-    /** The server cold start should resume to (its Profile Picker) when there is
-     *  no active session. Null after a "change server" soft logout. */
     suspend fun activeServerId(): String? = read(ACTIVE_SERVER)
 
     suspend fun setActiveServer(serverId: String) = write(ACTIVE_SERVER, serverId)
@@ -133,7 +113,6 @@ class CredentialStore @Inject constructor(
 
     suspend fun setServerOrder(serverIds: List<String>) = write(SERVER_ORDER, json.encodeToString(serverIds))
 
-    /** Last-known public user list for a server (from the most recent successful fetch). */
     suspend fun cachedPublicUsers(serverId: String): List<PublicUserInfo> = read(publicUsersKey(serverId))?.let { json.decodeFromString<List<PublicUserInfo>>(it) }
         ?: emptyList()
 
@@ -141,7 +120,6 @@ class CredentialStore @Inject constructor(
 
     suspend fun hasToken(serverId: String, userId: String): Boolean = read(tokenKey(serverId, userId)) != null
 
-    /** Drops the encrypted token but keeps the stored username for the picker row. */
     suspend fun clearToken(serverId: String, userId: String) = remove(tokenKey(serverId, userId))
 
     suspend fun sessionAuthErrors(serverId: String): Map<String, String> = read(sessionErrorsKey(serverId))?.let { json.decodeFromString<Map<String, String>>(it) }
@@ -176,8 +154,6 @@ class CredentialStore @Inject constructor(
         dataStore.edit { it.remove(stringPreferencesKey(key)) }
     }
 
-    /** Drops every key under [prefix], whatever its type — used to sweep a forgotten
-     *  user's (or server's) per-user preferences. */
     private suspend fun removeByPrefix(prefix: String) {
         dataStore.edit { prefs ->
             prefs.asMap().keys

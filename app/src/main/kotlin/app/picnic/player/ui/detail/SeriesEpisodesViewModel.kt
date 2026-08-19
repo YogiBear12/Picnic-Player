@@ -108,7 +108,7 @@ class SeriesEpisodesViewModel @Inject constructor(
                             ioDispatcher = ioDispatcher,
                             seriesId = seriesId,
                             seasonId = seasonId,
-                            userId = currentSession.userId,
+                            userId = currentSession.userUuid,
                             onTotalRecordCount = { count ->
                                 val currentSeasons = seasons
                                 val seasonIndex = currentSeasons.indexOfFirst { it.id.toString() == seasonId }
@@ -168,7 +168,7 @@ class SeriesEpisodesViewModel @Inject constructor(
                     val api = jellyfin.api(currentSession.server.baseUrl, currentSession.accessToken)
                     api.tvShowsApi.getSeasons(
                         seriesId = UUID.fromString(seriesId),
-                        userId = UUID.fromString(currentSession.userId),
+                        userId = currentSession.userUuid,
                         fields = emptyList()
                     )
                 }

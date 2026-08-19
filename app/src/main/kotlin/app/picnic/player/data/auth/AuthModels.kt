@@ -1,8 +1,8 @@
 package app.picnic.player.data.auth
 
+import java.util.UUID
 import kotlinx.serialization.Serializable
 
-/** An onboarded Jellyfin server (persisted; no secrets). */
 @Serializable
 data class ServerConnection(
     val id: String,
@@ -10,7 +10,6 @@ data class ServerConnection(
     val name: String
 )
 
-/** A stored user on a server (persisted; the token lives encrypted, separately). */
 @Serializable
 data class StoredSession(
     val serverId: String,
@@ -18,18 +17,17 @@ data class StoredSession(
     val username: String
 )
 
-/** DataStore key holding the persisted [StoredSession] list, as JSON. */
 const val STORED_SESSIONS = "sessions"
 
-/** A runtime session with a decrypted access token. Never serialized verbatim. */
 data class UserSession(
     val server: ServerConnection,
     val userId: String,
     val username: String,
     val accessToken: String
-)
+) {
+    val userUuid: UUID = UUID.fromString(userId)
+}
 
-/** A public user advertised by a server's login screen. */
 @Serializable
 data class PublicUserInfo(
     val id: String,
@@ -38,7 +36,6 @@ data class PublicUserInfo(
     val hasPassword: Boolean
 )
 
-/** An in-progress Quick Connect request. */
 data class QuickConnectRequest(
     val secret: String,
     val code: String

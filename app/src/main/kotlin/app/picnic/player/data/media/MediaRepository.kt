@@ -105,7 +105,7 @@ class MediaRepository @Inject constructor(
         val nextUp = runCatching {
             api(session).tvShowsApi.getNextUp(
                 seriesId = seriesId,
-                userId = UUID.fromString(session.userId),
+                userId = session.userUuid,
                 fields = CONTINUE_FIELDS,
                 enableImageTypes = IMAGE_TYPES
             ).content.items.orEmpty().firstOrNull()
@@ -120,7 +120,7 @@ class MediaRepository @Inject constructor(
         val episodes = runCatching {
             api(session).tvShowsApi.getEpisodes(
                 seriesId = seriesId,
-                userId = UUID.fromString(session.userId),
+                userId = session.userUuid,
                 fields = CONTINUE_FIELDS,
                 enableImageTypes = IMAGE_TYPES
             ).content.items.orEmpty()
@@ -186,7 +186,7 @@ class MediaRepository @Inject constructor(
         limit: Int = LATEST_ROW_LIMIT
     ): List<BaseItemDto> = onIo {
         api(session).suggestionsApi.getSuggestions(
-            userId = UUID.fromString(session.userId),
+            userId = session.userUuid,
             mediaType = listOf(MediaType.VIDEO),
             type = listOf(BaseItemKind.MOVIE, BaseItemKind.SERIES),
             limit = limit,
@@ -200,7 +200,7 @@ class MediaRepository @Inject constructor(
                 itemId = itemId,
                 limit = 12,
                 fields = BROWSE_FIELDS,
-                userId = UUID.fromString(session.userId)
+                userId = session.userUuid
             )
         ).content.items.orEmpty()
     }
@@ -214,7 +214,7 @@ class MediaRepository @Inject constructor(
     suspend fun collectionsContaining(session: UserSession, itemId: UUID): List<BaseItemDto> = onIo {
         try {
             val boxSets = api(session).itemsApi.getItems(
-                userId = UUID.fromString(session.userId),
+                userId = session.userUuid,
                 includeItemTypes = listOf(BaseItemKind.BOX_SET),
                 recursive = true,
                 fields = BROWSE_FIELDS,
@@ -252,7 +252,7 @@ class MediaRepository @Inject constructor(
             ?.takeIf { now - it.atMillis < BOX_SET_CACHE_TTL_MS }
             ?.let { return it.ids }
         val ids = api(session).itemsApi.getItems(
-            userId = UUID.fromString(session.userId),
+            userId = session.userUuid,
             parentId = boxSetId,
             enableImages = false,
             enableUserData = false,
@@ -273,7 +273,7 @@ class MediaRepository @Inject constructor(
         types: List<BaseItemKind>
     ): List<BaseItemDto> = onIo {
         api(session).itemsApi.getItems(
-            userId = UUID.fromString(session.userId),
+            userId = session.userUuid,
             personIds = listOf(personId),
             includeItemTypes = types,
             fields = CONTINUE_FIELDS,
@@ -289,7 +289,7 @@ class MediaRepository @Inject constructor(
     }
 
     suspend fun localTrailers(session: UserSession, itemId: UUID): List<BaseItemDto> = onIo {
-        api(session).userLibraryApi.getLocalTrailers(itemId = itemId, userId = UUID.fromString(session.userId)).content.orEmpty()
+        api(session).userLibraryApi.getLocalTrailers(itemId = itemId, userId = session.userUuid).content.orEmpty()
     }
 
     /**
@@ -300,7 +300,7 @@ class MediaRepository @Inject constructor(
      */
     suspend fun seasonCount(session: UserSession, seriesId: UUID): Int = onIo {
         api(session).itemsApi.getItems(
-            userId = UUID.fromString(session.userId),
+            userId = session.userUuid,
             parentId = seriesId,
             includeItemTypes = listOf(BaseItemKind.SEASON),
             recursive = true,
@@ -319,7 +319,7 @@ class MediaRepository @Inject constructor(
         if (seasonIds.isEmpty()) return@onIo emptyMap()
         runCatching {
             api(session).itemsApi.getItems(
-                userId = UUID.fromString(session.userId),
+                userId = session.userUuid,
                 ids = seasonIds,
                 fields = listOf(ItemFields.CHILD_COUNT)
             ).content.items.orEmpty().associate { it.id to (it.childCount ?: 0) }
@@ -335,7 +335,7 @@ class MediaRepository @Inject constructor(
         runCatching {
             api(session).tvShowsApi.getEpisodes(
                 seriesId = seriesId,
-                userId = UUID.fromString(session.userId),
+                userId = session.userUuid,
                 isMissing = false,
                 limit = 1,
                 fields = listOf(ItemFields.MEDIA_STREAMS)
@@ -352,7 +352,7 @@ class MediaRepository @Inject constructor(
         if (itemIds.isEmpty()) return@onIo emptyMap()
         runCatching {
             api(session).itemsApi.getItems(
-                userId = UUID.fromString(session.userId),
+                userId = session.userUuid,
                 ids = itemIds,
                 fields = listOf(ItemFields.MEDIA_STREAMS)
             ).content.items.orEmpty().associate { it.id to it.mediaStreams.orEmpty() }
@@ -383,7 +383,7 @@ class MediaRepository @Inject constructor(
      */
     suspend fun nextEpisode(session: UserSession, episodeId: UUID): BaseItemDto? = onIo {
         val api = api(session)
-        val userId = UUID.fromString(session.userId)
+        val userId = session.userUuid
 
         val currentEp = runCatching { api.userLibraryApi.getItem(episodeId).content }.getOrNull()
             ?: return@onIo null
@@ -477,7 +477,7 @@ class MediaRepository @Inject constructor(
                 listOf(direction, SortOrder.ASCENDING)
         }
         val response = api(session).itemsApi.getItems(
-            userId = UUID.fromString(session.userId),
+            userId = session.userUuid,
             includeItemTypes = filter.contentType.itemKinds(kinds),
             // A library grid lists one direct view and a collection its direct children;
             // a genre scope searches recursively (within its library when scoped, else
@@ -574,7 +574,7 @@ class MediaRepository @Inject constructor(
         libraryId: UUID? = null
     ): GridFilterFacets = onIo {
         kotlinx.coroutines.coroutineScope {
-            val userId = UUID.fromString(session.userId)
+            val userId = session.userUuid
             val genres = async {
                 runCatching {
                     api(session).genresApi.getGenres(
@@ -626,7 +626,7 @@ class MediaRepository @Inject constructor(
         limit: Int = SEARCH_ROW_LIMIT
     ): List<BaseItemDto> = onIo {
         api(session).itemsApi.getItems(
-            userId = UUID.fromString(session.userId),
+            userId = session.userUuid,
             searchTerm = query,
             includeItemTypes = listOf(kind),
             recursive = true,
@@ -648,7 +648,7 @@ class MediaRepository @Inject constructor(
         kinds: List<BaseItemKind> = listOf(BaseItemKind.MOVIE, BaseItemKind.SERIES)
     ): List<BaseItemDto> = onIo {
         api(session).genresApi.getGenres(
-            userId = UUID.fromString(session.userId),
+            userId = session.userUuid,
             parentId = libraryId,
             includeItemTypes = kinds,
             sortBy = listOf(ItemSortBy.SORT_NAME),
@@ -659,7 +659,7 @@ class MediaRepository @Inject constructor(
     /** Count of the user's collections (box sets) — gates the library Collections tab. */
     suspend fun collectionCount(session: UserSession): Int = onIo {
         api(session).itemsApi.getItems(
-            userId = UUID.fromString(session.userId),
+            userId = session.userUuid,
             includeItemTypes = listOf(BaseItemKind.BOX_SET),
             recursive = true,
             limit = 0,
@@ -675,7 +675,7 @@ class MediaRepository @Inject constructor(
         limit: Int
     ): List<BaseItemDto> = onIo {
         api(session).itemsApi.getItems(
-            userId = UUID.fromString(session.userId),
+            userId = session.userUuid,
             parentId = libraryId,
             includeItemTypes = kinds,
             isPlayed = true,
@@ -700,7 +700,7 @@ class MediaRepository @Inject constructor(
     ): List<BaseItemDto> = onIo {
         if (ids.isEmpty()) return@onIo emptyList()
         api(session).itemsApi.getItems(
-            userId = UUID.fromString(session.userId),
+            userId = session.userUuid,
             parentId = libraryId,
             recursive = true,
             ids = ids,
@@ -713,7 +713,7 @@ class MediaRepository @Inject constructor(
     /** The user's playlists, newest first — the Playlists library grid. */
     suspend fun playlists(session: UserSession): List<BaseItemDto> = onIo {
         api(session).itemsApi.getItems(
-            userId = UUID.fromString(session.userId),
+            userId = session.userUuid,
             includeItemTypes = listOf(BaseItemKind.PLAYLIST),
             recursive = true,
             sortBy = listOf(ItemSortBy.DATE_CREATED),
@@ -732,7 +732,7 @@ class MediaRepository @Inject constructor(
     suspend fun playlistItems(session: UserSession, playlistId: UUID): List<BaseItemDto> = onIo {
         api(session).playlistsApi.getPlaylistItems(
             playlistId = playlistId,
-            userId = UUID.fromString(session.userId),
+            userId = session.userUuid,
             fields = BROWSE_FIELDS,
             enableImageTypes = IMAGE_TYPES
         ).content.items.orEmpty()
@@ -744,7 +744,7 @@ class MediaRepository @Inject constructor(
             org.jellyfin.sdk.model.api.CreatePlaylistDto(
                 name = name,
                 ids = itemIds,
-                userId = UUID.fromString(session.userId),
+                userId = session.userUuid,
                 mediaType = MediaType.VIDEO,
                 users = emptyList(),
                 isPublic = false
@@ -758,7 +758,7 @@ class MediaRepository @Inject constructor(
         api(session).playlistsApi.addItemToPlaylist(
             playlistId = playlistId,
             ids = itemIds,
-            userId = UUID.fromString(session.userId)
+            userId = session.userUuid
         )
         changeBus.emit(LibraryChange.ItemUpdated(playlistId.toString(), null))
     }
