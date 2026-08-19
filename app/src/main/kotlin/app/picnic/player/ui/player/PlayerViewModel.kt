@@ -43,6 +43,8 @@ import app.picnic.player.data.playback.ticksToMs
 import app.picnic.player.data.settings.PlaybackSettings
 import app.picnic.player.data.settings.SeriesTrackMemoryStore
 import app.picnic.player.data.settings.SettingsStore
+import app.picnic.player.data.settings.SubtitleAppearanceEditor
+import app.picnic.player.data.settings.SubtitleAppearanceSetting
 import app.picnic.player.data.settings.SubtitleArea
 import app.picnic.player.di.ApplicationScope
 import app.picnic.player.playback.AudioBoost
@@ -109,7 +111,7 @@ class PlayerViewModel @Inject constructor(
     private val authRepository: AuthRepository,
     private val mediaRepository: app.picnic.player.data.media.MediaRepository,
     private val settingsStore: SettingsStore,
-    private val subtitleAppearanceEditor: app.picnic.player.data.settings.SubtitleAppearanceEditor,
+    private val subtitleAppearanceEditor: SubtitleAppearanceEditor,
     private val seriesTrackMemoryStore: SeriesTrackMemoryStore,
     private val sessionController: PlaybackSessionController,
     private val pictureInPictureSupport: app.picnic.player.data.device.PictureInPictureSupport,
@@ -449,17 +451,7 @@ class PlayerViewModel @Inject constructor(
 
     fun assOverlayView(context: Context) = engine.assOverlayView(context)
 
-    fun cycleSubtitleSize(forward: Boolean) = viewModelScope.launch { subtitleAppearanceEditor.cycleSize(forward) }
-
-    fun cycleSubtitleColour(forward: Boolean) = viewModelScope.launch { subtitleAppearanceEditor.cycleColour(forward) }
-
-    fun cycleSubtitleBackground(forward: Boolean) = viewModelScope.launch { subtitleAppearanceEditor.cycleBackground(forward) }
-
-    fun cycleSubtitleBackgroundFill(forward: Boolean) = viewModelScope.launch { subtitleAppearanceEditor.cycleBackgroundFill(forward) }
-
-    fun cycleSubtitleArea(forward: Boolean) = viewModelScope.launch { subtitleAppearanceEditor.cycleArea(forward) }
-
-    fun stepSubtitleInset(forward: Boolean) = viewModelScope.launch { subtitleAppearanceEditor.stepInset(forward) }
+    fun stepSubtitleAppearance(setting: SubtitleAppearanceSetting, forward: Boolean) = viewModelScope.launch { subtitleAppearanceEditor.step(setting, forward) }
 
     fun load(itemIdString: String, startTicks: Long?, mediaSourceId: String? = null) {
         if (loaded) return

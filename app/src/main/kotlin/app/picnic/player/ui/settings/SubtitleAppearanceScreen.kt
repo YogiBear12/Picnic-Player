@@ -58,6 +58,7 @@ import app.picnic.player.data.jellyfin.JellyfinImages
 import app.picnic.player.data.settings.SettingsStore
 import app.picnic.player.data.settings.SubtitleAppearance
 import app.picnic.player.data.settings.SubtitleAppearanceEditor
+import app.picnic.player.data.settings.SubtitleAppearanceSetting
 import app.picnic.player.data.settings.SubtitleArea
 import app.picnic.player.data.settings.SubtitleBackground
 import app.picnic.player.playback.BlackBars
@@ -86,28 +87,15 @@ class SubtitleAppearanceViewModel @Inject constructor(
     private val editor: SubtitleAppearanceEditor,
     authRepository: AuthRepository
 ) : ViewModel() {
-
     val appearance: StateFlow<SubtitleAppearance> = store.settings
         .map { it.subtitleAppearance }
         .stateIn(viewModelScope, SharingStarted.Eagerly, SubtitleAppearance())
 
-    /** Server splashscreen URL for the screen background; null with no active session.
-     *  The URL may 404 (no splashscreen configured) — the screen falls back to ocean. */
     val splashUrl: StateFlow<String?> = authRepository.activeSessionFlow
         .map { session -> session?.let { JellyfinImages.splashscreen(it) } }
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
-    fun cycleSize(forward: Boolean) = viewModelScope.launch { editor.cycleSize(forward) }
-
-    fun cycleColour(forward: Boolean) = viewModelScope.launch { editor.cycleColour(forward) }
-
-    fun cycleBackground(forward: Boolean) = viewModelScope.launch { editor.cycleBackground(forward) }
-
-    fun cycleBackgroundFill(forward: Boolean) = viewModelScope.launch { editor.cycleBackgroundFill(forward) }
-
-    fun cycleArea(forward: Boolean) = viewModelScope.launch { editor.cycleArea(forward) }
-
-    fun stepInset(forward: Boolean) = viewModelScope.launch { editor.stepInset(forward) }
+    fun step(setting: SubtitleAppearanceSetting, forward: Boolean) = viewModelScope.launch { editor.step(setting, forward) }
 }
 
 private val PanelGlassFill = Color(0xF2181E24)
@@ -134,9 +122,6 @@ private fun SubtitleBackground(splashUrl: String?, modifier: Modifier = Modifier
                 label = "splashFade"
             )
             val context = LocalContext.current
-            // The Branding endpoint takes no image tag (supplying one returns an empty 304), so a
-            // cached copy would outlive every splashscreen the admin swaps in. This screen is
-            // rare enough that refetching per visit beats showing artwork the server replaced.
             val request = remember(splashUrl) {
                 ImageRequest.Builder(context)
                     .data(splashUrl)
@@ -190,8 +175,6 @@ internal fun SubtitleAppearanceScreen(
     LaunchedEffect(Unit) { runCatching { firstRowFocus.requestFocus() } }
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
-        // Screen and Image place a cue identically with no video behind them, so the preview
-        // borrows a scope frame to sit against.
         val barFraction = scopeBarFraction(maxWidth / maxHeight)
         val barHeight = maxHeight * barFraction
 
@@ -227,19 +210,11 @@ internal fun SubtitleAppearanceScreen(
             ) {
                 val rows = subtitleAppearanceRows(appearance)
                 rows.forEachIndexed { index, row ->
-                    val step: (Boolean) -> Unit = when (row.setting) {
-                        SubtitleAppearanceSetting.SIZE -> viewModel::cycleSize
-                        SubtitleAppearanceSetting.COLOR -> viewModel::cycleColour
-                        SubtitleAppearanceSetting.BACKGROUND -> viewModel::cycleBackground
-                        SubtitleAppearanceSetting.BACKGROUND_FILL -> viewModel::cycleBackgroundFill
-                        SubtitleAppearanceSetting.AREA -> viewModel::cycleArea
-                        SubtitleAppearanceSetting.INSET -> viewModel::stepInset
-                    }
                     AppearanceRow(
                         label = row.label,
                         value = row.value,
                         enabled = row.enabled,
-                        onStep = step,
+                        onStep = { forward -> viewModel.step(row.setting, forward) },
                         modifier = when (index) {
                             0 ->
                                 Modifier
@@ -334,13 +309,8 @@ private fun BoxScope.ScopeBars(height: Dp) {
     Box(Modifier.fillMaxWidth().height(height).align(Alignment.BottomCenter).background(Color.Black))
 }
 
-/** Bars a 2.39:1 picture leaves in a container, as a fraction of its height. */
 private fun scopeBarFraction(containerAspect: Float): Float = ((1f - containerAspect / ScopeAspect) / 2f).coerceIn(0f, 0.4f)
 
-/**
- * Image reads the frame as a letterboxed video rect, Automatic as a full rect with the bars baked
- * in. Both land the cue in the same place, which is the point being previewed.
- */
 private fun previewBottomPaddingFraction(appearance: SubtitleAppearance, barFraction: Float): Float = subtitleBottomPaddingFraction(
     appearance.area,
     appearance.insetPercent,

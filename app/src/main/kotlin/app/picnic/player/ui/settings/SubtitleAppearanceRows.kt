@@ -1,9 +1,8 @@
 package app.picnic.player.ui.settings
 
 import app.picnic.player.data.settings.SubtitleAppearance
+import app.picnic.player.data.settings.SubtitleAppearanceSetting
 import app.picnic.player.data.settings.SubtitleBackground
-
-enum class SubtitleAppearanceSetting { SIZE, COLOR, BACKGROUND, BACKGROUND_FILL, AREA, INSET }
 
 data class SubtitleAppearanceRow(
     val setting: SubtitleAppearanceSetting,
@@ -16,8 +15,6 @@ internal fun subtitleAppearanceRows(appearance: SubtitleAppearance): List<Subtit
     SubtitleAppearanceRow(SubtitleAppearanceSetting.SIZE, "Size", appearance.size.display()),
     SubtitleAppearanceRow(SubtitleAppearanceSetting.COLOR, "Color", appearance.colour.display()),
     SubtitleAppearanceRow(SubtitleAppearanceSetting.BACKGROUND, "Background", appearance.background.display()),
-    // The fill row stays listed while the background is off — removing a focused row disposes
-    // the focused node. It only mutes.
     SubtitleAppearanceRow(
         SubtitleAppearanceSetting.BACKGROUND_FILL,
         "Background fill",

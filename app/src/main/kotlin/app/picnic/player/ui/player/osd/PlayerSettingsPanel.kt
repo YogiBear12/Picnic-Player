@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -38,6 +39,7 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import app.picnic.player.data.playback.quality.QualityOption
 import app.picnic.player.data.settings.SubtitleAppearance
+import app.picnic.player.data.settings.SubtitleAppearanceSetting
 import app.picnic.player.playback.AudioBoost
 import app.picnic.player.playback.NightMode
 import app.picnic.player.playback.SleepMode
@@ -50,7 +52,7 @@ import app.picnic.player.ui.common.RowCheck
 import app.picnic.player.ui.common.RowChevron
 import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.common.rowPrimaryColor
-import app.picnic.player.ui.settings.SubtitleAppearanceSetting
+import app.picnic.player.ui.player.PlayerUiState
 import app.picnic.player.ui.settings.subtitleAppearanceRows
 
 internal val PlayerSettingsPanelWidth = 380.dp
@@ -74,13 +76,7 @@ private enum class RowKey {
     PLAYBACK_INFO,
     PIP,
     BOOST,
-    NIGHT_MODE,
-    SUB_SIZE,
-    SUB_COLOR,
-    SUB_BACKGROUND,
-    SUB_BG_FILL,
-    SUB_AREA,
-    SUB_INSET
+    NIGHT_MODE
 }
 
 private fun Page.rowKey(): RowKey? = when (this) {
@@ -101,10 +97,6 @@ private fun Page.title(): String = when (this) {
     Page.SUBTITLE_APPEARANCE -> "Subtitle appearance"
 }
 
-/**
- * One row of any panel page. Pages are lists of these — data, not layout — so navigating
- * changes what a row shows rather than replacing the row nodes and their focus machinery.
- */
 private sealed interface PanelRow {
     val key: Any
 
@@ -134,41 +126,31 @@ private sealed interface PanelRow {
     ) : PanelRow
 }
 
+@Immutable
+data class PlayerSettingsActions(
+    val onSelectQuality: (QualityOption) -> Unit,
+    val onSpeed: (Float) -> Unit,
+    val onAudioBoost: (AudioBoost) -> Unit,
+    val onNightMode: (NightMode) -> Unit,
+    val onSleep: (SleepMode) -> Unit,
+    val onToggleStatsForNerds: () -> Unit,
+    val onSubtitleAppearanceStep: (SubtitleAppearanceSetting, Boolean) -> Unit
+)
+
 @Composable
 fun PlayerSettingsPanel(
-    subtitleDelayMs: Long,
+    state: PlayerUiState,
     subtitleAppearance: SubtitleAppearance,
-    onSubtitleSize: (Boolean) -> Unit,
-    onSubtitleColour: (Boolean) -> Unit,
-    onSubtitleBackground: (Boolean) -> Unit,
-    onSubtitleBackgroundFill: (Boolean) -> Unit,
-    onSubtitleArea: (Boolean) -> Unit,
-    onSubtitleInset: (Boolean) -> Unit,
-    qualityOptions: List<QualityOption>,
-    selectedQuality: QualityOption?,
-    qualitySummary: String,
-    onSelectQuality: (QualityOption) -> Unit,
-    playbackSpeed: Float,
-    audioBoost: AudioBoost,
-    nightMode: NightMode,
-    sleep: SleepTimerState,
-    showStatsForNerds: Boolean,
-    onAdjustSubtitleDelay: () -> Unit,
-    onSpeed: (Float) -> Unit,
-    onAudioBoost: (AudioBoost) -> Unit,
-    onNightMode: (NightMode) -> Unit,
-    onSleep: (SleepMode) -> Unit,
-    onToggleStatsForNerds: () -> Unit,
-    onEnterPip: () -> Unit,
     pipSupported: Boolean,
+    actions: PlayerSettingsActions,
     focusSubtitleDelay: Boolean,
     onFocusSubtitleDelayConsumed: () -> Unit,
+    onAdjustSubtitleDelay: () -> Unit,
+    onEnterPip: () -> Unit,
     active: Boolean,
     onClose: () -> Unit
 ) {
     var page by remember { mutableStateOf(Page.MAIN) }
-    // The list row to focus on the way back — from a sub-page, or from the delay HUD, which
-    // disposes this panel entirely while it is up.
     var focusKey by remember {
         mutableStateOf(if (focusSubtitleDelay) RowKey.SUBTITLE_DELAY else null)
     }
@@ -183,51 +165,53 @@ fun PlayerSettingsPanel(
         if (page == Page.MAIN) onClose() else returnToMain()
     }
     BackHandler(enabled = active) { back() }
-    // The panel slides in, so its rows are not attached for the first frames.
     LaunchedEffect(page) { firstFocus.requestFocusWhenAttached() }
     LaunchedEffect(Unit) { if (focusSubtitleDelay) onFocusSubtitleDelayConsumed() }
 
+    val qualitySummary = qualitySummary(
+        state.playMethod,
+        state.streamRung,
+        serverTranscode(
+            state.playMethod,
+            state.streamRung,
+            state.transcodingInfo?.height,
+            state.transcodingInfo?.bitrate
+        )
+    )
+
     val rows = when (page) {
         Page.MAIN -> mainRows(
-            qualityOptions = qualityOptions,
+            qualityOptions = state.qualityOptions,
             qualitySummary = qualitySummary,
-            subtitleDelayMs = subtitleDelayMs,
-            audioBoost = audioBoost,
-            nightMode = nightMode,
-            playbackSpeed = playbackSpeed,
-            sleep = sleep,
-            showStatsForNerds = showStatsForNerds,
+            subtitleDelayMs = state.subtitleDelayMs,
+            audioBoost = state.audioBoost,
+            nightMode = state.nightMode,
+            playbackSpeed = state.playbackSpeed,
+            sleep = state.sleep,
+            showStatsForNerds = state.showStatsForNerds,
             pipSupported = pipSupported,
             onNavigate = { page = it },
             onAdjustSubtitleDelay = onAdjustSubtitleDelay,
-            onToggleStatsForNerds = onToggleStatsForNerds,
+            onToggleStatsForNerds = actions.onToggleStatsForNerds,
             onEnterPip = {
                 onEnterPip()
                 back()
             }
         )
-        Page.QUALITY -> qualityRows(qualityOptions, selectedQuality) {
-            onSelectQuality(it)
+        Page.QUALITY -> qualityRows(state.qualityOptions, state.activeQuality) {
+            actions.onSelectQuality(it)
             returnToMain()
         }
-        Page.SPEED -> speedRows(playbackSpeed) {
-            onSpeed(it)
+        Page.SPEED -> speedRows(state.playbackSpeed) {
+            actions.onSpeed(it)
             returnToMain()
         }
-        Page.SLEEP -> sleepRows(sleep) {
-            onSleep(it)
+        Page.SLEEP -> sleepRows(state.sleep) {
+            actions.onSleep(it)
             returnToMain()
         }
-        Page.AUDIO -> audioRows(audioBoost, nightMode, onAudioBoost, onNightMode)
-        Page.SUBTITLE_APPEARANCE -> subtitleAppearancePanelRows(
-            subtitleAppearance,
-            onSubtitleSize,
-            onSubtitleColour,
-            onSubtitleBackground,
-            onSubtitleBackgroundFill,
-            onSubtitleArea,
-            onSubtitleInset
-        )
+        Page.AUDIO -> audioRows(state.audioBoost, state.nightMode, actions.onAudioBoost, actions.onNightMode)
+        Page.SUBTITLE_APPEARANCE -> subtitleAppearancePanelRows(subtitleAppearance, actions.onSubtitleAppearanceStep)
     }
 
     val focusIndex = when (page) {
@@ -264,8 +248,6 @@ fun PlayerSettingsPanel(
                     .focusGroup(),
                 verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
-                // Deliberately not keyed: positional identity lets Compose update the existing
-                // row nodes across a page change instead of rebuilding them.
                 rows.forEachIndexed { i, row ->
                     PanelRowItem(
                         row = row,
@@ -391,36 +373,15 @@ private fun audioRows(
 
 private fun subtitleAppearancePanelRows(
     appearance: SubtitleAppearance,
-    onSize: (Boolean) -> Unit,
-    onColour: (Boolean) -> Unit,
-    onBackground: (Boolean) -> Unit,
-    onBackgroundFill: (Boolean) -> Unit,
-    onArea: (Boolean) -> Unit,
-    onInset: (Boolean) -> Unit
+    onStep: (SubtitleAppearanceSetting, Boolean) -> Unit
 ): List<PanelRow> = subtitleAppearanceRows(appearance).map { row ->
-    val key = when (row.setting) {
-        SubtitleAppearanceSetting.SIZE -> RowKey.SUB_SIZE
-        SubtitleAppearanceSetting.COLOR -> RowKey.SUB_COLOR
-        SubtitleAppearanceSetting.BACKGROUND -> RowKey.SUB_BACKGROUND
-        SubtitleAppearanceSetting.BACKGROUND_FILL -> RowKey.SUB_BG_FILL
-        SubtitleAppearanceSetting.AREA -> RowKey.SUB_AREA
-        SubtitleAppearanceSetting.INSET -> RowKey.SUB_INSET
-    }
-    val step = when (row.setting) {
-        SubtitleAppearanceSetting.SIZE -> onSize
-        SubtitleAppearanceSetting.COLOR -> onColour
-        SubtitleAppearanceSetting.BACKGROUND -> onBackground
-        SubtitleAppearanceSetting.BACKGROUND_FILL -> onBackgroundFill
-        SubtitleAppearanceSetting.AREA -> onArea
-        SubtitleAppearanceSetting.INSET -> onInset
-    }
     PanelRow.Step(
-        key = key,
+        key = row.setting,
         label = row.label,
         value = row.value,
         enabled = row.enabled,
-        onLeft = { step(false) },
-        onRight = { step(true) }
+        onLeft = { onStep(row.setting, false) },
+        onRight = { onStep(row.setting, true) }
     )
 }
 
