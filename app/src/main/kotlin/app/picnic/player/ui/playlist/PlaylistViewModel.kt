@@ -66,7 +66,7 @@ class PlaylistViewModel @Inject constructor(
     }
 
     private suspend fun refresh(session: UserSession, id: UUID) {
-        val items = runCatching { mediaRepository.playlistItems(session, id) }
+        val items = runCatching { mediaRepository.playlistItems(id) }
         state = state.copy(
             loading = false,
             session = session,
@@ -79,7 +79,7 @@ class PlaylistViewModel @Inject constructor(
         val session = state.session ?: return
         viewModelScope.launch {
             runCatching {
-                mediaRepository.setWatched(session, UUID.fromString(itemId), played, seriesId?.let(UUID::fromString))
+                mediaRepository.setWatched(UUID.fromString(itemId), played, seriesId?.let(UUID::fromString))
             }
         }
     }
@@ -88,7 +88,7 @@ class PlaylistViewModel @Inject constructor(
         val session = state.session ?: return
         viewModelScope.launch {
             runCatching {
-                mediaRepository.setFavorite(session, UUID.fromString(itemId), favorite, seriesId?.let(UUID::fromString))
+                mediaRepository.setFavorite(UUID.fromString(itemId), favorite, seriesId?.let(UUID::fromString))
             }
         }
     }
@@ -97,7 +97,7 @@ class PlaylistViewModel @Inject constructor(
         val session = state.session ?: return
         val id = playlistId ?: return
         viewModelScope.launch {
-            runCatching { mediaRepository.removeFromPlaylist(session, id, listOf(playlistItemId)) }
+            runCatching { mediaRepository.removeFromPlaylist(id, listOf(playlistItemId)) }
         }
     }
 
@@ -114,7 +114,7 @@ class PlaylistViewModel @Inject constructor(
         val reordered = items.toMutableList().apply { add(toIndex, removeAt(fromIndex)) }
         state = state.copy(items = reordered)
         viewModelScope.launch {
-            runCatching { mediaRepository.movePlaylistItem(session, id, entryId, toIndex) }
+            runCatching { mediaRepository.movePlaylistItem(id, entryId, toIndex) }
         }
     }
 }

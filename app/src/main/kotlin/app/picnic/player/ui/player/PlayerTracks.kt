@@ -119,8 +119,8 @@ class PlayerTracks(
     private suspend fun ensureServerLanguagePrefs() {
         if (serverLanguagePrefsLoaded) return
         serverLanguagePrefsLoaded = true
-        val session = authRepository.activeSession() ?: return
-        val config = runCatching { mediaRepository.userConfiguration(session) }.getOrNull()
+        authRepository.activeSession() ?: return
+        val config = runCatching { mediaRepository.userConfiguration() }.getOrNull()
         serverAudioLanguage = config?.audioLanguagePreference
         serverSubtitleLanguage = config?.subtitleLanguagePreference
     }

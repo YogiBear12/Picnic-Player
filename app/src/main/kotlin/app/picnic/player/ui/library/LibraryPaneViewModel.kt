@@ -14,17 +14,11 @@ import kotlinx.coroutines.launch
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
 
-/**
- * Per-library pane chrome state: which tab is selected (session-persistent — a distinct
- * Hilt key owns each library), whether Collections is offered, and the Genres tab's
- * scoped genre grid. The heavy tab contents own their data in their own ViewModels.
- */
 @HiltViewModel
 class LibraryPaneViewModel @Inject constructor(
     private val authRepository: AuthRepository,
     private val mediaRepository: MediaRepository
 ) : ViewModel() {
-
     data class UiState(
         val selectedTab: LibraryTab = LibraryTab.LIBRARY,
         val collectionsAvailable: Boolean = false,
@@ -32,7 +26,6 @@ class LibraryPaneViewModel @Inject constructor(
         val genresLoading: Boolean = false,
         val focusedGenreIndex: Int = 0
     ) {
-        /** Tab order is fixed; Collections joins only when the server has box sets. */
         val tabs: List<LibraryTab>
             get() =
                 if (collectionsAvailable) {
@@ -50,15 +43,14 @@ class LibraryPaneViewModel @Inject constructor(
     private var bound = false
     private var genresRequested = false
 
-    /** Scope this pane to one library. Idempotent — subsequent calls are ignored. */
     fun bind(libraryId: UUID, kinds: List<BaseItemKind>) {
         if (bound) return
         bound = true
         this.libraryId = libraryId
         this.kinds = kinds
         viewModelScope.launch {
-            val session = authRepository.activeSession() ?: return@launch
-            val count = runCatching { mediaRepository.collectionCount(session) }.getOrDefault(0)
+            authRepository.activeSession() ?: return@launch
+            val count = runCatching { mediaRepository.collectionCount() }.getOrDefault(0)
             _state.update { it.copy(collectionsAvailable = count > 0) }
         }
     }
@@ -69,7 +61,6 @@ class LibraryPaneViewModel @Inject constructor(
         if (tab == LibraryTab.GENRES) ensureGenresLoaded()
     }
 
-    /** Genres load lazily on the tab's first selection, not on pane creation. */
     private fun ensureGenresLoaded() {
         if (genresRequested) return
         genresRequested = true
@@ -80,7 +71,7 @@ class LibraryPaneViewModel @Inject constructor(
             val genres = if (session == null) {
                 emptyList()
             } else {
-                runCatching { mediaRepository.genres(session, libraryId, kinds) }
+                runCatching { mediaRepository.genres(libraryId, kinds) }
                     .getOrDefault(emptyList())
             }
             _state.update { it.copy(genresLoading = false, genres = genres) }

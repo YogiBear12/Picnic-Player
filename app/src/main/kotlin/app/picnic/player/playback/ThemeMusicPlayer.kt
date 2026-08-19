@@ -26,22 +26,6 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/**
- * Plays an item's theme music while the user browses screens about that item
- * (detail, series episodes). App-scoped so the music survives navigation.
- *
- * Screens declare interest with [acquire]/[release] keyed by the item that owns the
- * theme (a movie, or the series for episode listings). The player refcounts per owner:
- * acquiring an owner that is already attached is a no-op, so moving between two screens
- * of the same series (Detail ↔ Episodes) never restarts the track. Playback stops when
- * the last interested screen goes away, the owner changes, real media playback starts,
- * or the app leaves the foreground ([stop]).
- *
- * Volume never jumps: tracks ease in when they start, ease out when the user leaves,
- * and ease out ahead of the track's natural end instead of cutting to silence.
- *
- * All state is confined to the main thread; only the theme-song lookup runs on IO.
- */
 @Singleton
 class ThemeMusicPlayer @Inject constructor(
     @ApplicationContext private val context: Context,
@@ -50,7 +34,6 @@ class ThemeMusicPlayer @Inject constructor(
     private val settingsStore: SettingsStore,
     @ApplicationScope private val appScope: CoroutineScope
 ) {
-    // Created on first play so a DISABLED setting never allocates a player.
     private var player: ExoPlayer? = null
 
     private var currentOwnerId: UUID? = null
@@ -59,19 +42,14 @@ class ThemeMusicPlayer @Inject constructor(
     private var stopJob: Job? = null
     private var fadeJob: Job? = null
 
-    // Fade-in runs when the player first reaches READY for a track; READY also fires
-    // after rebuffering, which must not re-run the fade.
     private var fadeInPending = false
     private var targetVolume = 0f
 
-    /** A screen showing [ownerId] came on screen; start its theme unless already playing. */
     fun acquire(ownerId: UUID) {
         appScope.launch(Dispatchers.Main) {
             stopJob?.cancel()
             stopJob = null
             if (ownerId == currentOwnerId) {
-                // Same owner already attached (e.g. Detail → Episodes for one series):
-                // keep whatever is playing untouched.
                 refCount++
                 return@launch
             }
@@ -82,14 +60,11 @@ class ThemeMusicPlayer @Inject constructor(
         }
     }
 
-    /** A screen showing [ownerId] left. Stops playback once no screen wants this theme. */
     fun release(ownerId: UUID) {
         appScope.launch(Dispatchers.Main) {
             if (ownerId != currentOwnerId) return@launch
             refCount--
             if (refCount > 0) return@launch
-            // Short grace so a sibling screen of the same owner that is mid-transition
-            // (compose/dispose order is not guaranteed) can re-acquire without a restart.
             stopJob = launch {
                 delay(STOP_GRACE_MS)
                 fadeOutAndStop()
@@ -97,7 +72,6 @@ class ThemeMusicPlayer @Inject constructor(
         }
     }
 
-    /** Wind down and forget the owner — media playback starting, app backgrounded. */
     fun stop() {
         appScope.launch(Dispatchers.Main) { fadeOutAndStop() }
     }
@@ -121,8 +95,6 @@ class ThemeMusicPlayer @Inject constructor(
     }
 
     private suspend fun startPlayback(ownerId: UUID) {
-        // Ease the previous owner's theme down instead of cutting it mid-note. The new
-        // theme's lookup only starts afterwards, which also keeps the two from overlapping.
         player?.let { current ->
             fadeJob?.cancel()
             fadeInPending = false
@@ -141,9 +113,8 @@ class ThemeMusicPlayer @Inject constructor(
             Log.w(TAG, "not playing for $ownerId: no active session")
             return
         }
-        // Never log the URL itself — it carries the access token.
         val url = withContext(Dispatchers.IO) {
-            runCatching { mediaRepository.themeSongUrl(session, ownerId) }
+            runCatching { mediaRepository.themeSongUrl(ownerId) }
                 .onFailure { Log.w(TAG, "theme lookup failed for $ownerId", it) }
                 .getOrNull()
         }
@@ -172,8 +143,6 @@ class ThemeMusicPlayer @Inject constructor(
 
             override fun onPlayerError(error: PlaybackException) {
                 Log.w(TAG, "theme playback failed", error)
-                // Reset so re-entering the screen retries rather than treating the
-                // dead track as "already playing" for this owner.
                 fadeInPending = false
                 currentOwnerId = null
                 refCount = 0
@@ -181,7 +150,6 @@ class ThemeMusicPlayer @Inject constructor(
         })
     }
 
-    /** First READY for a track: fade in, then arm the end-of-track fade-out. */
     private fun onReady() {
         if (!fadeInPending) return
         fadeInPending = false
@@ -194,13 +162,9 @@ class ThemeMusicPlayer @Inject constructor(
         }
     }
 
-    /** Watches the clock and eases the volume down across the track's final moments so
-     *  it never just cuts to silence at its natural end. */
     private suspend fun fadeOutBeforeTrackEnd(current: Player) {
         while (true) {
             val duration = current.duration
-            // Trust the duration only when it is clearly a real track length; transcoded
-            // audio can briefly report 0 or nonsense, which must not mute a fresh track.
             if (duration != C.TIME_UNSET && duration > FADE_OUT_TRACK_END_MS && current.isPlaying) {
                 val remaining = duration - current.currentPosition
                 if (remaining in 1..FADE_OUT_TRACK_END_MS) {
@@ -214,9 +178,6 @@ class ThemeMusicPlayer @Inject constructor(
         }
     }
 
-    /** Ramp from the player's current gain to [target] over [durationMs]. Interpolates in
-     *  amplitude-root space so the loudness change is spread evenly across the ramp; a
-     *  linear gain ramp bunches all the audible change into one end and sounds laggy. */
     private suspend fun rampVolume(current: Player, target: Float, durationMs: Long) {
         val start = current.volume
         if (durationMs < RAMP_STEP_MS || start == target) {
@@ -236,22 +197,15 @@ class ThemeMusicPlayer @Inject constructor(
     private companion object {
         const val TAG = "PicnicThemeMusic"
 
-        // The dispose→re-acquire gap between sibling screens is normally within one frame;
-        // this only has to absorb scheduling jitter, and it plays at full volume, so keep
-        // it barely long enough to do its job.
         const val STOP_GRACE_MS = 200L
         const val FADE_IN_MS = 1000L
 
-        /** Interactive stops (leaving the screen, starting real playback, switching item):
-         *  quick, so the music doesn't audibly outlive the navigation that ended it. */
         const val FADE_OUT_STOP_MS = 300L
 
-        /** Natural end of the track: long and gentle, nothing is waiting on it. */
         const val FADE_OUT_TRACK_END_MS = 2500L
         const val RAMP_STEP_MS = 50L
         const val END_WATCH_POLL_MS = 250L
 
-        /** Player gain per setting; null means the feature is off. */
         val ThemeMusicVolume.playerVolume: Float?
             get() = when (this) {
                 ThemeMusicVolume.DISABLED -> null

@@ -83,7 +83,7 @@ class SearchViewModel @Inject constructor(
                 _state.update { it.copy(loading = false, error = "No active session") }
                 return@launch
             }
-            val genres = runCatching { mediaRepository.genres(session) }.getOrDefault(emptyList())
+            val genres = runCatching { mediaRepository.genres() }.getOrDefault(emptyList())
             _state.update { it.copy(loading = false, session = session, genres = genres) }
         }
         viewModelScope.launch {
@@ -171,7 +171,7 @@ class SearchViewModel @Inject constructor(
             .filter { it.id.toString() in changedIds }
         if (affected.isEmpty()) return
         val refreshed = affected
-            .mapNotNull { runCatching { mediaRepository.item(session, it.id) }.getOrNull() }
+            .mapNotNull { runCatching { mediaRepository.item(it.id) }.getOrNull() }
             .associateBy { it.id }
         if (refreshed.isEmpty()) return
         _state.update { state ->
@@ -183,7 +183,7 @@ class SearchViewModel @Inject constructor(
         }
     }
 
-    private suspend fun search(session: UserSession, query: String, kind: BaseItemKind): List<BaseItemDto> = runCatching { mediaRepository.search(session, query, kind) }
+    private suspend fun search(session: UserSession, query: String, kind: BaseItemKind): List<BaseItemDto> = runCatching { mediaRepository.search(query, kind) }
         .getOrDefault(emptyList())
         .sortedWith(compareBy({ relevance(it, query) }, { it.sortName ?: it.name ?: "" }))
 

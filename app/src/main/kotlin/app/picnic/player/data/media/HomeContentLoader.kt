@@ -20,7 +20,6 @@ import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
 import org.jellyfin.sdk.model.api.CollectionType
 
-/** One home fetch's payload: the built rows plus the raw inputs the VM keeps for pin re-ordering. */
 data class HomeResult(
     val session: UserSession,
     val rows: List<HomeRow>,
@@ -31,16 +30,6 @@ data class HomeResult(
     val latestByLibrary: List<Pair<BaseItemDto, List<BaseItemDto>>>
 )
 
-/**
- * Owns the home-rows network fetch so it can run BEFORE the home screen exists: the startup
- * splash fires [prefetch] the moment it has a session, so the round-trip overlaps the splash and
- * the fresh rows are usually ready by the time Home composes (no stale-then-fresh swap). The
- * work runs in the application scope so it survives the splash → Home navigation, and is memoized
- * per session so Home re-uses the in-flight [Deferred] instead of firing a second fetch.
- *
- * Publishing the nav rail is part of [fetch] (not the caller) so the drawer is correct the instant
- * Home composes, and so a mid-session refresh re-publishes it the same way.
- */
 @Singleton
 class HomeContentLoader @Inject constructor(
     private val mediaRepository: MediaRepository,
@@ -54,13 +43,6 @@ class HomeContentLoader @Inject constructor(
 
     fun cacheKey(session: UserSession): String = "${session.server.id}|${session.userId}"
 
-    /**
-     * Starts (or re-uses) the home fetch for [session] in the application scope. Re-uses only work
-     * that is still IN-FLIGHT — so the splash and a near-simultaneous Home share one fetch — but a
-     * COMPLETED deferred is never handed back: this is a @Singleton that outlives a relaunch, and
-     * returning a finished result would serve last-launch (stale) data. Every fresh cold entry
-     * therefore kicks a new fetch.
-     */
     @Synchronized
     fun prefetch(session: UserSession): Deferred<HomeResult> {
         val key = cacheKey(session)
@@ -73,34 +55,29 @@ class HomeContentLoader @Inject constructor(
         }
     }
 
-    /**
-     * Fresh home fetch, bypassing the prefetch memo — used by mid-session refreshes where the rows
-     * are already on screen and staleness must be re-checked against the network.
-     */
     suspend fun fetch(session: UserSession): HomeResult {
-        val views = mediaRepository.userViews(session)
+        val views = mediaRepository.userViews()
         val playlistsAvailable = views.any { it.collectionType == CollectionType.PLAYLISTS }
         val libraries = views.mapNotNull { view ->
             val kinds = when (view.collectionType) {
                 CollectionType.MOVIES -> listOf(BaseItemKind.MOVIE)
                 CollectionType.TVSHOWS -> listOf(BaseItemKind.SERIES)
-                // Mixed content libraries report no collection type.
                 null, CollectionType.UNKNOWN -> listOf(BaseItemKind.MOVIE, BaseItemKind.SERIES)
-                else -> return@mapNotNull null // music / photos / books / etc.
+                else -> return@mapNotNull null
             }
             BrowseDest.Library(view.id, view.name.orEmpty(), kinds)
         }
         return coroutineScope {
             val resumeDeferred = async {
-                runCatching { mediaRepository.resumeItems(session) }.getOrDefault(emptyList())
+                runCatching { mediaRepository.resumeItems() }.getOrDefault(emptyList())
             }
             val nextUpDeferred = async {
-                runCatching { mediaRepository.nextUp(session) }.getOrDefault(emptyList())
+                runCatching { mediaRepository.nextUp() }.getOrDefault(emptyList())
             }
             val latestDeferred = views.map { view ->
                 async {
                     view to runCatching {
-                        mediaRepository.latestInLibrary(session, view.id)
+                        mediaRepository.latestInLibrary(view.id)
                     }.getOrDefault(emptyList())
                 }
             }

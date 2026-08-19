@@ -470,7 +470,7 @@ class PlayerViewModel @Inject constructor(
             launch { ensureTranscodePermission(activeSession) }
 
             val itemDeferred = async {
-                runCatching { mediaRepository.item(activeSession, id) }.getOrNull()
+                runCatching { mediaRepository.item(id) }.getOrNull()
             }
 
             launch {
@@ -480,9 +480,9 @@ class PlayerViewModel @Inject constructor(
 
             val result = streamLoader.load(
                 StreamRequest(
-                    session = activeSession,
                     itemId = id,
                     seriesId = seriesId,
+                    session = activeSession,
                     positionTicks = startTicks ?: 0L,
                     mediaSourceId = mediaSourceId,
                     quality = sessionController.qualityOverride.value,
@@ -624,11 +624,11 @@ class PlayerViewModel @Inject constructor(
             }
             val result = streamLoader.load(
                 StreamRequest(
-                    session = activeSession,
                     itemId = id,
                     seriesId = seriesId,
                     positionTicks = resumeMs.msToTicks(),
                     mediaSourceId = current?.mediaSourceId,
+                    session = activeSession,
                     quality = quality,
                     audioStreamIndex = tracks.audioIndex,
                     subtitleStreamIndex = tracks.subtitleIndex,
@@ -668,7 +668,7 @@ class PlayerViewModel @Inject constructor(
     }
 
     private suspend fun ensureTranscodePermission(session: UserSession) {
-        canTranscode = runCatching { mediaRepository.canTranscodeVideo(session) }.getOrDefault(true)
+        canTranscode = runCatching { mediaRepository.canTranscodeVideo() }.getOrDefault(true)
     }
 
     private fun applyItemMetadata(activeSession: UserSession, id: UUID, item: BaseItemDto) {
@@ -701,7 +701,7 @@ class PlayerViewModel @Inject constructor(
         if (item.type == BaseItemKind.EPISODE) {
             viewingScope.launch {
                 val next = runCatching {
-                    mediaRepository.nextEpisode(activeSession, id)
+                    mediaRepository.nextEpisode(id)
                 }.getOrNull()
                 if (next != null) {
                     _state.update { s ->

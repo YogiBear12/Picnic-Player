@@ -77,16 +77,16 @@ class DetailViewModel @AssistedInject constructor(
                 _state.update { it.copy(loading = false, error = "No active session") }
                 return@launch
             }
-            runCatching { mediaRepository.item(session, UUID.fromString(itemId)) }
+            runCatching { mediaRepository.item(UUID.fromString(itemId)) }
                 .onSuccess { item ->
                     _state.update { it.copy(loading = false, item = item, session = session) }
                     // Secondary rows load after the item so the hero shows immediately.
                     launch {
-                        runCatching { mediaRepository.similarItems(session, item.id) }
+                        runCatching { mediaRepository.similarItems(item.id) }
                             .onSuccess { similar -> _state.update { it.copy(similarItems = similar) } }
                     }
                     launch {
-                        val collections = mediaRepository.collectionsContaining(session, item.id)
+                        val collections = mediaRepository.collectionsContaining(item.id)
                         _state.update { it.copy(collections = collections) }
                     }
                     launch {
@@ -96,7 +96,7 @@ class DetailViewModel @AssistedInject constructor(
                     }
                     if ((item.localTrailerCount ?: 0) > 0) {
                         launch {
-                            val trailers = mediaRepository.localTrailers(session, item.id)
+                            val trailers = mediaRepository.localTrailers(item.id)
                             _state.update { it.copy(localTrailers = trailers) }
                         }
                     }
@@ -105,11 +105,11 @@ class DetailViewModel @AssistedInject constructor(
                             loadRequestMoreState(item)
                         }
                         launch {
-                            val streams = mediaRepository.seriesLeadStreams(session, item.id)
+                            val streams = mediaRepository.seriesLeadStreams(item.id)
                             _state.update { it.copy(leadStreams = streams) }
                         }
                         launch {
-                            val nextUp = mediaRepository.nextEpisodeForSeries(session, item.id)
+                            val nextUp = mediaRepository.nextEpisodeForSeries(item.id)
                             _state.update { it.copy(nextUpEpisode = nextUp) }
                         }
                     }
@@ -138,7 +138,7 @@ class DetailViewModel @AssistedInject constructor(
         val inRails = current.similarItems.any { it.id.toString() == changedId } ||
             current.collections.any { it.id.toString() == changedId }
         if (!inRails) return
-        val updated = runCatching { mediaRepository.item(session, UUID.fromString(changedId)) }
+        val updated = runCatching { mediaRepository.item(UUID.fromString(changedId)) }
             .getOrNull() ?: return
         _state.update { state ->
             state.copy(
@@ -151,7 +151,7 @@ class DetailViewModel @AssistedInject constructor(
     private fun reload() {
         val session = state.value.session ?: return
         viewModelScope.launch {
-            runCatching { mediaRepository.item(session, UUID.fromString(itemId)) }
+            runCatching { mediaRepository.item(UUID.fromString(itemId)) }
                 .onSuccess { item ->
                     _state.update { it.copy(item = item) }
                     if (item.type == BaseItemKind.SERIES) {
@@ -169,7 +169,6 @@ class DetailViewModel @AssistedInject constructor(
         viewModelScope.launch {
             runCatching {
                 mediaRepository.setWatched(
-                    currentSession,
                     currentItem.id,
                     !currentPlayed,
                     currentItem.seriesId
@@ -188,7 +187,6 @@ class DetailViewModel @AssistedInject constructor(
         viewModelScope.launch {
             runCatching {
                 mediaRepository.setFavorite(
-                    currentSession,
                     currentItem.id,
                     favorite,
                     currentItem.seriesId
@@ -273,7 +271,7 @@ class DetailViewModel @AssistedInject constructor(
         val session = state.value.session ?: return
         viewModelScope.launch {
             val tmdb = runCatching {
-                tmdbIdFromProviderIds(mediaRepository.getPerson(session, personId).providerIds)
+                tmdbIdFromProviderIds(mediaRepository.getPerson(personId).providerIds)
             }.getOrNull()
             onResolved(
                 PersonKey(

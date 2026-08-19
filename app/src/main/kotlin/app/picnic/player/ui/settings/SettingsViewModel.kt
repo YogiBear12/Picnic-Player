@@ -117,12 +117,12 @@ class SettingsViewModel @Inject constructor(
             _activeUsername.value = authRepository.activeSession()?.username.orEmpty()
         }
         viewModelScope.launch {
-            val session = authRepository.activeSession() ?: return@launch
-            val cultures = runCatching { mediaRepository.cultures(session) }.getOrDefault(emptyList())
+            authRepository.activeSession() ?: return@launch
+            val cultures = runCatching { mediaRepository.cultures() }.getOrDefault(emptyList())
             if (cultures.isNotEmpty()) {
                 _cultureOptions.value = culturePickerOptions(cultures)
             }
-            val config = runCatching { mediaRepository.userConfiguration(session) }.getOrNull()
+            val config = runCatching { mediaRepository.userConfiguration() }.getOrNull()
             _serverAudioLanguage.value = config?.audioLanguagePreference
             _serverSubtitleLanguage.value = config?.subtitleLanguagePreference
         }

@@ -160,7 +160,7 @@ class ForYouViewModel @Inject constructor(
         libraryId: UUID,
         kinds: List<BaseItemKind>
     ): HomeRow? {
-        val suggested = runCatching { mediaRepository.suggestions(session, SUGGESTION_FETCH_LIMIT) }
+        val suggested = runCatching { mediaRepository.suggestions(SUGGESTION_FETCH_LIMIT) }
             .getOrDefault(emptyList())
             .filter { it.type in kinds }
         val inLibrary = filterToLibrary(session, libraryId, suggested).take(ROW_ITEM_LIMIT)
@@ -175,7 +175,7 @@ class ForYouViewModel @Inject constructor(
         kinds: List<BaseItemKind>
     ): List<HomeRow> {
         val seeds = runCatching {
-            mediaRepository.randomWatched(session, libraryId, kinds, SEED_FETCH_LIMIT)
+            mediaRepository.randomWatched(libraryId, kinds, SEED_FETCH_LIMIT)
         }.getOrDefault(emptyList())
         if (seeds.isEmpty()) return emptyList()
         val gate = Semaphore(ROW_BUILD_CONCURRENCY)
@@ -183,7 +183,7 @@ class ForYouViewModel @Inject constructor(
             seeds.map { seed ->
                 async {
                     gate.withPermit {
-                        val similar = runCatching { mediaRepository.similarItems(session, seed.id) }
+                        val similar = runCatching { mediaRepository.similarItems(seed.id) }
                             .getOrDefault(emptyList())
                         val items = filterToLibrary(session, libraryId, similar)
                             .filter { it.id != seed.id }
@@ -213,7 +213,7 @@ class ForYouViewModel @Inject constructor(
     ): List<BaseItemDto> {
         if (candidates.isEmpty()) return emptyList()
         val inLibrary = runCatching {
-            mediaRepository.itemsInLibrary(session, libraryId, candidates.map { it.id })
+            mediaRepository.itemsInLibrary(libraryId, candidates.map { it.id })
         }.getOrDefault(emptyList()).associateBy { it.id }
         return candidates.mapNotNull { inLibrary[it.id] }
     }
@@ -238,7 +238,7 @@ class ForYouViewModel @Inject constructor(
 
         if (plan.streamIds.isNotEmpty()) {
             val fetched = runCatching {
-                mediaRepository.itemStreams(session, plan.streamIds)
+                mediaRepository.itemStreams(plan.streamIds)
             }.getOrDefault(emptyMap())
             newStreams.putAll(fetched)
         }
@@ -249,7 +249,7 @@ class ForYouViewModel @Inject constructor(
                 plan.seriesIds.map { seriesId ->
                     async {
                         val streams = runCatching {
-                            gate.withPermit { mediaRepository.seriesLeadStreams(session, seriesId) }
+                            gate.withPermit { mediaRepository.seriesLeadStreams(seriesId) }
                         }.getOrDefault(emptyList())
                         if (streams.isNotEmpty()) {
                             newStreams[seriesId] = streams
@@ -272,7 +272,7 @@ class ForYouViewModel @Inject constructor(
         val counts = coroutineScope {
             seriesIds.map { id ->
                 async {
-                    id to runCatching { gate.withPermit { mediaRepository.seasonCount(session, id) } }
+                    id to runCatching { gate.withPermit { mediaRepository.seasonCount(id) } }
                         .getOrDefault(0)
                 }
             }.awaitAll()

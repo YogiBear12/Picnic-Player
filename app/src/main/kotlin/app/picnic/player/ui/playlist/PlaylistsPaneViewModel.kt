@@ -57,7 +57,7 @@ class PlaylistsPaneViewModel @Inject constructor(
                 _state.update { it.copy(loading = false) }
                 return@launch
             }
-            val playlists = runCatching { mediaRepository.playlists(session) }.getOrDefault(emptyList())
+            val playlists = runCatching { mediaRepository.playlists() }.getOrDefault(emptyList())
             _state.update { it.copy(loading = false, session = session, playlists = playlists) }
         }
     }

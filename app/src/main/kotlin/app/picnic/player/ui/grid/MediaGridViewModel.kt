@@ -128,7 +128,7 @@ class LibraryGridViewModel @Inject constructor(
             if (!store.containsItem(itemId)) return@launch
             val session = _state.value.session ?: return@launch
             val fresh = runCatching {
-                mediaRepository.item(session, UUID.fromString(itemId))
+                mediaRepository.item(UUID.fromString(itemId))
             }.getOrNull() ?: return@launch
             if (store.replaceItem(fresh)) {
                 _state.update { it.copy(revision = it.revision + 1) }
@@ -197,7 +197,7 @@ class LibraryGridViewModel @Inject constructor(
     private suspend fun refreshFacets(libraryId: UUID?) {
         val session = _state.value.session ?: return
         val facets = runCatching {
-            mediaRepository.gridFilterFacets(session, kinds, libraryId)
+            mediaRepository.gridFilterFacets(kinds, libraryId)
         }.getOrNull() ?: return
         _state.update { it.copy(facets = facets) }
         facetsLoaded = true

@@ -22,23 +22,14 @@ import org.jellyfin.sdk.model.api.AuthenticateUserByName
 import org.jellyfin.sdk.model.api.AuthenticationResult
 import org.jellyfin.sdk.model.api.QuickConnectDto
 
-/** Outcome of checking a stored session against its server. */
 sealed interface SessionCheck {
-    /** Token accepted — the session is usable. */
     data object Valid : SessionCheck
 
-    /** Server rejected the token (401/403) — re-login required. */
     data object AuthInvalid : SessionCheck
 
-    /** Server couldn't be reached or errored; [message] is the card/label text. */
     data class Unreachable(val message: String) : SessionCheck
 }
 
-/**
- * Authentication + onboarded-server/session management, built on the
- * Jellyfin Kotlin SDK. Tokens persist encrypted via [CredentialStore]; the
- * unique DeviceId is supplied by the SDK factory.
- */
 @Singleton
 class AuthRepository @Inject constructor(
     private val jellyfin: JellyfinFactory,
@@ -46,14 +37,8 @@ class AuthRepository @Inject constructor(
     private val seerrRepository: Lazy<SeerrRepository>,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) {
-    /** Runs a network + deserialize [block] off the caller's dispatcher — see MediaRepository.onIo. */
     private suspend inline fun <T> onIo(crossinline block: suspend () -> T): T = withContext(ioDispatcher) { block() }
 
-    /**
-     * Reactive current active session (or null), emitting on login / quick-switch /
-     * logout / session-expiry. Backed by [CredentialStore]; seeded on startup by
-     * [warmLocalCache]. Additive to the existing pull-based [activeSession].
-     */
     val activeSessionFlow: StateFlow<UserSession?> = credentials.activeSessionFlow
 
     private data class LocalSnapshot(
@@ -71,11 +56,6 @@ class AuthRepository @Inject constructor(
         const val SESSION_EXPIRED_MESSAGE = "Sign in again to continue"
     }
 
-    /**
-     * Loads servers, sessions, and per-server picker metadata into memory so
-     * picker screens can paint from disk on their first frame (no async gap).
-     * Call during startup before routing to a picker.
-     */
     suspend fun warmLocalCache() {
         val servers = credentials.servers()
         val sessions = credentials.sessions()
@@ -93,14 +73,11 @@ class AuthRepository @Inject constructor(
                 }
             }.toSet()
         )
-        // Seed the reactive active-session signal from the persisted ACTIVE key so
-        // observers (the session websocket) see any session restored across cold start.
         credentials.refreshActiveSession()
     }
 
     private fun tokenKey(serverId: String, userId: String) = "$serverId|$userId"
 
-    /** Synchronous read of warmed picker data; null until [warmLocalCache] has run. */
     fun peekProfilePickerLocal(serverId: String): ProfilePickerLocal? {
         val cache = snapshot ?: return null
         val server = cache.servers.firstOrNull { it.id == serverId } ?: return null
@@ -113,11 +90,6 @@ class AuthRepository @Inject constructor(
         )
     }
 
-    /** Lightweight check that the stored access token is still accepted by the server. */
-    /**
-     * Checks the stored token against the server, distinguishing a rejected token from an
-     * unreachable server — so a transient network failure no longer expires a good session.
-     */
     suspend fun validateSession(session: UserSession): SessionCheck = onIo {
         runCatching {
             jellyfin.api(session.server.baseUrl, session.accessToken).userApi.getCurrentUser()
@@ -135,10 +107,6 @@ class AuthRepository @Inject constructor(
 
     suspend fun sessionAuthErrors(serverId: String): Map<String, String> = credentials.sessionAuthErrors(serverId)
 
-    /**
-     * Clears the active session and drops the stored token, but keeps the username
-     * on the profile picker row with an error prompting re-login.
-     */
     suspend fun expireStoredSession(
         serverId: String,
         userId: String,
@@ -162,35 +130,28 @@ class AuthRepository @Inject constructor(
 
     suspend fun activeSession(): UserSession? = credentials.activeSession()
 
+    suspend fun requireSession(): UserSession = credentials.activeSessionFlow.value
+        ?: run {
+            credentials.refreshActiveSession()
+            credentials.activeSessionFlow.value
+        }
+        ?: error("No active session")
+
     suspend fun onboardedServers(): List<ServerConnection> = credentials.servers()
 
     suspend fun storedUsers(serverId: String): List<StoredSession> = credentials.sessionsForServer(serverId)
 
-    /**
-     * LAN-discovered Jellyfin servers as UDP replies arrive (SDK Flow + multicast lock).
-     * Collect on a background dispatcher; UI should append as items emit.
-     */
     fun discoverServers(): Flow<ServerConnection> = jellyfin.discoverLocalServers().map {
         ServerConnection(id = it.id, baseUrl = it.address, name = it.name)
     }
 
-    /**
-     * Resolves a typed address into a reachable server. Delegates to the SDK's
-     * recommended-server discovery, which expands the input into address
-     * candidates (adds `http(s)://`, the default `:8096` port, the `/System/Info`
-     * path) and scores each by reachability — so "192.168.1.50" or "myserver.com"
-     * resolve without the user knowing the exact URL. Throws if none respond.
-     */
     suspend fun resolveServer(input: String): ServerConnection = onIo {
-        // (Score enum is ordered best-first: GREAT, GOOD, OK, BAD.)
         val candidates = jellyfin.discovery.getRecommendedServers(input)
         val best = candidates
             .filter { it.score != RecommendedServerInfoScore.BAD }
             .minByOrNull { it.score.ordinal }
         val info = best?.systemInfo?.getOrNull()
         if (best == null || info == null) {
-            // Report which addresses were tried and why each failed so errors are
-            // diagnosable, not generic.
             val tried = candidates
                 .joinToString("; ") { "${it.address} (${issueText(it.issues.firstOrNull())})" }
                 .ifEmpty { "no candidate addresses for \"$input\"" }
@@ -255,7 +216,6 @@ class AuthRepository @Inject constructor(
         )
     }
 
-    /** True once the user approves the code on an already-signed-in device. */
     suspend fun isQuickConnectApproved(server: ServerConnection, secret: String): Boolean = onIo {
         jellyfin.api(server.baseUrl).quickConnectApi.getQuickConnectState(secret).content.authenticated
     }
@@ -266,11 +226,6 @@ class AuthRepository @Inject constructor(
         persist(server, result)
     }
 
-    /**
-     * Re-activates a previously stored session (encrypted token still on disk)
-     * without a fresh sign-in. Returns null if the token is gone — the caller
-     * then routes that user to login. Used by the Profile Picker quick-switch.
-     */
     suspend fun useStoredSession(serverId: String, userId: String): UserSession? {
         val session = credentials.session(serverId, userId) ?: return null
         credentials.setActive(serverId, userId)
@@ -278,37 +233,22 @@ class AuthRepository @Inject constructor(
         return session
     }
 
-    /** Soft user logout: drop the active session, keep the active server so cold
-     *  start resumes on that server's Profile Picker. Seerr secrets stay (soft logout). */
     suspend fun logout() = credentials.clearActive()
 
-    /**
-     * Deliberate sign-out from Settings > Account — a true logout. Unlike [logout]
-     * (which only drops the active pointer), this best-effort revokes the access token on
-     * the server (`POST /Sessions/Logout`), then [forgetUser]s the profile entirely: token,
-     * stored session, seerr link and picker row all removed. The active server is kept, so
-     * navigation lands on that server's Profile Picker with this user gone. Signing back in
-     * requires the username and password.
-     */
     suspend fun signOut() {
         val session = credentials.activeSession()
         if (session == null) {
             credentials.clearActive()
             return
         }
-        // Best-effort server-side revoke; local sign-out proceeds regardless (offline,
-        // token already invalid, etc.).
         onIo { runCatching { jellyfin.api(session.server.baseUrl, session.accessToken).sessionApi.reportSessionEnded() } }
         forgetUser(session.server.id, session.userId)
     }
 
-    /** Which server cold start resumes to when no session is active (null = show
-     *  the Server Picker after a "change server"). */
     suspend fun activeServerId(): String? = credentials.activeServerId()
 
     suspend fun setActiveServer(serverId: String) = credentials.setActiveServer(serverId)
 
-    /** Soft server logout (from "change server"). */
     suspend fun clearActiveServer() = credentials.clearActiveServer()
 
     suspend fun forgetUser(serverId: String, userId: String) {

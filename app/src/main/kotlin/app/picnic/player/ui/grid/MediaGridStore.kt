@@ -54,7 +54,7 @@ internal class MediaGridStore(
 
     suspend fun jumpToLetter(letter: String): Int {
         val anchor = if (letter == "#") "A" else letter
-        val index = repository.filteredIndexBeforeLetter(session, kinds, filter, anchor.first())
+        val index = repository.filteredIndexBeforeLetter(kinds, filter, anchor.first())
         ensurePage(index / pageSize)
         return index.coerceIn(0, (totalCount - 1).coerceAtLeast(0))
     }
@@ -84,7 +84,7 @@ internal class MediaGridStore(
             if (page in loadedPages) return false
         }
         val startIndex = page * pageSize
-        val result = repository.filteredItems(session, kinds, filter, sort, startIndex, pageSize)
+        val result = repository.filteredItems(kinds, filter, sort, startIndex, pageSize)
         mutex.withLock {
             if (totalCount == 0) totalCount = result.totalCount
             loadedPages[page] = result.items

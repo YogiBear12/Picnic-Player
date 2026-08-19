@@ -197,7 +197,7 @@ class HomeViewModel @Inject constructor(
         val counts = coroutineScope {
             seriesIds.map { id ->
                 async {
-                    id to runCatching { gate.withPermit { mediaRepository.seasonCount(session, id) } }
+                    id to runCatching { gate.withPermit { mediaRepository.seasonCount(id) } }
                         .getOrDefault(0)
                 }
             }.awaitAll()
@@ -326,7 +326,7 @@ class HomeViewModel @Inject constructor(
         val newStreams = mutableMapOf<UUID, List<MediaStream>>()
 
         if (plan.streamIds.isNotEmpty()) {
-            val fetched = mediaRepository.itemStreams(session, plan.streamIds)
+            val fetched = mediaRepository.itemStreams(plan.streamIds)
             newStreams.putAll(fetched)
         }
 
@@ -335,7 +335,7 @@ class HomeViewModel @Inject constructor(
             coroutineScope {
                 plan.seriesIds.map { seriesId ->
                     async {
-                        val streams = runCatching { gate.withPermit { mediaRepository.seriesLeadStreams(session, seriesId) } }.getOrDefault(emptyList())
+                        val streams = runCatching { gate.withPermit { mediaRepository.seriesLeadStreams(seriesId) } }.getOrDefault(emptyList())
                         if (streams.isNotEmpty()) {
                             newStreams[seriesId] = streams
                         }

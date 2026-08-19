@@ -104,20 +104,20 @@ class PersonViewModel @AssistedInject constructor(
 
     private suspend fun loadLibraryEntry(session: UserSession, seerrLinked: Boolean) {
         val uuid = UUID.fromString(jellyfinPersonId)
-        val person = mediaRepository.getPerson(session, uuid)
+        val person = mediaRepository.getPerson(uuid)
         _state.update { it.copy(person = person) }
 
         coroutineScope {
             val moviesDeferred = async {
                 if ((person.movieCount ?: 0) > 0) {
-                    mediaRepository.getItemsByPerson(session, uuid, listOf(BaseItemKind.MOVIE))
+                    mediaRepository.getItemsByPerson(uuid, listOf(BaseItemKind.MOVIE))
                 } else {
                     emptyList()
                 }
             }
             val seriesDeferred = async {
                 if ((person.seriesCount ?: 0) > 0) {
-                    mediaRepository.getItemsByPerson(session, uuid, listOf(BaseItemKind.SERIES))
+                    mediaRepository.getItemsByPerson(uuid, listOf(BaseItemKind.SERIES))
                 } else {
                     emptyList()
                 }

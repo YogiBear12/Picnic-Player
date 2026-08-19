@@ -157,7 +157,7 @@ class SeriesEpisodesViewModel @Inject constructor(
         val currentSession = session ?: return
         currentSeriesId = seriesId
         viewModelScope.launch {
-            runCatching { mediaRepository.item(currentSession, UUID.fromString(seriesId)) }
+            runCatching { mediaRepository.item(UUID.fromString(seriesId)) }
                 .onSuccess { seriesItem = it }
                 .onFailure { Log.w(TAG, "Series item load failed (series=$seriesId)", it) }
         }
@@ -209,7 +209,7 @@ class SeriesEpisodesViewModel @Inject constructor(
         val distinctMissingIds = missingIds.distinct()
         if (distinctMissingIds.isEmpty()) return
 
-        val fetchedCounts = mediaRepository.seasonCounts(currentSession, distinctMissingIds)
+        val fetchedCounts = mediaRepository.seasonCounts(distinctMissingIds)
         if (fetchedCounts.isNotEmpty()) {
             seasons = seasons.map { s ->
                 val count = fetchedCounts[s.id]
@@ -233,7 +233,7 @@ class SeriesEpisodesViewModel @Inject constructor(
         episodeMutations.value = currentMutations
 
         viewModelScope.launch {
-            runCatching { mediaRepository.setWatched(currentSession, UUID.fromString(episodeId), played, series) }
+            runCatching { mediaRepository.setWatched(UUID.fromString(episodeId), played, series) }
         }
     }
 
@@ -246,7 +246,7 @@ class SeriesEpisodesViewModel @Inject constructor(
         episodeMutations.value = currentMutations
 
         viewModelScope.launch {
-            runCatching { mediaRepository.setFavorite(currentSession, UUID.fromString(episodeId), favorite, series) }
+            runCatching { mediaRepository.setFavorite(UUID.fromString(episodeId), favorite, series) }
         }
     }
 
@@ -264,7 +264,7 @@ class SeriesEpisodesViewModel @Inject constructor(
 
         viewModelScope.launch {
             runCatching {
-                mediaRepository.setWatched(currentSession, UUID.fromString(seasonId), played, series)
+                mediaRepository.setWatched(UUID.fromString(seasonId), played, series)
             }
             episodeMutations.value = emptyMap()
             _refreshTrigger.value++
@@ -286,7 +286,7 @@ class SeriesEpisodesViewModel @Inject constructor(
 
         viewModelScope.launch {
             runCatching {
-                mediaRepository.setFavorite(currentSession, UUID.fromString(seasonId), favorite, series)
+                mediaRepository.setFavorite(UUID.fromString(seasonId), favorite, series)
             }
         }
     }

@@ -36,14 +36,6 @@ import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
 import org.jellyfin.sdk.model.extensions.ticks
 
-/**
- * Publishes Picnic preview channels + Watch Next rows to the Android TV home
- * screen. Channels are created even when a row has no programs so the app
- * appears as a channel source in the launcher's Channels picker.
- *
- * tvprovider's PreviewProgram/WatchNext builders are @RestrictTo(LIBRARY) but are
- * the supported public surface for Android TV home rows — suppress RestrictedApi.
- */
 @SuppressLint("RestrictedApi")
 @HiltWorker
 class TvChannelSyncWorker @AssistedInject constructor(
@@ -52,7 +44,6 @@ class TvChannelSyncWorker @AssistedInject constructor(
     private val authRepository: AuthRepository,
     private val mediaRepository: MediaRepository
 ) : CoroutineWorker(context, workerParams) {
-
     override suspend fun doWork(): Result {
         if (!isTvProviderAvailable()) {
             Log.w(TAG, "TV provider not available on this device; skipping")
@@ -61,21 +52,14 @@ class TvChannelSyncWorker @AssistedInject constructor(
 
         val session = authRepository.activeSession()
         if (session == null) {
-            // No session yet (cold start on picker / logged out). Don't fail —
-            // Home will enqueue an immediate sync once a session is active.
             Log.d(TAG, "No active session; skipping channel sync")
             return Result.success()
         }
 
-        // Each row is fetched independently: one slow or failing endpoint leaves its own channel
-        // untouched instead of taking the whole sync — and Watch Next — down with it.
-        val resumeItems = row("resumeItems") { mediaRepository.resumeItems(session, ROW_LIMIT) }
-        val nextUpItems = row("nextUp") { mediaRepository.nextUp(session, ROW_LIMIT) }
-        // Server-wide latest (no parentId): globally sorted by date added, not
-        // concatenated per library (which stacks one view after another).
+        val resumeItems = row("resumeItems") { mediaRepository.resumeItems(ROW_LIMIT) }
+        val nextUpItems = row("nextUp") { mediaRepository.nextUp(ROW_LIMIT) }
         val latestMedia = row("latestMedia") {
             mediaRepository.latestMedia(
-                session,
                 includeItemTypes = listOf(BaseItemKind.MOVIE, BaseItemKind.SERIES),
                 limit = ROW_LIMIT,
                 groupItems = true
@@ -83,23 +67,17 @@ class TvChannelSyncWorker @AssistedInject constructor(
         }
         val latestMovies = row("latestMovies") {
             mediaRepository.latestMedia(
-                session,
                 includeItemTypes = listOf(BaseItemKind.MOVIE),
                 limit = ROW_LIMIT
             )
         }
-        val recommendations = row("suggestions") { mediaRepository.suggestions(session, ROW_LIMIT) }
+        val recommendations = row("suggestions") { mediaRepository.suggestions(ROW_LIMIT) }
 
         return try {
-            // Same merge as in-app Continue Watching — resume first, then next-up
-            // without duplicating the same item/series. Skipped outright if either half is
-            // missing, so a failed fetch never clears the user's Watch Next row.
             if (resumeItems != null && nextUpItems != null) {
                 updateWatchNext(session, HomeContent.combineContinueWatching(resumeItems, nextUpItems))
             }
 
-            // Channels are created even for an empty list — that registers the app as a source in
-            // the Android TV Channels picker — but a row we failed to fetch is left alone.
             latestMedia?.let { updateChannel("latest_media", "Latest Media", session, it, defaultBrowsable = true) }
             latestMovies?.let { updateChannel("latest_movies", "Latest Movies", session, it) }
             recommendations?.let { updateChannel("recommendations", "Recommendations", session, it) }
@@ -127,10 +105,6 @@ class TvChannelSyncWorker @AssistedInject constructor(
             .getOrNull()
     }
 
-    /**
-     * Package-scoped Watch Next query: wipe our rows and re-insert. Avoids
-     * duplicate cards when sync runs more than once (periodic + one-shot).
-     */
     private fun updateWatchNext(session: UserSession, items: List<BaseItemDto>) {
         val currentItems = context.contentResolver.query(
             TvContractCompat.WatchNextPrograms.CONTENT_URI,
@@ -166,7 +140,6 @@ class TvChannelSyncWorker @AssistedInject constructor(
         defaultBrowsable: Boolean = false
     ) {
         val channelUri = getOrCreateChannel(channelKey, title, defaultBrowsable) ?: return
-        // Scoped to this channel, so re-publishing one row can't disturb another's programs.
         context.contentResolver.delete(
             TvContractCompat.buildPreviewProgramsUriForChannel(ContentUris.parseId(channelUri)),
             null,
@@ -180,7 +153,6 @@ class TvChannelSyncWorker @AssistedInject constructor(
         context.contentResolver.bulkInsert(TvContractCompat.PreviewPrograms.CONTENT_URI, programs)
     }
 
-    /** Drops a channel we no longer publish, so it can't linger in the launcher. */
     private fun removeChannel(key: String) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val uri = prefs.getString(key, null)?.toUri() ?: return
@@ -188,10 +160,6 @@ class TvChannelSyncWorker @AssistedInject constructor(
         prefs.edit { remove(key) }
     }
 
-    /**
-     * Returns the persisted channel URI, creating the channel (and requesting
-     * browsable for the default row) when it does not yet exist.
-     */
     private fun getOrCreateChannel(key: String, title: String, defaultBrowsable: Boolean): Uri? {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val channel = Channel.Builder()
@@ -213,8 +181,6 @@ class TvChannelSyncWorker @AssistedInject constructor(
             )
             if (uri != null) {
                 prefs.edit { putString(key, uri.toString()) }
-                // One channel may be auto-added to the home screen; the rest
-                // still appear under the Channels app-source picker.
                 if (defaultBrowsable) {
                     TvContractCompat.requestChannelBrowsable(context, ContentUris.parseId(uri))
                 }
@@ -273,7 +239,6 @@ class TvChannelSyncWorker @AssistedInject constructor(
         item: BaseItemDto
     ) {
         builder.setInternalProviderId(item.id.toString())
-        // Episodes: show series name as the card title; episode name goes in episodeTitle.
         builder.setTitle(item.seriesName ?: item.name)
         builder.setDescription(item.overview)
 
@@ -295,7 +260,6 @@ class TvChannelSyncWorker @AssistedInject constructor(
         }
 
         builder.setPosterArtAspectRatio(TvContractCompat.PreviewProgramColumns.ASPECT_RATIO_16_9)
-        // Prefer landscape thumb (series/episode still) over backdrop.
         val imageUri = JellyfinImages.thumb(session, item)
             ?: JellyfinImages.primary(session, item)
             ?: JellyfinImages.backdrop(session, item)
