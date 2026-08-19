@@ -5,61 +5,46 @@ package app.picnic.player.ui.player.osd
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
-import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onKeyEvent
-import androidx.compose.ui.input.key.type
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import app.picnic.player.ui.common.PanelContentInset
+import app.picnic.player.ui.common.PanelHeader
+import app.picnic.player.ui.common.PanelRowKeys
+import app.picnic.player.ui.common.PicnicListRow
+import app.picnic.player.ui.common.RowCheck
 import app.picnic.player.ui.common.requestFocusWhenAttached
+import app.picnic.player.ui.common.rowPrimaryColor
 import app.picnic.player.ui.player.TrackOption
 
 internal val TrackPanelWidth = 360.dp
 
 private val PanelGlassFill = Color(0xC0181E24)
 private val PanelCornerRadius = 20.dp
-private val ContentInset = 16.dp
-private val RowInnerPadding = 14.dp
-private val RowCornerRadius = 10.dp
 
-/** Frosted right-side audio/subtitle selection panel. Back closes it;
- *  D-pad stays within the list until then. */
 @Composable
 fun TrackPanel(
     title: String,
@@ -72,8 +57,6 @@ fun TrackPanel(
     BackHandler(enabled = active) { onClose() }
     val selectedFocus = remember { FocusRequester() }
     val selectedIndex = options.indexOfFirst { it.selected }
-    // The selected row can start below the fold in a long track list — wait for its
-    // requester to attach instead of a single (possibly-thrown) request.
     LaunchedEffect(Unit) { selectedFocus.requestFocusWhenAttached() }
 
     val rowCount = options.size + if (allowOff) 1 else 0
@@ -102,7 +85,7 @@ fun TrackPanel(
             PanelHeader(title = title)
             LazyColumn(
                 modifier = Modifier.focusGroup(),
-                contentPadding = PaddingValues(horizontal = ContentInset),
+                contentPadding = PaddingValues(horizontal = PanelContentInset),
                 verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
                 if (allowOff) {
@@ -137,32 +120,6 @@ fun TrackPanel(
     }
 }
 
-/** Section title + divider — same inset as list rows (Material menu / Apple TV popover). */
-@Composable
-private fun PanelHeader(title: String) {
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .padding(horizontal = ContentInset)
-    ) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-            color = Color.White,
-            modifier = Modifier.padding(horizontal = RowInnerPadding)
-        )
-        Spacer(Modifier.height(12.dp))
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .height(1.dp)
-                .background(Color.White.copy(alpha = 0.14f))
-        )
-        Spacer(Modifier.height(12.dp))
-    }
-}
-
 private inline fun androidx.compose.foundation.lazy.LazyListScope.itemsIndexedTracks(
     items: List<TrackOption>,
     crossinline row: @Composable (Int, TrackOption) -> Unit
@@ -181,42 +138,16 @@ private fun TrackRow(
     blockUp: Boolean,
     blockDown: Boolean
 ) {
-    var focused by remember { mutableStateOf(false) }
-    val base = Modifier
-        .fillMaxWidth()
-        .clip(RoundedCornerShape(RowCornerRadius))
-        .background(if (focused) Color.White else Color.Transparent)
-        .padding(horizontal = RowInnerPadding, vertical = 9.dp)
-    val withFocus = if (focusRequester != null) base.focusRequester(focusRequester) else base
-    Row(
-        modifier = withFocus
-            .onFocusChanged { focused = it.isFocused }
-            .focusProperties {
-                left = FocusRequester.Cancel
-                if (blockUp) up = FocusRequester.Cancel
-                if (blockDown) down = FocusRequester.Cancel
-            }
-            .focusable()
-            .onKeyEvent { event ->
-                if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
-                when (event.key) {
-                    Key.DirectionCenter, Key.Enter -> {
-                        onClick()
-                        true
-                    }
-                    Key.Back -> {
-                        onClose()
-                        true
-                    }
-                    else -> false
-                }
-            },
-        verticalAlignment = Alignment.CenterVertically
-    ) {
+    PicnicListRow(
+        focusRequester = focusRequester,
+        keys = PanelRowKeys(blockUp = blockUp, blockDown = blockDown),
+        onActivate = onClick,
+        onClose = onClose
+    ) { focused ->
         Column(Modifier.weight(1f)) {
             Text(
                 text = primary,
-                color = if (focused) Color.Black else Color.White.copy(alpha = 0.92f),
+                color = rowPrimaryColor(focused),
                 style = MaterialTheme.typography.bodyMedium,
                 maxLines = 1
             )
@@ -229,12 +160,6 @@ private fun TrackRow(
                 )
             }
         }
-        if (selected) {
-            Icon(
-                Icons.Filled.Check,
-                contentDescription = "Selected",
-                tint = if (focused) Color.Black.copy(alpha = 0.72f) else Color.White.copy(alpha = 0.55f)
-            )
-        }
+        if (selected) RowCheck(focused)
     }
 }

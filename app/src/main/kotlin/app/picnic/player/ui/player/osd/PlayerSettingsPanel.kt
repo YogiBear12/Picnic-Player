@@ -5,23 +5,17 @@ package app.picnic.player.ui.player.osd
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
-import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material3.Icon
@@ -31,21 +25,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onKeyEvent
-import androidx.compose.ui.input.key.type
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
@@ -55,7 +42,14 @@ import app.picnic.player.playback.AudioBoost
 import app.picnic.player.playback.NightMode
 import app.picnic.player.playback.SleepMode
 import app.picnic.player.playback.SleepTimerState
+import app.picnic.player.ui.common.PanelContentInset
+import app.picnic.player.ui.common.PanelHeader
+import app.picnic.player.ui.common.PanelRowKeys
+import app.picnic.player.ui.common.PicnicListRow
+import app.picnic.player.ui.common.RowCheck
+import app.picnic.player.ui.common.RowChevron
 import app.picnic.player.ui.common.requestFocusWhenAttached
+import app.picnic.player.ui.common.rowPrimaryColor
 import app.picnic.player.ui.settings.SubtitleAppearanceSetting
 import app.picnic.player.ui.settings.subtitleAppearanceRows
 
@@ -63,9 +57,6 @@ internal val PlayerSettingsPanelWidth = 380.dp
 
 private val PanelGlassFill = Color(0xC0181E24)
 private val PanelCornerRadius = 20.dp
-private val ContentInset = 16.dp
-private val RowInnerPadding = 14.dp
-private val RowCornerRadius = 10.dp
 
 private val Speeds = listOf(0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 1.75f, 2.0f)
 private val Boosts = AudioBoost.entries
@@ -269,7 +260,7 @@ fun PlayerSettingsPanel(
             PanelHeader(title = page.title())
             Column(
                 Modifier
-                    .padding(horizontal = ContentInset)
+                    .padding(horizontal = PanelContentInset)
                     .focusGroup(),
                 verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
@@ -434,31 +425,6 @@ private fun subtitleAppearancePanelRows(
 }
 
 @Composable
-private fun PanelHeader(title: String) {
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .padding(horizontal = ContentInset)
-    ) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-            color = Color.White,
-            modifier = Modifier.padding(horizontal = RowInnerPadding)
-        )
-        Spacer(Modifier.height(12.dp))
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .height(1.dp)
-                .background(Color.White.copy(alpha = 0.14f))
-        )
-        Spacer(Modifier.height(12.dp))
-    }
-}
-
-@Composable
 private fun PanelRowItem(
     row: PanelRow,
     focusRequester: FocusRequester?,
@@ -466,52 +432,24 @@ private fun PanelRowItem(
     blockDown: Boolean,
     onClose: () -> Unit
 ) {
-    var focused by remember { mutableStateOf(false) }
     val stepper = row as? PanelRow.Step
-    val enabled = stepper?.enabled ?: true
-    val base = if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier
-    Row(
-        modifier = base
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(RowCornerRadius))
-            .background(if (focused) Color.White else Color.Transparent)
-            .onFocusChanged { focused = it.isFocused }
-            .focusProperties {
-                left = FocusRequester.Cancel
-                if (stepper != null) right = FocusRequester.Cancel
-                if (blockUp) up = FocusRequester.Cancel
-                if (blockDown) down = FocusRequester.Cancel
-            }
-            .focusable()
-            .onKeyEvent { event ->
-                if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
-                when (event.key) {
-                    Key.DirectionLeft -> {
-                        if (stepper != null && enabled) stepper.onLeft()
-                        stepper != null
-                    }
-                    Key.DirectionRight -> {
-                        if (stepper != null && enabled) stepper.onRight()
-                        stepper != null
-                    }
-                    Key.DirectionCenter, Key.Enter -> {
-                        when (row) {
-                            is PanelRow.Nav -> row.onClick()
-                            is PanelRow.Select -> row.onClick()
-                            is PanelRow.Step -> Unit
-                        }
-                        row !is PanelRow.Step
-                    }
-                    Key.Back -> {
-                        onClose()
-                        true
-                    }
-                    else -> false
+    PicnicListRow(
+        focusRequester = focusRequester,
+        keys = PanelRowKeys(blockUp = blockUp, blockDown = blockDown),
+        onActivate = if (stepper == null) {
+            {
+                when (row) {
+                    is PanelRow.Nav -> row.onClick()
+                    is PanelRow.Select -> row.onClick()
+                    is PanelRow.Step -> Unit
                 }
             }
-            .padding(horizontal = RowInnerPadding, vertical = 9.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
+        } else {
+            null
+        },
+        onStep = stepper?.let { step -> { forward -> if (step.enabled) if (forward) step.onRight() else step.onLeft() } },
+        onClose = onClose
+    ) { focused ->
         when (row) {
             is PanelRow.Nav -> NavContent(row, focused)
             is PanelRow.Select -> SelectContent(row, focused)
@@ -524,7 +462,7 @@ private fun PanelRowItem(
 private fun RowScope.NavContent(row: PanelRow.Nav, focused: Boolean) {
     Text(
         row.label,
-        color = if (focused) Color.Black else Color.White.copy(alpha = 0.92f),
+        color = rowPrimaryColor(focused),
         style = MaterialTheme.typography.bodyMedium,
         maxLines = 1,
         modifier = Modifier.weight(1f)
@@ -535,22 +473,14 @@ private fun RowScope.NavContent(row: PanelRow.Nav, focused: Boolean) {
         style = MaterialTheme.typography.bodyMedium,
         maxLines = 1
     )
-    Icon(
-        Icons.AutoMirrored.Filled.KeyboardArrowRight,
-        contentDescription = null,
-        tint = when {
-            !row.chevron -> Color.Transparent
-            focused -> Color.Black
-            else -> Color.White.copy(alpha = 0.6f)
-        }
-    )
+    RowChevron(focused, visible = row.chevron)
 }
 
 @Composable
 private fun RowScope.SelectContent(row: PanelRow.Select, focused: Boolean) {
     Text(
         row.primary,
-        color = if (focused) Color.Black else Color.White.copy(alpha = 0.92f),
+        color = rowPrimaryColor(focused),
         style = MaterialTheme.typography.bodyMedium,
         maxLines = 1,
         modifier = Modifier.weight(1f)
@@ -564,13 +494,7 @@ private fun RowScope.SelectContent(row: PanelRow.Select, focused: Boolean) {
             modifier = Modifier.padding(end = 8.dp)
         )
     }
-    if (row.selected) {
-        Icon(
-            Icons.Filled.Check,
-            contentDescription = "Selected",
-            tint = if (focused) Color.Black.copy(alpha = 0.72f) else Color.White.copy(alpha = 0.55f)
-        )
-    }
+    if (row.selected) RowCheck(focused)
 }
 
 @Composable
@@ -578,8 +502,7 @@ private fun RowScope.StepContent(row: PanelRow.Step, focused: Boolean) {
     val labelColor = when {
         !row.enabled && focused -> Color.Black.copy(alpha = 0.4f)
         !row.enabled -> Color.White.copy(alpha = 0.38f)
-        focused -> Color.Black
-        else -> Color.White.copy(alpha = 0.92f)
+        else -> rowPrimaryColor(focused)
     }
     Text(
         row.label,

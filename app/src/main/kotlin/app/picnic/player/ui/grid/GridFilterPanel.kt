@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -67,7 +66,6 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
@@ -81,6 +79,12 @@ import app.picnic.player.data.media.GridSortSpec
 import app.picnic.player.data.media.MediaGridFilter
 import app.picnic.player.data.media.ResolutionFilter
 import app.picnic.player.data.media.WatchedFilter
+import app.picnic.player.ui.common.PanelHeader
+import app.picnic.player.ui.common.PanelRowKeys
+import app.picnic.player.ui.common.PanelRowMetrics
+import app.picnic.player.ui.common.PicnicListRow
+import app.picnic.player.ui.common.rowPrimaryColor
+import app.picnic.player.ui.common.rowTrailingColor
 import app.picnic.player.ui.theme.PicnicColors
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -90,12 +94,10 @@ private val PanelGlassFill = Color(0xF2181E24)
 private val PanelCornerRadius = 20.dp
 private val PanelEdgeInset = 24.dp
 private val ContentInset = 12.dp
-private val RowInnerPadding = 12.dp
-private val RowCornerRadius = 8.dp
+private val GridRowMetrics = PanelRowMetrics(innerPadding = 12.dp, cornerRadius = 8.dp)
 private val PanelWidth = 300.dp
 private const val PanelAnimMs = 200
 
-/** One panel section per control. Order here is the panel's top-level row order. */
 internal enum class GridFilterSection(val label: String, val icon: ImageVector) {
     CONTENT_TYPE("Content type", Icons.Filled.Movie),
     SORT_ORDER("Sort order", Icons.Filled.SwapVert),
@@ -110,7 +112,6 @@ internal enum class GridFilterSection(val label: String, val icon: ImageVector) 
     DECADE("Decade", Icons.Filled.DateRange)
 }
 
-/** Sections that make sense for the current facets (rail and panel must agree). */
 internal fun availableFilterSections(
     facets: GridFilterFacets,
     offered: Set<GridFilterSection>
@@ -125,7 +126,6 @@ internal fun availableFilterSections(
     }
 }
 
-/** Which sections currently deviate from their defaults — drives the accent dots. */
 internal fun activeFilterSections(
     filter: MediaGridFilter,
     sort: GridSortSpec
@@ -143,7 +143,6 @@ internal fun activeFilterSections(
     if (filter.decades.isNotEmpty()) add(GridFilterSection.DECADE)
 }
 
-/** A selectable row inside a section's value list. */
 private data class PanelOption(
     val label: String,
     val selected: Boolean,
@@ -153,15 +152,6 @@ private data class PanelOption(
     val onClick: () -> Unit
 )
 
-/**
- * Sort & filter panel, opened from the filter icon atop the alphabet rail. Rendered
- * in its own full-screen window so the scrim covers everything behind it and focus
- * physically cannot land there. Slides in from the right edge, where its icon lives.
- *
- * Two levels: the top lists the sections (first row focused on open, each row
- * icon + chevron); Select opens the value list; Back walks up a level (restoring the
- * top list's scroll and focus), then closes. Value changes apply live.
- */
 @Composable
 internal fun GridFilterPanel(
     filter: MediaGridFilter,
@@ -170,8 +160,6 @@ internal fun GridFilterPanel(
     offered: Set<GridFilterSection>,
     onFilterChange: (MediaGridFilter) -> Unit,
     onSortChange: (GridSortSpec) -> Unit,
-    /** Atomic reset of BOTH filter and sort — two sequential single-side callbacks
-     *  would each re-apply the other side's stale pre-reset value. */
     onResetAll: () -> Unit,
     onClose: () -> Unit
 ) {
@@ -189,8 +177,6 @@ internal fun GridFilterPanel(
     }
 
     val sections = availableFilterSections(facets, offered)
-    // Level state lives OUTSIDE the popup: the popup window consumes Back itself and
-    // reports it only through onDismissRequest, so that callback must walk the levels.
     var openSection by remember { mutableStateOf<GridFilterSection?>(null) }
     var lastOpenedSection by remember { mutableStateOf<GridFilterSection?>(null) }
 
@@ -204,8 +190,6 @@ internal fun GridFilterPanel(
         val clearRowFocus = remember { FocusRequester() }
         val firstValueFocus = remember { FocusRequester() }
         val topListState = rememberLazyListState()
-        // Ground truth for the seed below — requestFocus can be silently denied while
-        // the panel is still sliding in, so retry until the panel reports focus.
         var panelHasFocus by remember { mutableStateOf(false) }
 
         LaunchedEffect(openSection, shown, facets) {
@@ -214,7 +198,6 @@ internal fun GridFilterPanel(
                 null -> {
                     val returnTo = lastOpenedSection
                     if (returnTo != null) {
-                        // Recompose the row before focusing it (it may be scrolled out).
                         runCatching {
                             topListState.scrollToItem(sections.indexOf(returnTo).coerceAtLeast(0))
                         }
@@ -256,7 +239,6 @@ internal fun GridFilterPanel(
                         .background(PanelGlassFill)
                         .padding(vertical = 16.dp)
                         .onFocusChanged { panelHasFocus = it.hasFocus }
-                        // Belt-and-braces with the popup window: D-pad stays inside.
                         .focusProperties { exit = { FocusRequester.Cancel } }
                         .focusGroup()
                 ) {
@@ -340,8 +322,6 @@ internal fun GridFilterPanel(
     }
 }
 
-/** Value rows for one section's sub-panel. The tomato marks are resource-backed
- *  vectors, resolvable only in composition — passed in from the panel. */
 private fun buildSectionOptions(
     section: GridFilterSection,
     filter: MediaGridFilter,
@@ -427,8 +407,6 @@ private fun buildSectionOptions(
         }
     }
     GridFilterSection.PARENTAL -> facets.parentalRatings.map { rating ->
-        // Explicit include: nothing ticked by default (no filtering); ticking narrows
-        // the grid to the ticked ratings only.
         PanelOption(
             label = rating,
             selected = rating in filter.parentalRatings,
@@ -455,52 +433,12 @@ private fun buildSectionOptions(
     }
 }
 
-/** 10 exact, then descending minimums — the full 1–10 star range. The server only
- *  filters by MINIMUM rating (no max param), so "below N" isn't expressible; sorting
- *  by rating ascending is the way to surface the worst-rated titles. */
+/** Descending minimums: the server has no maximum-rating parameter, so "below N" is not expressible. */
 private val CommunityRatingSteps = listOf(10, 9, 8, 7, 6, 5, 4, 3, 2, 1)
 private val RatingStarGold = Color(0xFFE0C05C)
 
 private fun <T> Set<T>.toggle(value: T): Set<T> = if (value in this) this - value else this + value
 
-/** Panel title — a clear step up from the row typography. */
-@Composable
-private fun PanelHeader(title: String, icon: ImageVector? = null) {
-    Column(Modifier.fillMaxWidth()) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(horizontal = ContentInset + RowInnerPadding)
-        ) {
-            if (icon != null) {
-                Icon(
-                    icon,
-                    contentDescription = null,
-                    tint = PicnicColors.Accent,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(Modifier.width(10.dp))
-            }
-            Text(
-                text = title,
-                // titleMedium + Bold: a clear step above the bodyMedium rows without
-                // titleLarge's bulk in a 300dp panel.
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = Color.White
-            )
-        }
-        Spacer(Modifier.height(12.dp))
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .height(1.dp)
-                .background(Color.White.copy(alpha = 0.14f))
-        )
-        Spacer(Modifier.height(8.dp))
-    }
-}
-
-/** Top-level row: section icon + label + chevron; accent dot when non-default. */
 @Composable
 private fun SectionRow(
     section: GridFilterSection,
@@ -509,29 +447,12 @@ private fun SectionRow(
     focusRequester: FocusRequester?,
     onClick: () -> Unit
 ) {
-    var focused by remember { mutableStateOf(false) }
-    val base = Modifier
-        .fillMaxWidth()
-        .clip(RoundedCornerShape(RowCornerRadius))
-        .background(if (focused) Color.White else Color.Transparent)
-        .padding(horizontal = RowInnerPadding, vertical = 9.dp)
-    val withFocus = if (focusRequester != null) base.focusRequester(focusRequester) else base
-    Row(
-        modifier = withFocus
-            .onFocusChanged { focused = it.isFocused }
-            .focusable()
-            .onKeyEvent { event ->
-                if (event.type == KeyEventType.KeyDown &&
-                    (event.key == Key.DirectionCenter || event.key == Key.Enter || event.key == Key.DirectionRight)
-                ) {
-                    onClick()
-                    true
-                } else {
-                    false
-                }
-            },
-        verticalAlignment = Alignment.CenterVertically
-    ) {
+    PicnicListRow(
+        focusRequester = focusRequester,
+        metrics = GridRowMetrics,
+        keys = PanelRowKeys(blockLeft = false, activateOnRight = true),
+        onActivate = onClick
+    ) { focused ->
         Icon(
             section.icon,
             contentDescription = null,
@@ -541,7 +462,7 @@ private fun SectionRow(
         Spacer(Modifier.width(10.dp))
         Text(
             text = valueLabel,
-            color = if (focused) Color.Black else Color.White.copy(alpha = 0.92f),
+            color = rowPrimaryColor(focused),
             style = MaterialTheme.typography.bodyMedium,
             maxLines = 1,
             modifier = Modifier.weight(1f)
@@ -564,13 +485,11 @@ private fun SectionRow(
     }
 }
 
-/** Bottom action: reset filter and sort to defaults. */
 @Composable
 private fun ClearFiltersRow(
     focusRequester: FocusRequester,
     onClick: () -> Unit
 ) {
-    var focused by remember { mutableStateOf(false) }
     Column {
         Spacer(Modifier.height(6.dp))
         Box(
@@ -580,27 +499,12 @@ private fun ClearFiltersRow(
                 .background(Color.White.copy(alpha = 0.14f))
         )
         Spacer(Modifier.height(6.dp))
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(RowCornerRadius))
-                .background(if (focused) Color.White else Color.Transparent)
-                .padding(horizontal = RowInnerPadding, vertical = 9.dp)
-                .focusRequester(focusRequester)
-                .onFocusChanged { focused = it.isFocused }
-                .focusable()
-                .onKeyEvent { event ->
-                    if (event.type == KeyEventType.KeyDown &&
-                        (event.key == Key.DirectionCenter || event.key == Key.Enter)
-                    ) {
-                        onClick()
-                        true
-                    } else {
-                        false
-                    }
-                },
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+        PicnicListRow(
+            focusRequester = focusRequester,
+            metrics = GridRowMetrics,
+            keys = PanelRowKeys(blockLeft = false),
+            onActivate = onClick
+        ) { focused ->
             Icon(
                 Icons.Filled.RestartAlt,
                 contentDescription = null,
@@ -610,7 +514,7 @@ private fun ClearFiltersRow(
             Spacer(Modifier.width(10.dp))
             Text(
                 text = "Clear filters",
-                color = if (focused) Color.Black else Color.White.copy(alpha = 0.92f),
+                color = rowPrimaryColor(focused),
                 style = MaterialTheme.typography.bodyMedium,
                 maxLines = 1
             )
@@ -628,35 +532,16 @@ private fun FilterRow(
     leadingIcon: ImageVector? = null,
     leadingTint: Color? = null
 ) {
-    var focused by remember { mutableStateOf(false) }
-    val base = Modifier
-        .fillMaxWidth()
-        .clip(RoundedCornerShape(RowCornerRadius))
-        .background(if (focused) Color.White else Color.Transparent)
-        .padding(horizontal = RowInnerPadding, vertical = 9.dp)
-    val withFocus = if (focusRequester != null) base.focusRequester(focusRequester) else base
-    Row(
-        modifier = withFocus
-            .onFocusChanged { focused = it.isFocused }
-            .focusable()
-            .onKeyEvent { event ->
-                if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
-                when (event.key) {
-                    Key.DirectionCenter, Key.Enter -> {
-                        onClick()
-                        true
-                    }
-                    else -> false
-                }
-            },
-        verticalAlignment = Alignment.CenterVertically
-    ) {
+    PicnicListRow(
+        focusRequester = focusRequester,
+        metrics = GridRowMetrics,
+        keys = PanelRowKeys(blockLeft = false),
+        onActivate = onClick
+    ) { focused ->
         if (leadingIcon != null) {
             Icon(
                 leadingIcon,
                 contentDescription = null,
-                // Keeps its own colour on the focused white pill — the gold star reads
-                // as a rating mark, not a control glyph.
                 tint = leadingTint ?: if (focused) Color.Black.copy(alpha = 0.72f) else Color.White.copy(alpha = 0.6f),
                 modifier = Modifier.size(16.dp)
             )
@@ -664,7 +549,7 @@ private fun FilterRow(
         }
         Text(
             text = label,
-            color = if (focused) Color.Black else Color.White.copy(alpha = 0.92f),
+            color = rowPrimaryColor(focused),
             style = MaterialTheme.typography.bodyMedium,
             maxLines = 1,
             modifier = Modifier.weight(1f)
@@ -673,24 +558,20 @@ private fun FilterRow(
             Icon(
                 trailingIcon,
                 contentDescription = null,
-                tint = if (focused) Color.Black.copy(alpha = 0.72f) else Color.White.copy(alpha = 0.55f),
+                tint = rowTrailingColor(focused),
                 modifier = Modifier.size(16.dp)
             )
         } else if (selected) {
             Icon(
                 Icons.Filled.Check,
                 contentDescription = "Selected",
-                tint = if (focused) Color.Black.copy(alpha = 0.72f) else Color.White.copy(alpha = 0.55f),
+                tint = rowTrailingColor(focused),
                 modifier = Modifier.size(16.dp)
             )
         }
     }
 }
 
-/**
- * Zero-result state that keeps the panel reachable: with a filter active the button is
- * the only focusable on the pane, so the user can always loosen the filter again.
- */
 @Composable
 internal fun GridEmptyFilteredState(
     filterActive: Boolean,
@@ -714,14 +595,11 @@ internal fun GridEmptyFilteredState(
             var focused by remember { mutableStateOf(false) }
             Box(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(RowCornerRadius))
+                    .clip(RoundedCornerShape(GridRowMetrics.cornerRadius))
                     .background(if (focused) Color.White else Color.White.copy(alpha = 0.12f))
                     .padding(horizontal = 20.dp, vertical = 10.dp)
                     .focusRequester(focusRequester)
-                    // Second requester the host targets from its tab's Down (see emptyStateFocus).
                     .then(downEntryFocus?.let { Modifier.focusRequester(it) } ?: Modifier)
-                    // Up escapes to the host's tab row (swap tabs without clearing), not the
-                    // filter button — this button is the only focusable on a zero-result pane.
                     .focusProperties { up = upExitFocus ?: FocusRequester.Default }
                     .onFocusChanged { focused = it.isFocused }
                     .focusable()
@@ -738,8 +616,6 @@ internal fun GridEmptyFilteredState(
                         }
                     }
             ) {
-                // While the cleared list reloads the button keeps focus but shows a spinner in
-                // place of its label — the pane reads as busy, not frozen.
                 if (clearing) {
                     CircularProgressIndicator(
                         color = if (focused) Color.Black else Color.White,

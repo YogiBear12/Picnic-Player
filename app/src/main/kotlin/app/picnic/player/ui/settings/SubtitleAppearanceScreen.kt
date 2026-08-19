@@ -6,7 +6,6 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -37,15 +36,9 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onKeyEvent
-import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
@@ -70,6 +63,9 @@ import app.picnic.player.data.settings.SubtitleBackground
 import app.picnic.player.playback.BlackBars
 import app.picnic.player.playback.applyTo
 import app.picnic.player.playback.subtitleBottomPaddingFraction
+import app.picnic.player.ui.common.PanelRowMetrics
+import app.picnic.player.ui.common.PicnicListRow
+import app.picnic.player.ui.common.rowPrimaryColor
 import app.picnic.player.ui.grid.OceanAmbientBackground
 import app.picnic.player.ui.theme.PicnicColors
 import coil3.compose.AsyncImage
@@ -119,9 +115,8 @@ private val PanelCornerRadius = 20.dp
 private val PanelWidth = 380.dp
 private val PanelInsetHorizontal = 12.dp
 private val PanelInsetVertical = 16.dp
-private val RowInnerPadding = 12.dp
 private val RowSpacing = 1.dp
-private val RowCornerRadius = 10.dp
+private val AppearanceRowMetrics = PanelRowMetrics(innerPadding = 12.dp, verticalPadding = 7.dp)
 private val PageInset = 40.dp
 private val MinHeaderHeight = 40.dp
 private const val ScopeAspect = 2.39f
@@ -283,57 +278,30 @@ private fun AppearanceRow(
     modifier: Modifier = Modifier,
     enabled: Boolean = true
 ) {
-    var focused by remember { mutableStateOf(false) }
-    val labelColor = when {
-        !enabled && focused -> Color.Black.copy(alpha = 0.4f)
-        !enabled -> PicnicColors.OnDarkMuted
-        focused -> Color.Black
-        else -> Color.White.copy(alpha = 0.92f)
-    }
-    val valueColor = when {
-        !enabled && focused -> Color.Black.copy(alpha = 0.4f)
-        !enabled -> PicnicColors.OnDarkMuted
-        focused -> Color.Black.copy(alpha = 0.72f)
-        else -> PicnicColors.Cyan
-    }
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(RowCornerRadius))
-            .background(if (focused) Color.White else Color.Transparent)
-            // Left/Right step the value in place — never move focus out of the row.
-            .focusProperties {
-                left = FocusRequester.Cancel
-                right = FocusRequester.Cancel
-            }
-            .onKeyEvent { event ->
-                if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
-                when (event.key) {
-                    Key.DirectionCenter, Key.Enter, Key.DirectionRight -> {
-                        if (enabled) onStep(true)
-                        true
-                    }
-                    Key.DirectionLeft -> {
-                        if (enabled) onStep(false)
-                        true
-                    }
-                    else -> false
-                }
-            }
-            .onFocusChanged { focused = it.isFocused }
-            .focusable()
-            .padding(horizontal = RowInnerPadding, vertical = 7.dp),
+    PicnicListRow(
+        modifier = modifier,
+        metrics = AppearanceRowMetrics,
         horizontalArrangement = Arrangement.spacedBy(16.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
+        onActivate = { if (enabled) onStep(true) },
+        onStep = { forward -> if (enabled) onStep(forward) }
+    ) { focused ->
+        val labelColor = when {
+            !enabled && focused -> Color.Black.copy(alpha = 0.4f)
+            !enabled -> PicnicColors.OnDarkMuted
+            else -> rowPrimaryColor(focused)
+        }
+        val valueColor = when {
+            !enabled && focused -> Color.Black.copy(alpha = 0.4f)
+            !enabled -> PicnicColors.OnDarkMuted
+            focused -> Color.Black.copy(alpha = 0.72f)
+            else -> PicnicColors.Cyan
+        }
         Text(
             label,
             style = MaterialTheme.typography.bodyMedium,
             color = labelColor,
             modifier = Modifier.weight(1f)
         )
-        // Stepper: ‹ value › — always rendered (muted when disabled) so the value never
-        // shifts as the row enables/disables.
         Row(
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.CenterVertically
