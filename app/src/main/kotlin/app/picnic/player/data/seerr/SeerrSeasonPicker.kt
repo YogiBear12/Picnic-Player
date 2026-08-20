@@ -1,19 +1,8 @@
 package app.picnic.player.data.seerr
 
-/**
- * Per-season requestability for the TV season picker.
- *
- * Mirrors Seerr's TvRequestModal: seasons already in library (available /
- * partially available / processing) or on an active non-4k request are not
- * selectable. Does not invent availability when the API omits season status.
- *
- * Library-blocked rows show a trailing badge from [seasonLibraryBadgeLabel] on
- * [SeerrSeasonPickItem.mediaStatus] (Available / Partially available / Processing).
- */
 enum class SeerrSeasonAvailability {
     Selectable,
 
-    /** Blocked by library / download state — see [SeerrSeasonPickItem.mediaStatus]. */
     Available,
     Requested
 }
@@ -21,16 +10,11 @@ enum class SeerrSeasonAvailability {
 data class SeerrSeasonPickItem(
     val seasonNumber: Int,
     val availability: SeerrSeasonAvailability,
-    /** Raw [SeerrMediaStatus] when [availability] is [SeerrSeasonAvailability.Available]. */
     val mediaStatus: Int? = null
 ) {
     val selectable: Boolean get() = availability == SeerrSeasonAvailability.Selectable
 }
 
-/**
- * Trailing badge copy for library-blocked season rows.
- * Returns null when [mediaStatus] is not a picker-surfaced library state.
- */
 fun seasonLibraryBadgeLabel(mediaStatus: Int?): String? = when (mediaStatus) {
     SeerrMediaStatus.AVAILABLE,
     SeerrMediaStatus.PARTIALLY_AVAILABLE,
@@ -39,10 +23,6 @@ fun seasonLibraryBadgeLabel(mediaStatus: Int?): String? = when (mediaStatus) {
     else -> null
 }
 
-/**
- * Builds picker rows from TMDB season list + [SeerrMediaInfo] season/request state.
- * Specials (`seasonNumber <= 0`) are omitted. Non-4k only (4K UI out of scope).
- */
 fun buildSeasonPickItems(
     seasons: List<SeerrTvSeason>,
     mediaInfo: SeerrMediaInfo?,
@@ -94,13 +74,11 @@ fun buildSeasonPickItems(
         .toList()
 }
 
-/** First active non-4K TV request; 4K request ids must never be updated by v1 UI. */
 fun activeNon4kRequest(
     requests: List<SeerrMediaRequest>,
     isActiveRequest: (SeerrMediaRequest) -> Boolean
 ): SeerrMediaRequest? = requests.firstOrNull { !it.is4k && isActiveRequest(it) }
 
-/** Hybrid Detail Request more visibility/submit gate. */
 fun canRequestMoreSeasons(
     seasons: List<SeerrSeasonPickItem>,
     user: SeerrUser?,
@@ -114,10 +92,6 @@ fun canRequestMoreSeasons(
         hasActiveRequest = hasActiveRequest
     )
 
-/**
- * Payload for create/update: newly picked seasons, plus seasons already on
- * [existingRequest] when updating (Seerr PUT replaces the request's season set).
- */
 fun seasonsForTvRequest(
     selected: List<Int>,
     existingRequest: SeerrMediaRequest?

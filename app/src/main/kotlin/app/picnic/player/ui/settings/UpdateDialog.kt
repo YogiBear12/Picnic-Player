@@ -49,12 +49,6 @@ private val PanelWidth = 420.dp
 private val PanelCornerRadius = 20.dp
 private val ContentInset = 24.dp
 
-/**
- * Update flow dialog: one glass panel whose content follows
- * [UpdateViewModel.Phase] — checking spinner, up-to-date, release notes +
- * install offer, download progress, or failure. [onDismiss] is the only exit;
- * the phase machine itself never closes the dialog so outcomes stay readable.
- */
 @Composable
 internal fun UpdateDialog(
     phase: Phase,
@@ -64,8 +58,6 @@ internal fun UpdateDialog(
     BackHandler { onDismiss() }
     val primaryFocus = remember { FocusRequester() }
     var showNotes by remember { mutableStateOf(false) }
-    // Keyed on the phase class: refocus the primary button when the content
-    // changes, but not while the notes overlay sits on top.
     LaunchedEffect(phase::class, showNotes) {
         if (!showNotes) runCatching { primaryFocus.requestFocus() }
     }
@@ -115,8 +107,6 @@ internal fun UpdateDialog(
                     )
                     if (phase.release.notes.isNotBlank()) {
                         Spacer(Modifier.height(12.dp))
-                        // Focusable preview: Select opens the full-screen scrollable
-                        // notes overlay with markdown rendering.
                         NotesPreview(
                             notes = phase.release.notes,
                             onOpen = { showNotes = true }
@@ -180,10 +170,6 @@ internal fun UpdateDialog(
     }
 }
 
-/**
- * Truncated release-notes block; focusable, Select opens [ReleaseNotesOverlay].
- * Focus chrome mirrors [ActionRow] so it reads as one interactive family.
- */
 @Composable
 private fun NotesPreview(
     notes: String,

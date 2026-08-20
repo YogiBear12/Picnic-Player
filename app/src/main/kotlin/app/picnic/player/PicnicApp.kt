@@ -22,9 +22,6 @@ class PicnicApp :
     SingletonImageLoader.Factory {
     @Inject lateinit var workerFactory: HiltWorkerFactory
 
-    // Session websocket owner. Injected here so it starts observing the active
-    // session at process start; constructing it on the main thread lets its foreground
-    // observer register with ProcessLifecycleOwner as required.
     @Inject lateinit var webSocketManager: WebSocketManager
 
     override val workManagerConfiguration: Configuration
@@ -44,26 +41,12 @@ class PicnicApp :
                     .build()
             )
         }
-        // The Jellyfin SDK logs via kotlin-logging, whose Android build defaults to
-        // an slf4j backend (org.slf4j.LoggerFactory) unless this system property is
-        // set. We ship no slf4j, so without this the SDK's first logger init throws
-        // NoClassDefFoundError and the whole discovery/auth path dies (surfaced as
-        // "...AddressCandidateHelperKt"). This routes its logging to android.util.Log
-        // instead — no slf4j dependency needed. Must be set before any SDK call.
         System.setProperty("kotlin-logging-to-android-native", "true")
         super.onCreate()
         webSocketManager.start()
         TvChannelReceiver.enqueueWorker(this)
     }
 
-    /**
-     * Tuned singleton Coil loader for a poster-dense 10-foot UI. A larger in-memory cache keeps
-     * the visible rows resident across focus/scroll (posters are the hot path, and re-decoding
-     * on every D-pad move is what makes them "pop in"), while a sized disk cache survives process
-     * death so a warm start paints artwork from disk instead of the network. Backs every
-     * AsyncImage and AmbientPaletteLoader's palette decodes. URL shape is untouched — the
-     * tag-guarded, fillWidth-sized URLs from JellyfinImages remain the cache keys.
-     */
     override fun newImageLoader(context: PlatformContext): ImageLoader = ImageLoader.Builder(context)
         .memoryCache {
             MemoryCache.Builder()

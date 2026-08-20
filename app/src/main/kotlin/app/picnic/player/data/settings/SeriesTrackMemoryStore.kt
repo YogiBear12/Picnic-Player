@@ -18,19 +18,11 @@ import kotlinx.coroutines.flow.map
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
-/**
- * Device-local series/season track memory.
- *
- * Storage keys: one Preferences string per series —
- * `playback.seriesTrackMemory.<seriesId>` → JSON [SeriesTrackMemoryRecord].
- * Does not write Jellyfin user configuration.
- */
 @Singleton
 class SeriesTrackMemoryStore @Inject constructor(
     private val dataStore: DataStore<Preferences>,
     private val json: Json
 ) {
-    /** Effective memory for an episode after season → series hierarchy. */
     suspend fun effectiveMemory(seriesId: String, seasonId: String?) = resolveEffectiveMemory(read(seriesId), seasonId)
 
     suspend fun read(seriesId: String): SeriesTrackMemoryRecord? {
@@ -38,13 +30,6 @@ class SeriesTrackMemoryStore @Inject constructor(
         return decodeRecord(raw)
     }
 
-    /**
-     * Persist an OSD pick (L1/W2). [seasonId] required for season overrides when the pick
-     * diverges from existing series memory.
-     *
-     * Decode + merge + encode run inside a single [DataStore.edit] so concurrent audio and
-     * subtitle writes cannot clobber each other.
-     */
     suspend fun rememberOsdPick(
         seriesId: String,
         seasonId: String?,
@@ -59,7 +44,6 @@ class SeriesTrackMemoryStore @Inject constructor(
                 TrackMemoryKind.SUBTITLE -> existing?.subtitle
             }
             val scope = decideTrackMemoryWriteScope(seriesPref, pick, seasonId)
-            // Season override needs a season id; fall back to series if missing.
             val effectiveScope =
                 if (scope == TrackMemoryWriteScope.SEASON && seasonId.isNullOrBlank()) {
                     TrackMemoryWriteScope.SERIES

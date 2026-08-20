@@ -45,15 +45,8 @@ import androidx.tv.material3.Text
 import app.picnic.player.ui.theme.PicnicColors
 import kotlinx.coroutines.launch
 
-/** Solid page background matching the settings ocean wash. */
 private val PageBackground = Color(0xFF0E1114)
 
-/**
- * Full-screen, D-pad-scrollable release notes for the update dialog.
- * Rendered as its own full-size [Dialog] window so it can escape the update
- * dialog's 420dp panel. Notes render through [MarkdownLite] — headings, bullets
- * and bold, which is all release bodies use.
- */
 @Composable
 internal fun ReleaseNotesOverlay(
     version: String,
@@ -81,9 +74,6 @@ internal fun ReleaseNotesOverlay(
                 color = PicnicColors.OnDark
             )
             Spacer(Modifier.height(24.dp))
-            // Focusable scroll surface: verticalScroll alone does not respond to
-            // the D-pad on TV, so translate Up/Down key presses into scroll offsets
-            // (same pattern as the license detail page).
             Box(
                 modifier = Modifier
                     .weight(1f)
@@ -118,11 +108,6 @@ internal fun ReleaseNotesOverlay(
     LaunchedEffect(Unit) { runCatching { scrollFr.requestFocus() } }
 }
 
-/**
- * Minimal markdown renderer for release bodies: `#`/`##`/`###` headings,
- * `-`/`*` bullets, `**bold**` inline, blank-line paragraph breaks. Anything
- * else renders as plain body text — no dependency, no surprises.
- */
 @Composable
 internal fun MarkdownLite(source: String) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -172,12 +157,9 @@ internal fun MarkdownLite(source: String) {
     }
 }
 
-/** Inline `**bold**` spans; odd trailing markers render literally. */
 private fun boldAware(text: String): AnnotatedString = buildAnnotatedString {
     val parts = text.split("**")
     parts.forEachIndexed { index, part ->
-        // Even segments are plain, odd segments sit between ** pairs. An
-        // unterminated marker leaves the last odd segment plain with its marker.
         if (index % 2 == 1 && index != parts.lastIndex) {
             withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, color = Color.White)) {
                 append(part)

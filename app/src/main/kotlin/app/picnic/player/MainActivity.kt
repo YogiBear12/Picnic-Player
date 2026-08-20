@@ -74,20 +74,14 @@ class MainActivity : ComponentActivity() {
         handleIntent(intent)
         observeRemoteControl()
 
-        // In-app updater: sweep the APK cache (post-update self-clean) then
-        // run the throttled release check. Both are no-ops when no host is configured.
         lifecycleScope.launch {
             updateRepository.bootCleanup()
             runCatching { updateRepository.check() }
         }
 
-        // Draw edge-to-edge so the IME reports as a Compose inset: screens apply
-        // imePadding() to lift content above the keyboard while the root Surface
-        // still paints the full window (no black gap behind the keyboard).
         WindowCompat.setDecorFitsSystemWindows(window, false)
         setContent {
             PicnicTheme {
-                // Reading these locals toggles chrome live (no restart/nav reset).
                 val ambientBackgrounds by remember {
                     settingsStore.settings.map { it.ambientBackgrounds }
                 }.collectAsStateWithLifecycle(initialValue = true)
@@ -104,7 +98,6 @@ class MainActivity : ComponentActivity() {
                 ) {
                     Box {
                         PicnicNavHost()
-                        // Transient server notices sit above every screen.
                         ServerNoticeHost(notices = serverMessageBus.messages)
                     }
                 }
@@ -114,7 +107,6 @@ class MainActivity : ComponentActivity() {
 
     override fun onStop() {
         super.onStop()
-        // Theme music is browse-time ambience only; never let it play from the background.
         themeMusicPlayer.stop()
     }
 
@@ -123,12 +115,6 @@ class MainActivity : ComponentActivity() {
         handleIntent(intent)
     }
 
-    /**
-     * Services app-level remote-control actions: navigation, cast-target launch,
-     * and the phone-as-remote D-pad proxy. Collected only while STARTED so a backgrounded app
-     * neither navigates nor injects keys. Runs on the main thread (lifecycleScope) as both
-     * navigation and [dispatchKeyEvent] require.
-     */
     private fun observeRemoteControl() {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -142,9 +128,6 @@ class MainActivity : ComponentActivity() {
                             navViewModel.push(
                                 PlayerKey(action.itemId, action.startPositionMs?.let { it.msToTicks() })
                             )
-                        // D-pad proxy: inject a synthetic key press through the activity window so
-                        // Compose-TV focus traversal (and the player's own onKeyEvent) handle it
-                        // exactly as a real remote does — no bespoke focus plumbing. See class doc.
                         is RemoteControlAction.DispatchKey -> dispatchRemoteKey(action.key)
                     }
                 }
@@ -152,13 +135,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /**
-     * Injects [key] as a phone-as-remote press. BACK routes through the back-press dispatcher so
-     * the BackHandler chain (incl. predictive back) runs; the rest are dispatched into the
-     * window's view tree as down+up [KeyEvent]s, driving Compose-TV focus / the player's
-     * onKeyEvent exactly like a physical remote. Uses the window's decor view rather than the
-     * restricted ComponentActivity.dispatchKeyEvent.
-     */
     private fun dispatchRemoteKey(key: RemoteKey) {
         if (key == RemoteKey.BACK) {
             onBackPressedDispatcher.onBackPressed()
@@ -172,7 +148,7 @@ class MainActivity : ComponentActivity() {
             RemoteKey.SELECT -> KeyEvent.KEYCODE_DPAD_CENTER
             RemoteKey.PAGE_UP -> KeyEvent.KEYCODE_PAGE_UP
             RemoteKey.PAGE_DOWN -> KeyEvent.KEYCODE_PAGE_DOWN
-            RemoteKey.BACK -> return // handled above
+            RemoteKey.BACK -> return
         }
         val now = SystemClock.uptimeMillis()
         val decorView = window.decorView
@@ -182,8 +158,6 @@ class MainActivity : ComponentActivity() {
 
     private fun handleIntent(intent: Intent?) {
         val key = deepLinkKey(intent?.data) ?: return
-        // If we are already past startup, navigate immediately; otherwise stash
-        // until onboarding resolves to Browse.
         if (navViewModel.backStack.isNotEmpty() && navViewModel.backStack.last() !is StartupKey) {
             navViewModel.push(key)
         } else {
@@ -192,18 +166,12 @@ class MainActivity : ComponentActivity() {
     }
 
     companion object {
-        /**
-         * Maps picnic:// deep links to navigation keys.
-         * - picnic://item/{id} → detail (movie / series)
-         * - picnic://series/{seriesId}/episode/{episodeId}?seasonId=… → episode listing
-         */
         fun deepLinkKey(uri: Uri?): NavKey? {
             if (uri == null || uri.scheme != "picnic") return null
             return when (uri.host) {
                 "item" -> uri.lastPathSegment?.let { DetailKey(it, null, null) }
                 "series" -> {
                     val segments = uri.pathSegments
-                    // /{seriesId}/episode/{episodeId}
                     if (segments.size >= 3 && segments[1] == "episode") {
                         EpisodesKey(
                             seriesId = segments[0],

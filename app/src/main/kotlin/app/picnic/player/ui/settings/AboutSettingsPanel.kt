@@ -32,17 +32,6 @@ import app.picnic.player.R
 import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.theme.PicnicColors
 
-/**
- * Settings → About: the app identity (logo, name, version, tagline), the in-app
- * update row and the open-source licenses page. Mirrors the Account
- * panel's centred-header + [ActionRow] structure. The licenses browser itself
- * is a full-screen page hosted by [SettingsScreen] (not a dialog), reached via
- * [onOpenLicenses].
- *
- * The update row is stateful: "Check for updates" normally, "Install update"
- * once a newer release is known (startup check or manual). It is absent
- * entirely when no release host is configured (blank UPDATE_REPO).
- */
 @Composable
 internal fun AboutSettingsPanel(
     enterFr: FocusRequester,
@@ -57,7 +46,6 @@ internal fun AboutSettingsPanel(
     val phase by updateViewModel.phase.collectAsStateWithLifecycle()
     val updateAvailable by updateViewModel.updateAvailable.collectAsStateWithLifecycle()
     var showUpdateDialog by remember { mutableStateOf(false) }
-    // Focus target for the licenses row returning from its full-screen page.
     val restoreFr = remember { FocusRequester() }
     val restoreLicenses = restoreRow == SubPageRow.LICENSES
     LaunchedEffect(restoreRow) {

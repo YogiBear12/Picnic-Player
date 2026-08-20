@@ -17,13 +17,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 
 enum class SeerrLinkState {
-    /** No URL / credentials for the active User Session. */
     Unlinked,
 
-    /** Cookie (or renew password) present and client ready. */
     Linked,
 
-    /** Silent renew failed — user must re-enter password in Settings. */
     NeedsRelink
 }
 
@@ -36,10 +33,6 @@ data class SeerrSessionState(
     val authMethod: SeerrAuthMethod = SeerrAuthMethod.JELLYFIN
 )
 
-/**
- * Seerr connection + API facade. One active link per Jellyfin User Session;
- * URL is scoped to the Jellyfin Server Connection.
- */
 @Singleton
 class SeerrRepository @Inject constructor(
     private val api: SeerrApiClient,
@@ -56,7 +49,6 @@ class SeerrRepository @Inject constructor(
 
     private suspend inline fun <T> onIo(crossinline block: () -> T): T = withContext(ioDispatcher) { block() }
 
-    /** Attach Seerr for the active Jellyfin session (profile switch / cold start). */
     suspend fun attachActiveSession() {
         val session = authRepository.activeSession()
         if (session == null) {
@@ -71,10 +63,6 @@ class SeerrRepository @Inject constructor(
         val userId = session.userId
         var url = store.serverUrl(serverId)
         val showDiscover = store.showDiscover(serverId, userId)
-        // Companion-plugin prefill: pull the admin-configured Seerr URL and store it
-        // where a manually-entered URL would go, so the Account page is pre-populated. Only
-        // when the field is empty or a value we ourselves prefilled — never clobber a URL the
-        // user typed. Server-side `Seerr.Enabled` gates it.
         if (url.isNullOrBlank() || store.serverUrlSource(serverId) == SeerrUrlSource.PLUGIN) {
             url = prefillFromPlugin(session, serverId, url) ?: url
         }
@@ -124,11 +112,6 @@ class SeerrRepository @Inject constructor(
         }
     }
 
-    /**
-     * Ask the companion plugin for the admin-configured Seerr URL and persist it when it's
-     * new. Returns the stored (normalised) URL if it changed, else null. Silent on any
-     * failure — a server without the plugin just yields null.
-     */
     private suspend fun prefillFromPlugin(
         session: UserSession,
         serverId: String,
@@ -143,10 +126,6 @@ class SeerrRepository @Inject constructor(
         return store.serverUrl(serverId)
     }
 
-    /**
-     * Connect with Jellyfin password. Username comes from the active User Session.
-     * Stores encrypted password for silent renew until token auth exists.
-     */
     suspend fun connect(urlInput: String, password: String): Result<SeerrUser> {
         val session = authRepository.activeSession()
             ?: return Result.failure(IllegalStateException("No active Jellyfin session"))
@@ -154,13 +133,10 @@ class SeerrRepository @Inject constructor(
         return runCatching {
             loginInternal(session, url, password, persistPassword = true)
         }.onSuccess {
-            // The user committed a URL via the Account form — take ownership so plugin
-            // prefill won't overwrite it on later sessions.
             store.setServerUrlSource(session.server.id, SeerrUrlSource.USER)
         }
     }
 
-    /** Drop this user's Seerr session + password; keep URL. */
     suspend fun disconnect() {
         val session = authRepository.activeSession() ?: return
         store.disconnectUser(session.server.id, session.userId)
@@ -214,10 +190,8 @@ class SeerrRepository @Inject constructor(
         api.search(query).results.mapNotNull { it.toCatalogItem(genres) }
     }
 
-    /** Resolve TMDB genre ids → names (cached for the process lifetime). */
     private var cachedGenreNames: Map<Int, String>? = null
 
-    /** TMDB title/poster cache for Settings request rows. Cleared with runtime. */
     private val titleCache = ConcurrentHashMap<SeerrTitleCacheKey, SeerrCachedTitle>()
 
     private fun genreNamesById(): Map<Int, String> {
@@ -251,13 +225,11 @@ class SeerrRepository @Inject constructor(
 
     suspend fun person(id: Int): SeerrPersonDetails = authed { api.person(id) }
 
-    /** Mixed cast+crew credits, deduped by `(mediaType, tmdbId)`. Uncapped. */
     suspend fun personCredits(id: Int): List<SeerrPersonCredit> = authed {
         val combined = api.personCombinedCredits(id)
         mixPersonCredits(combined.cast, combined.crew)
     }
 
-    /** Detail enrich for Discover hero (runtime / seasons / cert / year range). No ratings. */
     suspend fun enrichCatalogItem(item: SeerrCatalogItem): SeerrCatalogItem = authed {
         when (item.mediaType) {
             SeerrMediaType.MOVIE -> api.movie(item.tmdbId).toCatalogItem()
@@ -314,10 +286,6 @@ class SeerrRepository @Inject constructor(
         return result.second
     }
 
-    /**
-     * Display rows from inline media fields + in-memory title cache (no network).
-     * Call [hydrateRequestDisplays] to fill missing titles via movie/tv detail.
-     */
     fun requestDisplaysCached(requests: List<SeerrMediaRequest>): List<SeerrRequestDisplay> {
         for (req in requests) {
             val key = req.titleCacheKeyOrNull() ?: continue
@@ -327,10 +295,6 @@ class SeerrRepository @Inject constructor(
         return requestDisplaysFromCache(requests, titleCache)
     }
 
-    /**
-     * Fetch `/movie` or `/tv` for requests missing a title or year metadata. Bounded concurrency
-     * avoids N+1 jank on TV; results land in [titleCache] for the process lifetime.
-     */
     suspend fun hydrateRequestDisplays(
         requests: List<SeerrMediaRequest>
     ): List<SeerrRequestDisplay> {
@@ -391,14 +355,6 @@ class SeerrRepository @Inject constructor(
         const val TITLE_HYDRATE_CONCURRENCY = 4
     }
 
-    /**
-     * Whether the primary Request CTA should be offered.
-     *
-     * Movies: blocked for pending/processing/available and when an active
-     * request already exists. [SeerrMediaStatus.PARTIALLY_AVAILABLE] is treated
-     * as not requestable for movies.
-     * TV: partial availability stays allowed so remaining seasons can be requested.
-     */
     fun canRequest(
         user: SeerrUser?,
         mediaType: SeerrMediaType,
@@ -406,7 +362,6 @@ class SeerrRepository @Inject constructor(
         hasActiveRequest: Boolean = false
     ): Boolean = canRequestSeerrMedia(user, mediaType, status, hasActiveRequest)
 
-    /** Pending or approved request — not declined/failed/completed. */
     fun isActiveRequest(request: SeerrMediaRequest?): Boolean {
         if (request == null) return false
         return when (request.status) {
@@ -420,7 +375,6 @@ class SeerrRepository @Inject constructor(
 
     fun canCancel(user: SeerrUser?, request: SeerrMediaRequest?): Boolean {
         if (user == null || request == null) return false
-        // Seerr: MANAGE_REQUESTS may delete any; otherwise only own *pending* requests.
         if (SeerrPermission.has(user.permissions, SeerrPermission.MANAGE_REQUESTS)) return true
         return request.requestedBy?.id == user.id &&
             request.status == SeerrRequestStatus.PENDING

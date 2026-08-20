@@ -28,17 +28,13 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-/** Primary slot in the Seerr Detail action row. */
 enum class SeerrPrimaryAction {
-    /** Fully available + Jellyfin id — Play bridge / escape hatch. */
     Play,
     Request,
     RequestMore,
 
-    /** Media already requested — primary is a no-op. */
     Pending,
 
-    /** Cannot request — opens an info dialog with the reason. */
     Unavailable
 }
 
@@ -65,7 +61,6 @@ class SeerrDetailViewModel @AssistedInject constructor(
     @Assisted private val tmdbId: Int,
     @Assisted private val mediaType: SeerrMediaType
 ) : ViewModel() {
-
     @AssistedFactory
     interface Factory {
         fun create(tmdbId: Int, mediaType: SeerrMediaType): SeerrDetailViewModel
@@ -138,7 +133,6 @@ class SeerrDetailViewModel @AssistedInject constructor(
 
     fun canCancel(): Boolean = seerrRepository.canCancel(_state.value.user, primaryRequest())
 
-    /** Never-blank action row model for Seerr Detail. */
     fun actionRow(): SeerrActionRow {
         val s = _state.value
         val catalog = s.catalog
@@ -207,7 +201,6 @@ class SeerrDetailViewModel @AssistedInject constructor(
 
     fun dismissSeasonPicker() = _state.update { it.copy(showSeasonPicker = false) }
 
-    /** Season rows for the TV picker, with availability / request state from the API. */
     fun seasonPickItems(): List<SeerrSeasonPickItem> {
         val s = _state.value
         return buildSeasonPickItems(
@@ -248,10 +241,6 @@ class SeerrDetailViewModel @AssistedInject constructor(
         }
     }
 
-    /**
-     * Runs a mutating Seerr call, then soft-refreshes detail. Action failure and
-     * refresh failure use distinct copy so a successful request is not labeled failed.
-     */
     private suspend fun runAction(failureLabel: String, block: suspend () -> Unit) {
         _state.update { it.copy(busy = true, actionError = null) }
         val actionResult = runCatching { block() }
@@ -292,11 +281,6 @@ class SeerrDetailViewModel @AssistedInject constructor(
         }
     }
 
-    /**
-     * Reloads movie/TV detail. [showLoading] blanks the screen (initial open only);
-     * post-request refresh keeps the hero visible and relies on [UiState.busy].
-     * @return false when the fetch failed (caller may surface action-row copy).
-     */
     private suspend fun loadDetail(showLoading: Boolean): Boolean {
         if (showLoading) {
             _state.update { it.copy(loading = true, error = null) }

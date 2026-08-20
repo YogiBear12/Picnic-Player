@@ -5,11 +5,6 @@ import java.util.UUID
 import kotlinx.serialization.Serializable
 import org.jellyfin.sdk.model.api.BaseItemDto
 
-/**
- * One home row — Continue watching, or "Recently added in {library}".
- *
- * [Serializable] via [BaseItemDto]'s own SDK serializer.
- */
 @Serializable
 @Immutable
 data class HomeRow(
@@ -19,12 +14,6 @@ data class HomeRow(
 )
 
 object HomeContent {
-
-    /**
-     * Merges Resume + Next Up into a single Continue Watching list:
-     * Resume first (in-progress), then Next Up entries whose item/series aren't
-     * already represented. Server order is preserved within each source.
-     */
     fun combineContinueWatching(
         resume: List<BaseItemDto>,
         nextUp: List<BaseItemDto>
@@ -49,15 +38,6 @@ object HomeContent {
         return out
     }
 
-    /**
-     * Assembles the home rows: Continue Watching (when non-empty) followed by a
-     * "Recently added in {library}" row per **pinned** library that has items,
-     * in [pinnedLibraryIds] order. Libraries absent from that list (unpinned)
-     * contribute no home row.
-     *
-     * When [pinnedLibraryIds] is null, every library in [latestByLibrary] is included
-     * in the given order (legacy / tests).
-     */
     fun buildHomeRows(
         resume: List<BaseItemDto>,
         nextUp: List<BaseItemDto>,

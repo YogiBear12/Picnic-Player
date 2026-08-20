@@ -6,15 +6,6 @@ import app.picnic.player.data.seerr.SeerrCatalogItem
 import app.picnic.player.data.seerr.SeerrMediaRequest
 import app.picnic.player.data.seerr.seerrDetailTarget
 
-/**
- * Resolves Discover / Search / Settings / Play-bridge destinations for a Seerr
- * title. Shared so entry points cannot diverge on id-presence routing —
- * the single [seerrDetailTarget] gate decides Jellyfin vs Seerr Detail.
- *
- * [DetailKey.itemId] is the library id the gate chose (SD/HD preferred, else 4K
- * so a 4K-only copy still opens Jellyfin Detail). Without a valid id, Seerr
- * Detail stays the fallback.
- */
 fun resolveSeerrNavKey(
     tmdbId: Int,
     mediaType: String,
@@ -45,10 +36,6 @@ fun resolveSeerrNavKey(
     ambUrl = ambUrl
 )
 
-/**
- * Settings → Your requests. Uses the request media ref's Jellyfin id when present;
- * otherwise opens Seerr Detail.
- */
 fun resolveSeerrNavKey(request: SeerrMediaRequest): NavKey? {
     val media = request.media ?: return null
     val tmdbId = media.tmdbId ?: return null

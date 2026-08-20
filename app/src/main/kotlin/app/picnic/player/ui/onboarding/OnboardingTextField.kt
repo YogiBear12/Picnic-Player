@@ -35,18 +35,6 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import app.picnic.player.ui.theme.PicnicColors
 
-/**
- * TV text field: a single field that is read-only until the user presses Select.
- *
- * The field composable is always mounted — idle and editing differ only by
- * [OutlinedTextField.readOnly] and colors. Swapping between two different
- * composables here would dispose the focused node mid-interaction, and focus
- * would fall back to whatever the focus system picks first.
- *
- * While idle, D-pad keys are routed to the focus system before the field can
- * read them, so left/right never move a cursor instead of leaving the field,
- * and the IME only ever opens on Select.
- */
 @Composable
 fun OnboardingTextField(
     value: String,
@@ -69,9 +57,7 @@ fun OnboardingTextField(
         onEditingChange?.invoke(next)
     }
 
-    // Show the IME only once readOnly has actually flipped, and drop it on the way out.
     LaunchedEffect(editing) { if (editing) keyboard?.show() else keyboard?.hide() }
-    // Back closes the editor without leaving the screen; the field keeps focus.
     BackHandler(enabled = editing) { setEditing(false) }
 
     val finishEditing: () -> Unit = {
@@ -122,16 +108,10 @@ fun OnboardingTextField(
                 }
                 val select = event.key == Key.DirectionCenter || event.key == Key.Enter
                 when {
-                    // Move on KeyDown, matching the focus system: the press that moved
-                    // focus *into* this field lands its KeyUp here, and acting on that
-                    // would move focus straight back out again. Both halves of the pair
-                    // are consumed so no stray key reaches the field either.
                     direction != null -> {
                         if (event.type == KeyEventType.KeyDown) focusManager.moveFocus(direction)
                         true
                     }
-                    // Select opens the editor on KeyUp, so the KeyDown is already
-                    // swallowed by the time the field turns editable.
                     select -> {
                         if (event.type == KeyEventType.KeyUp) setEditing(true)
                         true

@@ -16,31 +16,18 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-/** Which page of the side nav drawer is showing. */
 enum class NavDrawerPage { Primary, More }
 
-/**
- * App-scoped state for the persistent navigation rail. The rail outlives any one
- * nav destination — it renders at the nav-host level over Browse AND pushed item screens
- * (Detail/Collection/Genre) — so its selection, destinations, and focus targets live here
- * rather than in [BrowseShellHost].
- *
- * Customisable destinations (libraries + Discover) are split into pinned (primary page)
- * and unpinned (More page) via [NavLayout].
- */
 @Singleton
 class NavRailState @Inject constructor() {
-
     private val _session = MutableStateFlow<UserSession?>(null)
     val session = _session.asStateFlow()
 
-    /** Destinations shown on the current drawer page (excludes Settings / avatar / More chrome). */
     private val _drawerDestinations = MutableStateFlow<List<BrowseDest>>(
         listOf(BrowseDest.Search, BrowseDest.Home)
     )
     val drawerDestinations = _drawerDestinations.asStateFlow()
 
-    /** Every browsable destination (for pane resolution), including unpinned. */
     private val _allDestinations = MutableStateFlow<List<BrowseDest>>(
         listOf(BrowseDest.Search, BrowseDest.Home)
     )
@@ -52,15 +39,12 @@ class NavRailState @Inject constructor() {
     private val _drawerPage = MutableStateFlow(NavDrawerPage.Primary)
     val drawerPage = _drawerPage.asStateFlow()
 
-    /** True when More should appear on the primary page. */
     private val _moreVisible = MutableStateFlow(false)
     val moreVisible = _moreVisible.asStateFlow()
 
-    /** Key currently in reorder mode, or null. */
     private val _reorderKey = MutableStateFlow<String?>(null)
     val reorderKey = _reorderKey.asStateFlow()
 
-    /** Bumps when layout changes so Home can rebuild rows without a network round-trip. */
     private val _layoutEpoch = MutableStateFlow(0)
     val layoutEpoch = _layoutEpoch.asStateFlow()
 
@@ -83,17 +67,12 @@ class NavRailState @Inject constructor() {
 
     fun destinationFor(key: String): BrowseDest? = _allDestinations.value.firstOrNull { it.key == key }
 
-    /** Pinned library destinations in pin order — drives Home "Recently added" rows. */
     fun pinnedLibraries(): List<BrowseDest.Library> = _layout.value.pinnedIds.mapNotNull { customById[it] as? BrowseDest.Library }
 
     fun lastPublishedLibraries(): List<BrowseDest.Library> = lastLibraries
 
     fun isDiscoverAvailable(): Boolean = discoverAvailable
 
-    /**
-     * Publish session + libraries + whether Discover (Seerr linked) and Playlists exist.
-     * [layout] is the reconciled persisted layout for this user.
-     */
     fun publish(
         session: UserSession,
         libraries: List<BrowseDest.Library>,
@@ -238,14 +217,12 @@ class NavRailState @Inject constructor() {
     }
 }
 
-/** Thin handle so the nav host (a plain composable) can reach the singleton via Hilt. */
 @HiltViewModel
 class NavRailViewModel @Inject constructor(
     val rail: NavRailState,
     private val authRepository: AuthRepository,
     private val navLayoutStore: NavLayoutStore
 ) : ViewModel() {
-
     fun softLogout() {
         viewModelScope.launch { authRepository.logout() }
     }
@@ -268,8 +245,6 @@ class NavRailViewModel @Inject constructor(
         val key = rail.reorderKey.value ?: return
         val session = rail.session.value ?: return
         val next = NavLayoutResolver.move(rail.layout.value, key, delta)
-        // Apply synchronously so the focused row identity ([key]) stays under focus
-        // before the next D-pad event; persist off the UI path.
         rail.applyLayout(next)
         viewModelScope.launch {
             navLayoutStore.save(session.server.id, session.userId, next)

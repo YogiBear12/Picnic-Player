@@ -15,17 +15,10 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-/**
- * Update state shared by the About row, the update dialog, and the badge dots
- * on the nav rail / settings rail. The underlying [UpdateRepository] is a
- * singleton, so every ViewModel instance observes the same update-available state.
- */
 @HiltViewModel
 class UpdateViewModel @Inject constructor(
     private val repository: UpdateRepository
 ) : ViewModel() {
-
-    /** One-shot flow states for the About row + dialog. */
     sealed interface Phase {
         data object Idle : Phase
         data object Checking : Phase
@@ -38,7 +31,6 @@ class UpdateViewModel @Inject constructor(
 
     val enabled: Boolean = repository.enabled
 
-    /** Badge signal: true whenever a newer release is known (startup or manual check). */
     val updateAvailable: StateFlow<Boolean> = repository.updateAvailable
         .map { it != null }
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
@@ -47,12 +39,9 @@ class UpdateViewModel @Inject constructor(
     val phase: StateFlow<Phase> = _phase.asStateFlow()
 
     init {
-        // A startup check may already have found the release — the About row
-        // renders "Install update" immediately instead of asking to re-check.
         repository.updateAvailable.value?.let { _phase.value = Phase.Available(it) }
     }
 
-    /** Manual "Check for updates" — bypasses the 24h throttle. */
     fun check() {
         if (_phase.value is Phase.Checking || _phase.value is Phase.Downloading) return
         _phase.value = Phase.Checking
@@ -65,7 +54,6 @@ class UpdateViewModel @Inject constructor(
         }
     }
 
-    /** Download the release, then hand off to the system installer. */
     fun downloadAndInstall(release: UpdateRelease) {
         if (_phase.value is Phase.Downloading) return
         viewModelScope.launch {
@@ -83,7 +71,6 @@ class UpdateViewModel @Inject constructor(
         }
     }
 
-    /** Dialog dismissed: keep Available (badge stays), clear transient outcomes. */
     fun dismiss() {
         _phase.value = repository.updateAvailable.value
             ?.let { Phase.Available(it) }

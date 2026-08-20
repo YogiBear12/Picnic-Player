@@ -91,8 +91,6 @@ fun SeerrDetailScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val catalog = state.catalog
 
-    // Hybrid Detail redirect: once details load, any library id (HD, else
-    // 4K) leaves Seerr Detail for Jellyfin Detail via the shared gate.
     val redirectId = jellyfinDetailIdOrNull(catalog?.jellyfinMediaId, catalog?.jellyfinMediaId4k)
     LaunchedEffect(redirectId) {
         if (redirectId != null) onPlayLibraryItem(redirectId)
@@ -119,7 +117,6 @@ fun SeerrDetailScreen(
                 Text(state.error ?: "Not found", color = PicnicColors.OnDark)
             }
             redirectId != null -> {
-                // Brief hold while replaceTop runs — avoid flashing Request UI.
             }
             else -> SeerrDetailContent(
                 catalog = catalog,
@@ -273,9 +270,6 @@ private fun SeerrDetailContent(
     CompositionLocalProvider(LocalBringIntoViewSpec provides pinSpec) {
         LazyColumn(
             state = listState,
-            // Full-bleed to the screen edges: hero/buttons/text carry their resting inset via a
-            // modifier, rows via LazyRow contentPadding, so row cards scroll off the true left
-            // edge instead of being clipped by a column-level start padding.
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(bottom = metrics.bottomInset),
             verticalArrangement = Arrangement.spacedBy(metrics.rowSpacing + metrics.sy(12f))
@@ -421,9 +415,6 @@ private fun SeerrDetailContent(
                                         lastSection = SeerrDetailSection.Cast
                                     }
                                 }
-                                // Up returns to the action button we left from (must sit on the
-                                // card's own focus node). First card blocks left so focus can't
-                                // escape the row.
                                 .focusProperties {
                                     up = actionFocusRequester()
                                     if (index == 0) left = FocusRequester.Cancel

@@ -11,7 +11,6 @@ import javax.inject.Qualifier
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.StateFlow
 
-/** The reactive active-session signal, so consumers bind the flow, not the repo. */
 @Qualifier
 @Retention(AnnotationRetention.BINARY)
 annotation class ActiveSession

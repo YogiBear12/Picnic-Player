@@ -53,14 +53,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/** Solid page background matching the settings ocean wash. */
 private val PageBackground = Color(0xFF0E1114)
 
-/**
- * Full-screen open-source licenses browser: a focusable list of dependencies
- * that pushes to a per-library detail page. Both are real pages (not dialogs)
- * with their own D-pad focus and scroll. [onBack] closes the whole flow.
- */
 @Composable
 internal fun OpenSourceLicensesScreen(onBack: () -> Unit) {
     val context = LocalContext.current
@@ -99,7 +93,6 @@ internal fun OpenSourceLicensesScreen(onBack: () -> Unit) {
     }
 }
 
-/** Scrollable, focusable list of dependencies. */
 @Composable
 private fun LicenseListPage(
     libraries: List<Library>,
@@ -136,7 +129,6 @@ private fun LicenseListPage(
     }
 }
 
-/** One dependency row: name + version left, license label right. */
 @Composable
 private fun LicenseListRow(
     library: Library,
@@ -162,7 +154,6 @@ private fun LicenseListRow(
                 if (blockUp) up = FocusRequester.Cancel
                 if (blockDown) down = FocusRequester.Cancel
             }
-            // Only Select opens the library — Right is a direction, not a second Select.
             .onKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
                 when (event.key) {
@@ -191,7 +182,6 @@ private fun LicenseListRow(
     }
 }
 
-/** Per-library detail: header + the full license text in a D-pad-scrollable box. */
 @Composable
 private fun LicenseDetailPage(library: Library) {
     val license = library.licenses.firstOrNull()
@@ -215,8 +205,6 @@ private fun LicenseDetailPage(library: Library) {
             )
         }
         Spacer(Modifier.height(24.dp))
-        // Focusable scroll surface: verticalScroll alone does not respond to the
-        // D-pad on TV, so translate Up/Down key presses into scroll offsets.
         Box(
             modifier = Modifier
                 .weight(1f)
@@ -256,7 +244,6 @@ private fun LicenseDetailPage(library: Library) {
     }
 }
 
-/** License text from the bundled data, HTML line breaks normalised; falls back to name + url. */
 private fun licenseBodyText(library: Library): String {
     val license = library.licenses.firstOrNull()
     val content = license?.licenseContent

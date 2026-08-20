@@ -45,11 +45,6 @@ import app.picnic.player.ui.theme.PicnicColors
 import coil3.compose.AsyncImage
 import coil3.compose.AsyncImagePainter
 
-/**
- * Settings → Account: the active profile (avatar + name) with the Seerr
- * connection and sign-out actions below it. Connecting to Seerr happens in a
- * dialog — the panel itself stays to three focusable rows at most.
- */
 @Composable
 internal fun AccountSettingsPanel(
     viewModel: SettingsViewModel,
@@ -67,9 +62,6 @@ internal fun AccountSettingsPanel(
     val linked = seerr.linkState == SeerrLinkState.Linked
     var showConnectDialog by remember { mutableStateOf(false) }
 
-    // A successful connect closes the dialog on its own and puts focus back on
-    // the Seerr row — without this, the dialog's focus owner disappearing lets
-    // focus fall onto the rail's first item (Requests) and switch category.
     LaunchedEffect(linked) {
         if (linked && showConnectDialog) {
             showConnectDialog = false
@@ -94,8 +86,6 @@ internal fun AccountSettingsPanel(
                 color = PicnicColors.OnDark
             )
         }
-        // One row for both link states — keeping the node alive across the
-        // connect/disconnect transition preserves D-pad focus on it.
         ActionRow(
             label = if (linked) "Disconnect Seerr" else "Connect to Seerr",
             leftFocus = leftFocus,
@@ -124,10 +114,8 @@ internal fun AccountSettingsPanel(
     }
 }
 
-/** Identity-gradient avatar circle; the profile image covers it once loaded. */
 @Composable
 private fun ProfileAvatar(name: String, imageUrl: String?) {
-    // Match Who's watching? / nav drawer: no initial under a successful PNG load.
     var avatarFailed by remember(imageUrl) { mutableStateOf(false) }
     Box(
         modifier = Modifier
@@ -156,10 +144,8 @@ private fun ProfileAvatar(name: String, imageUrl: String?) {
     }
 }
 
-/** Align with OptionPickerDialog / LanguagePreferenceDialog glass chrome. */
 private val DialogGlassFill = Color(0xEA181E24)
 
-/** Seerr URL + Jellyfin password in the standard glass dialog. */
 @Composable
 private fun SeerrConnectDialog(
     initialUrl: String,

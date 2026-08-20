@@ -5,7 +5,6 @@ import kotlinx.serialization.EncodeDefault
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
-/** How Picnic authenticates to Seerr. [JELLYFIN_TOKEN] reserved for future Seerr support. */
 enum class SeerrAuthMethod {
     JELLYFIN,
     JELLYFIN_TOKEN
@@ -16,7 +15,6 @@ enum class SeerrMediaType {
     TV
 }
 
-/** Seerr media availability status codes from `mediaInfo.status`. */
 object SeerrMediaStatus {
     const val UNKNOWN = 1
     const val PENDING = 2
@@ -35,7 +33,6 @@ object SeerrMediaStatus {
     }
 }
 
-/** Seerr request status codes. */
 object SeerrRequestStatus {
     const val PENDING = 1
     const val APPROVED = 2
@@ -53,12 +50,7 @@ object SeerrRequestStatus {
     }
 }
 
-/**
- * Bitflags from Seerr/Jellyseerr `User.permissions`
- * (`server/lib/permissions.ts`). Values must match the server enum exactly.
- *
- * [ADMIN] bypasses every other check (same as Seerr `hasPermission`).
- */
+/** Bitflags that must match the Seerr server enum exactly. */
 object SeerrPermission {
     const val NONE: Long = 0
     const val ADMIN: Long = 2
@@ -91,16 +83,9 @@ object SeerrPermission {
     const val MANAGE_BLACKLIST: Long = 268435456
     const val VIEW_BLACKLIST: Long = 1073741824
 
-    /** True if [permissions] includes [ADMIN] or the given [flag]. */
     fun has(permissions: Long, flag: Long): Boolean = permissions and ADMIN == ADMIN || permissions and flag == flag
 }
 
-/**
- * Shared request permission/status gate used by Seerr Detail and Hybrid Details.
- *
- * Movies with an active request are blocked; TV stays requestable for additional
- * seasons when the media is otherwise requestable.
- */
 fun canRequestSeerrMedia(
     user: SeerrUser?,
     mediaType: SeerrMediaType,
@@ -162,18 +147,11 @@ data class SeerrPublicSettings(
 data class SeerrMediaInfo(
     val status: Int? = null,
     val jellyfinMediaId: String? = null,
-    /**
-     * 4K library id. The Hybrid Detail gate ([seerrDetailTarget]) falls back to
-     * this when [jellyfinMediaId] is absent so a 4K-only library copy still
-     * opens Jellyfin Detail. 4K *request* UI remains out of scope in v1.
-     */
     val jellyfinMediaId4k: String? = null,
-    /** Per-season library/request availability (TV). Absent on movies. */
     val seasons: List<SeerrMediaSeason> = emptyList(),
     val requests: List<SeerrMediaRequest> = emptyList()
 )
 
-/** Season row on [SeerrMediaInfo] — availability status from Seerr, not TMDB metadata. */
 @Serializable
 data class SeerrMediaSeason(
     val id: Int? = null,
@@ -205,14 +183,8 @@ data class SeerrRequestMediaRef(
     val tmdbId: Int? = null,
     val status: Int? = null,
     val mediaType: String? = null,
-    /** SD/HD library id for the Hybrid Detail gate ([seerrDetailTarget]). */
     val jellyfinMediaId: String? = null,
-    /** 4K library id; gate falls back to it when [jellyfinMediaId] is absent. */
     val jellyfinMediaId4k: String? = null,
-    /**
-     * Display fields — usually absent on `GET /request` list payloads (title lives
-     * on TMDB detail). Parsed when present so we skip a hydrate round-trip.
-     */
     val title: String? = null,
     val name: String? = null,
     val posterPath: String? = null
@@ -234,7 +206,6 @@ data class SeerrGenre(
 
 @Serializable
 data class SeerrContentRating(
-    /** TMDB/Seerr nest this as snake_case even when the parent object is camelCase. */
     @SerialName("iso_3166_1")
     val iso31661: String? = null,
     val rating: String? = null
@@ -245,10 +216,6 @@ data class SeerrContentRatings(
     val results: List<SeerrContentRating> = emptyList()
 )
 
-/**
- * Movie certification lives under `releases` (Seerr maps TMDB `release_dates` here).
- * Nested country/date keys stay TMDB snake_case — see seerr `mapMovieDetails`.
- */
 @Serializable
 data class SeerrMovieReleases(
     val results: List<SeerrMovieReleaseCountry> = emptyList()
@@ -308,7 +275,6 @@ data class SeerrCastMember(
     val order: Int? = null
 )
 
-/** TMDB video mapped by Seerr (`relatedVideos` on movie/TV detail). */
 @Serializable
 data class SeerrRelatedVideo(
     val url: String? = null,
@@ -347,7 +313,6 @@ data class SeerrTvDetails(
     val lastAirDate: String? = null,
     val voteAverage: Double? = null,
     val genres: List<SeerrGenre> = emptyList(),
-    /** Seerr maps TMDB `number_of_seasons` → `numberOfSeasons` (OpenAPI typo says singular). */
     val numberOfSeasons: Int? = null,
     val episodeRunTime: List<Int> = emptyList(),
     val status: String? = null,
@@ -398,7 +363,6 @@ data class SeerrPageInfo(
     val page: Int = 1
 )
 
-/** UI-facing discover/search card model (not a raw API DTO). */
 data class SeerrCatalogItem(
     val tmdbId: Int,
     val mediaType: SeerrMediaType,
@@ -412,19 +376,14 @@ data class SeerrCatalogItem(
     val voteAverage: Double? = null,
     val mediaStatus: Int? = null,
     val jellyfinMediaId: String? = null,
-    /** 4K library id; Hybrid Detail gate falls back to it (see [seerrDetailTarget]). */
     val jellyfinMediaId4k: String? = null,
     val genreNames: List<String> = emptyList(),
     val runtimeMinutes: Int? = null,
     val seasonCount: Int? = null,
     val certificate: String? = null,
-    /** True after a `/movie` or `/tv` detail fetch filled runtime/seasons/genres. */
     val detailEnriched: Boolean = false,
-    /** Hybrid Person Known for: cast character or crew job. */
     val creditRole: String? = null,
-    /** Hybrid Person Known for: Seerr combined_credits episode count (TV metaline). */
     val episodeCount: Int? = null,
-    /** YouTube trailer URL from Seerr `relatedVideos`, when present. */
     val trailerUrl: String? = null
 )
 
@@ -472,10 +431,6 @@ fun SeerrMovieDetails.castRow(): List<SeerrCastMember> = credits?.cast.orEmpty()
 
 fun SeerrTvDetails.castRow(): List<SeerrCastMember> = credits?.cast.orEmpty().orderedCast()
 
-/**
- * Overseerr/Seerr web UI pick: type Trailer, highest [SeerrRelatedVideo.size],
- * then its YouTube [SeerrRelatedVideo.url] (or built from [SeerrRelatedVideo.key]).
- */
 fun List<SeerrRelatedVideo>.youtubeTrailerUrl(): String? {
     val trailer = asSequence()
         .filter { it.type.equals("Trailer", ignoreCase = true) }
@@ -505,7 +460,6 @@ fun SeerrMovieDetails.toCatalogItem(): SeerrCatalogItem = SeerrCatalogItem(
     trailerUrl = relatedVideos.youtubeTrailerUrl()
 )
 
-/** TMDB `numberOfSeasons`, else count of seasons with `seasonNumber > 0`. */
 fun SeerrTvDetails.derivedSeasonCount(): Int? {
     val seasonsFromField = numberOfSeasons?.takeIf { it > 0 }
     val seasonsFromList = seasons.count { it.seasonNumber > 0 }.takeIf { it > 0 }
@@ -534,10 +488,6 @@ fun SeerrTvDetails.toCatalogItem(): SeerrCatalogItem = SeerrCatalogItem(
     trailerUrl = relatedVideos.youtubeTrailerUrl()
 )
 
-/**
- * Prefer the device locale's country, then US, then any country with a cert.
- * Theatrical release (TMDB type 3) wins within the chosen country.
- */
 private fun movieCertificate(releases: SeerrMovieReleases?): String? {
     val countries = releases?.results.orEmpty()
     if (countries.isEmpty()) return null
@@ -563,7 +513,6 @@ private fun preferredReleaseCountry(
         ?: countries.firstOrNull()
 }
 
-/** Prefer device locale, then US, then any non-blank TV content rating. */
 private fun tvCertificate(ratings: SeerrContentRatings?): String? {
     val results = ratings?.results.orEmpty()
     if (results.isEmpty()) return null

@@ -34,17 +34,9 @@ import kotlinx.coroutines.flow.SharedFlow
 
 private const val NOTICE_VISIBLE_MS = 5_000L
 
-/** Semi-transparent dark "glass" fill shared by the app's dialogs (SeasonRequestDialog,
- *  OverflowMenuDialog); the notice matches so it reads as one of them. */
 private val NoticeGlassFill = PicnicColors.GlassFill
 private val NoticeCornerRadius = 12.dp
 
-/**
- * App-level host for transient server notices pushed over the socket: remote
- * `DisplayMessage`/`SendString` text and server-lifecycle events. Overlaid above the whole nav
- * host so a notice shows regardless of the current screen (browse or player). Auto-dismisses;
- * a newer notice replaces the current one. Non-focusable so it never steals D-pad focus on TV.
- */
 @Composable
 fun ServerNoticeHost(
     notices: SharedFlow<ServerNotice>,

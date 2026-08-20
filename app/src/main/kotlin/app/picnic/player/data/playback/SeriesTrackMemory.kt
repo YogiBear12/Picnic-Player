@@ -5,23 +5,16 @@ import kotlinx.serialization.Serializable
 import org.jellyfin.sdk.model.api.MediaStream
 import org.jellyfin.sdk.model.api.MediaStreamType
 
-/**
- * One remembered audio or subtitle choice.
- * [off] is subtitle-only: explicit Off with no language/title.
- */
 @Serializable
 data class RememberedTrack(
     val language: String? = null,
     val title: String? = null,
+    /** Subtitle-only: explicit Off, with no language or title. Never matches a stream. */
     val off: Boolean = false
 ) {
     companion object {
         fun off(): RememberedTrack = RememberedTrack(off = true)
 
-        /**
-         * Build a remembered track from a stream (R1). Returns null when title is blank —
-         * language-only memory cannot match multi-dub releases confidently.
-         */
         fun of(stream: MediaStream): RememberedTrack? {
             val title = stream.memoryTitle() ?: return null
             return RememberedTrack(
@@ -33,12 +26,10 @@ data class RememberedTrack(
     }
 }
 
-/** Series-level prefs plus optional per-season overrides (W2). */
 @Serializable
 data class SeriesTrackMemoryRecord(
     val audio: RememberedTrack? = null,
     val subtitle: RememberedTrack? = null,
-    /** Season Jellyfin id → override; only fields set here override series. */
     val seasons: Map<String, SeasonTrackMemory> = emptyMap()
 )
 
@@ -48,24 +39,16 @@ data class SeasonTrackMemory(
     val subtitle: RememberedTrack? = null
 )
 
-/** Where an OSD pick should be persisted (W2). */
 enum class TrackMemoryWriteScope {
     SERIES,
     SEASON
 }
 
-/**
- * Effective remembered tracks after season → series hierarchy (no global yet).
- */
 data class EffectiveTrackMemory(
     val audio: RememberedTrack? = null,
     val subtitle: RememberedTrack? = null
 )
 
-/**
- * Resolve season override → series for one show.
- * [seasonId] null skips season layer (still applies series).
- */
 fun resolveEffectiveMemory(
     record: SeriesTrackMemoryRecord?,
     seasonId: String?
@@ -78,9 +61,6 @@ fun resolveEffectiveMemory(
     )
 }
 
-/**
- * Playback-start pick: season → series memory (confident match) else stage-1 globals (S1).
- */
 fun pickTracksWithMemory(
     streams: List<MediaStream>,
     memory: EffectiveTrackMemory?,
@@ -117,7 +97,6 @@ fun pickTracksWithMemory(
     val subtitleIndex = when {
         memory.subtitle?.off == true -> null
         memory.subtitle != null ->
-            // Missed title must not reuse global.subtitleIndex (chosen under global audio).
             matchRememberedTrack(streams, MediaStreamType.SUBTITLE, memory.subtitle)
                 ?: smartSubtitlesForSelectedAudio()
         memory.audio != null && audioIndex != global.audioIndex -> smartSubtitlesForSelectedAudio()
@@ -127,11 +106,6 @@ fun pickTracksWithMemory(
     return TrackPick(audioIndex = audioIndex, subtitleIndex = subtitleIndex)
 }
 
-/**
- * Match a remembered track against [streams] of [type].
- * Language filter → exact title → conservative fuzzy (F1). Returns null on no clear winner.
- * [RememberedTrack.off] never matches a stream (caller treats as explicit Off).
- */
 fun matchRememberedTrack(
     streams: List<MediaStream>,
     type: MediaStreamType,
@@ -148,10 +122,6 @@ fun matchRememberedTrack(
     return conservativeFuzzyMatch(candidates, rememberedTitle)?.index
 }
 
-/**
- * W2: seed/update series when aligned; season-only when the pick diverges from series memory.
- * Requires a season id to write a season override; without one, always writes series.
- */
 fun decideTrackMemoryWriteScope(
     seriesPreference: RememberedTrack?,
     pick: RememberedTrack,
@@ -163,7 +133,6 @@ fun decideTrackMemoryWriteScope(
     return TrackMemoryWriteScope.SEASON
 }
 
-/** Apply W2 write into a record (does not wipe series when writing season). */
 fun applyTrackMemoryWrite(
     existing: SeriesTrackMemoryRecord?,
     seasonId: String?,
@@ -198,7 +167,6 @@ fun applyTrackMemoryWrite(
 
 enum class TrackMemoryKind { AUDIO, SUBTITLE }
 
-/** Title string stored for memory — prefer file [MediaStream.title], else OSD [MediaStream.displayTitle]. */
 fun MediaStream.memoryTitle(): String? = title?.trim()?.takeIf { it.isNotEmpty() }
     ?: displayTitle?.trim()?.takeIf { it.isNotEmpty() }
 
@@ -239,10 +207,6 @@ private fun exactTitleMatch(candidates: List<MediaStream>, rememberedTitle: Stri
     return hits.singleOrNull()
 }
 
-/**
- * F1: high-confidence fuzzy only. Strip bracket tags, then require near-equality or
- * strong containment with a unique winner. Never picks among similar dub names.
- */
 private fun conservativeFuzzyMatch(candidates: List<MediaStream>, rememberedTitle: String): MediaStream? {
     val want = normalizeFuzzyTitle(rememberedTitle) ?: return null
     if (want.length < 6) return null

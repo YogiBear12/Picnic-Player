@@ -39,14 +39,6 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import app.picnic.player.ui.theme.PicnicColors
 
-/**
- * Focusable settings action row shared by the Account and Requests panels.
- * [blockUp]/[blockDown] pin D-pad focus at panel edges so it cannot escape
- * into off-panel chrome.
- *
- * [enterFr] marks this row as the panel's entry target for D-pad Right / Select
- * from the category rail — pass it to whichever row is first on screen.
- */
 @Composable
 internal fun ActionRow(
     label: String,
@@ -77,7 +69,6 @@ internal fun ActionRow(
                 if (blockDown) down = FocusRequester.Cancel
             }
             .padding(horizontal = 20.dp, vertical = 16.dp)
-            // Only Select activates — Right is a direction, not a second Select.
             .onKeyEvent { event ->
                 if (!enabled || event.type != KeyEventType.KeyDown) return@onKeyEvent false
                 when (event.key) {
@@ -105,7 +96,6 @@ internal fun ActionRow(
     }
 }
 
-/** Outlined text field with the settings focus/colour conventions. */
 @Composable
 internal fun SettingsTextField(
     value: String,

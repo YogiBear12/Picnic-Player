@@ -23,24 +23,12 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
 
-/** Download progress for the update dialog. [totalBytes] is -1 when unknown. */
+/** [totalBytes] is -1 when the server sends no length. */
 data class DownloadProgress(val bytesDownloaded: Long, val totalBytes: Long) {
     val fraction: Float?
         get() = if (totalBytes > 0) (bytesDownloaded.toFloat() / totalBytes).coerceIn(0f, 1f) else null
 }
 
-/**
- * In-app updater. Checks the configured release host, downloads the APK
- * into `cacheDir/updates/` (never the public Downloads dir), hands it to the
- * system installer via FileProvider, and self-cleans on boot: after a successful
- * update the app relaunches as the new version, so [bootCleanup] deletes the
- * installer APK on first start — no install-result receiver needed.
- *
- * Inert when [ReleaseSource.configured] is false (blank UPDATE_REPO) or on debug
- * builds — debug is signed with a different key and can never update a release
- * install. The exception is a debug build with an explicit local `updateRepo`,
- * which is exactly the device-test path.
- */
 @Singleton
 class UpdateRepository @Inject constructor(
     @ApplicationContext private val context: Context,
@@ -50,8 +38,6 @@ class UpdateRepository @Inject constructor(
 ) {
     private val _updateAvailable = MutableStateFlow<UpdateRelease?>(null)
 
-    /** Non-null when a release newer than the installed version is known. Drives
-     *  the About row's "Install update" state and the rail badge dots. */
     val updateAvailable: StateFlow<UpdateRelease?> = _updateAvailable.asStateFlow()
 
     val enabled: Boolean = releaseSource.configured
@@ -60,11 +46,6 @@ class UpdateRepository @Inject constructor(
 
     private fun installedVersion(): UpdateVersion? = UpdateVersion.parse(BuildConfig.VERSION_NAME)
 
-    /**
-     * Check the release host. [force] skips the [CHECK_INTERVAL_MS] throttle (manual About check).
-     * Returns the newer release, or null (up to date / not configured / failed —
-     * manual callers distinguish via [enabled] and their own error surface).
-     */
     suspend fun check(force: Boolean = false): UpdateRelease? {
         if (!enabled) return null
         val installed = installedVersion() ?: return null
@@ -79,12 +60,6 @@ class UpdateRepository @Inject constructor(
         return newer
     }
 
-    /**
-     * Download [release] into the cache, emitting progress. A previously
-     * downloaded APK (abandoned install) is reused only when its size matches
-     * the published asset — a re-uploaded asset under the same tag otherwise
-     * serves a stale cached copy. Unknown asset size (0) always re-downloads.
-     */
     fun download(release: UpdateRelease): Flow<DownloadProgress> = flow {
         val target = apkFile(release.version)
         if (target.exists() && release.apkSizeBytes > 0 && target.length() == release.apkSizeBytes) {
@@ -115,7 +90,6 @@ class UpdateRepository @Inject constructor(
         emit(DownloadProgress(target.length(), target.length()))
     }.flowOn(io)
 
-    /** Hand the downloaded APK to the system installer. */
     fun install(release: UpdateRelease) {
         val apk = apkFile(release.version)
         val uri = FileProvider.getUriForFile(context, "${context.packageName}.updates", apk)
@@ -128,11 +102,6 @@ class UpdateRepository @Inject constructor(
         )
     }
 
-    /**
-     * Boot sweep: delete cached APKs at or below the installed version (the
-     * post-update self-clean) and stray .part files. APKs *newer* than installed
-     * are kept — an abandoned install can resume without re-downloading.
-     */
     suspend fun bootCleanup() = withContext(io) {
         val installed = installedVersion() ?: return@withContext
         updatesDir.listFiles()?.forEach { file ->
