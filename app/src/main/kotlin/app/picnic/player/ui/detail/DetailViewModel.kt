@@ -7,6 +7,7 @@ import app.picnic.player.data.auth.UserSession
 import app.picnic.player.data.media.LibraryChange
 import app.picnic.player.data.media.LibraryChangeBus
 import app.picnic.player.data.media.MediaRepository
+import app.picnic.player.data.media.UserDataRepository
 import app.picnic.player.data.seerr.SeerrLinkState
 import app.picnic.player.data.seerr.SeerrMediaRequest
 import app.picnic.player.data.seerr.SeerrRepository
@@ -35,12 +36,12 @@ import org.jellyfin.sdk.model.api.MediaStream
 class DetailViewModel @AssistedInject constructor(
     private val authRepository: AuthRepository,
     private val mediaRepository: MediaRepository,
+    private val userDataRepository: UserDataRepository,
     private val changeBus: LibraryChangeBus,
     private val settingsStore: SettingsStore,
     private val seerrRepository: SeerrRepository,
     @Assisted private val itemId: String
 ) : ViewModel() {
-
     @AssistedFactory
     interface Factory {
         fun create(itemId: String): DetailViewModel
@@ -53,7 +54,6 @@ class DetailViewModel @AssistedInject constructor(
         val collections: List<BaseItemDto> = emptyList(),
         val session: UserSession? = null,
         val error: String? = null,
-        /** Lead-episode streams when [item] is a series (its own DTO carries none). */
         val leadStreams: List<MediaStream>? = null,
         val nextUpEpisode: BaseItemDto? = null,
         val localTrailers: List<BaseItemDto> = emptyList(),
@@ -80,7 +80,6 @@ class DetailViewModel @AssistedInject constructor(
             runCatching { mediaRepository.item(UUID.fromString(itemId)) }
                 .onSuccess { item ->
                     _state.update { it.copy(loading = false, item = item, session = session) }
-                    // Secondary rows load after the item so the hero shows immediately.
                     launch {
                         runCatching { mediaRepository.similarItems(item.id) }
                             .onSuccess { similar -> _state.update { it.copy(similarItems = similar) } }
@@ -117,9 +116,6 @@ class DetailViewModel @AssistedInject constructor(
                 .onFailure { _state.update { it.copy(loading = false, error = "Could not load item") } }
         }
 
-        // Re-fetch when this item changes elsewhere (e.g. watched in the player or a child
-        // episode), so the badge/resume state stays current. Optimistic toggles below keep this
-        // screen instant; the bus keeps it truthful.
         viewModelScope.launch {
             changeBus.events.collect { change ->
                 if (change !is LibraryChange.ItemUpdated) return@collect
@@ -168,7 +164,7 @@ class DetailViewModel @AssistedInject constructor(
 
         viewModelScope.launch {
             runCatching {
-                mediaRepository.setWatched(
+                userDataRepository.setWatched(
                     currentItem.id,
                     !currentPlayed,
                     currentItem.seriesId
@@ -186,7 +182,7 @@ class DetailViewModel @AssistedInject constructor(
 
         viewModelScope.launch {
             runCatching {
-                mediaRepository.setFavorite(
+                userDataRepository.setFavorite(
                     currentItem.id,
                     favorite,
                     currentItem.seriesId
@@ -263,10 +259,6 @@ class DetailViewModel @AssistedInject constructor(
     private val UiState.canRequestMore: Boolean
         get() = requestMoreCanRequest && requestMoreSeasons.any { it.selectable }
 
-    /**
-     * Library Cast → Hybrid Person. Fetches Person entity for ProviderIds.Tmdb when
-     * present; otherwise legacy UUID-only Person (no Missing).
-     */
     fun resolvePersonKey(personId: UUID, onResolved: (PersonKey) -> Unit) {
         val session = state.value.session ?: return
         viewModelScope.launch {

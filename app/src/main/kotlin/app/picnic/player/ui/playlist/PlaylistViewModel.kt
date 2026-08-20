@@ -9,7 +9,8 @@ import app.picnic.player.data.auth.AuthRepository
 import app.picnic.player.data.auth.UserSession
 import app.picnic.player.data.media.LibraryChange
 import app.picnic.player.data.media.LibraryChangeBus
-import app.picnic.player.data.media.MediaRepository
+import app.picnic.player.data.media.PlaylistRepository
+import app.picnic.player.data.media.UserDataRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.util.UUID
 import javax.inject.Inject
@@ -19,10 +20,10 @@ import org.jellyfin.sdk.model.api.BaseItemDto
 @HiltViewModel
 class PlaylistViewModel @Inject constructor(
     private val authRepository: AuthRepository,
-    private val mediaRepository: MediaRepository,
+    private val playlistRepository: PlaylistRepository,
+    private val userDataRepository: UserDataRepository,
     private val changeBus: LibraryChangeBus
 ) : ViewModel() {
-
     data class UiState(
         val loading: Boolean = true,
         val session: UserSession? = null,
@@ -66,7 +67,7 @@ class PlaylistViewModel @Inject constructor(
     }
 
     private suspend fun refresh(session: UserSession, id: UUID) {
-        val items = runCatching { mediaRepository.playlistItems(id) }
+        val items = runCatching { playlistRepository.playlistItems(id) }
         state = state.copy(
             loading = false,
             session = session,
@@ -79,7 +80,7 @@ class PlaylistViewModel @Inject constructor(
         val session = state.session ?: return
         viewModelScope.launch {
             runCatching {
-                mediaRepository.setWatched(UUID.fromString(itemId), played, seriesId?.let(UUID::fromString))
+                userDataRepository.setWatched(UUID.fromString(itemId), played, seriesId?.let(UUID::fromString))
             }
         }
     }
@@ -88,7 +89,7 @@ class PlaylistViewModel @Inject constructor(
         val session = state.session ?: return
         viewModelScope.launch {
             runCatching {
-                mediaRepository.setFavorite(UUID.fromString(itemId), favorite, seriesId?.let(UUID::fromString))
+                userDataRepository.setFavorite(UUID.fromString(itemId), favorite, seriesId?.let(UUID::fromString))
             }
         }
     }
@@ -97,14 +98,10 @@ class PlaylistViewModel @Inject constructor(
         val session = state.session ?: return
         val id = playlistId ?: return
         viewModelScope.launch {
-            runCatching { mediaRepository.removeFromPlaylist(id, listOf(playlistItemId)) }
+            runCatching { playlistRepository.removeFromPlaylist(id, listOf(playlistItemId)) }
         }
     }
 
-    /**
-     * Reorders the item at [fromIndex] to [toIndex]. Applies optimistically so the row moves
-     * under focus immediately; the server call (and its change-bus refresh) confirm after.
-     */
     fun move(fromIndex: Int, toIndex: Int) {
         val session = state.session ?: return
         val id = playlistId ?: return
@@ -114,7 +111,7 @@ class PlaylistViewModel @Inject constructor(
         val reordered = items.toMutableList().apply { add(toIndex, removeAt(fromIndex)) }
         state = state.copy(items = reordered)
         viewModelScope.launch {
-            runCatching { mediaRepository.movePlaylistItem(id, entryId, toIndex) }
+            runCatching { playlistRepository.movePlaylistItem(id, entryId, toIndex) }
         }
     }
 }

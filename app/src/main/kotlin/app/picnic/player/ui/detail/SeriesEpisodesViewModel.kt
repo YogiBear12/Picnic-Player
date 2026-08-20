@@ -18,6 +18,7 @@ import app.picnic.player.data.jellyfin.JellyfinFactory
 import app.picnic.player.data.media.LibraryChange
 import app.picnic.player.data.media.LibraryChangeBus
 import app.picnic.player.data.media.MediaRepository
+import app.picnic.player.data.media.UserDataRepository
 import app.picnic.player.data.paging.EpisodePagingSource
 import app.picnic.player.di.IoDispatcher
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -67,6 +68,7 @@ private fun <T> Flow<T>.collapseBursts(windowMs: Long): Flow<T> = channelFlow {
 class SeriesEpisodesViewModel @Inject constructor(
     private val authRepository: AuthRepository,
     private val mediaRepository: MediaRepository,
+    private val userDataRepository: UserDataRepository,
     private val jellyfin: JellyfinFactory,
     private val changeBus: LibraryChangeBus,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher
@@ -233,7 +235,7 @@ class SeriesEpisodesViewModel @Inject constructor(
         episodeMutations.value = currentMutations
 
         viewModelScope.launch {
-            runCatching { mediaRepository.setWatched(UUID.fromString(episodeId), played, series) }
+            runCatching { userDataRepository.setWatched(UUID.fromString(episodeId), played, series) }
         }
     }
 
@@ -246,7 +248,7 @@ class SeriesEpisodesViewModel @Inject constructor(
         episodeMutations.value = currentMutations
 
         viewModelScope.launch {
-            runCatching { mediaRepository.setFavorite(UUID.fromString(episodeId), favorite, series) }
+            runCatching { userDataRepository.setFavorite(UUID.fromString(episodeId), favorite, series) }
         }
     }
 
@@ -264,7 +266,7 @@ class SeriesEpisodesViewModel @Inject constructor(
 
         viewModelScope.launch {
             runCatching {
-                mediaRepository.setWatched(UUID.fromString(seasonId), played, series)
+                userDataRepository.setWatched(UUID.fromString(seasonId), played, series)
             }
             episodeMutations.value = emptyMap()
             _refreshTrigger.value++
@@ -286,7 +288,7 @@ class SeriesEpisodesViewModel @Inject constructor(
 
         viewModelScope.launch {
             runCatching {
-                mediaRepository.setFavorite(UUID.fromString(seasonId), favorite, series)
+                userDataRepository.setFavorite(UUID.fromString(seasonId), favorite, series)
             }
         }
     }

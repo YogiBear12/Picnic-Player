@@ -3,7 +3,7 @@ package app.picnic.player.ui.playlist
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.picnic.player.data.auth.AuthRepository
-import app.picnic.player.data.media.MediaRepository
+import app.picnic.player.data.media.PlaylistRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.util.UUID
 import javax.inject.Inject
@@ -16,9 +16,8 @@ import org.jellyfin.sdk.model.api.BaseItemDto
 @HiltViewModel
 class AddToPlaylistViewModel @Inject constructor(
     private val authRepository: AuthRepository,
-    private val mediaRepository: MediaRepository
+    private val playlistRepository: PlaylistRepository
 ) : ViewModel() {
-
     data class UiState(
         val loading: Boolean = true,
         val playlists: List<BaseItemDto> = emptyList()
@@ -34,7 +33,7 @@ class AddToPlaylistViewModel @Inject constructor(
                 _state.update { it.copy(loading = false) }
                 return@launch
             }
-            val playlists = runCatching { mediaRepository.playlists() }.getOrDefault(emptyList())
+            val playlists = runCatching { playlistRepository.playlists() }.getOrDefault(emptyList())
             _state.update { it.copy(loading = false, playlists = playlists) }
         }
     }
@@ -43,7 +42,7 @@ class AddToPlaylistViewModel @Inject constructor(
         viewModelScope.launch {
             authRepository.activeSession() ?: return@launch
             runCatching {
-                mediaRepository.addToPlaylist(UUID.fromString(playlistId), listOf(UUID.fromString(itemId)))
+                playlistRepository.addToPlaylist(UUID.fromString(playlistId), listOf(UUID.fromString(itemId)))
             }
         }
     }
@@ -52,7 +51,7 @@ class AddToPlaylistViewModel @Inject constructor(
         viewModelScope.launch {
             authRepository.activeSession() ?: return@launch
             runCatching {
-                mediaRepository.createPlaylist(name.trim(), listOf(UUID.fromString(itemId)))
+                playlistRepository.createPlaylist(name.trim(), listOf(UUID.fromString(itemId)))
             }
         }
     }

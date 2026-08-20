@@ -6,7 +6,7 @@ import app.picnic.player.data.auth.AuthRepository
 import app.picnic.player.data.auth.UserSession
 import app.picnic.player.data.media.LibraryChange
 import app.picnic.player.data.media.LibraryChangeBus
-import app.picnic.player.data.media.MediaRepository
+import app.picnic.player.data.media.PlaylistRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -18,10 +18,9 @@ import org.jellyfin.sdk.model.api.BaseItemDto
 @HiltViewModel
 class PlaylistsPaneViewModel @Inject constructor(
     private val authRepository: AuthRepository,
-    private val mediaRepository: MediaRepository,
+    private val playlistRepository: PlaylistRepository,
     private val changeBus: LibraryChangeBus
 ) : ViewModel() {
-
     data class UiState(
         val loading: Boolean = true,
         val session: UserSession? = null,
@@ -36,7 +35,6 @@ class PlaylistsPaneViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             changeBus.events.collect { change ->
-                // A playlist created/renamed/reordered, or an item added/removed, changes the set.
                 if (change is LibraryChange.LibraryContentChanged || change is LibraryChange.ItemUpdated) {
                     refresh()
                 }
@@ -57,7 +55,7 @@ class PlaylistsPaneViewModel @Inject constructor(
                 _state.update { it.copy(loading = false) }
                 return@launch
             }
-            val playlists = runCatching { mediaRepository.playlists() }.getOrDefault(emptyList())
+            val playlists = runCatching { playlistRepository.playlists() }.getOrDefault(emptyList())
             _state.update { it.copy(loading = false, session = session, playlists = playlists) }
         }
     }

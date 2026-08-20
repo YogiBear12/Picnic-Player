@@ -1,24 +1,17 @@
 package app.picnic.player.data.media
 
-import app.picnic.player.data.auth.AuthRepository
 import app.picnic.player.data.auth.UserSession
-import app.picnic.player.data.jellyfin.JellyfinFactory
-import app.picnic.player.di.IoDispatcher
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
-import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.sync.withPermit
-import kotlinx.coroutines.withContext
 import org.jellyfin.sdk.api.client.extensions.filterApi
 import org.jellyfin.sdk.api.client.extensions.genresApi
 import org.jellyfin.sdk.api.client.extensions.itemsApi
 import org.jellyfin.sdk.api.client.extensions.libraryApi
 import org.jellyfin.sdk.api.client.extensions.localizationApi
-import org.jellyfin.sdk.api.client.extensions.playStateApi
-import org.jellyfin.sdk.api.client.extensions.playlistsApi
 import org.jellyfin.sdk.api.client.extensions.studiosApi
 import org.jellyfin.sdk.api.client.extensions.suggestionsApi
 import org.jellyfin.sdk.api.client.extensions.tvShowsApi
@@ -29,7 +22,6 @@ import org.jellyfin.sdk.api.client.extensions.userViewsApi
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
 import org.jellyfin.sdk.model.api.CultureDto
-import org.jellyfin.sdk.model.api.ImageType
 import org.jellyfin.sdk.model.api.ItemFields
 import org.jellyfin.sdk.model.api.ItemSortBy
 import org.jellyfin.sdk.model.api.MediaStream
@@ -40,45 +32,25 @@ import org.jellyfin.sdk.model.api.request.GetSimilarItemsRequest
 
 internal const val MEDIA_GRID_PAGE_SIZE = 100
 
-/**
- * Reads home/browse content from a Jellyfin server via the SDK.
- * Returns SDK [BaseItemDto]s directly; image/display helpers live in
- * `JellyfinImages` and the UI layer.
- */
 @Singleton
 class MediaRepository @Inject constructor(
-    private val jellyfin: JellyfinFactory,
-    private val authRepository: AuthRepository,
-    private val changeBus: LibraryChangeBus,
-    @IoDispatcher private val ioDispatcher: CoroutineDispatcher
+    private val source: SessionApi
 ) {
-    private suspend fun session(): UserSession = authRepository.requireSession()
+    private suspend fun session(): UserSession = source.session()
 
-    private suspend fun api() = session().let { jellyfin.api(it.server.baseUrl, it.accessToken) }
+    private suspend fun api() = source.client()
 
-    /**
-     * Runs a network + deserialize [block] on the IO dispatcher. The Jellyfin SDK resumes
-     * its OkHttp continuation on the caller's dispatcher, so without this the kotlinx
-     * .serialization parse of the response runs wherever the caller is — for ViewModels that
-     * is the main thread. Wrapping every read here keeps parsing off the UI thread. Nested
-     * calls are cheap (already on IO → no re-dispatch).
-     */
-    private suspend inline fun <T> onIo(crossinline block: suspend () -> T): T = withContext(ioDispatcher) { block() }
+    private suspend fun <T> onIo(block: suspend () -> T): T = source.onIo(block)
 
     suspend fun userViews(): List<BaseItemDto> = onIo {
         api().userViewsApi.getUserViews().content.items.orEmpty()
     }
 
-    /** Jellyfin `/Localization/Cultures` — display names for the Languages settings picker. */
     suspend fun cultures(): List<CultureDto> = onIo {
         api().localizationApi.getCultures().content
     }
 
-    /**
-     * The signed-in user's server-side config. Its `audioLanguagePreference` /
-     * `subtitleLanguagePreference` are the server defaults shown in Settings when the
-     * app holds no local override. Blank string = the user set no preference.
-     */
+    /** A blank language preference means the user set none, not "". */
     suspend fun userConfiguration(): UserConfiguration? = onIo {
         api().userApi.getCurrentUser().content.configuration
     }
@@ -105,7 +77,6 @@ class MediaRepository @Inject constructor(
     }
 
     suspend fun nextEpisodeForSeries(seriesId: UUID): BaseItemDto? = onIo {
-        // First try to get the Next Up episode for this specific series
         val nextUp = runCatching {
             api().tvShowsApi.getNextUp(
                 seriesId = seriesId,
@@ -119,8 +90,6 @@ class MediaRepository @Inject constructor(
             return@onIo nextUp
         }
 
-        // Fallback: If no next up exists (all watched, or none watched),
-        // fetch episodes, ignore specials (Season 0) unless it's the only season, and get the first one.
         val episodes = runCatching {
             api().tvShowsApi.getEpisodes(
                 seriesId = seriesId,
@@ -132,7 +101,6 @@ class MediaRepository @Inject constructor(
 
         if (episodes.isEmpty()) return@onIo null
 
-        // Try to find the first episode of Season 1 (or above)
         val nonSpecial = episodes
             .filter { (it.parentIndexNumber ?: 1) > 0 }
             .sortedWith(compareBy({ it.parentIndexNumber }, { it.indexNumber }))
@@ -142,7 +110,6 @@ class MediaRepository @Inject constructor(
             return@onIo nonSpecial
         }
 
-        // If only specials exist, fallback to the first special
         episodes
             .sortedWith(compareBy({ it.parentIndexNumber }, { it.indexNumber }))
             .firstOrNull()
@@ -160,11 +127,6 @@ class MediaRepository @Inject constructor(
         ).content
     }
 
-    /**
-     * Recently added across the whole library (no parent), server-sorted.
-     * Used by Android TV home channels so rows are global — not concatenated
-     * per-view (which stacks one library after another).
-     */
     suspend fun latestMedia(
         includeItemTypes: List<BaseItemKind>,
         limit: Int = LATEST_ROW_LIMIT,
@@ -179,10 +141,6 @@ class MediaRepository @Inject constructor(
         ).content
     }
 
-    /**
-     * Jellyfin "Because you watched…" style suggestions (movies + series).
-     * Used for the Android TV Recommendations preview channel.
-     */
     suspend fun suggestions(
         limit: Int = LATEST_ROW_LIMIT
     ): List<BaseItemDto> = onIo {
@@ -206,12 +164,6 @@ class MediaRepository @Inject constructor(
         ).content.items.orEmpty()
     }
 
-    /**
-     * Collections (box sets) that contain [itemId], for the detail screen's "Appears in"
-     * row. No stable server exposes a direct "collections containing item" endpoint, so this
-     * enumerates the user's box sets and checks membership against their (cached) child id sets. Any failure
-     * resolves to an empty list and the row simply doesn't show.
-     */
     suspend fun collectionsContaining(itemId: UUID): List<BaseItemDto> = onIo {
         try {
             val boxSets = api().itemsApi.getItems(
@@ -246,7 +198,6 @@ class MediaRepository @Inject constructor(
     private val boxSetChildIdsCache =
         java.util.concurrent.ConcurrentHashMap<UUID, CachedChildIds>()
 
-    /** Child item ids of a box set, cached briefly — detail screens reopen often. */
     private suspend fun boxSetChildIds(boxSetId: UUID): Set<UUID> {
         val now = System.currentTimeMillis()
         boxSetChildIdsCache[boxSetId]
@@ -292,12 +243,6 @@ class MediaRepository @Inject constructor(
         api().userLibraryApi.getLocalTrailers(itemId = itemId, userId = session().userUuid).content.orEmpty()
     }
 
-    /**
-     * Season count for a single series, resolved via a count-only query — `limit = 0` +
-     * `enableTotalRecordCount` returns the total without shipping a single season DTO. This
-     * replaces the old whole-library [seasonCounts] sweep (up to 5000 season DTOs per library)
-     * for the home hero, which only ever needs the count of the one focused series.
-     */
     suspend fun seasonCount(seriesId: UUID): Int = onIo {
         api().itemsApi.getItems(
             userId = session().userUuid,
@@ -311,10 +256,6 @@ class MediaRepository @Inject constructor(
         ).content.totalRecordCount ?: 0
     }
 
-    /**
-     * Fetches episode counts for a batch of specific seasons.
-     * Used for opportunistic prefetching of season episode counts in Series detail views.
-     */
     suspend fun seasonCounts(seasonIds: List<UUID>): Map<UUID, Int> = onIo {
         if (seasonIds.isEmpty()) return@onIo emptyMap()
         runCatching {
@@ -326,11 +267,6 @@ class MediaRepository @Inject constructor(
         }.getOrDefault(emptyMap())
     }
 
-    /**
-     * Media streams of a series' first playable episode — a series item carries no streams
-     * of its own, so the hero's technical badges borrow the lead episode's (resolution/HDR/
-     * audio are near-uniform within a show). Empty when the series has no playable episodes.
-     */
     suspend fun seriesLeadStreams(seriesId: UUID): List<MediaStream> = onIo {
         runCatching {
             api().tvShowsApi.getEpisodes(
@@ -343,11 +279,6 @@ class MediaRepository @Inject constructor(
         }.getOrDefault(emptyList())
     }
 
-    /**
-     * Fetches media streams for a batch of items (e.g. movies or episodes).
-     * Used for the home screen's look-ahead prefetch to populate the hero badge rail without
-     * bloating the home-row cache.
-     */
     suspend fun itemStreams(itemIds: List<UUID>): Map<UUID, List<MediaStream>> = onIo {
         if (itemIds.isEmpty()) return@onIo emptyMap()
         runCatching {
@@ -359,12 +290,6 @@ class MediaRepository @Inject constructor(
         }.getOrDefault(emptyMap())
     }
 
-    /**
-     * Streamable URL for one of [itemId]'s theme songs (random pick when the server has
-     * several), or null when the item has none. The universal endpoint lets the server
-     * pick direct play or transcode to a widely supported container; auth travels as an
-     * `api_key` query param because the audio player fetches outside the SDK client.
-     */
     suspend fun themeSongUrl(itemId: UUID): String? = onIo {
         val api = api()
         val theme = api.libraryApi.getThemeSongs(itemId = itemId)
@@ -376,11 +301,6 @@ class MediaRepository @Inject constructor(
         url + (if ('?' in url) "&" else "?") + "api_key=" + session().accessToken
     }
 
-    /**
-     * The episode that should play after [episodeId], or null at series end / when the item is
-     * not an episode. Resolves across season boundaries: the season finale returns the first
-     * episode of the next season.
-     */
     suspend fun nextEpisode(episodeId: UUID): BaseItemDto? = onIo {
         val api = api()
         val userId = session().userUuid
@@ -390,13 +310,6 @@ class MediaRepository @Inject constructor(
 
         val seriesId = currentEp.seriesId ?: return@onIo null
 
-        // Fetch the series' episodes in playback order, positioned at the current one via
-        // startItemId (which starts the list at that episode). The entry immediately after is the
-        // one to play next. Passing no seasonId means the server returns the whole-series ordering,
-        // so specials are interleaved at their AirsBefore/AfterSeason/Episode positions and surface
-        // as the next episode when their metadata says they belong there. isMissing = false drops
-        // metadata-only episodes that have no playable media. limit is small because we only need
-        // the next entry after the current one.
         val episodes = runCatching {
             api.tvShowsApi.getEpisodes(
                 seriesId = seriesId,
@@ -414,48 +327,10 @@ class MediaRepository @Inject constructor(
         if (currentIdx >= 0) {
             episodes.getOrNull(currentIdx + 1)
         } else {
-            // startItemId positioned the list past the current episode; first entry is next.
             episodes.firstOrNull { it.id != episodeId }
         }
     }
 
-    suspend fun setWatched(
-        itemId: UUID,
-        played: Boolean,
-        seriesId: UUID? = null
-    ) = onIo {
-        (
-            if (played) {
-                api().playStateApi.markPlayedItem(itemId).content
-            } else {
-                api().playStateApi.markUnplayedItem(itemId).content
-            }
-            ).also { notifyItemChanged(itemId, seriesId) }
-    }
-
-    suspend fun setFavorite(
-        itemId: UUID,
-        favorite: Boolean,
-        seriesId: UUID? = null
-    ) = onIo {
-        (
-            if (favorite) {
-                api().userLibraryApi.markFavoriteItem(itemId).content
-            } else {
-                api().userLibraryApi.unmarkFavoriteItem(itemId).content
-            }
-            ).also { notifyItemChanged(itemId, seriesId) }
-    }
-
-    private fun notifyItemChanged(itemId: UUID, seriesId: UUID?) {
-        changeBus.emit(LibraryChange.ItemUpdated(itemId.toString(), seriesId?.toString()))
-    }
-
-    /**
-     * One page of a filtered, sorted grid query. Every [MediaGridFilter] field maps to a
-     * native server parameter so counts/paging stay exact. Non-name sorts get SORT_NAME
-     * as a stable tie-breaker (except RANDOM, whose pages the server shuffles per call).
-     */
     suspend fun filteredItems(
         kinds: List<BaseItemKind>,
         filter: MediaGridFilter,
@@ -475,9 +350,6 @@ class MediaRepository @Inject constructor(
         val response = api().itemsApi.getItems(
             userId = session().userUuid,
             includeItemTypes = filter.contentType.itemKinds(kinds),
-            // A library grid lists one direct view and a collection its direct children;
-            // a genre scope searches recursively (within its library when scoped, else
-            // across all), and a box-set listing must recurse to reach the collections folder.
             recursive = filter.genreId != null ||
                 (filter.collectionId == null && kinds == listOf(BaseItemKind.BOX_SET)),
             parentId = parentIdOverride ?: filter.collectionId ?: filter.libraryId,
@@ -497,8 +369,6 @@ class MediaRepository @Inject constructor(
                 null
             },
             isFavorite = if (filter.favoritesOnly) true else null,
-            // Jellyfin treats this list as OR. The destination's fixed genre scope is kept
-            // distinct from the library panel's clearable genre selections in the UI model.
             genreIds = (listOfNotNull(filter.genreId) + filter.genreIds)
                 .takeIf { it.isNotEmpty() },
             studioIds = filter.studioIds.toList().takeIf { it.isNotEmpty() },
@@ -524,11 +394,6 @@ class MediaRepository @Inject constructor(
         )
     }
 
-    /**
-     * Count of filtered items sorting before [letter] — the alphabet-rail jump target.
-     * Only meaningful for name-ascending sort. All-libraries counts one library at a
-     * time (a combined recursive count is pathologically slow on large servers).
-     */
     suspend fun filteredIndexBeforeLetter(
         kinds: List<BaseItemKind>,
         filter: MediaGridFilter,
@@ -557,11 +422,6 @@ class MediaRepository @Inject constructor(
         GridContentType.SERIES -> listOf(BaseItemKind.SERIES)
     }
 
-    /**
-     * Filter-panel options, restricted to values present in the user's libraries —
-     * or in a single library when [libraryId] is set, so the panel's choices track
-     * the library selection.
-     */
     suspend fun gridFilterFacets(
         kinds: List<BaseItemKind>,
         libraryId: UUID? = null
@@ -611,7 +471,6 @@ class MediaRepository @Inject constructor(
         }
     }
 
-    /** Title search within one item kind. The server matches loosely; UI re-ranks by relevance. */
     suspend fun search(
         query: String,
         kind: BaseItemKind,
@@ -623,17 +482,11 @@ class MediaRepository @Inject constructor(
             includeItemTypes = listOf(kind),
             recursive = true,
             limit = limit,
-            // GRID_FIELDS: SORT_NAME feeds relevance tie-breaking, CHILD_COUNT the
-            // series cards' season label.
             fields = GRID_FIELDS,
             enableImageTypes = IMAGE_TYPES
         ).content.items.orEmpty()
     }
 
-    /**
-     * Movie/series genres for a browse-by-genre grid: all libraries when [libraryId] is
-     * null (the search tab), one library's genres when set (a library's Genres tab).
-     */
     suspend fun genres(
         libraryId: UUID? = null,
         kinds: List<BaseItemKind> = listOf(BaseItemKind.MOVIE, BaseItemKind.SERIES)
@@ -647,7 +500,6 @@ class MediaRepository @Inject constructor(
         ).content.items.orEmpty()
     }
 
-    /** Count of the user's collections (box sets) — gates the library Collections tab. */
     suspend fun collectionCount(): Int = onIo {
         api().itemsApi.getItems(
             userId = session().userUuid,
@@ -658,7 +510,6 @@ class MediaRepository @Inject constructor(
         ).content.totalRecordCount ?: 0
     }
 
-    /** Random watched items in one library — the "Because you watched …" row seeds. */
     suspend fun randomWatched(
         libraryId: UUID,
         kinds: List<BaseItemKind>,
@@ -677,12 +528,6 @@ class MediaRepository @Inject constructor(
         ).content.items.orEmpty()
     }
 
-    /**
-     * The subset of [ids] that live inside [libraryId], with browse-row fields. Server
-     * intersects `ids` with the recursive parent scope — the one-call way to filter a
-     * global recommendation list down to a single library (order is NOT preserved;
-     * callers re-order against their source list).
-     */
     suspend fun itemsInLibrary(
         libraryId: UUID,
         ids: List<UUID>
@@ -699,124 +544,18 @@ class MediaRepository @Inject constructor(
         ).content.items.orEmpty()
     }
 
-    /** The user's playlists, newest first — the Playlists library grid. */
-    suspend fun playlists(): List<BaseItemDto> = onIo {
-        api().itemsApi.getItems(
-            userId = session().userUuid,
-            includeItemTypes = listOf(BaseItemKind.PLAYLIST),
-            recursive = true,
-            sortBy = listOf(ItemSortBy.DATE_CREATED),
-            sortOrder = listOf(SortOrder.DESCENDING),
-            fields = LATEST_FIELDS,
-            enableImageTypes = IMAGE_TYPES,
-            enableTotalRecordCount = false
-        ).content.items.orEmpty()
-    }
-
-    /**
-     * Items of one playlist in their stored order. Each carries a `playlistItemId` (the entry
-     * id, distinct from the media id since the same item may appear twice) — the handle for
-     * [removeFromPlaylist] and [movePlaylistItem].
-     */
-    suspend fun playlistItems(playlistId: UUID): List<BaseItemDto> = onIo {
-        api().playlistsApi.getPlaylistItems(
-            playlistId = playlistId,
-            userId = session().userUuid,
-            fields = BROWSE_FIELDS,
-            enableImageTypes = IMAGE_TYPES
-        ).content.items.orEmpty()
-    }
-
-    /** Creates a playlist named [name] seeded with [itemIds]; returns the new playlist's id. */
-    suspend fun createPlaylist(name: String, itemIds: List<UUID>): UUID? = onIo {
-        val result = api().playlistsApi.createPlaylist(
-            org.jellyfin.sdk.model.api.CreatePlaylistDto(
-                name = name,
-                ids = itemIds,
-                userId = session().userUuid,
-                mediaType = MediaType.VIDEO,
-                users = emptyList(),
-                isPublic = false
-            )
-        ).content
-        changeBus.emit(LibraryChange.LibraryContentChanged)
-        result.id?.let(UUID::fromString)
-    }
-
-    suspend fun addToPlaylist(playlistId: UUID, itemIds: List<UUID>) = onIo {
-        api().playlistsApi.addItemToPlaylist(
-            playlistId = playlistId,
-            ids = itemIds,
-            userId = session().userUuid
-        )
-        changeBus.emit(LibraryChange.ItemUpdated(playlistId.toString(), null))
-    }
-
-    /** [entryIds] are `playlistItemId`s (playlist entries), not media ids. */
-    suspend fun removeFromPlaylist(playlistId: UUID, entryIds: List<String>) = onIo {
-        api().playlistsApi.removeItemFromPlaylist(
-            playlistId = playlistId.toString(),
-            entryIds = entryIds
-        )
-        changeBus.emit(LibraryChange.ItemUpdated(playlistId.toString(), null))
-    }
-
-    /** Moves the entry [playlistItemId] to [newIndex] (0-based) within the playlist. */
-    suspend fun movePlaylistItem(
-        playlistId: UUID,
-        playlistItemId: String,
-        newIndex: Int
-    ) = onIo {
-        api().playlistsApi.moveItem(
-            playlistId = playlistId.toString(),
-            itemId = playlistItemId,
-            newIndex = newIndex
-        )
-        changeBus.emit(LibraryChange.ItemUpdated(playlistId.toString(), null))
-    }
-
     private companion object {
         /** Bounded latest fetch (Jellyfin API default is 20 if omitted). */
         const val LATEST_ROW_LIMIT = 25
 
-        /** Per-kind cap for search result rows. */
         const val SEARCH_ROW_LIMIT = 24
 
-        /** Width threshold separating 4K/UHD from HD in the resolution filter. */
         const val UHD_MIN_WIDTH = 3200
 
-        val BROWSE_FIELDS = listOf(
-            ItemFields.OVERVIEW,
-            ItemFields.GENRES,
-            ItemFields.PRIMARY_IMAGE_ASPECT_RATIO
-        )
-        val CONTINUE_FIELDS = BROWSE_FIELDS
-        val LATEST_FIELDS = BROWSE_FIELDS + ItemFields.CHILD_COUNT
-
-        // SORT_NAME so the alphabet rail's active letter matches the server sort (articles
-        // stripped: "The Hard Way" → "Hard Way" → H, not T). CHILD_COUNT feeds the series
-        // cards' "N seasons" label.
-        val GRID_FIELDS = BROWSE_FIELDS + ItemFields.SORT_NAME + ItemFields.CHILD_COUNT
-
-        /** Fields needed to render the next-up overlay card. */
-        val NEXT_EPISODE_FIELDS = listOf(
-            ItemFields.OVERVIEW,
-            ItemFields.PRIMARY_IMAGE_ASPECT_RATIO
-        )
-
-        // startItemId starts the list at the current episode, so the current + next entries are
-        // all we need to resolve the following episode.
         const val NEXT_EPISODE_LOOKAHEAD = 2
 
-        /** "Appears in" membership scan (no server endpoint yet — see collectionsContaining). */
         const val BOX_SET_LIMIT = 500
         const val BOX_SET_FETCH_CONCURRENCY = 4
         const val BOX_SET_CACHE_TTL_MS = 5 * 60 * 1000L
-        val IMAGE_TYPES = listOf(
-            ImageType.PRIMARY,
-            ImageType.BACKDROP,
-            ImageType.THUMB,
-            ImageType.LOGO
-        )
     }
 }
