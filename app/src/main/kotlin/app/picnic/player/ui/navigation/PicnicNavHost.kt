@@ -91,48 +91,20 @@ fun PicnicNavHost(
     // rememberSaveable also carries it across process death.
     val drawerState = rememberSaveable(saver = DrawerState.Saver) { DrawerState(DrawerValue.Closed) }
 
-    fun resetStackTo(key: NavKey) {
+    fun resetShellTo(key: NavKey) {
+        backdropController.clear()
+        rail.clear()
         navViewModel.resetTo(key)
     }
 
-    fun goProfilePicker(serverId: String) {
-        backdropController.clear()
-        rail.clear()
-        resetStackTo(ProfilePickerKey(serverId))
-    }
+    fun goProfilePicker(serverId: String) = resetShellTo(ProfilePickerKey(serverId))
 
     // Server unreachable / erroring: tear the stack down to Select Server with the error flagged
     // on that server's tile (mirrors goProfilePicker for the token-rejected case).
-    fun goServerPicker(serverId: String, errorText: String) {
-        backdropController.clear()
-        rail.clear()
-        resetStackTo(ServerPickerKey(serverId, errorText))
-    }
+    fun goServerPicker(serverId: String, errorText: String) = resetShellTo(ServerPickerKey(serverId, errorText))
 
     // Sign-out / session-expiry tears the whole stack down — drop the backdrop and rail.
-    fun goStartup() {
-        backdropController.clear()
-        rail.clear()
-        resetStackTo(StartupKey)
-    }
-
-    // Episodes have no detail screen — clicking an episode card anywhere opens its series'
-    // season/episode listing, focused on that episode. Everything else (movies, series) → detail.
-    fun navItem(item: BaseItemDto, bg: String?, amb: String?) {
-        val seriesId = item.seriesId
-        if (item.type == BaseItemKind.EPISODE && seriesId != null) {
-            navViewModel.push(
-                EpisodesKey(
-                    seriesId = seriesId.toString(),
-                    ambUrl = amb,
-                    focusEpisodeId = item.id.toString(),
-                    seasonId = item.seasonId?.toString()
-                )
-            )
-        } else {
-            navViewModel.push(DetailKey(item.id.toString(), bg, amb))
-        }
-    }
+    fun goStartup() = resetShellTo(StartupKey)
 
     val railSession by rail.session.collectAsStateWithLifecycle()
 
@@ -205,7 +177,7 @@ fun PicnicNavHost(
                 entryProvider = entryProvider {
                     entry<StartupKey> {
                         StartupScreen(onResolved = { dest ->
-                            resetStackTo(dest)
+                            navViewModel.resetTo(dest)
                             if (dest == BrowseKey) {
                                 navViewModel.consumePendingDeepLink()?.let { key ->
                                     navViewModel.push(key)
@@ -226,7 +198,7 @@ fun PicnicNavHost(
                     entry<LoginKey> {
                         LoginScreen(
                             onLoggedIn = {
-                                resetStackTo(BrowseKey)
+                                navViewModel.resetTo(BrowseKey)
                                 navViewModel.consumePendingDeepLink()?.let { key ->
                                     navViewModel.push(key)
                                 }
@@ -251,7 +223,7 @@ fun PicnicNavHost(
                         ProfilePickerScreen(
                             serverId = key.serverId,
                             onProfileReady = {
-                                resetStackTo(BrowseKey)
+                                navViewModel.resetTo(BrowseKey)
                                 navViewModel.consumePendingDeepLink()?.let { key ->
                                     navViewModel.push(key)
                                 }
@@ -262,7 +234,7 @@ fun PicnicNavHost(
                     }
                     entry<BrowseKey> {
                         HomeScreen(
-                            onItem = { item, bg, amb -> navItem(item, bg, amb) },
+                            onItem = navViewModel::openItem,
                             onSeerrItem = { item, bg, amb ->
                                 navViewModel.push(resolveSeerrNavKey(item, bg, amb))
                             },
@@ -300,7 +272,7 @@ fun PicnicNavHost(
                         GenreScreen(
                             genreId = key.genreId,
                             genreName = key.name,
-                            onItem = { item, bg, amb -> navItem(item, bg, amb) },
+                            onItem = navViewModel::openItem,
                             onBack = { navViewModel.pop() },
                             onSessionExpired = { serverId -> goProfilePicker(serverId) },
                             libraryId = key.libraryId,
@@ -322,7 +294,7 @@ fun PicnicNavHost(
                             bgUrl = key.bgUrl,
                             ambUrl = key.ambUrl,
                             onPlay = { id, ticks, sourceId -> navViewModel.push(PlayerKey(id, ticks, sourceId)) },
-                            onItem = { item, newBg, newAmb -> navItem(item, newBg, newAmb) },
+                            onItem = navViewModel::openItem,
                             onEpisodes = { id, ambUrl, seasonId, focusId -> navViewModel.push(EpisodesKey(id, ambUrl, focusId, seasonId)) },
                             onCollection = { collection ->
                                 navViewModel.push(
@@ -385,7 +357,7 @@ fun PicnicNavHost(
                         CollectionScreen(
                             collectionId = key.itemId,
                             collectionName = key.name,
-                            onItem = { item, bg, amb -> navItem(item, bg, amb) },
+                            onItem = navViewModel::openItem,
                             onBack = { navViewModel.pop() },
                             onSessionExpired = { serverId -> goProfilePicker(serverId) }
                         )
@@ -404,7 +376,7 @@ fun PicnicNavHost(
                         PersonScreen(
                             jellyfinPersonId = key.jellyfinPersonId,
                             tmdbId = key.tmdbId,
-                            onItem = { item, newBg, newAmb -> navItem(item, newBg, newAmb) },
+                            onItem = navViewModel::openItem,
                             onSeerrItem = { item, bg, amb ->
                                 navViewModel.push(resolveSeerrNavKey(item, bg, amb))
                             },
