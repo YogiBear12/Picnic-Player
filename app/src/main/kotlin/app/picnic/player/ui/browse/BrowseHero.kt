@@ -16,6 +16,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -52,6 +53,24 @@ private val HeroTitleTopGap = 4.dp // details line → episode title
 private val HeroSummaryTopGap = 6.dp // (episode title / details) → summary
 private val HeroRailTopGap = 10.dp // summary → badge rail
 private val HeroGenresTopGap = 10.dp // summary / rail → genres
+private val HeroSummaryFocusInset = 8.dp // focus highlight → summary text
+
+/**
+ * Widens a child by [inset] on both sides while keeping the parent's slot width, so the
+ * summary's focus highlight can breathe past the text without narrowing the text itself.
+ * Padding the text instead reflows it, and the summary must wrap identically on Home and
+ * Detail.
+ */
+private fun Modifier.outsetHorizontally(inset: Dp) = layout { measurable, constraints ->
+    val extra = inset.roundToPx() * 2
+    val placeable = measurable.measure(
+        constraints.copy(
+            minWidth = constraints.minWidth + extra,
+            maxWidth = if (constraints.hasBoundedWidth) constraints.maxWidth + extra else constraints.maxWidth
+        )
+    )
+    layout(placeable.width - extra, placeable.height) { placeable.place(-inset.roundToPx(), 0) }
+}
 
 /**
  * Reserved height of the info block, sized to the tallest (movie) variant. The block is a
@@ -212,6 +231,7 @@ internal fun BrowseHero(
                     ),
                     modifier = Modifier
                         .padding(top = HeroSummaryTopGap)
+                        .outsetHorizontally(HeroSummaryFocusInset)
                         .fillMaxWidth()
                         .then(
                             if (summaryDown != null) {
@@ -221,7 +241,7 @@ internal fun BrowseHero(
                             }
                         )
                 ) {
-                    summaryText(Modifier.fillMaxWidth())
+                    summaryText(Modifier.fillMaxWidth().padding(horizontal = HeroSummaryFocusInset))
                 }
             }
         }
