@@ -27,7 +27,6 @@ import androidx.navigation3.ui.NavDisplay
 import androidx.tv.material3.DrawerState
 import androidx.tv.material3.DrawerValue
 import androidx.tv.material3.ExperimentalTvMaterial3Api
-import app.picnic.player.data.jellyfin.JellyfinImages
 import app.picnic.player.ui.ambient.BackdropHostLayer
 import app.picnic.player.ui.ambient.LocalBackdropController
 import app.picnic.player.ui.browse.NavRailViewModel
@@ -35,8 +34,10 @@ import app.picnic.player.ui.collection.CollectionScreen
 import app.picnic.player.ui.common.ContextMenuHandler
 import app.picnic.player.ui.common.GlobalContextMenuDialog
 import app.picnic.player.ui.common.GlobalContextMenuViewModel
+import app.picnic.player.ui.common.ImageUrlsViewModel
 import app.picnic.player.ui.common.LocalAddToPlaylist
 import app.picnic.player.ui.common.LocalContextMenuHandler
+import app.picnic.player.ui.common.LocalImageUrls
 import app.picnic.player.ui.detail.DetailScreen
 import app.picnic.player.ui.detail.SeriesEpisodesScreen
 import app.picnic.player.ui.genre.GenreScreen
@@ -54,41 +55,22 @@ import app.picnic.player.ui.startup.StartupScreen
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
 
-// Material 3 Motion Tokens for TV
 private const val EnterDurationMs = 400
 private const val ExitDurationMs = 300
 private val EnterEasing = CubicBezierEasing(0.05f, 0.7f, 0.1f, 1.0f) // Emphasized Decelerate
 private val ExitEasing = CubicBezierEasing(0.3f, 0.0f, 0.8f, 0.15f) // Emphasized Accelerate
 
-/**
- * App navigation on Navigation 3: the back stack is snapshot state
- * owned here, [NavDisplay] renders the top [NavKey]. Startup resolves the bootstrap phase
- * and replaces itself once; the onboarding wizard (server → login) and the return-user
- * pickers (servers / profiles) feed into the browse shell. Detail launches the player.
- *
- * The nav drawer lives ONLY inside the browse shell ([BrowseKey] → BrowseShellHost), where
- * Home / Search / libraries are tabs — the standard living-room TV pattern. Every other
- * destination (Detail, Collection, Genre, Episodes, Settings, Player, onboarding) is
- * full-screen and simply fades over the shell via the crossfade specs.
- *
- * [NavDisplay] disposes the shell entry while a full-screen destination sits on top, so the
- * shell (and its single drawer instance) re-enters composition on Back. Its open/closed
- * [DrawerState] is therefore hoisted HERE — above that disposal boundary — so it survives
- * back-nav in its last state (resting Closed) instead of the drawer reconstructing a default
- * state and replaying its open→close animation each time.
- */
 @OptIn(ExperimentalSharedTransitionApi::class, ExperimentalTvMaterial3Api::class)
 @Composable
 fun PicnicNavHost(
     railViewModel: NavRailViewModel = hiltViewModel(),
-    navViewModel: AppNavigationViewModel = hiltViewModel()
+    navViewModel: AppNavigationViewModel = hiltViewModel(),
+    imageUrlsViewModel: ImageUrlsViewModel = hiltViewModel()
 ) {
     val backStack = navViewModel.backStack
     val backdropController = LocalBackdropController.current
     val rail = railViewModel.rail
 
-    // Drawer open/closed state, hoisted above the disposable BrowseKey entry (see class doc).
-    // rememberSaveable also carries it across process death.
     val drawerState = rememberSaveable(saver = DrawerState.Saver) { DrawerState(DrawerValue.Closed) }
 
     fun resetShellTo(key: NavKey) {
@@ -99,17 +81,12 @@ fun PicnicNavHost(
 
     fun goProfilePicker(serverId: String) = resetShellTo(ProfilePickerKey(serverId))
 
-    // Server unreachable / erroring: tear the stack down to Select Server with the error flagged
-    // on that server's tile (mirrors goProfilePicker for the token-rejected case).
     fun goServerPicker(serverId: String, errorText: String) = resetShellTo(ServerPickerKey(serverId, errorText))
 
-    // Sign-out / session-expiry tears the whole stack down — drop the backdrop and rail.
     fun goStartup() = resetShellTo(StartupKey)
 
     val railSession by rail.session.collectAsStateWithLifecycle()
 
-    // The drawer's user-swap action lives in the shell; it needs the nav host to route to the
-    // profile picker once the session is dropped.
     val onSwapUser: () -> Unit = {
         railViewModel.softLogout()
         railSession?.server?.id?.let { goProfilePicker(it) }
@@ -129,13 +106,14 @@ fun PicnicNavHost(
 
     val addToPlaylistHandler: (BaseItemDto) -> Unit = { item -> addToPlaylistItem = item }
 
+    val imageUrls by imageUrlsViewModel.imageUrls.collectAsStateWithLifecycle()
+
     CompositionLocalProvider(
         LocalContextMenuHandler provides contextMenuHandler,
-        LocalAddToPlaylist provides addToPlaylistHandler
+        LocalAddToPlaylist provides addToPlaylistHandler,
+        LocalImageUrls provides imageUrls
     ) {
         Box(Modifier.fillMaxSize()) {
-            // App-level backdrop (artwork + ambient wash) shared across screens; drawn once here
-            // so Home → Detail with the same artwork redraws nothing (see BackdropController).
             BackdropHostLayer(Modifier.fillMaxSize())
 
             NavDisplay(
@@ -145,9 +123,6 @@ fun PicnicNavHost(
                     rememberSaveableStateHolderNavEntryDecorator(),
                     rememberViewModelStoreNavEntryDecorator()
                 ),
-                // Uniform crossfade: a pushed full-screen destination fades over the browse shell
-                // (which stays composed beneath), and Back fades it back out. All three specs
-                // (forward / back / predictive-back) share it so entry and exit are symmetric.
                 transitionSpec = {
                     val isPop = initialState.key !in navViewModel.backStack
 
@@ -188,7 +163,6 @@ fun PicnicNavHost(
                     entry<ServerEntryKey> {
                         ServerEntryScreen(
                             onServerResolved = {
-                                // Avoid stacking duplicate Login keys if resolve fires twice.
                                 if (navViewModel.backStack.lastOrNull() != LoginKey) {
                                     navViewModel.push(LoginKey)
                                 }
@@ -316,8 +290,6 @@ fun PicnicNavHost(
                             bgUrl = key.bgUrl,
                             ambUrl = key.ambUrl,
                             onPlayLibraryItem = { jellyfinId ->
-                                // Replace Seerr Detail so Back skips the request screen
-                                // after available-redirect / Play bridge.
                                 navViewModel.replaceTop(DetailKey(jellyfinId, key.bgUrl, key.ambUrl))
                             },
                             onRecommendedItem = { item, bg, amb ->
@@ -336,8 +308,6 @@ fun PicnicNavHost(
                             mediaSourceId = key.mediaSourceId,
                             onExit = { navViewModel.pop() },
                             onPlayNext = { nextId ->
-                                // Swap in a fresh player for the next item; the finished
-                                // episode's player leaves the stack so Back skips it.
                                 navViewModel.replaceTop(PlayerKey(nextId))
                             }
                         )
@@ -400,12 +370,8 @@ fun PicnicNavHost(
                     onGoToSeries = if (item.type == BaseItemKind.EPISODE && item.seriesId != null) {
                         { seriesId ->
                             contextMenuItem = null
-                            // Carry the episode's backdrop (its parent = the series artwork) into
-                            // Detail: this is the one nav path with no card-supplied bg/amb, and a
-                            // freshly-fetched series item does not always carry a backdrop tag to
-                            // derive from — leaving Detail with an ambient wash but no image.
-                            val nav = railSession?.let { JellyfinImages.navImages(it, item) }
-                            navViewModel.push(DetailKey(seriesId, nav?.bgUrl, nav?.ambUrl))
+                            val nav = imageUrls.navImages(item)
+                            navViewModel.push(DetailKey(seriesId, nav.bgUrl, nav.ambUrl))
                         }
                     } else {
                         null

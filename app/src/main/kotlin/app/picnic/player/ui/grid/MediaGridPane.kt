@@ -59,6 +59,7 @@ import app.picnic.player.ui.ambient.LocalAmbientPrewarmer
 import app.picnic.player.ui.browse.BrowseLayoutMetrics
 import app.picnic.player.ui.browse.posterCardStyle
 import app.picnic.player.ui.common.LocalContextMenuHandler
+import app.picnic.player.ui.common.LocalImageUrls
 import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.theme.PicnicColors
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -90,7 +91,6 @@ internal fun MediaGridPane(
     onEmptyFilteredChange: (Boolean) -> Unit = {}
 ) {
     when {
-        // Refilter/re-sort reloads keep the body mounted; tearing it down drops focus into the chrome.
         state.loading && state.session == null ->
             Box(Modifier.fillMaxSize(), Alignment.Center) {
                 CircularProgressIndicator(color = PicnicColors.Accent)
@@ -100,7 +100,6 @@ internal fun MediaGridPane(
                 Text(state.error ?: "Nothing here")
             }
         else -> MediaGridBody(
-            session = state.session,
             metrics = metrics,
             totalCount = state.totalCount,
             pendingScrollIndex = state.pendingScrollIndex,
@@ -138,7 +137,6 @@ private class GridCenterBringIntoViewSpec : BringIntoViewSpec {
 
 @Composable
 private fun MediaGridBody(
-    session: app.picnic.player.data.auth.UserSession,
     metrics: BrowseLayoutMetrics,
     totalCount: Int,
     pendingScrollIndex: Int,
@@ -168,11 +166,10 @@ private fun MediaGridBody(
     val gridState = rememberLazyGridState(cacheWindow = GridCacheWindow)
     val firstFocus = remember { FocusRequester() }
     val filterFocus = remember { FocusRequester() }
-    // One permanently-attached requester per cell: a single migrating requester double-attaches
-    // mid-move and focus falls back to the rail's previous child (the "lands on G" bug).
     val railLetterFocus = remember { GridAlphabetLetters.map { FocusRequester() } }
     val ambientPrewarmer = LocalAmbientPrewarmer.current
     val contextMenu = LocalContextMenuHandler.current
+    val images = LocalImageUrls.current
 
     var focusedIndex by rememberSaveable { mutableIntStateOf(0) }
 
@@ -202,8 +199,6 @@ private fun MediaGridBody(
         onContentFocusSeeded()
     }
 
-    // A changed query is a new list: the old offset is meaningless and the grid held a clamped
-    // end-of-list position until the panel closed.
     var lastQuery by remember {
         mutableStateOf<Pair<app.picnic.player.data.media.MediaGridFilter, app.picnic.player.data.media.GridSortSpec>?>(null)
     }
@@ -216,8 +211,6 @@ private fun MediaGridBody(
         }
     }
 
-    // A focusable Popup hands window focus back a few frames after onClose, so re-request until
-    // the button reports focus rather than a blind fixed-count loop.
     var filterButtonFocused by remember { mutableStateOf(false) }
     LaunchedEffect(panelCloseNonce) {
         if (panelCloseNonce == 0) return@LaunchedEffect
@@ -234,11 +227,9 @@ private fun MediaGridBody(
             .collect { onVisibleIndex(it) }
     }
 
-    // A fresh instance per recomposition would defeat skipping and recompose every visible card.
     val cardStyle = remember(metrics) { posterCardStyle(sy = metrics.sy) }
     val cellHeight = remember(cardStyle) { gridCellHeight(cardStyle) }
 
-    // derivedStateOf so the rail recomposes on letter change, not on every D-pad step.
     val activeLetter by remember(revision) {
         derivedStateOf {
             letterBucket(itemAt(focusedIndex)?.let { it.sortName ?: it.name })
@@ -272,8 +263,6 @@ private fun MediaGridBody(
             ((contentWidth + spacing) / (cardStyle.width + spacing)).toInt()
         )
 
-        // Follows the focused row, never scroll offset — a scroll-driven toggle feeds the
-        // AnimatedVisibility relayout back into scroll state (ANR loop).
         val topRowFocused = focusedIndex < columns
         LaunchedEffect(topRowFocused) { onChromeVisibleChange(topRowFocused) }
 
@@ -320,12 +309,11 @@ private fun MediaGridBody(
                             val focusRequester = if (index == focusedIndex) firstFocus else null
                             MediaGridCard(
                                 item = item,
-                                session = session,
                                 style = cardStyle,
                                 focusRequester = focusRequester,
                                 upFocus = null,
                                 onClick = {
-                                    val nav = app.picnic.player.data.jellyfin.JellyfinImages.navImages(session, item)
+                                    val nav = images.navImages(item)
                                     ambientPrewarmer.warm(nav.ambUrl)
                                     onItem(item, nav.bgUrl, nav.ambUrl)
                                 },

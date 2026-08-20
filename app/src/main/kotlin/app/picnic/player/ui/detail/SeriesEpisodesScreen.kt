@@ -59,8 +59,6 @@ import androidx.tv.material3.CardDefaults
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
-import app.picnic.player.data.auth.UserSession
-import app.picnic.player.data.jellyfin.JellyfinImages
 import app.picnic.player.playback.LocalThemeMusicPlayer
 import app.picnic.player.ui.ambient.BackdropSpec
 import app.picnic.player.ui.ambient.CardFocusBorderWidth
@@ -74,6 +72,7 @@ import app.picnic.player.ui.browse.ShortDateFormat
 import app.picnic.player.ui.browse.minutesLeft
 import app.picnic.player.ui.browse.runtimeMinutes
 import app.picnic.player.ui.common.ArtworkImage
+import app.picnic.player.ui.common.LocalImageUrls
 import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.theme.PicnicColors
 import coil3.compose.AsyncImage
@@ -104,9 +103,10 @@ fun SeriesEpisodesScreen(
     }
 
     val session = viewModel.session ?: return
+    val images = LocalImageUrls.current
 
     val paletteUrl = ambUrl
-        ?: viewModel.seriesItem?.let { JellyfinImages.primary(session, it, fillWidth = 240) }
+        ?: viewModel.seriesItem?.let { images.primary(it, fillWidth = 240) }
     PublishBackdrop(BackdropSpec(backdropUrl = null, ambientUrl = paletteUrl))
     var selectedSeasonId by rememberSaveable { mutableStateOf(initialSeasonId) }
     var pendingFocusEpisodeId by rememberSaveable { mutableStateOf(initialFocusEpisodeId) }
@@ -198,7 +198,7 @@ fun SeriesEpisodesScreen(
             ) {
                 Spacer(Modifier.height(76.dp))
                 val seriesItem = viewModel.seriesItem
-                if (seriesItem != null) SeriesHeader(seriesItem, session)
+                if (seriesItem != null) SeriesHeader(seriesItem)
 
                 SeasonList(
                     seasons = viewModel.seasons,
@@ -249,7 +249,6 @@ fun SeriesEpisodesScreen(
                         if (episode != null) {
                             EpisodeItem(
                                 episode = episode,
-                                session = session,
                                 leftFocus = selectedSeasonFr,
                                 enterFr = episodeFocus.requesterFor(index),
                                 onFocused = { episodeFocus.onEpisodeFocused(index) },
@@ -350,8 +349,8 @@ private fun rememberInitialLoadComplete(
 }
 
 @Composable
-private fun SeriesHeader(seriesItem: BaseItemDto, session: UserSession) {
-    val logoUrl = JellyfinImages.logo(session, seriesItem, fillWidth = 400)
+private fun SeriesHeader(seriesItem: BaseItemDto) {
+    val logoUrl = LocalImageUrls.current.logo(seriesItem, fillWidth = 400)
     if (logoUrl != null) {
         AsyncImage(
             model = logoUrl,
@@ -409,7 +408,6 @@ private fun SeriesHeader(seriesItem: BaseItemDto, session: UserSession) {
 @Composable
 private fun EpisodeItem(
     episode: BaseItemDto,
-    session: UserSession,
     leftFocus: FocusRequester?,
     enterFr: FocusRequester?,
     onFocused: () -> Unit = {},
@@ -424,7 +422,7 @@ private fun EpisodeItem(
         horizontalArrangement = Arrangement.spacedBy(20.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        val imageUrl = JellyfinImages.primary(session, episode, fillWidth = 300)
+        val imageUrl = LocalImageUrls.current.primary(episode, fillWidth = 300)
 
         Card(
             onClick = {

@@ -70,8 +70,6 @@ import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
-import app.picnic.player.data.auth.UserSession
-import app.picnic.player.data.jellyfin.JellyfinImages
 import app.picnic.player.ui.ambient.BackdropSpec
 import app.picnic.player.ui.ambient.PublishBackdrop
 import app.picnic.player.ui.browse.CardTimeLeftBadge
@@ -80,6 +78,8 @@ import app.picnic.player.ui.browse.minutesLeft
 import app.picnic.player.ui.browse.runtimeMinutes
 import app.picnic.player.ui.common.ContextMenuAction
 import app.picnic.player.ui.common.GlobalContextMenuDialog
+import app.picnic.player.ui.common.ImageUrls
+import app.picnic.player.ui.common.LocalImageUrls
 import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.common.watchProgress
 import app.picnic.player.ui.detail.ExpandableButton
@@ -105,7 +105,6 @@ fun PlaylistScreen(
     val title = playlistName ?: "Playlist"
 
     Box(Modifier.fillMaxSize()) {
-        // Playlists sit on the static ocean wash — no per-item ambient extraction.
         PublishBackdrop(BackdropSpec(backdropUrl = null, ambientUrl = null))
 
         when {
@@ -115,7 +114,6 @@ fun PlaylistScreen(
             )
             session == null || state.items.isEmpty() -> EmptyPlaylist(title)
             else -> PlaylistContent(
-                session = session,
                 name = title,
                 items = state.items,
                 viewModel = viewModel,
@@ -147,7 +145,6 @@ private fun EmptyPlaylist(name: String) {
 
 @Composable
 private fun PlaylistContent(
-    session: UserSession,
     name: String,
     items: List<BaseItemDto>,
     viewModel: PlaylistViewModel,
@@ -161,13 +158,8 @@ private fun PlaylistContent(
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     var contextMenuItem by remember { mutableStateOf<BaseItemDto?>(null) }
-    // Entry currently in reorder mode (chevrons + Up/Down move), keyed by identity so it
-    // tracks the item as it moves, not a fixed slot.
     var reorderKey by remember { mutableStateOf<String?>(null) }
 
-    // Per-row focus requesters keyed by the item's PLAYLIST ENTRY ID (not position) so a row
-    // keeps its requester as it moves during reorder — focus follows the card instead of
-    // sticking to the slot. Left↔right navigation lands on a specific row, never a spatial drift.
     val rowFocus = remember {
         object {
             private val map = mutableMapOf<String, FocusRequester>()
@@ -190,10 +182,6 @@ private fun PlaylistContent(
         }
     }
 
-    // Right from the buttons returns to the focused row. When that row is already on screen,
-    // let focusProperties move focus with no scroll (leaving the list where it sits); only when
-    // it is off-screen do we scroll it into view first. Returning false = "not consumed", so
-    // the declarative `right` target takes over.
     fun rightToListConsumed(): Boolean {
         val target = focusedIndex.coerceIn(0, items.lastIndex)
         val onScreen = listState.layoutInfo.visibleItemsInfo.any { it.index == target }
@@ -202,7 +190,6 @@ private fun PlaylistContent(
         return true
     }
 
-    // Reorder mode: Back exits it; otherwise Back from the list jumps to Play.
     BackHandler(enabled = reorderKey != null) { reorderKey = null }
     BackHandler(enabled = reorderKey == null && listHasFocus) { playFocus.requestFocus() }
 
@@ -214,9 +201,8 @@ private fun PlaylistContent(
                 .padding(start = 56.dp, end = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Cover top aligns with the first row's thumbnail: list top pad (48) + row vpad (8).
             Spacer(Modifier.height(56.dp))
-            PosterMosaic(session, items, Modifier.width(160.dp))
+            PosterMosaic(items, Modifier.width(160.dp))
             Spacer(Modifier.height(14.dp))
             Text(name, style = MaterialTheme.typography.headlineSmall, color = Color.White, textAlign = TextAlign.Center)
             Spacer(Modifier.height(4.dp))
@@ -231,7 +217,6 @@ private fun PlaylistContent(
                 ExpandableButton(
                     title = "Play from start",
                     icon = Icons.Default.PlayArrow,
-                    // From the top of the list, from the beginning (1 tick ≈ 0, never resume).
                     onClick = { items.firstOrNull()?.let { onPlay(it.id.toString(), 1L) } },
                     modifier = Modifier
                         .focusRequester(playFocus)
@@ -259,8 +244,6 @@ private fun PlaylistContent(
             Box(Modifier.fillMaxWidth().height(1.dp).background(Color.White.copy(alpha = 0.15f)))
             Spacer(Modifier.height(14.dp))
 
-            // Focused row's overview only — its name/date/runtime already live on the row.
-            // Blank overview renders nothing below the divider.
             if (!focusedItem?.overview.isNullOrBlank()) {
                 Text(
                     text = focusedItem?.overview.orEmpty(),
@@ -288,15 +271,12 @@ private fun PlaylistContent(
                 PlaylistRow(
                     index = index,
                     item = item,
-                    session = session,
                     focusRequester = rowFocus[itemKey],
                     leftFocus = shuffleFocus,
                     reordering = reorderKey == itemKey,
                     onFocused = { focusedIndex = index },
                     onPlay = onPlay,
                     onLongClick = { contextMenuItem = item },
-                    // The requester is identity-keyed, so focus follows the moved row on its own;
-                    // requesting it again just guards against a transient detach during recompose.
                     onMoveUp = {
                         if (index > 0) {
                             viewModel.move(index, index - 1)
@@ -362,7 +342,6 @@ private fun PlaylistContent(
 private fun PlaylistRow(
     index: Int,
     item: BaseItemDto,
-    session: UserSession,
     focusRequester: FocusRequester,
     leftFocus: FocusRequester,
     reordering: Boolean,
@@ -375,15 +354,11 @@ private fun PlaylistRow(
 ) {
     var focused by remember { mutableStateOf(false) }
     val rowShape = RoundedCornerShape(12.dp)
-    // Keep the row on screen as it moves during reorder — scrolls the list minimally to follow it.
     val bringIntoView = remember { BringIntoViewRequester() }
     LaunchedEffect(reordering, index) {
         if (reordering) bringIntoView.bringIntoView()
     }
 
-    // Whole row is the focus target: container highlight, no scale — a scaled full-width row
-    // would collide with its neighbours. In reorder mode the row is held highlighted and
-    // Up/Down move it (chevrons replace the runtime), matching the drawer's reorder pattern.
     Card(
         onClick = { if (reordering) onExitReorder() else onPlay(item.id.toString(), resumeTicks(item)) },
         onLongClick = onLongClick,
@@ -435,7 +410,7 @@ private fun PlaylistRow(
 
             Box(Modifier.size(width = 148.dp, height = 83.dp).clip(RoundedCornerShape(6.dp))) {
                 AsyncImage(
-                    model = landscapeImage(session, item),
+                    model = landscapeImage(LocalImageUrls.current, item),
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize().background(Color.DarkGray)
@@ -488,9 +463,9 @@ private fun PlaylistRow(
     }
 }
 
-/** 2×2 cover mosaic from the first four items' posters. */
 @Composable
-private fun PosterMosaic(session: UserSession, items: List<BaseItemDto>, modifier: Modifier = Modifier) {
+private fun PosterMosaic(items: List<BaseItemDto>, modifier: Modifier = Modifier) {
+    val images = LocalImageUrls.current
     Column(
         modifier = modifier.clip(RoundedCornerShape(10.dp)),
         verticalArrangement = Arrangement.spacedBy(2.dp)
@@ -499,7 +474,7 @@ private fun PosterMosaic(session: UserSession, items: List<BaseItemDto>, modifie
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                 rowItems.forEach { item ->
                     AsyncImage(
-                        model = posterImage(session, item),
+                        model = posterImage(images, item),
                         contentDescription = null,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier
@@ -530,17 +505,14 @@ private fun BoxScope.ItemProgressBar(item: BaseItemDto) {
     }
 }
 
-/** Stable per-entry key: the playlist entry id when present (an item may appear twice). */
 private fun keyOf(item: BaseItemDto): String = item.playlistItemId ?: item.id.toString()
 
 private fun resumeTicks(item: BaseItemDto): Long? = item.userData?.playbackPositionTicks?.takeIf { it > 0 }
 
 private fun seLabel(item: BaseItemDto): String = "S${item.parentIndexNumber ?: "?"} E${item.indexNumber ?: "?"}"
 
-/** Row title: the franchise-level name — series for episodes, title for movies. */
 private fun rowTitle(item: BaseItemDto): String = (if (item.type == BaseItemKind.EPISODE) item.seriesName else item.name) ?: "Unknown"
 
-/** Row subtitle: what disambiguates the entry under a franchise-level title. */
 private fun rowSubtitle(item: BaseItemDto): String = when (item.type) {
     BaseItemKind.EPISODE -> "${seLabel(item)} · ${item.name.orEmpty()}"
     else -> listOfNotNull("Movie", item.productionYear?.toString()).joinToString(" • ")
@@ -554,18 +526,16 @@ private fun playlistMetaLine(items: List<BaseItemDto>): String {
     return if (totalMins > 0) "$count • ${runtimeText(totalMins)}" else count
 }
 
-/** 16:9 art: episode still for episodes, thumb/backdrop for movies. */
-private fun landscapeImage(session: UserSession, item: BaseItemDto): String? = if (item.type == BaseItemKind.EPISODE) {
-    JellyfinImages.primary(session, item, fillWidth = 480)
+private fun landscapeImage(images: ImageUrls, item: BaseItemDto): String? = if (item.type == BaseItemKind.EPISODE) {
+    images.primary(item, fillWidth = 480)
 } else {
-    JellyfinImages.thumb(session, item)
-        ?: JellyfinImages.backdrop(session, item, fillWidth = 640)
-        ?: JellyfinImages.primary(session, item, fillWidth = 480)
+    images.thumb(item)
+        ?: images.backdrop(item, fillWidth = 640)
+        ?: images.primary(item, fillWidth = 480)
 }
 
-/** 2:3 poster art: series poster for episodes, movie poster otherwise. */
-private fun posterImage(session: UserSession, item: BaseItemDto): String? = if (item.type == BaseItemKind.EPISODE) {
-    JellyfinImages.seriesPrimary(session, item)
+private fun posterImage(images: ImageUrls, item: BaseItemDto): String? = if (item.type == BaseItemKind.EPISODE) {
+    images.seriesPrimary(item)
 } else {
-    JellyfinImages.primary(session, item)
+    images.primary(item)
 }

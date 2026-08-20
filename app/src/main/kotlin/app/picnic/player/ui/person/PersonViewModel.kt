@@ -36,7 +36,6 @@ class PersonViewModel @AssistedInject constructor(
     @Assisted("jellyfinPersonId") private val jellyfinPersonId: String?,
     @Assisted("tmdbId") private val tmdbId: Int?
 ) : ViewModel() {
-
     @AssistedFactory
     interface Factory {
         fun create(
@@ -45,18 +44,14 @@ class PersonViewModel @AssistedInject constructor(
         ): PersonViewModel
     }
 
-    /** Library Cast entry when Jellyfin UUID is present; Seerr Cast entry otherwise. */
     val isLibraryEntry: Boolean get() = !jellyfinPersonId.isNullOrBlank()
 
     data class UiState(
         val loading: Boolean = true,
         val person: BaseItemDto? = null,
         val seerrPerson: SeerrPersonDetails? = null,
-        /** Library entry: merged Movies + Series, newest → oldest. */
         val libraryItems: List<BaseItemDto> = emptyList(),
-        /** Seerr-only entry: credits with a Jellyfin library link. */
         val libraryCredits: List<SeerrCatalogItem> = emptyList(),
-        /** Full combined_credits (cast+crew deduped); not Missing-filtered. */
         val knownFor: List<SeerrCatalogItem> = emptyList(),
         val session: UserSession? = null,
         val seerrBaseUrl: String? = null,
@@ -92,7 +87,7 @@ class PersonViewModel @AssistedInject constructor(
 
         try {
             if (isLibraryEntry) {
-                loadLibraryEntry(session, seerrLinked)
+                loadLibraryEntry(seerrLinked)
             } else {
                 loadSeerrEntry(seerrLinked)
             }
@@ -102,7 +97,7 @@ class PersonViewModel @AssistedInject constructor(
         }
     }
 
-    private suspend fun loadLibraryEntry(session: UserSession, seerrLinked: Boolean) {
+    private suspend fun loadLibraryEntry(seerrLinked: Boolean) {
         val uuid = UUID.fromString(jellyfinPersonId)
         val person = mediaRepository.getPerson(uuid)
         _state.update { it.copy(person = person) }
@@ -182,9 +177,6 @@ class PersonViewModel @AssistedInject constructor(
     }
 }
 
-/**
- * Newest → oldest by premiere date, else production year; null/unknown last.
- */
 internal fun sortedJellyfinByReleaseDesc(items: List<BaseItemDto>): List<BaseItemDto> = items.sortedWith(
     Comparator { a, b ->
         val da = jellyfinReleaseDate(a)

@@ -1,6 +1,5 @@
 package app.picnic.player.ui.grid
 
-import app.picnic.player.data.auth.UserSession
 import app.picnic.player.data.media.GridSortSpec
 import app.picnic.player.data.media.MEDIA_GRID_PAGE_SIZE
 import app.picnic.player.data.media.MediaGridFilter
@@ -10,18 +9,11 @@ import kotlinx.coroutines.sync.withLock
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
 
-/**
- * Virtual list backing the media grid — loads 100-item pages on demand.
- * Page loaders return whether a *new* page was fetched so the UI only triggers a
- * recomposition (revision bump) when fresh data actually arrived.
- * Filter and sort are server-side; changing either resets the loaded pages.
- */
 internal class MediaGridStore(
     private val kinds: List<BaseItemKind>,
     private var sort: GridSortSpec,
     private var filter: MediaGridFilter,
-    private val repository: MediaRepository,
-    private val session: UserSession
+    private val repository: MediaRepository
 ) {
     private val mutex = Mutex()
     val pageSize = MEDIA_GRID_PAGE_SIZE
@@ -46,7 +38,6 @@ internal class MediaGridStore(
         ensurePage(0)
     }
 
-    /** @return true if this call fetched a not-yet-loaded page. */
     suspend fun ensureIndex(index: Int): Boolean {
         if (index < 0) return false
         return ensurePage(index / pageSize)
@@ -59,12 +50,10 @@ internal class MediaGridStore(
         return index.coerceIn(0, (totalCount - 1).coerceAtLeast(0))
     }
 
-    /** True if [itemId] sits in an already-loaded page (so a refresh is worth fetching). */
     suspend fun containsItem(itemId: String): Boolean = mutex.withLock {
         loadedPages.values.any { page -> page.any { it.id.toString() == itemId } }
     }
 
-    /** Swaps a loaded card for a freshly-fetched [fresh] DTO. @return true if it was present. */
     suspend fun replaceItem(fresh: BaseItemDto): Boolean = mutex.withLock {
         val target = fresh.id.toString()
         var replaced = false

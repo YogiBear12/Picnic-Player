@@ -47,20 +47,11 @@ import app.picnic.player.ui.theme.PicnicColors
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
 
-/** Hilt key for a library's chrome/for-you ViewModels — shared with [BrowseShellHost]. */
 internal fun libraryPaneVmKey(destKey: String) = "libpane:$destKey"
 internal fun forYouVmKey(destKey: String) = "libforyou:$destKey"
 
-/** One global collections grid — box sets aren't library-scoped, so every pane shares it. */
 internal const val CollectionsGridVmKey = "grid:collections"
 
-/**
- * One library's pane: a top tab row (Library / For you / Genres / Collections) over the
- * selected tab's content. Chrome rule: the tabs are visible only while the tab row itself
- * or the content's TOP element has focus — scrolling down turns any tab into the same
- * full-screen surface the library grid always was. Up from a content's top row lands on
- * the selected tab.
- */
 @Composable
 internal fun LibraryPane(
     dest: BrowseDest.Library,
@@ -106,9 +97,6 @@ internal fun LibraryPane(
     val selectedTab = paneState.selectedTab
     val tabFocus = remember { FocusRequester() }
     var tabRowFocused by remember { mutableStateOf(false) }
-    // A grid tab whose active filter yields no results exposes only a centered Clear button;
-    // the selected tab's Down must land there (spatial search would grab the rail's filter
-    // icon). Each grid tab owns a Clear-button requester + an "empty-filtered" flag.
     val libraryEmptyFocus = remember { FocusRequester() }
     val collectionsEmptyFocus = remember { FocusRequester() }
     var libraryEmptyFiltered by remember { mutableStateOf(false) }
@@ -118,10 +106,6 @@ internal fun LibraryPane(
         LibraryTab.COLLECTIONS -> collectionsEmptyFocus.takeIf { collectionsEmptyFiltered }
         else -> null
     }
-    // Grid tabs report their top-row-focused state via callback; the row-based tabs
-    // derive it from their focused index. Focused-element based on purpose — a
-    // scroll-offset toggle feeds the AnimatedVisibility relayout back into scroll
-    // state (see the matching note in MediaGridPane).
     var libraryChromeVisible by remember { mutableStateOf(true) }
     var collectionsChromeVisible by remember { mutableStateOf(true) }
     val contentChromeVisible = when (selectedTab) {
@@ -153,9 +137,6 @@ internal fun LibraryPane(
                 .fillMaxWidth()
                 .weight(1f)
                 .focusGroup()
-                // Up out of any tab content's top element lands on the selected tab.
-                // (The library/collections grids return the same target from their own
-                // innermost exit; this covers the row- and tile-based tabs.)
                 .focusProperties {
                     exit = { direction ->
                         if (direction == FocusDirection.Up) tabFocus else FocusRequester.Default
@@ -209,8 +190,6 @@ internal fun LibraryPane(
                             metrics = metrics,
                             seedContentFocus = seedContentFocus && tab == selectedTab,
                             onContentFocusSeeded = onContentFocusSeeded,
-                            // A box-set card opens the collection's own grid; everything
-                            // else (impossible here, but harmless) falls through to Detail.
                             onItem = { item, bg, amb ->
                                 if (item.type == BaseItemKind.BOX_SET) {
                                     onCollection(item)
@@ -231,7 +210,6 @@ internal fun LibraryPane(
     }
 }
 
-/** For-you tab body — Home's immersive hero + rows scaffold over this library's rows. */
 @Composable
 private fun ForYouTabContent(
     state: ForYouViewModel.UiState,
@@ -261,7 +239,6 @@ private fun ForYouTabContent(
             }
         else -> ImmersiveBrowseScaffold(
             rows = state.rows,
-            session = state.session!!,
             ambientLoader = viewModel.ambientLoader,
             focusedItem = viewModel.focusedItem(state),
             focusedRowIndex = state.focusedRowIndex,
@@ -281,7 +258,6 @@ private fun ForYouTabContent(
     }
 }
 
-/** Genres tab body — the search tab's browse-by-genre tiles, scoped to this library. */
 @Composable
 private fun GenresTabContent(
     paneState: LibraryPaneViewModel.UiState,
@@ -296,7 +272,6 @@ private fun GenresTabContent(
     val genreCardFocus = remember { FocusRequester() }
     val genreGridState = rememberLazyGridState()
 
-    // Returning from a pushed genre grid: land back on the saved tile.
     LaunchedEffect(seedContentFocus, paneState.genresLoading, paneState.genres.size) {
         if (!seedContentFocus || paneState.genresLoading) return@LaunchedEffect
         runCatching { genreCardFocus.requestFocus() }

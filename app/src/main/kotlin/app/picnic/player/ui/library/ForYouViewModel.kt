@@ -30,19 +30,12 @@ import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
 import org.jellyfin.sdk.model.api.MediaStream
 
-/**
- * A library's "For you" tab: a Top picks row (server suggestions, filtered to this
- * library) plus "Because you watched …" rows seeded by RANDOM watched items. Seeds are
- * drawn once per ViewModel lifetime — revisiting the tab shows the same rows; the next
- * app session draws fresh ones. A distinct Hilt key owns each library's instance.
- */
 @HiltViewModel
 class ForYouViewModel @Inject constructor(
     private val authRepository: AuthRepository,
     private val mediaRepository: MediaRepository,
     val ambientLoader: AmbientPaletteLoader
 ) : ViewModel() {
-
     data class UiState(
         val loading: Boolean = true,
         val session: UserSession? = null,
@@ -51,10 +44,8 @@ class ForYouViewModel @Inject constructor(
         val sessionExpiredServerId: String? = null,
         val focusedRowIndex: Int = 0,
         val focusedItemId: UUID? = null,
-        /** Per-row last-focused card — survives vertical moves and tab switches. */
         val rowFocusedItemIds: Map<Int, UUID> = emptyMap(),
         val seasonCounts: Map<UUID, Int> = emptyMap(),
-        /** Hero technical badges, prefetched around the focused row (as on Home). */
         val heroStreams: Map<UUID, List<MediaStream>> = emptyMap()
     )
 
@@ -74,7 +65,6 @@ class ForYouViewModel @Inject constructor(
         }
     }
 
-    /** Scope to one library and build the rows. Idempotent — seeds must not redraw. */
     fun bind(libraryId: UUID, kinds: List<BaseItemKind>) {
         if (bound) return
         bound = true
@@ -117,8 +107,8 @@ class ForYouViewModel @Inject constructor(
             }
             try {
                 val rows = coroutineScope {
-                    val topPicks = async { topPicksRow(session, libraryId, kinds) }
-                    val becauseRows = async { becauseYouWatchedRows(session, libraryId, kinds) }
+                    val topPicks = async { topPicksRow(libraryId, kinds) }
+                    val becauseRows = async { becauseYouWatchedRows(libraryId, kinds) }
                     listOfNotNull(topPicks.await()) + becauseRows.await()
                 }
                 _state.update {
@@ -133,9 +123,7 @@ class ForYouViewModel @Inject constructor(
                         }
                     )
                 }
-                resolveSeasonCounts(session, rows)
-                // The hero may show before any card takes focus (focus can rest on the
-                // tab row) — badge the first rows without waiting for a focus event.
+                resolveSeasonCounts(rows)
                 focusChangedFlow.tryEmit(Unit)
             } catch (e: Exception) {
                 if (e.isAuthFailure()) {
@@ -150,27 +138,19 @@ class ForYouViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Server suggestions cut down to this library. The suggestions endpoint has no parent
-     * scope, so the ids are re-fetched through the library (one call) and re-ordered to
-     * the server's suggestion order.
-     */
     private suspend fun topPicksRow(
-        session: UserSession,
         libraryId: UUID,
         kinds: List<BaseItemKind>
     ): HomeRow? {
         val suggested = runCatching { mediaRepository.suggestions(SUGGESTION_FETCH_LIMIT) }
             .getOrDefault(emptyList())
             .filter { it.type in kinds }
-        val inLibrary = filterToLibrary(session, libraryId, suggested).take(ROW_ITEM_LIMIT)
+        val inLibrary = filterToLibrary(libraryId, suggested).take(ROW_ITEM_LIMIT)
         if (inLibrary.size < MIN_ROW_ITEMS) return null
         return HomeRow(title = "Top picks for you", items = inLibrary, continueWatching = false)
     }
 
-    /** One row per watched seed, built concurrently; empty and thin rows are dropped. */
     private suspend fun becauseYouWatchedRows(
-        session: UserSession,
         libraryId: UUID,
         kinds: List<BaseItemKind>
     ): List<HomeRow> {
@@ -185,7 +165,7 @@ class ForYouViewModel @Inject constructor(
                     gate.withPermit {
                         val similar = runCatching { mediaRepository.similarItems(seed.id) }
                             .getOrDefault(emptyList())
-                        val items = filterToLibrary(session, libraryId, similar)
+                        val items = filterToLibrary(libraryId, similar)
                             .filter { it.id != seed.id }
                             .take(ROW_ITEM_LIMIT)
                         if (items.size < MIN_ROW_ITEMS) {
@@ -205,9 +185,7 @@ class ForYouViewModel @Inject constructor(
             .take(MAX_BECAUSE_ROWS)
     }
 
-    /** Library membership filter (exact, one call), preserving [candidates] order. */
     private suspend fun filterToLibrary(
-        session: UserSession,
         libraryId: UUID,
         candidates: List<BaseItemDto>
     ): List<BaseItemDto> {
@@ -218,11 +196,6 @@ class ForYouViewModel @Inject constructor(
         return candidates.mapNotNull { inLibrary[it.id] }
     }
 
-    /**
-     * Same hero-badge prefetch as Home (see HomeViewModel.prefetchStreamsAhead): batched
-     * stream fetch for the focused row ±1, with a sliding window for series (their lead
-     * streams cost one call each).
-     */
     private suspend fun prefetchStreamsAhead() {
         val stateSnapshot = _state.value
         val session = stateSnapshot.session ?: return
@@ -264,8 +237,7 @@ class ForYouViewModel @Inject constructor(
         }
     }
 
-    /** Same off-critical-path season labels as Home (see HomeViewModel). */
-    private suspend fun resolveSeasonCounts(session: UserSession, rows: List<HomeRow>) {
+    private suspend fun resolveSeasonCounts(rows: List<HomeRow>) {
         val seriesIds = seriesNeedingSeasonCount(rows, _state.value.seasonCounts.keys)
         if (seriesIds.isEmpty()) return
         val gate = Semaphore(ROW_BUILD_CONCURRENCY)
@@ -283,12 +255,10 @@ class ForYouViewModel @Inject constructor(
     }
 
     private companion object {
-        /** Watched seeds drawn per session; thin/empty rows are dropped after the fact. */
         const val SEED_FETCH_LIMIT = 8
         const val MAX_BECAUSE_ROWS = 5
         const val ROW_ITEM_LIMIT = 12
 
-        /** Below this a row reads as an apology, not a shelf. */
         const val MIN_ROW_ITEMS = 3
         const val SUGGESTION_FETCH_LIMIT = 40
         const val ROW_BUILD_CONCURRENCY = 4

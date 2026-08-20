@@ -32,14 +32,13 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
-import app.picnic.player.data.auth.UserSession
-import app.picnic.player.data.jellyfin.JellyfinImages
 import app.picnic.player.ui.browse.BrowseCardStyle
 import app.picnic.player.ui.browse.BrowseHero
 import app.picnic.player.ui.browse.BrowseLayoutMetrics
 import app.picnic.player.ui.browse.DetailContentStartInset
 import app.picnic.player.ui.browse.DetailMediaRow
 import app.picnic.player.ui.common.CircularPersonCard
+import app.picnic.player.ui.common.LocalImageUrls
 import app.picnic.player.ui.common.RowFocusState
 import app.picnic.player.ui.theme.PicnicColors
 import org.jellyfin.sdk.model.api.BaseItemDto
@@ -59,21 +58,15 @@ internal data class DetailButtonActions(
 @Composable
 internal fun DetailHero(
     item: BaseItemDto,
-    session: UserSession,
     metrics: BrowseLayoutMetrics,
     heroRegionHeight: Dp,
     leadStreams: List<MediaStream>?,
     focus: DetailPageFocus,
     onSummaryClick: () -> Unit
 ) {
-    // Same fixed-height block as Home, bottom-anchored heroGap above where the
-    // rows start, so the logo/details line sit at the identical Y on both screens
-    // (no shift navigating Home ↔ Detail). Summary length is type-driven inside
-    // BrowseHero, matching Home.
     Box(Modifier.fillMaxWidth().height(heroRegionHeight)) {
         BrowseHero(
             item = item,
-            session = session,
             logoHeight = metrics.logoHeight,
             continueWatching = false,
             streamsOverride = leadStreams,
@@ -83,8 +76,6 @@ internal fun DetailHero(
             modifier = Modifier
                 .align(Alignment.BottomStart)
                 .padding(
-                    // Rail supplies the left gutter — align with the shell
-                    // panes so Home → Detail keeps one horizontal origin.
                     start = DetailContentStartInset,
                     end = metrics.hInset,
                     bottom = metrics.heroGap
@@ -106,8 +97,6 @@ internal fun DetailActionButtons(
     buttonsToRowGap: Dp
 ) {
     val isSeries = item.type == BaseItemKind.SERIES
-    // The overflow always shows now — it's the home for the Add-to actions
-    // (favorites, playlist) plus media info / versions / request more.
     var nextButtonIndex = 0
     val playButtonIndex = nextButtonIndex++
     val episodesButtonIndex = if (isSeries) nextButtonIndex++ else -1
@@ -181,15 +170,12 @@ internal fun DetailActionButtons(
         )
     }
 
-    // Keeps the rows' resting position at page top aligned with where they
-    // pin when focused (buttonsToRowGap below the pin line).
     Spacer(Modifier.height(buttonsToRowGap))
 }
 
 @Composable
 internal fun DetailCastRow(
     people: List<BaseItemPerson>,
-    session: UserSession,
     metrics: BrowseLayoutMetrics,
     horizontalRowSpec: BringIntoViewSpec,
     focus: DetailPageFocus,
@@ -204,8 +190,7 @@ internal fun DetailCastRow(
         rowFocus = focus.cast.rowModifier()
     ) { index, person ->
         CircularPersonCard(
-            imageUrl = JellyfinImages.personPrimary(
-                session,
+            imageUrl = LocalImageUrls.current.personPrimary(
                 person.id.toString(),
                 person.primaryImageTag
             ),
@@ -216,11 +201,6 @@ internal fun DetailCastRow(
             modifier = Modifier
                 .focusRequester(focus.cast.requesterAt(index))
                 .onFocusChanged { if (it.isFocused) focus.onCastFocused(index) }
-                // Up returns to the button we left from, not the
-                // spatially nearest one (must sit on the card's own
-                // focus node — a group-level `up` is not consulted
-                // for searches leaving a child). First card also
-                // blocks left so focus can't escape the row.
                 .focusProperties {
                     up = focus.lastFocusedButton
                     if (index == 0) left = FocusRequester.Cancel
@@ -233,7 +213,6 @@ internal fun DetailCastRow(
 internal fun DetailPosterRow(
     title: String,
     items: List<BaseItemDto>,
-    session: UserSession,
     metrics: BrowseLayoutMetrics,
     cardStyle: BrowseCardStyle,
     horizontalRowSpec: BringIntoViewSpec,
@@ -253,7 +232,6 @@ internal fun DetailPosterRow(
     ) { index, rowItem ->
         DetailRowCard(
             item = rowItem,
-            session = session,
             style = cardStyle,
             focusRequester = rowFocus.requesters[index],
             firstInRow = index == 0,

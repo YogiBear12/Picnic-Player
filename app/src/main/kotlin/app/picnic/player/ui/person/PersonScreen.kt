@@ -59,8 +59,6 @@ import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
-import app.picnic.player.data.auth.UserSession
-import app.picnic.player.data.jellyfin.JellyfinImages
 import app.picnic.player.data.seerr.SeerrCatalogItem
 import app.picnic.player.data.seerr.SeerrImages
 import app.picnic.player.data.seerr.SeerrPersonDetails
@@ -72,6 +70,7 @@ import app.picnic.player.ui.browse.DetailMediaRow
 import app.picnic.player.ui.browse.ScrollToTopBringIntoView
 import app.picnic.player.ui.browse.browseLayoutMetrics
 import app.picnic.player.ui.browse.posterCardStyle
+import app.picnic.player.ui.common.LocalImageUrls
 import app.picnic.player.ui.common.ScrollableTextDialog
 import app.picnic.player.ui.common.rememberRowFocusState
 import app.picnic.player.ui.common.requestFocusWhenAttached
@@ -132,7 +131,6 @@ fun PersonScreen(
 
     val overviewFocusRequester = remember { FocusRequester() }
     val libraryFocus = rememberRowFocusState(state.libraryItems)
-    // Discover/Recommended pattern — one restorer pin per Seerr row.
     val librarySeerrRowFocus = remember { FocusRequester() }
     val knownForRowFocus = remember { FocusRequester() }
 
@@ -141,7 +139,6 @@ fun PersonScreen(
     var focusedKnownForIndex by rememberSaveable { mutableIntStateOf(0) }
     var focusedKnownForKey by rememberSaveable { mutableStateOf<String?>(null) }
     var lastSection by rememberSaveable { mutableStateOf(PersonSection.Overview) }
-    // Not saveable — must re-run after Back (same pattern as SeerrDetailScreen).
     var focusRestored by remember { mutableStateOf(false) }
 
     val hasOverview = !state.person?.overview.isNullOrBlank() ||
@@ -265,6 +262,7 @@ fun PersonScreen(
     }
     val posterStyle = posterCardStyle(sy = metrics.sy)
     val ambientPrewarmer = LocalAmbientPrewarmer.current
+    val images = LocalImageUrls.current
 
     fun openSeerrItem(item: SeerrCatalogItem) {
         val nav = SeerrImages.navImages(state.seerrBaseUrl, item, state.seerrCacheImages)
@@ -275,9 +273,6 @@ fun PersonScreen(
     CompositionLocalProvider(LocalBringIntoViewSpec provides pinSpec) {
         LazyColumn(
             state = listState,
-            // Full-bleed to the screen edges: hero carries its resting inset via a modifier,
-            // rows via LazyRow contentPadding, so row cards scroll off the true left edge
-            // instead of being clipped by a column-level start padding.
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(bottom = metrics.bottomInset)
         ) {
@@ -286,7 +281,6 @@ fun PersonScreen(
                     state.person != null && session != null -> {
                         PersonHero(
                             person = state.person!!,
-                            session = session,
                             focusRequester = overviewFocusRequester,
                             onFocused = { lastSection = PersonSection.Overview },
                             onSummaryClick = {
@@ -343,12 +337,11 @@ fun PersonScreen(
                         ) {
                             MediaGridCard(
                                 item = item,
-                                session = session,
                                 style = posterStyle,
                                 focusRequester = libraryFocus.requesters[index],
                                 upFocus = null,
                                 onClick = {
-                                    val nav = JellyfinImages.navImages(session, item)
+                                    val nav = images.navImages(item)
                                     onItem(item, nav.bgUrl, nav.ambUrl)
                                 },
                                 onFocused = {
@@ -438,11 +431,6 @@ fun PersonScreen(
     }
 }
 
-/**
- * Seerr-origin row — same slot geometry as Recommended (`SeerrLabeledCard` +
- * `padding(top = style.topInset)` inside `seerrLabeledSlotHeight`). Focus uses
- * Discover/Search `focusRestorer` (one pin), not `FocusRequester[n]`.
- */
 @Composable
 private fun PersonSeerrMediaRow(
     title: String,
@@ -496,13 +484,12 @@ private val DATE_FMT = DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.ENGLISH
 @Composable
 private fun PersonHero(
     person: BaseItemDto,
-    session: UserSession,
     focusRequester: FocusRequester,
     onFocused: () -> Unit,
     onSummaryClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val imageUrl = JellyfinImages.primary(session, person)
+    val imageUrl = LocalImageUrls.current.primary(person)
     var imageFailed by remember(imageUrl) { mutableStateOf(false) }
 
     Row(

@@ -29,13 +29,13 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.DrawerState
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Text
-import app.picnic.player.data.jellyfin.JellyfinImages
 import app.picnic.player.data.seerr.SeerrCatalogItem
 import app.picnic.player.data.seerr.SeerrImages
 import app.picnic.player.ui.ambient.BackdropSpec
 import app.picnic.player.ui.ambient.LocalCapBadgeCount
 import app.picnic.player.ui.ambient.LocalColouredFocus
 import app.picnic.player.ui.ambient.PublishBackdrop
+import app.picnic.player.ui.common.LocalImageUrls
 import app.picnic.player.ui.common.RefreshOnResume
 import app.picnic.player.ui.discover.DiscoverPane
 import app.picnic.player.ui.discover.DiscoverViewModel
@@ -53,9 +53,6 @@ import app.picnic.player.ui.search.SearchViewModel
 import app.picnic.player.ui.theme.PicnicColors
 import org.jellyfin.sdk.model.api.BaseItemDto
 
-/**
- * Single browse shell: Search, Home, Discover, and one pane per video library.
- */
 @Composable
 fun BrowseShellHost(
     onItem: (BaseItemDto, String?, String?) -> Unit,
@@ -77,10 +74,6 @@ fun BrowseShellHost(
     val rail = railViewModel.rail
     val selectedKey by rail.selectedKey.collectAsStateWithLifecycle()
     val navChromeFocused by rail.chromeFocused.collectAsStateWithLifecycle()
-    // Focus-ownership state machine (see [PaneFocusRequest]). Plain remember ON PURPOSE:
-    // navigating away disposes this composition, so returning from Detail/Settings restarts
-    // at WhenIdle and the active pane re-seeds focus onto its saved card (scroll state and
-    // the ViewModel survive; composition-local focus does not).
     var paneFocusRequest by remember { mutableStateOf(PaneFocusRequest.WhenIdle) }
     val homeState by homeViewModel.state.collectAsStateWithLifecycle()
     val searchState by searchViewModel.state.collectAsStateWithLifecycle()
@@ -97,8 +90,6 @@ fun BrowseShellHost(
     val reorderKey by rail.reorderKey.collectAsStateWithLifecycle()
     val selected = rail.destinationFor(selectedKey) ?: BrowseDest.Home
 
-    // A rail activation (possibly made while a pushed screen was on top) awaits its pane:
-    // fulfil it with the Commit request once this host is composing.
     val pendingCommit by rail.pendingCommit.collectAsStateWithLifecycle()
     LaunchedEffect(pendingCommit) {
         if (pendingCommit && rail.consumeCommit()) {
@@ -106,12 +97,8 @@ fun BrowseShellHost(
         }
     }
 
-    // The LibraryChangeBus covers changes this app made; returning to the foreground also needs a
-    // re-query to catch content added on the server (or by another client) while we were away.
     RefreshOnResume { homeViewModel.refresh() }
 
-    // Search resets when the user explicitly LEAVES it (another destination, settings, user
-    // swap) — never on drill-forward (result → detail → Back keeps everything).
     var lastSelectedKey by remember { mutableStateOf(selectedKey) }
     LaunchedEffect(selectedKey) {
         if (lastSelectedKey == BrowseDest.Search.key && selectedKey != BrowseDest.Search.key) {
@@ -136,13 +123,6 @@ fun BrowseShellHost(
 
     val activity = LocalActivity.current
 
-    // Standard TV / Material back ladder for top-level (drawer) destinations: only one copy of
-    // a top-level destination lives on the stack, so Back always returns to the START
-    // destination (Home), then exits — never a deep tab-by-tab history.
-    //  - content focused → open the drawer on the active tab (focus moves in → it opens)
-    //  - drawer More page → Primary page
-    //  - drawer, tab != Home → go Home (rail.select seeds Home's content focus → drawer closes)
-    //  - drawer, tab == Home → exit the app
     BackHandler {
         when {
             !navChromeFocused ->
@@ -191,10 +171,6 @@ fun BrowseShellHost(
                 scrollEnabled = onDiscover
             )
 
-            // Drawer Right must RETURN this requester (not requestFocus) so the in-flight
-            // focus transaction isn't rolled back — same contract as MediaGridPane rail exits.
-            // Fresh read at exit time so Settings → content lands on the saved Home/Discover
-            // card, not a spatial neighbour lower on the sheet.
             val contentFocusOnRight: () -> FocusRequester = {
                 when (selectedKey) {
                     BrowseDest.Home.key ->
@@ -209,15 +185,10 @@ fun BrowseShellHost(
                 }
             }
 
-            // Backdrop owned here so tab switches always clear: Home / Discover (and a
-            // library's For-you tab) publish focused artwork; Search / the other library
-            // tabs publish null → ocean wash (no stale Discover wash when leaving
-            // Discover — panes must not PublishBackdrop themselves).
+            val images = LocalImageUrls.current
             val homeFocused = homeViewModel.focusedItem(homeState)
             val discoverFocused = discoverViewModel.focusedItem(discoverState)
             val seerr = discoverState.seerr
-            // The selected library's chrome + For-you ViewModels — the same Hilt keys
-            // LibraryPane uses, so this reads the pane's live state.
             val selectedLibrary = selected as? BrowseDest.Library
             val forYouFocused: BaseItemDto? = if (selectedLibrary != null) {
                 val paneViewModel: LibraryPaneViewModel =
@@ -238,25 +209,21 @@ fun BrowseShellHost(
                 when {
                     onHome ->
                         homeFocused
-                            ?.let { JellyfinImages.navImages(session, it) }
+                            ?.let { images.navImages(it) }
                             .let { BackdropSpec(backdropUrl = it?.bgUrl, ambientUrl = it?.ambUrl) }
                     onDiscover ->
                         discoverFocused
                             ?.let { SeerrImages.navImages(seerr.serverUrl, it, seerr.cacheImages) }
                             .let { BackdropSpec(backdropUrl = it?.bgUrl, ambientUrl = it?.ambUrl) }
                     forYouFocused != null ->
-                        JellyfinImages.navImages(session, forYouFocused)
+                        images.navImages(forYouFocused)
                             .let { BackdropSpec(backdropUrl = it.bgUrl, ambientUrl = it.ambUrl) }
                     else -> null
                 }
             )
 
             val onPaneSeeded = { paneFocusRequest = PaneFocusRequest.None }
-            // Panes sit right of the collapsed drawer already; only a small breathing inset
-            // remains on the left. The right edge keeps the design-canvas inset.
             val paneInset = BrowsePaneStartInset
-            // The persistent nav drawer lives here, wrapping the tab content. One instance for
-            // the whole shell — switching tabs never remounts it, so it can't flicker open.
             val railRequesters = remember(destinations, drawerPage) {
                 destinations.associate { it.key to rail.requesterFor(it.key) }
             }
@@ -298,8 +265,6 @@ fun BrowseShellHost(
                         transitionSpec = { fadeIn(tween(260)) togetherWith fadeOut(tween(260)) },
                         label = "browseTabContent"
                     ) { dest ->
-                        // Only the TARGET pane may fulfil the focus request — during the slide
-                        // both panes compose, and the exiting one must not grab focus.
                         val seedPaneFocus = dest.key == selectedKey &&
                             when (paneFocusRequest) {
                                 PaneFocusRequest.Commit -> true

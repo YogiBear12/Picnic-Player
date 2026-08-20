@@ -37,23 +37,18 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
-import app.picnic.player.data.jellyfin.JellyfinImages
 import app.picnic.player.ui.ambient.LocalAmbientPrewarmer
 import app.picnic.player.ui.browse.BrowseLayoutMetrics
 import app.picnic.player.ui.browse.landscapeCardStyle
 import app.picnic.player.ui.browse.posterCardStyle
 import app.picnic.player.ui.common.LocalContextMenuHandler
+import app.picnic.player.ui.common.LocalImageUrls
 import app.picnic.player.ui.genre.GenreBrowseGrid
 import app.picnic.player.ui.grid.MediaGridCard
 import app.picnic.player.ui.grid.gridCellHeight
 import app.picnic.player.ui.theme.PicnicColors
 import org.jellyfin.sdk.model.api.BaseItemDto
 
-/**
- * Search tab pane: input pill on top; a browse-by-genre grid while the query is
- * blank, relevance-ranked result rows once it isn't. Lives inside the browse
- * shell so ViewModel state (and therefore focus restore) survives navigation.
- */
 @Composable
 internal fun SearchPane(
     state: SearchViewModel.UiState,
@@ -66,8 +61,6 @@ internal fun SearchPane(
     onSeerrItem: (app.picnic.player.data.seerr.SeerrCatalogItem, String?, String?) -> Unit,
     onGenre: (BaseItemDto) -> Unit
 ) {
-    // Search data (session + genre grid) loads on first entry, not when the shell creates
-    // this ViewModel for Home — otherwise a /Genres request fires on every cold start.
     LaunchedEffect(Unit) { viewModel.ensureLoaded() }
 
     val fieldFocus = remember { FocusRequester() }
@@ -76,12 +69,9 @@ internal fun SearchPane(
     val discoverCardFocus = remember(state.discoverResults.size) {
         List(state.discoverResults.size) { FocusRequester() }
     }
-    // Survive tab switches via rememberSaveable.
     val genreGridState = rememberLazyGridState()
     val resultListState = rememberLazyListState()
 
-    // Seed-on-return: land on whatever held focus when we left (field / genre card /
-    // library result / Discover card). Runs post-composition, so the target node is attached.
     LaunchedEffect(
         seedContentFocus,
         state.loading,
@@ -121,8 +111,6 @@ internal fun SearchPane(
             onFocused = viewModel::onFieldFocused,
             modifier = Modifier
                 .padding(horizontal = horizontalInset)
-                // Symmetric breathing room: tab row → pill gap equals pill → first
-                // row header gap, so the header band doesn't read top-heavy.
                 .padding(top = SearchFieldGap)
         )
         Spacer(Modifier.height(SearchFieldGap))
@@ -184,11 +172,12 @@ private fun ResultRowsSection(
     onItem: (BaseItemDto, String?, String?) -> Unit,
     onSeerrItem: (app.picnic.player.data.seerr.SeerrCatalogItem, String?, String?) -> Unit
 ) {
-    val session = state.session ?: return
+    if (state.session == null) return
     val posterStyle = posterCardStyle(sy = metrics.sy)
     val landscapeStyle = landscapeCardStyle(sy = metrics.sy)
     val ambientPrewarmer = LocalAmbientPrewarmer.current
     val contextMenu = LocalContextMenuHandler.current
+    val images = LocalImageUrls.current
 
     LazyColumn(
         state = listState,
@@ -241,11 +230,10 @@ private fun ResultRowsSection(
                         SearchResultCard(
                             item = item,
                             kind = row.kind,
-                            session = session,
                             style = cardStyle,
                             focusRequester = if (index == focusIndex) rowCardFocus[rowIndex] else null,
                             onClick = {
-                                val nav = JellyfinImages.navImages(session, item)
+                                val nav = images.navImages(item)
                                 ambientPrewarmer.warm(nav.ambUrl)
                                 onItem(item, nav.bgUrl, nav.ambUrl)
                             },
@@ -327,17 +315,10 @@ private fun ResultRowsSection(
     }
 }
 
-/**
- * Labelled result card (library-grid look): poster/still in a slot box with headroom
- * for the focus scale, title + subtitle below. Movies label name + year, shows name +
- * season count (both via [MediaGridCard] defaults); episodes label show name +
- * "SxEy – Title" over the episode's own still — no logo overlay, the label identifies it.
- */
 @Composable
 private fun SearchResultCard(
     item: BaseItemDto,
     kind: org.jellyfin.sdk.model.api.BaseItemKind,
-    session: app.picnic.player.data.auth.UserSession,
     style: app.picnic.player.ui.browse.BrowseCardStyle,
     focusRequester: FocusRequester?,
     onClick: () -> Unit,
@@ -345,15 +326,15 @@ private fun SearchResultCard(
     onFocused: () -> Unit
 ) {
     val isEpisode = kind == org.jellyfin.sdk.model.api.BaseItemKind.EPISODE
+    val images = LocalImageUrls.current
     val stillUrl = if (isEpisode) {
-        JellyfinImages.episodeStill(session, item)
-            ?: JellyfinImages.thumb(session, item)
-            ?: JellyfinImages.backdrop(session, item)
+        images.episodeStill(item)
+            ?: images.thumb(item)
+            ?: images.backdrop(item)
     } else {
         null
     }
     val episodeCode = if (isEpisode) {
-        // Dot separator — same divider as the hero metadata line.
         "S${item.parentIndexNumber ?: "?"} E${item.indexNumber ?: "?"} · ${item.name.orEmpty()}"
     } else {
         null
@@ -364,7 +345,6 @@ private fun SearchResultCard(
     ) {
         MediaGridCard(
             item = item,
-            session = session,
             style = style,
             focusRequester = focusRequester,
             upFocus = null,
@@ -379,5 +359,4 @@ private fun SearchResultCard(
     }
 }
 
-/** Gap above AND below the search pill — must stay equal (top-heavy otherwise). */
 private val SearchFieldGap = 20.dp

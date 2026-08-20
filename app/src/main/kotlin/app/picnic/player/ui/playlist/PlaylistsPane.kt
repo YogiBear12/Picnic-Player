@@ -37,7 +37,6 @@ import app.picnic.player.ui.grid.gridCellHeight
 import app.picnic.player.ui.theme.PicnicColors
 import org.jellyfin.sdk.model.api.BaseItemDto
 
-/** Playlists list: a plain poster grid of the user's playlists — no library tabs or filters. */
 @Composable
 internal fun PlaylistsPane(
     metrics: BrowseLayoutMetrics,
@@ -94,7 +93,6 @@ internal fun PlaylistsPane(
                     ) {
                         MediaGridCard(
                             item = item,
-                            session = session,
                             style = style,
                             focusRequester = if (index == 0) firstCardFocus else null,
                             upFocus = null,

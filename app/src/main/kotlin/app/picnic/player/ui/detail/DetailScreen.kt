@@ -35,8 +35,6 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.Text
-import app.picnic.player.data.auth.UserSession
-import app.picnic.player.data.jellyfin.JellyfinImages
 import app.picnic.player.playback.LocalThemeMusicPlayer
 import app.picnic.player.ui.ambient.BackdropSpec
 import app.picnic.player.ui.ambient.LocalAmbientPrewarmer
@@ -46,6 +44,7 @@ import app.picnic.player.ui.browse.ScrollToTopBringIntoView
 import app.picnic.player.ui.browse.browseLayoutMetrics
 import app.picnic.player.ui.browse.posterCardStyle
 import app.picnic.player.ui.common.LocalContextMenuHandler
+import app.picnic.player.ui.common.LocalImageUrls
 import app.picnic.player.ui.common.ScrollableTextDialog
 import app.picnic.player.ui.grid.MediaGridCard
 import app.picnic.player.ui.grid.gridCellHeight
@@ -75,19 +74,15 @@ fun DetailScreen(
     val item = state.item
     val session = state.session
 
-    // Theme music for this item while any screen about it is up. The player refcounts by
-    // owner id, so pushing the episodes screen for the same series keeps the track going.
     val themeMusic = LocalThemeMusicPlayer.current
+    val images = LocalImageUrls.current
     DisposableEffect(itemId) {
         val ownerId = runCatching { UUID.fromString(itemId) }.getOrNull()
         ownerId?.let(themeMusic::acquire)
         onDispose { ownerId?.let(themeMusic::release) }
     }
 
-    // The app-level backdrop host renders this; arriving with the same URLs the previous
-    // screen published (Home → Detail) means nothing is redrawn. Nav args win so the
-    // backdrop is correct before the item loads; item-derived URLs cover deep links.
-    val derivedNav = item?.let { i -> session?.let { s -> JellyfinImages.navImages(s, i) } }
+    val derivedNav = item?.let { images.navImages(it) }
     PublishBackdrop(
         BackdropSpec(
             backdropUrl = bgUrl ?: derivedNav?.bgUrl,
@@ -108,7 +103,6 @@ fun DetailScreen(
             }
             else -> DetailContent(
                 item = item,
-                session = session,
                 state = state,
                 onPlay = onPlay,
                 onItem = onItem,
@@ -124,7 +118,6 @@ fun DetailScreen(
 @Composable
 private fun DetailContent(
     item: BaseItemDto,
-    session: UserSession,
     state: DetailViewModel.UiState,
     onPlay: (String, Long?, String?) -> Unit,
     onItem: (BaseItemDto, String?, String?) -> Unit,
@@ -133,25 +126,19 @@ private fun DetailContent(
     onPersonClick: (PersonKey) -> Unit,
     viewModel: DetailViewModel
 ) = BoxWithConstraints(Modifier.fillMaxSize()) {
-    // Back pops to the previous screen (standard TV back model) — the nav host owns it.
+    val images = LocalImageUrls.current
     val people = item.people.orEmpty()
     val collections = state.collections
     val similarItems = state.similarItems
     val localTrailers = state.localTrailers
     val remoteTrailers = item.remoteTrailers?.toList() ?: emptyList()
     val trailerCount = remoteTrailers.size + localTrailers.size
-    // Shown for any series Seerr knows about; the picker's per-season badges say what is
-    // already requested or available, and submitting stays gated on what is selectable.
     val requestMoreVisible = item.type == BaseItemKind.SERIES && state.requestMoreTmdbId != null
     val context = LocalContext.current
-    // Warm the next detail's wash cache on selecting a "More like this" card.
     val ambientPrewarmer = LocalAmbientPrewarmer.current
     val contextMenu = LocalContextMenuHandler.current
 
     val metrics = browseLayoutMetrics(maxWidth, maxHeight)
-    // Same vertical geometry as Home (ImmersiveBrowseScaffold): the hero anchors to the
-    // bottom of the region above where Home's rows start, so logo/metadata/summary sit in
-    // exactly the position they had on the Home screen — no shift on navigation.
     val heroRegionHeight = maxHeight - metrics.rowsRegionHeight
 
     val focus = rememberDetailPageFocus(people, collections, similarItems)
@@ -163,43 +150,26 @@ private fun DetailContent(
     val playTarget = detailPlayTarget(item, state.nextUpEpisode)
     val cardStyle = posterCardStyle(sy = metrics.sy)
 
-    // Where a focused row card pins vertically: the exact y where Home's focused row sits.
-    // The button row rests *above* this line, so focusing a button asks for a negative
-    // scroll that clamps at 0 — the page never nudges — and focus moving back up from the
-    // rows scrolls the page fully back to the top through the same clamp.
     val rowsGap = metrics.rowsViewportOffset + metrics.rowTitleHeight
-    // Gap between the action buttons and the first row (Cast & crew) — a third of rowsGap so
-    // the people row sits higher while keeping a clear break under the buttons. The focus-pin
-    // line moves up by the same amount so focusing a row doesn't nudge the page.
     val buttonsToRowGap = rowsGap / 3
     val pinSpec = with(LocalDensity.current) {
         remember(heroRegionHeight, buttonsToRowGap) {
             ScrollToTopBringIntoView((heroRegionHeight + buttonsToRowGap).toPx())
         }
     }
-    // The vertical pivot above must not leak into the rows' own horizontal scrolling —
-    // capture the platform default (the TV pivot that eases cards through a fixed focus
-    // point, same as Home's rows) and restore it inside each LazyRow.
     val horizontalRowSpec = LocalBringIntoViewSpec.current
 
     CompositionLocalProvider(LocalBringIntoViewSpec provides pinSpec) {
         LazyColumn(
             state = focus.listState,
-            // Full-bleed to the screen edges: each block carries its own resting inset
-            // (hero/buttons/text via a modifier, rows via LazyRow contentPadding), so a row's
-            // cards scroll under that inset and off the true left edge instead of being clipped
-            // by a column-level start padding. The backdrop is the app-level full-bleed layer.
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(bottom = metrics.bottomInset),
-            // A bit roomier than Home's rowSpacing: Home rows carry extra slack inside their
-            // card slots, detail rows end flush at their label text — this evens the felt gap.
             verticalArrangement = Arrangement.spacedBy(metrics.rowSpacing + metrics.sy(12f))
         ) {
             item(key = "hero") {
                 Column(Modifier.fillMaxWidth()) {
                     DetailHero(
                         item = item,
-                        session = session,
                         metrics = metrics,
                         heroRegionHeight = heroRegionHeight,
                         leadStreams = state.leadStreams,
@@ -219,7 +189,7 @@ private fun DetailContent(
                             onEpisodes = {
                                 onEpisodes(
                                     item.id.toString(),
-                                    JellyfinImages.ambient(session, item),
+                                    images.ambient(item),
                                     state.nextUpEpisode?.seasonId?.toString(),
                                     state.nextUpEpisode?.id?.toString()
                                 )
@@ -246,7 +216,6 @@ private fun DetailContent(
                 item(key = "cast") {
                     DetailCastRow(
                         people = people,
-                        session = session,
                         metrics = metrics,
                         horizontalRowSpec = horizontalRowSpec,
                         focus = focus,
@@ -260,7 +229,6 @@ private fun DetailContent(
                     DetailPosterRow(
                         title = "Included in",
                         items = collections,
-                        session = session,
                         metrics = metrics,
                         cardStyle = cardStyle,
                         horizontalRowSpec = horizontalRowSpec,
@@ -277,13 +245,12 @@ private fun DetailContent(
                     DetailPosterRow(
                         title = "More like this",
                         items = similarItems,
-                        session = session,
                         metrics = metrics,
                         cardStyle = cardStyle,
                         horizontalRowSpec = horizontalRowSpec,
                         rowFocus = focus.similar,
                         onClick = { similarItem ->
-                            val nav = JellyfinImages.navImages(session, similarItem)
+                            val nav = images.navImages(similarItem)
                             ambientPrewarmer.warm(nav.ambUrl)
                             onItem(similarItem, nav.bgUrl, nav.ambUrl)
                         },
@@ -338,16 +305,9 @@ private fun DetailContent(
     }
 }
 
-/**
- * Detail-row poster card: the grid card (poster + title + year, library-grid styling)
- * inside a slot box that reserves headroom for the focus scale/glow, like the home rows'
- * [app.picnic.player.ui.browse.BrowseMediaCard]. The first card blocks D-pad left so
- * focus can't escape the row.
- */
 @Composable
 internal fun DetailRowCard(
     item: BaseItemDto,
-    session: UserSession,
     style: BrowseCardStyle,
     focusRequester: FocusRequester?,
     firstInRow: Boolean,
@@ -361,7 +321,6 @@ internal fun DetailRowCard(
     ) {
         MediaGridCard(
             item = item,
-            session = session,
             style = style,
             focusRequester = focusRequester,
             upFocus = null,

@@ -34,7 +34,6 @@ internal fun HomeBrowsePane(
             Box(Modifier.fillMaxSize(), Alignment.Center) { Text(state.error ?: "Nothing here") }
         else -> ImmersiveBrowseScaffold(
             rows = state.rows,
-            session = state.session!!,
             ambientLoader = viewModel.ambientLoader,
             focusedItem = viewModel.focusedItem(state),
             focusedRowIndex = state.focusedRowIndex,

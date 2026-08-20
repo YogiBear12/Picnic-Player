@@ -25,10 +25,6 @@ import kotlinx.coroutines.launch
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
 
-/**
- * Search tab state (lives in the browse shell, so query/results/focus survive
- * navigating into a result and back — same contract as Home's row focus).
- */
 @OptIn(FlowPreview::class)
 @HiltViewModel
 class SearchViewModel @Inject constructor(
@@ -37,8 +33,6 @@ class SearchViewModel @Inject constructor(
     private val seerrRepository: SeerrRepository,
     private val changeBus: LibraryChangeBus
 ) : ViewModel() {
-
-    /** Which part of the pane held focus last — the seed-on-return target. */
     enum class FocusArea { FIELD, GENRES, RESULTS, DISCOVER }
 
     data class ResultRow(val kind: BaseItemKind, val title: String, val items: List<BaseItemDto>)
@@ -51,9 +45,7 @@ class SearchViewModel @Inject constructor(
         val genres: List<BaseItemDto> = emptyList(),
         val query: String = "",
         val searching: Boolean = false,
-        /** Non-empty rows only, Movies → Shows → Episodes. */
         val results: List<ResultRow> = emptyList(),
-        /** Seerr discover rows appended under library results when linked. */
         val discoverResults: List<DiscoverResultRow> = emptyList(),
         val seerrLinked: Boolean = false,
         val seerrBaseUrl: String? = null,
@@ -122,9 +114,9 @@ class SearchViewModel @Inject constructor(
                 val session = _state.value.session ?: return@collectLatest
                 _state.update { it.copy(searching = true) }
                 val (rows, discover) = coroutineScope {
-                    val movies = async { search(session, query, BaseItemKind.MOVIE) }
-                    val shows = async { search(session, query, BaseItemKind.SERIES) }
-                    val episodes = async { search(session, query, BaseItemKind.EPISODE) }
+                    val movies = async { search(query, BaseItemKind.MOVIE) }
+                    val shows = async { search(query, BaseItemKind.SERIES) }
+                    val episodes = async { search(query, BaseItemKind.EPISODE) }
                     val seerr = async {
                         if (_state.value.seerrLinked) {
                             runCatching { seerrRepository.search(query) }.getOrDefault(emptyList())
@@ -160,10 +152,6 @@ class SearchViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Refetches only the affected rows rather than re-running the query, so results keep their
-     * order and the focused card stays where it is.
-     */
     private suspend fun patchResults(changedIds: Set<String>) {
         val session = _state.value.session ?: return
         val affected = _state.value.results
@@ -183,7 +171,7 @@ class SearchViewModel @Inject constructor(
         }
     }
 
-    private suspend fun search(session: UserSession, query: String, kind: BaseItemKind): List<BaseItemDto> = runCatching { mediaRepository.search(query, kind) }
+    private suspend fun search(query: String, kind: BaseItemKind): List<BaseItemDto> = runCatching { mediaRepository.search(query, kind) }
         .getOrDefault(emptyList())
         .sortedWith(compareBy({ relevance(it, query) }, { it.sortName ?: it.name ?: "" }))
 

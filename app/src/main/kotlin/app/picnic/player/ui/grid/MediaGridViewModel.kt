@@ -21,17 +21,12 @@ import kotlinx.coroutines.launch
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
 
-/**
- * Grid backing a library or genre destination. A distinct Hilt key owns each destination's
- * scroll/filter state; its bind method supplies the immutable server scope on first composition.
- */
 @HiltViewModel
 class LibraryGridViewModel @Inject constructor(
     private val authRepository: AuthRepository,
     private val mediaRepository: MediaRepository,
     private val changeBus: LibraryChangeBus
 ) : ViewModel() {
-
     data class UiState(
         val loading: Boolean = true,
         val session: UserSession? = null,
@@ -40,7 +35,6 @@ class LibraryGridViewModel @Inject constructor(
         val sort: GridSortSpec = GridSortSpec(),
         val filter: MediaGridFilter = MediaGridFilter(),
         val facets: GridFilterFacets = GridFilterFacets(),
-        /** Target index for a one-shot letter jump; applied when [scrollNonce] changes. */
         val pendingScrollIndex: Int = 0,
         val scrollNonce: Int = 0,
         val isJumpingToLetter: Boolean = false,
@@ -48,14 +42,11 @@ class LibraryGridViewModel @Inject constructor(
         val sessionExpiredServerId: String? = null
     )
 
-    // Paging is driven by the visible scroll range (see [onVisibleIndex]) rather than focus,
-    // so cards keep loading even when focus is momentarily lost during a fast scroll.
     private var lastPagedPage = Int.MIN_VALUE
 
     private val _state = MutableStateFlow(UiState())
     val state = _state.asStateFlow()
 
-    // Destination scope, supplied once by a bind method.
     private var kinds: List<BaseItemKind> = emptyList()
     private var title: String = "library"
     private var bound = false
@@ -65,8 +56,6 @@ class LibraryGridViewModel @Inject constructor(
     private lateinit var store: MediaGridStore
 
     init {
-        // Keep on-screen cards truthful when an item's watched/progress changes elsewhere
-        // (detail toggle, player, episodes). Only fetch when the card is actually loaded.
         viewModelScope.launch {
             changeBus.events.collect { change ->
                 if (change is LibraryChange.ItemUpdated) {
@@ -77,7 +66,6 @@ class LibraryGridViewModel @Inject constructor(
         }
     }
 
-    /** Scope this grid to one library. Idempotent — subsequent calls are ignored. */
     fun bindLibrary(libraryId: UUID, kinds: List<BaseItemKind>, title: String) {
         if (bound) return
         bound = true
@@ -87,10 +75,6 @@ class LibraryGridViewModel @Inject constructor(
         load()
     }
 
-    /**
-     * Scope this grid to one genre — across every video library by default, or within
-     * one library when [libraryId] is set (a library Genres tab drill-in).
-     */
     fun bindGenre(genreId: UUID, title: String, libraryId: UUID? = null) {
         if (bound) return
         bound = true
@@ -102,7 +86,6 @@ class LibraryGridViewModel @Inject constructor(
         load()
     }
 
-    /** Scope this grid to the user's collections (box sets, global — see ADR notes). */
     fun bindCollections() {
         if (bound) return
         bound = true
@@ -111,7 +94,6 @@ class LibraryGridViewModel @Inject constructor(
         load()
     }
 
-    /** Scope this grid to one collection's children. */
     fun bindCollection(collectionId: UUID, title: String) {
         if (bound) return
         bound = true
@@ -121,7 +103,6 @@ class LibraryGridViewModel @Inject constructor(
         load()
     }
 
-    /** Re-fetch a single changed item and swap it into the store in place. */
     private fun patchCard(itemId: String) {
         if (!storeReady) return
         viewModelScope.launch {
@@ -144,11 +125,6 @@ class LibraryGridViewModel @Inject constructor(
         viewModelScope.launch { authRepository.logout() }
     }
 
-    /**
-     * Ensures pages around the current viewport are loaded. Driven by the grid's visible
-     * range, so it works regardless of where focus is (or whether it was briefly lost).
-     * Loads one page behind and two ahead, and only recomposes when fresh data arrived.
-     */
     fun onVisibleIndex(firstVisibleIndex: Int) {
         if (!storeReady) return
         val page = firstVisibleIndex / store.pageSize
@@ -163,7 +139,6 @@ class LibraryGridViewModel @Inject constructor(
         }
     }
 
-    /** Applies a new filter and/or sort — server-side, so the store fully resets. */
     fun applyFilterSort(filter: MediaGridFilter, sort: GridSortSpec) {
         val current = _state.value
         if (current.filter == filter && current.sort == sort) return
@@ -183,13 +158,9 @@ class LibraryGridViewModel @Inject constructor(
                     totalCount = store.totalCount,
                     revision = it.revision + 1,
                     pendingScrollIndex = 0,
-                    // A filtered-to-zero grid is NOT an error state — the body renders an
-                    // "adjust filters" affordance so the user can always reopen the panel.
                     error = null
                 )
             }
-            // Panel options track the destination scope; selections that no longer exist
-            // there are dropped so the panel never shows (or silently applies) ghosts.
             if (scopeChanged) refreshFacets(filter.libraryId)
         }
     }
@@ -251,8 +222,7 @@ class LibraryGridViewModel @Inject constructor(
                 kinds = kinds,
                 sort = initial.sort,
                 filter = initial.filter,
-                repository = mediaRepository,
-                session = session
+                repository = mediaRepository
             )
             storeReady = true
             try {

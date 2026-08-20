@@ -26,7 +26,6 @@ import androidx.compose.ui.unit.dp
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
-import app.picnic.player.data.auth.UserSession
 import app.picnic.player.ui.browse.BrowseCardStyle
 import app.picnic.player.ui.browse.BrowsePosterCard
 import org.jellyfin.sdk.model.api.BaseItemDto
@@ -34,22 +33,13 @@ import org.jellyfin.sdk.model.api.BaseItemDto
 private val GridLabelGap = 6.dp
 private val GridLabelGapFocused = 14.dp
 
-/** Reserved height for title + year so every cell is the same size (stable scroll math). */
 private val GridLabelReserve = 38.dp
 
-/** Total cell height — used by both the card and the loading placeholder so rows never jump. */
 internal fun gridCellHeight(style: BrowseCardStyle): Dp = style.height + GridLabelGap + GridLabelReserve
 
-/**
- * Grid poster card with title + year. Poster reuses [BrowsePosterCard] (shared focus
- * chrome — the TV Card scales itself on focus). The labels shift down on focus via an animated
- * gap (padding), NOT a graphicsLayer — a per-card render layer is compositing overhead that
- * janks the grid scroll once many cards are on screen. Title marquee-scrolls only while focused.
- */
 @Composable
 internal fun MediaGridCard(
     item: BaseItemDto,
-    session: UserSession,
     style: BrowseCardStyle,
     focusRequester: FocusRequester?,
     upFocus: FocusRequester?,
@@ -71,10 +61,6 @@ internal fun MediaGridCard(
     val subtitle = subtitleOverride ?: gridSubtitle(item)
 
     Column(
-        // requiredWidth: LazyVerticalGrid measures items at the CELL width (which can exceed
-        // the poster when columns don't divide evenly) — the labels then outgrow the poster.
-        // Forcing the card's own width keeps poster and labels aligned; the grid centres the
-        // card in its cell.
         modifier = modifier
             .requiredWidth(style.width)
             .height(gridCellHeight(style))
@@ -82,7 +68,6 @@ internal fun MediaGridCard(
     ) {
         BrowsePosterCard(
             item = item,
-            session = session,
             style = style,
             focusRequester = focusRequester,
             upFocus = upFocus,
@@ -118,7 +103,6 @@ internal fun MediaGridCard(
     }
 }
 
-/** Default second label line: series show a season count, everything else its year. */
 private fun gridSubtitle(item: BaseItemDto): String? = when (item.type) {
     org.jellyfin.sdk.model.api.BaseItemKind.SERIES ->
         item.childCount?.let { seasons -> if (seasons == 1) "1 season" else "$seasons seasons" }

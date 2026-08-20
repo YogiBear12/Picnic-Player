@@ -43,7 +43,6 @@ import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
-import app.picnic.player.data.auth.UserSession
 import app.picnic.player.data.jellyfin.JellyfinImages
 import app.picnic.player.ui.ambient.CardFocusBorderWidth
 import app.picnic.player.ui.ambient.LocalCapBadgeCount
@@ -51,6 +50,8 @@ import app.picnic.player.ui.ambient.rememberCardFocusAccent
 import app.picnic.player.ui.ambient.rememberCardFocusGlow
 import app.picnic.player.ui.common.ArtworkImage
 import app.picnic.player.ui.common.ArtworkLogTag
+import app.picnic.player.ui.common.ImageUrls
+import app.picnic.player.ui.common.LocalImageUrls
 import app.picnic.player.ui.common.watchProgress
 import app.picnic.player.ui.theme.PicnicColors
 import org.jellyfin.sdk.model.api.BaseItemDto
@@ -58,7 +59,6 @@ import org.jellyfin.sdk.model.api.BaseItemDto
 @Composable
 internal fun BrowsePosterCard(
     item: BaseItemDto,
-    session: UserSession,
     style: BrowseCardStyle,
     focusRequester: FocusRequester?,
     upFocus: FocusRequester?,
@@ -69,17 +69,18 @@ internal fun BrowsePosterCard(
     leftFocus: FocusRequester? = null,
     overrideImageUrl: String? = null
 ) {
+    val images = LocalImageUrls.current
     val widthPx = with(LocalDensity.current) { style.width.roundToPx() }
     val thumbUrl = if (style.landscape && overrideImageUrl == null) {
-        JellyfinImages.thumb(session, item, fillWidth = widthPx)
+        images.thumb(item, fillWidth = widthPx)
     } else {
         null
     }
-    val imageUrl = overrideImageUrl ?: cardArtworkUrl(session, item, style.landscape, widthPx)
+    val imageUrl = overrideImageUrl ?: cardArtworkUrl(images, item, style.landscape, widthPx)
     val showOverlay = style.landscape && overrideImageUrl == null && thumbUrl == null
     val progress = item.watchProgress()
     val shape = RoundedCornerShape(12.dp)
-    val accentUrl = overrideImageUrl ?: cardArtworkUrl(session, item, style.landscape, AccentSourceWidth)
+    val accentUrl = overrideImageUrl ?: cardArtworkUrl(images, item, style.landscape, AccentSourceWidth)
     val accentBlurHash = if (overrideImageUrl == null) cardArtworkBlurHash(item, style.landscape) else null
     val focusAccent = rememberCardFocusAccent(accentUrl, accentBlurHash)
     var focused by remember { mutableStateOf(false) }
@@ -136,7 +137,7 @@ internal fun BrowsePosterCard(
             }
 
             if (showOverlay) {
-                val logoUrl = JellyfinImages.logo(session, item, fillWidth = 220)
+                val logoUrl = images.logo(item, fillWidth = 220)
                 Box(
                     Modifier
                         .align(Alignment.BottomStart)
@@ -206,16 +207,16 @@ internal fun BrowsePosterCard(
 private const val AccentSourceWidth = 48
 
 private fun cardArtworkUrl(
-    session: UserSession,
+    images: ImageUrls,
     item: BaseItemDto,
     landscape: Boolean,
     fillWidth: Int
 ): String? = if (landscape) {
-    JellyfinImages.thumb(session, item, fillWidth = fillWidth)
-        ?: JellyfinImages.backdrop(session, item, fillWidth = fillWidth)
-        ?: JellyfinImages.primary(session, item, fillWidth = fillWidth)
+    images.thumb(item, fillWidth = fillWidth)
+        ?: images.backdrop(item, fillWidth = fillWidth)
+        ?: images.primary(item, fillWidth = fillWidth)
 } else {
-    JellyfinImages.rowPoster(session, item, fillWidth = fillWidth)
+    images.rowPoster(item, fillWidth = fillWidth)
 }
 
 private fun cardArtworkBlurHash(item: BaseItemDto, landscape: Boolean): String? = if (landscape) {
@@ -318,7 +319,6 @@ internal fun BoxScope.CardCountBadge(count: Int) {
 @Composable
 internal fun BrowseMediaCard(
     item: BaseItemDto,
-    session: UserSession,
     style: BrowseCardStyle,
     focusRequester: FocusRequester?,
     upFocus: FocusRequester? = null,
@@ -332,7 +332,6 @@ internal fun BrowseMediaCard(
     ) {
         BrowsePosterCard(
             item = item,
-            session = session,
             style = style,
             focusRequester = focusRequester,
             upFocus = upFocus,

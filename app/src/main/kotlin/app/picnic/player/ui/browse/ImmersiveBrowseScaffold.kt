@@ -30,7 +30,6 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import app.picnic.player.data.auth.UserSession
 import app.picnic.player.data.media.HomeRow
 import app.picnic.player.ui.ambient.AmbientPaletteLoader
 import app.picnic.player.ui.ambient.LocalAmbientPaletteLoader
@@ -38,14 +37,9 @@ import app.picnic.player.ui.common.requestFocusWhenAttached
 import java.util.UUID
 import org.jellyfin.sdk.model.api.BaseItemDto
 
-/**
- * Immersive browse body: hero + row list.
- * Backdrop is full-bleed in [BrowseShellBackground]; focus is hoisted at [BrowseShellHost].
- */
 @Composable
 internal fun ImmersiveBrowseScaffold(
     rows: List<HomeRow>,
-    session: UserSession,
     ambientLoader: AmbientPaletteLoader,
     focusedItem: BaseItemDto?,
     focusedRowIndex: Int,
@@ -64,13 +58,6 @@ internal fun ImmersiveBrowseScaffold(
 ) {
     val restoreRow = focusedRowIndex.coerceIn(0, (rows.size - 1).coerceAtLeast(0))
 
-    // Seed focus onto the saved card once rows exist. Returning from a pushed screen
-    // recreates the row's LazyListState at scroll 0 (only the card ID survives, in the
-    // ViewModel), so a card that was scrolled into view is not composed yet and its
-    // pinned requester has no node. Restore the row's scroll to that card first, then
-    // request focus attach-aware; if the card is gone entirely, fall back to the row
-    // (its focusRestorer lands on the first visible card) so focus never escapes to
-    // the nav drawer.
     LaunchedEffect(seedContentFocus, rows.size, focusedRowIndex) {
         if (!seedContentFocus || rows.isEmpty()) return@LaunchedEffect
         val rowIndex = focusedRowIndex.coerceIn(0, rows.lastIndex)
@@ -88,8 +75,6 @@ internal fun ImmersiveBrowseScaffold(
         onContentFocusSeeded()
     }
 
-    // A vanished card takes focus with it. Updating the saved item re-pins the row's requester,
-    // so that has to happen before the request.
     val focusedRowItems = rows.getOrNull(restoreRow)?.items.orEmpty()
     val savedSlot = focusedItemId?.let { id -> focusedRowItems.indexOfFirst { it.id == id } } ?: -1
     var lastFocusedSlot by remember { mutableIntStateOf(0) }
@@ -121,7 +106,6 @@ internal fun ImmersiveBrowseScaffold(
             Modifier
                 .fillMaxSize()
                 .focusProperties {
-                    // Entering the home content lands on the row that was last focused.
                     onEnter = {
                         runCatching {
                             focus.rowCardFocus.getOrElse(restoreRow) {
@@ -136,13 +120,9 @@ internal fun ImmersiveBrowseScaffold(
             Box(Modifier.fillMaxWidth().weight(1f).clipToBounds()) {
                 BrowseHero(
                     item = focusedItem,
-                    session = session,
                     logoHeight = metrics.logoHeight,
                     continueWatching = focusedRowContinueWatching,
                     seasonCount = focusedItem?.id?.let { seasonCounts[it] },
-                    // streamsOverride is populated via the look-ahead mechanism
-                    // for both Movies/Episodes and Series, allowing technical
-                    // badges to appear without bloating the home-row cache.
                     streamsOverride = focusedItem?.id?.let { heroStreams[it] },
                     modifier = Modifier
                         .align(Alignment.BottomStart)
@@ -179,10 +159,7 @@ internal fun ImmersiveBrowseScaffold(
                     ) { rowIndex, row ->
                         BrowseRowSection(
                             row = row,
-                            session = session,
                             hInset = horizontalInset,
-                            // Continue Watching keeps wide (in-progress) thumbnails; the
-                            // "Recently added" library rows use portrait poster cards.
                             style = if (row.continueWatching) {
                                 landscapeCardStyle(metrics.sy)
                             } else {

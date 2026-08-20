@@ -29,24 +29,17 @@ import androidx.compose.ui.unit.dp
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
-import app.picnic.player.data.auth.UserSession
 import app.picnic.player.data.media.HomeRow
 import app.picnic.player.ui.ambient.LocalAmbientPrewarmer
 import app.picnic.player.ui.common.LocalContextMenuHandler
+import app.picnic.player.ui.common.LocalImageUrls
 import java.util.UUID
 import org.jellyfin.sdk.model.api.BaseItemDto
 
-/**
- * One home row: title + horizontal card list. Vertical (between-row) and the focused card's
- * horizontal position are handled by the framework's focus search + the default bring-into-view
- * spec ([rowBringIntoView]) — NO explicit `up` requesters and NO forced `scrollToItem` (those
- * pinned the card to the left edge and dead-locked up-nav when the row above wasn't composed).
- */
 @Composable
 internal fun BrowseRowSection(
     row: HomeRow,
     rowIndex: Int,
-    session: UserSession,
     hInset: Dp,
     style: BrowseCardStyle,
     spacing: Dp,
@@ -66,9 +59,9 @@ internal fun BrowseRowSection(
         { item: BaseItemDto -> onFocusItem(rowIndex, item) }
     }
 
-    // Warm the detail wash cache the instant a card is selected (app-scoped, gated on the setting).
     val ambientPrewarmer = LocalAmbientPrewarmer.current
     val contextMenu = LocalContextMenuHandler.current
+    val images = LocalImageUrls.current
 
     Column {
         Text(
@@ -79,8 +72,6 @@ internal fun BrowseRowSection(
             maxLines = 1,
             modifier = Modifier.padding(start = hInset, bottom = 2.dp)
         )
-        // Restore the default (horizontal) bring-into-view inside the row — the column above
-        // provides a vertical pivot, which must not leak into the row's own scrolling.
         CompositionLocalProvider(LocalBringIntoViewSpec provides rowBringIntoView) {
             LazyRow(
                 state = rowListState,
@@ -99,11 +90,10 @@ internal fun BrowseRowSection(
                 ) { index, item ->
                     BrowseMediaCard(
                         item = item,
-                        session = session,
                         style = style,
                         focusRequester = if (index == focusIndex) rowCardFocus else null,
                         onClick = {
-                            val nav = app.picnic.player.data.jellyfin.JellyfinImages.navImages(session, item)
+                            val nav = images.navImages(item)
                             ambientPrewarmer.warm(nav.ambUrl)
                             onItem(item, nav.bgUrl, nav.ambUrl)
                         },
