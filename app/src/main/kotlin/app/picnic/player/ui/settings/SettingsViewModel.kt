@@ -12,12 +12,10 @@ import app.picnic.player.data.media.MediaRepository
 import app.picnic.player.data.playback.CulturePickerOption
 import app.picnic.player.data.playback.cultureDisplayName
 import app.picnic.player.data.playback.culturePickerOptions
-import app.picnic.player.data.playback.quality.QualityRung
 import app.picnic.player.data.seerr.SeerrLinkState
 import app.picnic.player.data.settings.PlaybackSettings
-import app.picnic.player.data.settings.SegmentAction
+import app.picnic.player.data.settings.SettingKey
 import app.picnic.player.data.settings.SettingsStore
-import app.picnic.player.data.settings.ThemeMusicVolume
 import app.picnic.player.util.LanguageDisplay
 import coil3.imageLoader
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -33,11 +31,6 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-/**
- * Detail rows that open a full-screen sub-page. The page returns early from [SettingsScreen] and
- * takes the panel with it, so the row that opened it is named by one of these and refocused when
- * the page pops back.
- */
 internal enum class SubPageRow { SUBTITLE_APPEARANCE, LICENSES }
 
 data class YouTubeAppInfo(
@@ -56,11 +49,9 @@ class SettingsViewModel @Inject constructor(
     private val pictureInPictureSupport: app.picnic.player.data.device.PictureInPictureSupport,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
-
     val settings: StateFlow<PlaybackSettings> =
         store.settings.stateIn(viewModelScope, SharingStarted.Eagerly, PlaybackSettings())
 
-    /** Hide PiP setting when the device does not advertise system PiP. */
     val pictureInPictureSupported: Boolean = pictureInPictureSupport.isSupported
 
     val seerrState = seerrRepository.state
@@ -83,32 +74,22 @@ class SettingsViewModel @Inject constructor(
     private val _activeUsername = MutableStateFlow("")
     val activeUsername: StateFlow<String> = _activeUsername
 
-    /** Avatar of the active Jellyfin profile; shared with the nav drawer. */
     val activeUserImageUrl: StateFlow<String?> = activeUserAvatar.url
 
     private val _cultureOptions = MutableStateFlow<List<CulturePickerOption>>(emptyList())
     val cultureOptions: StateFlow<List<CulturePickerOption>> = _cultureOptions
 
-    /** Server-side per-user language defaults; null until loaded, blank = user set none. */
     private val _serverAudioLanguage = MutableStateFlow<String?>(null)
     val serverAudioLanguage: StateFlow<String?> = _serverAudioLanguage
 
     private val _serverSubtitleLanguage = MutableStateFlow<String?>(null)
     val serverSubtitleLanguage: StateFlow<String?> = _serverSubtitleLanguage
 
-    /** Device locale language, pinned to the top of the language pickers. */
     val deviceLanguage: String = java.util.Locale.getDefault().language
 
-    /** Survives Detail/Seerr Detail push while Settings stays on the back stack. */
     private val _selectedCategory = MutableStateFlow(SettingsCategory.EXPERIENCE)
     val selectedCategory: StateFlow<SettingsCategory> = _selectedCategory
 
-    /**
-     * Request row to restore focus to after Seerr/Jellyfin Detail pop.
-     * Set on activate; cleared after restore completes, or on disconnect.
-     * While non-null, [selectCategory] ignores non-REQUESTS switches so incidental
-     * Account rail focus on Settings recompose cannot clear restore state.
-     */
     private val _focusedRequestId = MutableStateFlow<Int?>(null)
     val focusedRequestId: StateFlow<Int?> = _focusedRequestId
 
@@ -126,8 +107,6 @@ class SettingsViewModel @Inject constructor(
             _serverAudioLanguage.value = config?.audioLanguagePreference
             _serverSubtitleLanguage.value = config?.subtitleLanguagePreference
         }
-        // The Requests category exists only while Seerr is linked — losing the link
-        // while it is selected must not leave the detail panel orphaned.
         viewModelScope.launch {
             seerrState.collect { state ->
                 if (state.linkState != SeerrLinkState.Linked &&
@@ -148,9 +127,6 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun selectCategory(category: SettingsCategory) {
-        // Pending restore: CategoryRailItem calls this on focus. After Detail
-        // pop, Account (entries.first) often gets brief focus before the Requests
-        // panel seeds — must not switch category or clear focusedRequestId.
         if (_focusedRequestId.value != null && category != SettingsCategory.REQUESTS) {
             return
         }
@@ -166,7 +142,6 @@ class SettingsViewModel @Inject constructor(
         fallback = { LanguageDisplay.name(it) }
     )
 
-    /** Naming a language also drops the "Default" choice — the two are alternatives. */
     fun setPreferredAudioLanguage(code: String?) = viewModelScope.launch {
         store.setPreferredAudioLanguage(code)
         store.setPreferDefaultAudioTrack(false)
@@ -176,12 +151,10 @@ class SettingsViewModel @Inject constructor(
         store.setPreferDefaultAudioTrack(true)
     }
 
-    fun setPreferredSubtitleLanguage(code: String?) = viewModelScope.launch {
-        store.setPreferredSubtitleLanguage(code)
-    }
+    fun <T> set(setting: SettingKey<T>, value: T) = viewModelScope.launch { setting.write(store, value) }
 
-    fun toggleAlwaysDisplaySubtitles() = viewModelScope.launch {
-        store.setAlwaysDisplaySubtitles(!settings.value.alwaysDisplaySubtitles)
+    fun toggle(setting: SettingKey<Boolean>) = viewModelScope.launch {
+        setting.write(store, !setting.read(settings.value))
     }
 
     fun signOut(onDone: () -> Unit) = viewModelScope.launch {
@@ -208,13 +181,8 @@ class SettingsViewModel @Inject constructor(
         _focusedRequestId.value = null
     }
 
-    /**
-     * Reloads Your requests. Suspend so callers (esp. focus seed-on-return) can await a
-     * settled list before restoring focus — fire-and-forget raced Cancel→Back.
-     */
     suspend fun refreshMyRequests() {
         val requests = runCatching { seerrRepository.myRequests() }.getOrDefault(emptyList())
-        // Show rows immediately (inline/cache/placeholder), then fill titles.
         _myRequests.value = seerrRepository.requestDisplaysCached(requests)
         _myRequests.value = runCatching {
             seerrRepository.hydrateRequestDisplays(requests)
@@ -237,43 +205,6 @@ class SettingsViewModel @Inject constructor(
         _imageCacheSize.value = context.imageLoader.diskCache?.size ?: 0L
     }
 
-    fun setSkipForwardSeconds(seconds: Int) = viewModelScope.launch { store.setSkipForwardSeconds(seconds) }
-    fun setSkipBackwardSeconds(seconds: Int) = viewModelScope.launch { store.setSkipBackwardSeconds(seconds) }
-    fun setOsdHideSeconds(seconds: Int) = viewModelScope.launch { store.setOsdHideSeconds(seconds) }
-    fun setNextUpCountdownSeconds(seconds: Int) = viewModelScope.launch { store.setNextUpCountdownSeconds(seconds) }
-    fun setThemeMusicVolume(volume: ThemeMusicVolume) = viewModelScope.launch { store.setThemeMusicVolume(volume) }
-    fun setIntroAction(action: SegmentAction) = viewModelScope.launch { store.setIntroAction(action) }
-    fun setRecapAction(action: SegmentAction) = viewModelScope.launch { store.setRecapAction(action) }
-    fun setOutroAction(action: SegmentAction) = viewModelScope.launch { store.setOutroAction(action) }
-    fun setPreviewAction(action: SegmentAction) = viewModelScope.launch { store.setPreviewAction(action) }
-    fun setCommercialAction(action: SegmentAction) = viewModelScope.launch { store.setCommercialAction(action) }
-    fun setDefaultVideoQuality(rung: QualityRung?) = viewModelScope.launch { store.setDefaultVideoQuality(rung) }
-
-    fun toggleColouredFocus() = viewModelScope.launch {
-        store.setColouredFocus(!settings.value.colouredFocus)
-    }
-
-    fun togglePulseFocusGlow() = viewModelScope.launch {
-        store.setPulseFocusGlow(!settings.value.pulseFocusGlow)
-    }
-
-    fun toggleAmbientBackgrounds() = viewModelScope.launch {
-        store.setAmbientBackgrounds(!settings.value.ambientBackgrounds)
-    }
-
-    fun toggleCapBadgeCount() = viewModelScope.launch {
-        store.setCapBadgeCount(!settings.value.capBadgeCount)
-    }
-
-    fun setTrailerYouTubePackage(packageName: String?) = viewModelScope.launch {
-        store.setTrailerYouTubePackage(packageName)
-    }
-
-    /**
-     * Launcher apps for the trailers app picker. Queried lazily off the main
-     * thread — loading label + icon for every installed app is not cheap, and this was
-     * previously done synchronously at first composition.
-     */
     val launcherApps: StateFlow<List<YouTubeAppInfo>> =
         flow { emit(queryLauncherApps()) }
             .flowOn(Dispatchers.Default)
@@ -292,42 +223,6 @@ class SettingsViewModel @Inject constructor(
                 icon = info.loadIcon(context.packageManager)
             )
         }.distinctBy { it.packageName }
-    }
-
-    fun toggleDisplayNextUpDuringOutro() = viewModelScope.launch {
-        store.setDisplayNextUpDuringOutro(!settings.value.displayNextUpDuringOutro)
-    }
-
-    fun toggleAutoLoginLastUser() = viewModelScope.launch {
-        store.setAutoLoginLastUser(!settings.value.autoLoginLastUser)
-    }
-
-    fun togglePictureInPicture() = viewModelScope.launch {
-        store.setPictureInPicture(!settings.value.pictureInPicture)
-    }
-
-    fun toggleMatchRefreshRate() = viewModelScope.launch {
-        store.setMatchRefreshRate(!settings.value.matchRefreshRate)
-    }
-
-    fun toggleMatchResolution() = viewModelScope.launch {
-        store.setMatchResolution(!settings.value.matchResolution)
-    }
-
-    fun toggleDownmixStereo() = viewModelScope.launch {
-        store.setDownmixStereo(!settings.value.downmixStereo)
-    }
-
-    fun toggleForceDoviProfile7() = viewModelScope.launch {
-        store.setForceDoviProfile7(!settings.value.forceDoviProfile7)
-    }
-
-    fun toggleForceDirectPlay() = viewModelScope.launch {
-        store.setForceDirectPlay(!settings.value.forceDirectPlay)
-    }
-
-    fun toggleAllowFourKTranscoding() = viewModelScope.launch {
-        store.setAllowFourKTranscoding(!settings.value.allowFourKTranscoding)
     }
 
     companion object {

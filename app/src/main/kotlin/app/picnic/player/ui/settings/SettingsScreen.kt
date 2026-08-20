@@ -52,6 +52,7 @@ import app.picnic.player.data.playback.resolveLanguageCode
 import app.picnic.player.data.playback.selectedLanguageRow
 import app.picnic.player.data.seerr.SeerrLinkState
 import app.picnic.player.data.settings.PlaybackSettings
+import app.picnic.player.data.settings.SettingKeys
 import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.theme.PicnicColors
 
@@ -64,16 +65,11 @@ fun SettingsScreen(
     onOpenSeerrDetail: ((app.picnic.player.data.seerr.SeerrMediaRequest) -> Unit)? = null,
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
-    // Settings shows the plain ocean wash — drop any backdrop left by a media screen.
     app.picnic.player.ui.ambient.PublishBackdrop(null)
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val seerr by viewModel.seerrState.collectAsStateWithLifecycle()
-    // ViewModel-owned so Requests stays selected after Detail/Seerr Detail pop
-    // (rememberSaveable resets when this composable is disposed on push).
     val selected by viewModel.selectedCategory.collectAsStateWithLifecycle()
 
-    // Requests is content-only and appears only while Seerr is linked; the
-    // connection itself is managed under Account.
     val visibleCategories = remember(seerr.linkState) {
         if (seerr.linkState == SeerrLinkState.Linked) {
             SettingsCategory.entries.toList()
@@ -82,9 +78,6 @@ fun SettingsScreen(
         }
     }
 
-    // One requester per rail item so Back / D-pad Left can return focus to the category the user
-    // came from. A single shared requester marks the detail panel's entry row (mirrors the
-    // season↔episode pattern in SeriesEpisodesScreen).
     val categoryFocusRequesters = remember {
         SettingsCategory.entries.associateWith { FocusRequester() }
     }
@@ -98,47 +91,30 @@ fun SettingsScreen(
     val serverAudioLanguage by viewModel.serverAudioLanguage.collectAsStateWithLifecycle()
     val serverSubtitleLanguage by viewModel.serverSubtitleLanguage.collectAsStateWithLifecycle()
 
-    // Both of these must be declared before every sub-page return below: a return skips the
-    // remember calls after it, and a skipped remember is dropped from the composition — the state
-    // would be back to its initial value on the way in, not restored.
-    //
-    // The detail row to refocus once a full-screen sub-page pops back. The sub-page takes the
-    // panel with it, so the row that opened it has to be named rather than remembered by the row.
     var restoreDetailRow by remember { mutableStateOf<SubPageRow?>(null) }
 
-    // Scroll offset of the detail panel; without it a panel rebuilt at offset 0 visibly scrolls
-    // down to the restored row. Keyed on category so switching categories still starts at the top.
     val detailScrollState = remember(selected) { ScrollState(0) }
 
-    // Open source licenses render as a full-screen page over Settings (its own
-    // focus/scroll and Back handling), not a dialog.
     var showLicenses by remember { mutableStateOf(false) }
     if (showLicenses) {
         OpenSourceLicensesScreen(onBack = { showLicenses = false })
         return
     }
 
-    // Subtitle appearance is a full-screen page too — its live preview needs the
-    // whole panel, not a dialog.
     var showSubtitleAppearance by remember { mutableStateOf(false) }
     if (showSubtitleAppearance) {
         SubtitleAppearanceScreen(onBack = { showSubtitleAppearance = false })
         return
     }
 
-    // First open → Account (default selected). After Detail pop with a pending request
-    // restore, do not focus the rail — RequestsSettingsPanel seeds the card (or Requests
-    // rail if empty). Incidental Account focus is ignored by selectCategory while pending.
     LaunchedEffect(Unit) {
         val restoreRequestRow =
             selected == SettingsCategory.REQUESTS && viewModel.focusedRequestId.value != null
-        // A pending detail-row restore owns focus; seeding the rail here would steal it.
         if (!restoreRequestRow && restoreDetailRow == null) {
             runCatching { categoryFocusRequesters.getValue(selected).requestFocus() }
         }
     }
 
-    // Back from the detail panel returns to the selected rail item; Back from the rail exits home.
     BackHandler {
         if (detailHasFocus) {
             runCatching { categoryFocusRequesters.getValue(selected).requestFocus() }
@@ -225,8 +201,6 @@ fun SettingsScreen(
             separatorAfterIndex = picker.separatorAfterIndex,
             selectedRow = selectedLanguageRow(
                 rows = picker.rows,
-                // Check the language actually in effect (override → server → device) so the pinned
-                // device row is highlighted on a fresh install with no local override.
                 languageCode = resolveLanguageCode(appCode, serverCode, viewModel.deviceLanguage),
                 preferDefaultAudioTrack = kind == LanguagePickerKind.AUDIO && settings.preferDefaultAudioTrack
             ),
@@ -235,7 +209,7 @@ fun SettingsScreen(
                     LanguagePickerRow.DefaultAudioTrack -> viewModel.preferDefaultAudioTrack()
                     is LanguagePickerRow.Culture -> when (kind) {
                         LanguagePickerKind.AUDIO -> viewModel.setPreferredAudioLanguage(row.option.languageCode)
-                        LanguagePickerKind.SUBTITLE -> viewModel.setPreferredSubtitleLanguage(row.option.languageCode)
+                        LanguagePickerKind.SUBTITLE -> viewModel.set(SettingKeys.PreferredSubtitleLanguage, row.option.languageCode)
                     }
                 }
             },
@@ -305,9 +279,6 @@ private fun CategoryRailItem(
             .clip(RoundedCornerShape(12.dp))
             .background(background)
             .focusRequester(focusRequester)
-            // Rail is a column: Up/Down stop at the edges instead of escaping into
-            // off-rail chrome; Right/Enter route into the detail panel's entry row,
-            // falling back to spatial search when the panel has no marked entry.
             .focusProperties {
                 if (isFirst) up = FocusRequester.Cancel
                 if (isLast) down = FocusRequester.Cancel
@@ -369,7 +340,6 @@ private fun DetailPanel(
 
     when (category) {
         SettingsCategory.REQUESTS -> {
-            // The panel owns its scrolling — empty states centre in the full panel.
             RequestsSettingsPanel(
                 viewModel = viewModel,
                 enterFr = enterFr,
@@ -425,7 +395,6 @@ private fun DetailPanel(
         onOpenSubtitleAppearance
     )
     val lastSection = sections.lastIndex
-    // Focus target for a row returning from its full-screen sub-page.
     val restoreFr = remember { FocusRequester() }
     LaunchedEffect(restoreRow) {
         if (restoreRow != null) {
@@ -449,8 +418,6 @@ private fun DetailPanel(
                     value = item.value,
                     description = item.description,
                     enabled = item.enabled,
-                    // The very first row is the entry target for D-pad Right / Enter from the rail;
-                    // a row popping back from its sub-page takes precedence.
                     rowFocus = when {
                         item.subPage != null && item.subPage == restoreRow -> restoreFr
                         si == 0 && ii == 0 -> enterFr
@@ -502,9 +469,6 @@ private fun SettingRow(
                 if (focused) Color.White.copy(alpha = 0.14f) else Color.White.copy(alpha = 0.04f)
             )
             .then(if (rowFocus != null) Modifier.focusRequester(rowFocus) else Modifier)
-            // D-pad Left from any row returns to the selected rail item; Up/Down stop
-            // at the panel edges instead of escaping into off-panel chrome. Nothing
-            // sits to the right of a row, so Right is a dead end rather than an escape.
             .focusProperties {
                 left = leftFocus
                 right = FocusRequester.Cancel
@@ -512,7 +476,6 @@ private fun SettingRow(
                 if (blockDown) down = FocusRequester.Cancel
             }
             .padding(horizontal = 20.dp, vertical = 16.dp)
-            // Only Select activates — Right is a direction, not a second Select.
             .onKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
                 when (event.key) {

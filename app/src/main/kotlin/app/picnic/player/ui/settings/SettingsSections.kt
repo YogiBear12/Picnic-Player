@@ -9,6 +9,8 @@ import app.picnic.player.data.playback.quality.defaultQualityLabel
 import app.picnic.player.data.playback.resolveLanguageCode
 import app.picnic.player.data.settings.PlaybackSettings
 import app.picnic.player.data.settings.SegmentAction
+import app.picnic.player.data.settings.SettingKey
+import app.picnic.player.data.settings.SettingKeys
 import app.picnic.player.data.settings.ThemeMusicVolume
 
 enum class SettingsCategory(val label: String) {
@@ -20,27 +22,20 @@ enum class SettingsCategory(val label: String) {
     ABOUT("About")
 }
 
-/** One tunable setting rendered in the detail panel. [description] shows a muted
- *  helper line under the label; null hides it. */
 internal data class SettingItem(
     val label: String,
     val value: String,
     val description: String? = null,
     val onActivate: () -> Unit,
-    /** When false the row is greyed out and cannot be activated (still focusable). */
     val enabled: Boolean = true,
-    /** Set when the row opens a full-screen sub-page — the focus-restore key on the way back. */
     val subPage: SubPageRow? = null
 )
 
-/** A group of rows within a category's detail panel. [title] draws a section
- *  header above the rows; null renders the rows with no header. */
 internal data class SettingSection(
     val title: String?,
     val items: List<SettingItem>
 )
 
-/** An open multi-option picker (standard glass dialog). */
 internal data class ActivePicker(
     val title: String,
     val options: List<PickerOption>
@@ -60,6 +55,20 @@ private fun SegmentAction.display(): String = when (this) {
     SegmentAction.SKIP_AUTOMATICALLY -> "Skip automatically"
     SegmentAction.DO_NOT_SKIP -> "Do not skip"
 }
+
+private fun SettingsViewModel.toggleItem(
+    settings: PlaybackSettings,
+    label: String,
+    key: SettingKey<Boolean>,
+    description: String? = null,
+    enabled: Boolean = true
+) = SettingItem(
+    label = label,
+    value = if (key.read(settings)) "On" else "Off",
+    description = description,
+    onActivate = { toggle(key) },
+    enabled = enabled
+)
 
 private fun secondsPicker(
     title: String,
@@ -112,7 +121,6 @@ internal fun sectionsFor(
     onShowSubtitleLanguagePicker: () -> Unit,
     onOpenSubtitleAppearance: () -> Unit
 ): List<SettingSection> = when (category) {
-    // Account, Requests and About render dedicated panels, not generic rows.
     SettingsCategory.ACCOUNT, SettingsCategory.REQUESTS, SettingsCategory.ABOUT -> emptyList()
     SettingsCategory.EXPERIENCE -> experienceSections(
         settings,
@@ -176,43 +184,43 @@ private fun experienceSections(
         null,
         buildList {
             add(
-                SettingItem(
+                viewModel.toggleItem(
+                    settings,
                     "Sign in automatically",
-                    if (settings.autoLoginLastUser) "On" else "Off",
-                    "Skip the profile picker and sign in as the last-used profile",
-                    viewModel::toggleAutoLoginLastUser
+                    SettingKeys.AutoLoginLastUser,
+                    "Skip the profile picker and sign in as the last-used profile"
                 )
             )
             add(
-                SettingItem(
+                viewModel.toggleItem(
+                    settings,
                     "Ambient backgrounds",
-                    if (settings.ambientBackgrounds) "On" else "Off",
-                    "Tint the background with colors extracted from the backdrop",
-                    viewModel::toggleAmbientBackgrounds
+                    SettingKeys.AmbientBackgrounds,
+                    "Tint the background with colors extracted from the backdrop"
                 )
             )
             add(
-                SettingItem(
+                viewModel.toggleItem(
+                    settings,
                     "Ambient focus indicators",
-                    if (settings.colouredFocus) "On" else "Off",
-                    "Focus indicators dynamically change colors based on the focused card",
-                    viewModel::toggleColouredFocus
+                    SettingKeys.ColouredFocus,
+                    "Focus indicators dynamically change colors based on the focused card"
                 )
             )
             add(
-                SettingItem(
+                viewModel.toggleItem(
+                    settings,
                     "Live focus indicators",
-                    if (settings.pulseFocusGlow) "On" else "Off",
-                    "The glow from focus indicators gently pulse behind the card",
-                    viewModel::togglePulseFocusGlow
+                    SettingKeys.PulseFocusGlow,
+                    "The glow from focus indicators gently pulse behind the card"
                 )
             )
             add(
-                SettingItem(
+                viewModel.toggleItem(
+                    settings,
                     "Limit episode badges",
-                    if (settings.capBadgeCount) "On" else "Off",
-                    "Unwatched episode counts are displayed as 99+ when the count exceeds 100",
-                    viewModel::toggleCapBadgeCount
+                    SettingKeys.CapBadgeCount,
+                    "Unwatched episode counts are displayed as 99+ when the count exceeds 100"
                 )
             )
             add(
@@ -228,7 +236,7 @@ private fun experienceSections(
                                     PickerOption(
                                         label = volume.display(),
                                         selected = volume == settings.themeMusicVolume,
-                                        onSelect = { viewModel.setThemeMusicVolume(volume) }
+                                        onSelect = { viewModel.set(SettingKeys.ThemeMusicVolume, volume) }
                                     )
                                 }
                             )
@@ -262,7 +270,7 @@ private fun playbackSections(
                 defaultQualityLabel(settings.defaultVideoQuality),
                 onActivate = {
                     showPicker(
-                        defaultQualityPicker(settings.defaultVideoQuality, viewModel::setDefaultVideoQuality)
+                        defaultQualityPicker(settings.defaultVideoQuality) { viewModel.set(SettingKeys.DefaultVideoQuality, it) }
                     )
                 }
             ),
@@ -292,11 +300,7 @@ private fun playbackSections(
                 ),
                 onActivate = onShowSubtitleLanguagePicker
             ),
-            SettingItem(
-                "Always display subtitles",
-                if (settings.alwaysDisplaySubtitles) "On" else "Off",
-                onActivate = viewModel::toggleAlwaysDisplaySubtitles
-            ),
+            viewModel.toggleItem(settings, "Always display subtitles", SettingKeys.AlwaysDisplaySubtitles),
             SettingItem(
                 "Subtitle appearance",
                 "",
@@ -316,9 +320,8 @@ private fun playbackSections(
                         secondsPicker(
                             "Skip forward",
                             SettingsViewModel.SKIP_FORWARD_OPTIONS,
-                            settings.skipForwardSeconds,
-                            viewModel::setSkipForwardSeconds
-                        )
+                            settings.skipForwardSeconds
+                        ) { viewModel.set(SettingKeys.SkipForwardSeconds, it) }
                     )
                 }
             ),
@@ -330,9 +333,8 @@ private fun playbackSections(
                         secondsPicker(
                             "Skip back",
                             SettingsViewModel.SKIP_BACKWARD_OPTIONS,
-                            settings.skipBackwardSeconds,
-                            viewModel::setSkipBackwardSeconds
-                        )
+                            settings.skipBackwardSeconds
+                        ) { viewModel.set(SettingKeys.SkipBackwardSeconds, it) }
                     )
                 }
             ),
@@ -344,9 +346,8 @@ private fun playbackSections(
                         secondsPicker(
                             "Hide playback controls",
                             SettingsViewModel.HIDE_CONTROLS_OPTIONS,
-                            settings.osdHideSeconds,
-                            viewModel::setOsdHideSeconds
-                        )
+                            settings.osdHideSeconds
+                        ) { viewModel.set(SettingKeys.OsdHideSeconds, it) }
                     )
                 }
             )
@@ -355,11 +356,7 @@ private fun playbackSections(
     SettingSection(
         "Next up behavior",
         listOf(
-            SettingItem(
-                "Display next up during outro",
-                if (settings.displayNextUpDuringOutro) "On" else "Off",
-                onActivate = viewModel::toggleDisplayNextUpDuringOutro
-            ),
+            viewModel.toggleItem(settings, "Display next up during outro", SettingKeys.DisplayNextUpDuringOutro),
             SettingItem(
                 "Next up countdown",
                 "${settings.nextUpCountdownSeconds}s",
@@ -368,9 +365,8 @@ private fun playbackSections(
                         secondsPicker(
                             "Next up countdown",
                             SettingsViewModel.NEXT_UP_COUNTDOWN_OPTIONS,
-                            settings.nextUpCountdownSeconds,
-                            viewModel::setNextUpCountdownSeconds
-                        )
+                            settings.nextUpCountdownSeconds
+                        ) { viewModel.set(SettingKeys.NextUpCountdownSeconds, it) }
                     )
                 }
             )
@@ -382,23 +378,23 @@ private fun playbackSections(
             SettingItem(
                 "Intros",
                 settings.introAction.display(),
-                onActivate = { showPicker(segmentPicker("Intros", settings.introAction, viewModel::setIntroAction)) }
+                onActivate = { showPicker(segmentPicker("Intros", settings.introAction) { viewModel.set(SettingKeys.IntroAction, it) }) }
             ),
             SettingItem(
                 "Recaps",
                 settings.recapAction.display(),
-                onActivate = { showPicker(segmentPicker("Recaps", settings.recapAction, viewModel::setRecapAction)) }
+                onActivate = { showPicker(segmentPicker("Recaps", settings.recapAction) { viewModel.set(SettingKeys.RecapAction, it) }) }
             ),
             SettingItem(
                 "Outros",
                 settings.outroAction.display(),
-                onActivate = { showPicker(segmentPicker("Outros", settings.outroAction, viewModel::setOutroAction)) }
+                onActivate = { showPicker(segmentPicker("Outros", settings.outroAction) { viewModel.set(SettingKeys.OutroAction, it) }) }
             ),
             SettingItem(
                 "Previews",
                 settings.previewAction.display(),
                 onActivate = {
-                    showPicker(segmentPicker("Previews", settings.previewAction, viewModel::setPreviewAction))
+                    showPicker(segmentPicker("Previews", settings.previewAction) { viewModel.set(SettingKeys.PreviewAction, it) })
                 }
             ),
             SettingItem(
@@ -406,7 +402,7 @@ private fun playbackSections(
                 settings.commercialAction.display(),
                 onActivate = {
                     showPicker(
-                        segmentPicker("Commercials", settings.commercialAction, viewModel::setCommercialAction)
+                        segmentPicker("Commercials", settings.commercialAction) { viewModel.set(SettingKeys.CommercialAction, it) }
                     )
                 }
             )
@@ -433,57 +429,40 @@ private fun advancedSections(
         buildList {
             if (pictureInPictureSupported) {
                 add(
-                    SettingItem(
-                        "Enable Picture-in-Picture",
-                        if (settings.pictureInPicture) "On" else "Off",
-                        onActivate = viewModel::togglePictureInPicture
-                    )
+                    viewModel.toggleItem(settings, "Enable Picture-in-Picture", SettingKeys.PictureInPicture)
                 )
             }
             add(
-                SettingItem(
-                    "Refresh rate switching",
-                    if (settings.matchRefreshRate) "On" else "Off",
-                    onActivate = viewModel::toggleMatchRefreshRate
-                )
+                viewModel.toggleItem(settings, "Refresh rate switching", SettingKeys.MatchRefreshRate)
             )
             add(
-                SettingItem(
-                    "Resolution switching",
-                    if (settings.matchResolution) "On" else "Off",
-                    onActivate = viewModel::toggleMatchResolution
-                )
+                viewModel.toggleItem(settings, "Resolution switching", SettingKeys.MatchResolution)
             )
             add(
-                SettingItem(
-                    "Force direct play",
-                    if (settings.forceDirectPlay) "On" else "Off",
-                    onActivate = viewModel::toggleForceDirectPlay
-                )
+                viewModel.toggleItem(settings, "Force direct play", SettingKeys.ForceDirectPlay)
             )
             add(
-                SettingItem(
+                viewModel.toggleItem(
+                    settings,
                     "Downmix to stereo",
-                    if (settings.downmixStereo) "On" else "Off",
-                    // Force direct play announces full compatibility, so this has no effect.
-                    enabled = !settings.forceDirectPlay,
-                    onActivate = viewModel::toggleDownmixStereo
+                    SettingKeys.DownmixStereo,
+                    enabled = !settings.forceDirectPlay
                 )
             )
             add(
-                SettingItem(
+                viewModel.toggleItem(
+                    settings,
                     "Force DoVi Profile 7 support",
-                    if (settings.forceDoviProfile7) "On" else "Off",
-                    enabled = !settings.forceDirectPlay,
-                    onActivate = viewModel::toggleForceDoviProfile7
+                    SettingKeys.ForceDoviProfile7,
+                    enabled = !settings.forceDirectPlay
                 )
             )
             add(
-                SettingItem(
+                viewModel.toggleItem(
+                    settings,
                     "Enable 4K transcoding",
-                    if (settings.allowFourKTranscoding) "On" else "Off",
-                    enabled = !settings.forceDirectPlay,
-                    onActivate = viewModel::toggleAllowFourKTranscoding
+                    SettingKeys.AllowFourKTranscoding,
+                    enabled = !settings.forceDirectPlay
                 )
             )
             add(
@@ -499,7 +478,7 @@ private fun advancedSections(
                                         PickerOption(
                                             label = "System Default",
                                             selected = settings.trailerYouTubePackage == null,
-                                            onSelect = { viewModel.setTrailerYouTubePackage(null) }
+                                            onSelect = { viewModel.set(SettingKeys.TrailerYouTubePackage, null) }
                                         )
                                     )
                                     youtubeApps.forEach { app ->
@@ -508,7 +487,7 @@ private fun advancedSections(
                                                 label = app.name,
                                                 selected = app.packageName == settings.trailerYouTubePackage,
                                                 icon = app.icon,
-                                                onSelect = { viewModel.setTrailerYouTubePackage(app.packageName) }
+                                                onSelect = { viewModel.set(SettingKeys.TrailerYouTubePackage, app.packageName) }
                                             )
                                         )
                                     }
