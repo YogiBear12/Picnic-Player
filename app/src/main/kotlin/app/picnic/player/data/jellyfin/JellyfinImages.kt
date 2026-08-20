@@ -2,17 +2,12 @@ package app.picnic.player.data.jellyfin
 
 import app.picnic.player.data.auth.UserSession
 import app.picnic.player.data.media.NavImages
+import java.util.UUID
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
 import org.jellyfin.sdk.model.api.ImageType
 
-/**
- * Builds Jellyfin image URLs directly (stable REST shape). Done by hand rather
- * than via the SDK image API so the call sites stay simple and the URLs are
- * Coil-friendly. Sizing uses fillWidth so the server resizes server-side.
- */
 object JellyfinImages {
-
     fun primary(session: UserSession, item: BaseItemDto, fillWidth: Int = 480): String? {
         val tag = item.imageTags?.get(ImageType.PRIMARY)
         return if (tag != null) {
@@ -33,11 +28,6 @@ object JellyfinImages {
         return "$base/Branding/Splashscreen?fillWidth=$fillWidth&quality=90"
     }
 
-    /**
-     * A Jellyfin user's avatar. Tag-guarded like item artwork so a replaced avatar lands on a
-     * new URL instead of serving the cached copy; an untagged URL 404s when the user has no
-     * avatar, which callers already treat as "draw the initial".
-     */
     fun userPrimary(baseUrl: String, userId: String, tag: String?, fillWidth: Int = 256): String {
         val base = "${baseUrl.trimEnd('/')}/Users/$userId/Images/Primary?fillWidth=$fillWidth&quality=90"
         return if (tag != null) "$base&tag=$tag" else base
@@ -48,11 +38,6 @@ object JellyfinImages {
         return url(session, personId, ImageType.PRIMARY, tag, fillWidth)
     }
 
-    /**
-     * Poster for portrait browse rows. Episodes use the series Primary when
-     * available so a single-episode "recently added" shows the show poster, not
-     * the episode still.
-     */
     fun rowPoster(session: UserSession, item: BaseItemDto, fillWidth: Int = 480): String? {
         if (item.type == BaseItemKind.EPISODE) {
             seriesPrimary(session, item, fillWidth)?.let { return it }
@@ -72,7 +57,6 @@ object JellyfinImages {
         return url(session, seriesId, ImageType.PRIMARY, tag, fillWidth)
     }
 
-    /** An episode's own still frame (its PRIMARY image), never a series/parent fallback. */
     fun episodeStill(session: UserSession, item: BaseItemDto, fillWidth: Int = 640): String? {
         if (item.type != BaseItemKind.EPISODE) return null
         val tag = item.imageTags?.get(ImageType.PRIMARY) ?: return null
@@ -83,7 +67,6 @@ object JellyfinImages {
         item.imageTags?.get(ImageType.THUMB)?.let {
             return url(session, item.id.toString(), ImageType.THUMB, it, fillWidth)
         }
-        // Episode → series Thumb, then the generic parent Thumb.
         item.seriesThumbImageTag?.let { tag ->
             item.seriesId?.let { return url(session, it.toString(), ImageType.THUMB, tag, fillWidth) }
         }
@@ -121,24 +104,13 @@ object JellyfinImages {
         return null
     }
 
-    /**
-     * Small ambient-wash source image: the backdrop at wash size, else the poster.
-     * The wash extractor only needs ~240px; anything larger wastes decode time.
-     */
     fun ambient(session: UserSession, item: BaseItemDto): String? = backdrop(session, item, fillWidth = 240) ?: primary(session, item, fillWidth = 240)
 
-    /** Hero backdrop + ambient-wash pair handed through navigation on card click. */
     fun navImages(session: UserSession, item: BaseItemDto): NavImages = NavImages(
         bgUrl = backdrop(session, item, fillWidth = 1280),
         ambUrl = ambient(session, item)
     )
 
-    /**
-     * BlurHashes for the images the card resolvers pick, mirroring their fallback order. The
-     * server sends these inline with the item, so an accent taken from one costs no request at
-     * all. Each is looked up by the same tag its URL is built from, so it stays correct when
-     * artwork is replaced.
-     */
     fun rowPosterBlurHash(item: BaseItemDto): String? {
         if (item.type == BaseItemKind.EPISODE) {
             blurHash(item, ImageType.PRIMARY, item.seriesPrimaryImageTag)?.let { return it }
@@ -153,6 +125,16 @@ object JellyfinImages {
 
     fun backdropBlurHash(item: BaseItemDto): String? = blurHash(item, ImageType.BACKDROP, item.backdropImageTags?.firstOrNull())
         ?: blurHash(item, ImageType.BACKDROP, item.parentBackdropImageTags?.firstOrNull())
+
+    fun trickplayTile(session: UserSession, itemId: UUID, width: Int, tileIndex: Int): String {
+        val base = session.server.baseUrl.trimEnd('/')
+        return "$base/Videos/$itemId/Trickplay/$width/$tileIndex.jpg?api_key=${session.accessToken}"
+    }
+
+    fun chapterImage(session: UserSession, itemId: UUID, index: Int, imageTag: String): String {
+        val base = session.server.baseUrl.trimEnd('/')
+        return "$base/Items/$itemId/Images/Chapter/$index?tag=$imageTag&api_key=${session.accessToken}"
+    }
 
     private fun blurHash(item: BaseItemDto, type: ImageType, tag: String?): String? {
         if (tag == null) return null

@@ -121,7 +121,6 @@ class PlayerViewModel @Inject constructor(
     themeMusicPlayer: ThemeMusicPlayer,
     @ApplicationScope private val appScope: CoroutineScope
 ) : ViewModel() {
-
     private val engine = engineFactory.create()
 
     val player: ExoPlayer get() = engine.player
@@ -467,14 +466,14 @@ class PlayerViewModel @Inject constructor(
             }
             session = activeSession
 
-            launch { ensureTranscodePermission(activeSession) }
+            launch { ensureTranscodePermission() }
 
             val itemDeferred = async {
                 runCatching { mediaRepository.item(id) }.getOrNull()
             }
 
             launch {
-                segments = runCatching { playbackRepository.mediaSegments(activeSession, id) }.getOrDefault(emptyList())
+                segments = runCatching { playbackRepository.mediaSegments(id) }.getOrDefault(emptyList())
                 autoSkipped.clear()
             }
 
@@ -542,7 +541,7 @@ class PlayerViewModel @Inject constructor(
         mediaSourceId: String?,
         initialMethod: PlayMethodKind
     ): Boolean {
-        val info = playbackRepository.getTranscodingInfo(session, mediaSourceId) ?: return false
+        val info = playbackRepository.getTranscodingInfo(mediaSourceId) ?: return false
         _state.update {
             it.copy(
                 transcodingInfo = info,
@@ -667,7 +666,7 @@ class PlayerViewModel @Inject constructor(
         settleTranscodingInfo(info)
     }
 
-    private suspend fun ensureTranscodePermission(session: UserSession) {
+    private suspend fun ensureTranscodePermission() {
         canTranscode = runCatching { mediaRepository.canTranscodeVideo() }.getOrDefault(true)
     }
 
@@ -676,7 +675,7 @@ class PlayerViewModel @Inject constructor(
         tracks.onItemMetadata(item.type, item.seriesId, item.seasonId)
         val sheets = playbackRepository.trickplayFromItem(item)?.let { (sheetWidth, tiles) ->
             Trickplay(tiles) { tileIndex ->
-                playbackRepository.trickplayTileUrl(activeSession, id, sheetWidth, tileIndex)
+                JellyfinImages.trickplayTile(activeSession, id, sheetWidth, tileIndex)
             }
         }
         trickplayCache.replaceWith(sheets)
@@ -686,7 +685,7 @@ class PlayerViewModel @Inject constructor(
                 title = ch.name?.takeIf { it.isNotBlank() } ?: "Chapter ${index + 1}",
                 startMs = ch.startPositionTicks.ticksToMs(),
                 imageUrl = ch.imageTag?.let {
-                    playbackRepository.chapterImageUrl(activeSession, id, index, it)
+                    JellyfinImages.chapterImage(activeSession, id, index, it)
                 }
             )
         }.orEmpty()
@@ -745,12 +744,11 @@ class PlayerViewModel @Inject constructor(
         progressJob = viewingScope.launch {
             while (isActive) {
                 delay(10_000)
-                val s = session ?: continue
+                session ?: continue
                 val info = stream ?: continue
                 val id = itemId ?: continue
                 runCatching {
                     playbackRepository.reportProgress(
-                        s,
                         info,
                         id,
                         resumeAwarePositionMs().msToTicks(),

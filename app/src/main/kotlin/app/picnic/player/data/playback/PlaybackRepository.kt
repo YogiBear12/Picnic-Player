@@ -3,6 +3,7 @@ package app.picnic.player.data.playback
 import android.content.Context
 import android.net.Uri
 import androidx.media3.common.MimeTypes
+import app.picnic.player.data.auth.AuthRepository
 import app.picnic.player.data.auth.UserSession
 import app.picnic.player.data.device.DeviceIdentityStore
 import app.picnic.player.data.jellyfin.JellyfinFactory
@@ -33,7 +34,6 @@ import org.jellyfin.sdk.api.client.extensions.mediaInfoApi
 import org.jellyfin.sdk.api.client.extensions.mediaSegmentsApi
 import org.jellyfin.sdk.api.client.extensions.playStateApi
 import org.jellyfin.sdk.api.client.extensions.sessionApi
-import org.jellyfin.sdk.api.client.extensions.userLibraryApi
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.MediaSegmentType
 import org.jellyfin.sdk.model.api.MediaSourceInfo
@@ -60,6 +60,7 @@ data class MediaSegment(
 @Singleton
 class PlaybackRepository @Inject constructor(
     private val jellyfin: JellyfinFactory,
+    private val authRepository: AuthRepository,
     private val changeBus: LibraryChangeBus,
     private val settingsStore: SettingsStore,
     private val deviceIdentityStore: DeviceIdentityStore,
@@ -67,6 +68,8 @@ class PlaybackRepository @Inject constructor(
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) : StreamNegotiator {
     private fun api(session: UserSession) = jellyfin.api(session.server.baseUrl, session.accessToken)
+
+    private suspend fun session(): UserSession = authRepository.requireSession()
 
     override suspend fun stopEncoding(session: UserSession, playSessionId: String?) {
         if (playSessionId == null) return
@@ -249,13 +252,12 @@ class PlaybackRepository @Inject constructor(
     }
 
     suspend fun reportProgress(
-        session: UserSession,
         info: StreamInfo,
         itemId: UUID,
         positionTicks: Long,
         isPaused: Boolean
     ) = onIo {
-        api(session).playStateApi.reportPlaybackProgress(
+        api(session()).playStateApi.reportPlaybackProgress(
             PlaybackProgressInfo(
                 itemId = itemId,
                 mediaSourceId = info.mediaSourceId,
@@ -296,9 +298,9 @@ class PlaybackRepository @Inject constructor(
         PlayMethodKind.TRANSCODE -> PlayMethod.TRANSCODE
     }
 
-    suspend fun mediaSegments(session: UserSession, itemId: UUID): List<MediaSegment> = onIo {
+    suspend fun mediaSegments(itemId: UUID): List<MediaSegment> = onIo {
         runCatching {
-            val response = api(session).mediaSegmentsApi.getItemSegments(itemId).content
+            val response = api(session()).mediaSegmentsApi.getItemSegments(itemId).content
             response.items.mapNotNull { dto ->
                 MediaSegment(
                     id = dto.id.toString(),
@@ -317,16 +319,6 @@ class PlaybackRepository @Inject constructor(
         MediaSegmentType.PREVIEW -> SegmentKind.PREVIEW
         MediaSegmentType.COMMERCIAL -> SegmentKind.COMMERCIAL
         MediaSegmentType.UNKNOWN -> null
-    }
-
-    fun trickplayTileUrl(session: UserSession, itemId: UUID, width: Int, tileIndex: Int): String {
-        val base = session.server.baseUrl.trimEnd('/')
-        return "$base/Videos/$itemId/Trickplay/$width/$tileIndex.jpg?api_key=${session.accessToken}"
-    }
-
-    fun chapterImageUrl(session: UserSession, itemId: UUID, index: Int, imageTag: String): String {
-        val base = session.server.baseUrl.trimEnd('/')
-        return "$base/Items/$itemId/Images/Chapter/$index?tag=$imageTag&api_key=${session.accessToken}"
     }
 
     fun trickplayFromItem(item: BaseItemDto, maxWidth: Int = 480): Pair<Int, TrickplayTiles>? {
@@ -348,21 +340,11 @@ class PlaybackRepository @Inject constructor(
         )
     }
 
-    suspend fun trickplay(
-        session: UserSession,
-        itemId: UUID,
-        maxWidth: Int = 480
-    ): Pair<Int, TrickplayTiles>? = onIo {
-        val item = api(session).userLibraryApi.getItem(itemId).content
-        trickplayFromItem(item, maxWidth)
-    }
-
     suspend fun getTranscodingInfo(
-        session: UserSession,
         mediaSourceId: String? = null
     ): TranscodingInfo? = onIo {
         runCatching {
-            val sessions = api(session).sessionApi
+            val sessions = api(session()).sessionApi
                 .getSessions(deviceId = deviceIdentityStore.deviceId)
                 .content
             val matched = sessions.firstOrNull { s ->
