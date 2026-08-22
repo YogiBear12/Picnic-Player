@@ -35,6 +35,7 @@ class PlaylistViewModel @Inject constructor(
         private set
 
     private var playlistId: UUID? = null
+    private var movedEntryId: String? = null
 
     fun load(playlistId: String) {
         val id = UUID.fromString(playlistId)
@@ -103,15 +104,22 @@ class PlaylistViewModel @Inject constructor(
     }
 
     fun move(fromIndex: Int, toIndex: Int) {
-        val session = state.session ?: return
-        val id = playlistId ?: return
         val items = state.items
         if (fromIndex !in items.indices || toIndex !in items.indices || fromIndex == toIndex) return
         val entryId = items[fromIndex].playlistItemId ?: return
         val reordered = items.toMutableList().apply { add(toIndex, removeAt(fromIndex)) }
         state = state.copy(items = reordered)
+        movedEntryId = entryId
+    }
+
+    fun commitMove() {
+        val entryId = movedEntryId ?: return
+        movedEntryId = null
+        val id = playlistId ?: return
+        val index = state.items.indexOfFirst { it.playlistItemId == entryId }
+        if (index < 0) return
         viewModelScope.launch {
-            runCatching { playlistRepository.movePlaylistItem(id, entryId, toIndex) }
+            runCatching { playlistRepository.movePlaylistItem(id, entryId, index) }
         }
     }
 }

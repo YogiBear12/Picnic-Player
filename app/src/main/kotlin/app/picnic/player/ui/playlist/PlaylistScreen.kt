@@ -37,6 +37,7 @@ import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -193,6 +194,13 @@ private fun PlaylistContent(
         keyAt(target)?.let { rowFocus[it].requestFocusWhenAttached(maxFrames = 20) }
     }
 
+    fun exitReorder() {
+        reorderKey = null
+        viewModel.commitMove()
+    }
+
+    DisposableEffect(Unit) { onDispose { viewModel.commitMove() } }
+
     fun rightToListConsumed(): Boolean {
         val target = focusedIndex.coerceIn(0, items.lastIndex)
         val onScreen = listState.layoutInfo.visibleItemsInfo.any { it.index == target }
@@ -201,7 +209,7 @@ private fun PlaylistContent(
         return true
     }
 
-    BackHandler(enabled = reorderKey != null) { reorderKey = null }
+    BackHandler(enabled = reorderKey != null) { exitReorder() }
     BackHandler(enabled = reorderKey == null && listHasFocus) { playFocus.requestFocus() }
 
     Row(Modifier.fillMaxSize()) {
@@ -303,7 +311,7 @@ private fun PlaylistContent(
                             scope.launch { rowFocus[itemKey].requestFocusWhenAttached(maxFrames = 20) }
                         }
                     },
-                    onExitReorder = { reorderKey = null }
+                    onExitReorder = { exitReorder() }
                 )
             }
         }
