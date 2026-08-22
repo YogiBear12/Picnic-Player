@@ -45,21 +45,8 @@ import androidx.tv.material3.Text
 import coil3.compose.AsyncImage
 import kotlinx.coroutines.delay
 
-/** Frosted card background — matches TrackPanel / OSD frosted-glass tokens. */
 private val CardBackground = Color(0xC0181E24)
 
-/**
- * Next-up card shown bottom-right at the end of an episode (or during the outro in opt-in mode).
- * The full-screen next-up backdrop and the shrunk top-left video are drawn by PlayerScreen beneath
- * this layer, so this composable draws only the card.
- *
- * Stateless: callers supply all data and callbacks. [countdownSeconds] is the number of seconds to
- * count down before [onPlayNext] is called automatically. The [LaunchedEffect] keyed on [item]
- * means the countdown resets correctly if the item ever changes; in practice it does not.
- *
- * Focus lands on the thumbnail on entry. Selecting it calls [onPlayNext] immediately. Back calls
- * [onBack]. D-pad directions are trapped so focus cannot leak out of the overlay.
- */
 @Composable
 fun NextUpOverlay(
     item: NextUpItem,
@@ -71,8 +58,6 @@ fun NextUpOverlay(
     var secondsLeft by remember(item) { mutableIntStateOf(countdownSeconds) }
     val thumbFocus = remember { FocusRequester() }
 
-    // Countdown: structured concurrency cancels this coroutine when the composable leaves
-    // (Back pressed / navigation) — no manual cleanup needed. Per side-effects.md.
     LaunchedEffect(item) {
         for (remaining in countdownSeconds downTo 1) {
             secondsLeft = remaining
@@ -82,7 +67,6 @@ fun NextUpOverlay(
         onPlayNext()
     }
 
-    // Request focus once on entry. The parent AnimatedVisibility handles the overall fade-in.
     LaunchedEffect(Unit) {
         runCatching { thumbFocus.requestFocus() }
     }
@@ -102,8 +86,6 @@ fun NextUpOverlay(
                 }
             }
     ) {
-        // Card only — anchored bottom-right over the full-screen backdrop; the shrunk video sits
-        // top-left. The backdrop and video are drawn by PlayerScreen beneath this layer.
         NextUpCard(
             item = item,
             secondsLeft = secondsLeft,
@@ -131,16 +113,14 @@ private fun NextUpCard(
         horizontalAlignment = Alignment.End,
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        // Countdown label above the card.
         if (secondsLeft > 0) {
             Text(
-                text = "Next episode playing in $secondsLeft second${if (secondsLeft == 1) "" else "s"}",
+                text = "Up next in $secondsLeft second${if (secondsLeft == 1) "" else "s"}",
                 style = MaterialTheme.typography.bodyMedium,
                 color = Color.White.copy(alpha = 0.85f)
             )
         }
 
-        // Frosted card: text info (left) + focusable thumbnail (right).
         Row(
             modifier = Modifier
                 .clip(RoundedCornerShape(12.dp))
@@ -149,7 +129,6 @@ private fun NextUpCard(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Text column.
             Column(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
@@ -185,7 +164,6 @@ private fun NextUpCard(
                 }
             }
 
-            // Focusable thumbnail with play glyph.
             NextUpThumbnail(
                 thumbUrl = item.thumbUrl,
                 onPlayNext = onPlayNext,
@@ -245,7 +223,6 @@ private fun NextUpThumbnail(
             )
         }
 
-        // Circular play glyph overlay.
         Box(
             modifier = Modifier
                 .size(44.dp)
@@ -255,7 +232,7 @@ private fun NextUpThumbnail(
         ) {
             Icon(
                 imageVector = Icons.Filled.PlayArrow,
-                contentDescription = "Play next episode",
+                contentDescription = "Play next",
                 tint = Color.White,
                 modifier = Modifier.size(28.dp)
             )

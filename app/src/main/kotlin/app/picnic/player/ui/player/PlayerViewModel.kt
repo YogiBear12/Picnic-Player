@@ -16,6 +16,9 @@ import androidx.media3.ui.SubtitleView
 import app.picnic.player.data.auth.AuthRepository
 import app.picnic.player.data.auth.UserSession
 import app.picnic.player.data.jellyfin.JellyfinImages
+import app.picnic.player.data.media.MediaRepository
+import app.picnic.player.data.media.PlaylistQueue
+import app.picnic.player.data.media.PlaylistRepository
 import app.picnic.player.data.playback.BlackBarProbe
 import app.picnic.player.data.playback.DirectPlayVeto
 import app.picnic.player.data.playback.MediaSegment
@@ -109,7 +112,8 @@ class PlayerViewModel @Inject constructor(
     private val playbackRepository: PlaybackRepository,
     private val blackBarProbe: BlackBarProbe,
     private val authRepository: AuthRepository,
-    private val mediaRepository: app.picnic.player.data.media.MediaRepository,
+    private val mediaRepository: MediaRepository,
+    private val playlistRepository: PlaylistRepository,
     private val settingsStore: SettingsStore,
     private val subtitleAppearanceEditor: SubtitleAppearanceEditor,
     private val seriesTrackMemoryStore: SeriesTrackMemoryStore,
@@ -139,6 +143,7 @@ class PlayerViewModel @Inject constructor(
     private var session: UserSession? = null
     private var stream: StreamInfo? = null
     private var itemId: UUID? = null
+    private var queue: PlaylistQueue? = null
     private var seriesId: UUID? = null
     private val latchedBars = CueLatchedBars()
     private var loaded = false
@@ -452,11 +457,17 @@ class PlayerViewModel @Inject constructor(
 
     fun stepSubtitleAppearance(setting: SubtitleAppearanceSetting, forward: Boolean) = viewModelScope.launch { subtitleAppearanceEditor.step(setting, forward) }
 
-    fun load(itemIdString: String, startTicks: Long?, mediaSourceId: String? = null) {
+    fun load(
+        itemIdString: String,
+        startTicks: Long?,
+        mediaSourceId: String? = null,
+        queue: PlaylistQueue? = null
+    ) {
         if (loaded) return
         loaded = true
         val id = UUID.fromString(itemIdString)
         itemId = id
+        this.queue = queue
         outroNextUpShown = false
         viewingScope.launch {
             val activeSession = authRepository.activeSession()
@@ -697,18 +708,21 @@ class PlayerViewModel @Inject constructor(
                 chapters = chapterMarks
             )
         }
-        if (item.type == BaseItemKind.EPISODE) {
-            viewingScope.launch {
-                val next = runCatching {
-                    mediaRepository.nextEpisode(id)
-                }.getOrNull()
-                if (next != null) {
-                    _state.update { s ->
-                        s.copy(nextUp = buildNextUpItem(activeSession, next))
-                    }
+        viewingScope.launch {
+            val next = runCatching { nextInQueue(id, item) }.getOrNull()
+            if (next != null) {
+                _state.update { s ->
+                    s.copy(nextUp = buildNextUpItem(activeSession, next))
                 }
             }
         }
+    }
+
+    private suspend fun nextInQueue(id: UUID, item: BaseItemDto): BaseItemDto? {
+        val playing = queue
+        val playlistId = playing?.id
+            ?: return if (item.type == BaseItemKind.EPISODE) mediaRepository.nextEpisode(id) else null
+        return playing.itemAfter(playlistRepository.playlistItems(playlistId))
     }
 
     private fun refreshQualityOptions(info: StreamInfo) {

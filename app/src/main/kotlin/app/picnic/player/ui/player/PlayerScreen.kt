@@ -40,6 +40,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import app.picnic.player.data.media.PlaylistQueue
 import app.picnic.player.playback.videoDisplayHints
 import app.picnic.player.ui.ambient.PublishBackdrop
 import app.picnic.player.ui.common.requestFocusWhenAttached
@@ -57,6 +58,7 @@ fun PlayerScreen(
     itemId: String,
     startTicks: Long?,
     mediaSourceId: String? = null,
+    queue: PlaylistQueue? = null,
     onExit: () -> Unit,
     onPlayNext: (nextItemId: String) -> Unit = {},
     viewModel: PlayerViewModel = hiltViewModel()
@@ -65,7 +67,7 @@ fun PlayerScreen(
 
     val state by viewModel.state.collectAsStateWithLifecycle()
     val settings by viewModel.settings.collectAsStateWithLifecycle()
-    LaunchedEffect(itemId) { viewModel.load(itemId, startTicks, mediaSourceId) }
+    LaunchedEffect(itemId) { viewModel.load(itemId, startTicks, mediaSourceId, queue) }
 
     val view = LocalView.current
     SideEffect { view.keepScreenOn = state.isPlaying }

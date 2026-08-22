@@ -2,6 +2,7 @@ package app.picnic.player.ui.common
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.focus.FocusRequester
@@ -24,3 +25,13 @@ fun rememberSeededFocus(seed: Boolean, onSeeded: () -> Unit): FocusRequester {
     }
     return requester
 }
+
+@Stable
+class KeyedFocusRequesters {
+    private val requesters = mutableMapOf<String, FocusRequester>()
+
+    operator fun get(key: String): FocusRequester = requesters.getOrPut(key) { FocusRequester() }
+}
+
+@Composable
+fun rememberKeyedFocusRequesters(): KeyedFocusRequesters = remember { KeyedFocusRequesters() }

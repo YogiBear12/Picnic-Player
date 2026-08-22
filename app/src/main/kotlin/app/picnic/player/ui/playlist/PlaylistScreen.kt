@@ -70,6 +70,7 @@ import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import app.picnic.player.data.media.inQueueOrder
 import app.picnic.player.ui.ambient.BackdropSpec
 import app.picnic.player.ui.ambient.PublishBackdrop
 import app.picnic.player.ui.browse.CardTimeLeftBadge
@@ -85,6 +86,7 @@ import app.picnic.player.ui.common.watchProgress
 import app.picnic.player.ui.detail.ExpandableButton
 import app.picnic.player.ui.theme.PicnicColors
 import coil3.compose.AsyncImage
+import kotlin.random.Random
 import kotlinx.coroutines.launch
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
@@ -94,6 +96,7 @@ fun PlaylistScreen(
     playlistId: String,
     playlistName: String?,
     onPlay: (itemId: String, startTicks: Long?) -> Unit,
+    onShuffle: (itemId: String, queueSeed: Long) -> Unit,
     onGoToSeries: (String) -> Unit,
     onAddToPlaylist: (BaseItemDto) -> Unit,
     onBack: () -> Unit,
@@ -118,6 +121,7 @@ fun PlaylistScreen(
                 items = state.items,
                 viewModel = viewModel,
                 onPlay = onPlay,
+                onShuffle = onShuffle,
                 onGoToSeries = onGoToSeries,
                 onAddToPlaylist = onAddToPlaylist,
                 onBack = onBack
@@ -149,6 +153,7 @@ private fun PlaylistContent(
     items: List<BaseItemDto>,
     viewModel: PlaylistViewModel,
     onPlay: (String, Long?) -> Unit,
+    onShuffle: (String, Long) -> Unit,
     onGoToSeries: (String) -> Unit,
     onAddToPlaylist: (BaseItemDto) -> Unit,
     onBack: () -> Unit
@@ -225,7 +230,10 @@ private fun PlaylistContent(
                 ExpandableButton(
                     title = "Shuffle",
                     icon = Icons.Default.Shuffle,
-                    onClick = { items.randomOrNull()?.let { onPlay(it.id.toString(), null) } },
+                    onClick = {
+                        val seed = Random.nextLong()
+                        items.inQueueOrder(seed).firstOrNull()?.let { onShuffle(it.id.toString(), seed) }
+                    },
                     modifier = Modifier
                         .focusRequester(shuffleFocus)
                         .focusProperties {

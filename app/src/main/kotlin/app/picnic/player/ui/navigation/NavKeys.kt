@@ -1,6 +1,7 @@
 package app.picnic.player.ui.navigation
 
 import androidx.navigation3.runtime.NavKey
+import app.picnic.player.data.media.PlaylistQueue
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -39,7 +40,8 @@ data class DetailKey(
 data class PlayerKey(
     val itemId: String,
     val startTicks: Long? = null,
-    val mediaSourceId: String? = null
+    val mediaSourceId: String? = null,
+    val queue: PlaylistQueue? = null
 ) : NavKey
 
 @Serializable
