@@ -39,7 +39,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -158,7 +157,10 @@ private fun PlaylistContent(
     onAddToPlaylist: (BaseItemDto) -> Unit,
     onBack: () -> Unit
 ) {
-    var focusedIndex by rememberSaveable { mutableIntStateOf(0) }
+    var focusedKey by rememberSaveable { mutableStateOf<String?>(null) }
+    val focusedIndex = remember(items, focusedKey) {
+        items.indexOfFirst { keyOf(it) == focusedKey }.coerceAtLeast(0)
+    }
     val focusedItem = items.getOrNull(focusedIndex)
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
@@ -176,8 +178,6 @@ private fun PlaylistContent(
     val shuffleFocus = remember { FocusRequester() }
     var listHasFocus by remember { mutableStateOf(false) }
 
-    LaunchedEffect(Unit) { keyAt(0)?.let { rowFocus[it].requestFocusWhenAttached(maxFrames = 20) } }
-
     fun focusRow(index: Int) {
         val target = index.coerceIn(0, items.lastIndex)
         val key = keyAt(target) ?: return
@@ -185,6 +185,12 @@ private fun PlaylistContent(
             listState.scrollToItem(target)
             rowFocus[key].requestFocusWhenAttached(maxFrames = 20)
         }
+    }
+
+    LaunchedEffect(Unit) {
+        val target = focusedIndex.coerceIn(0, items.lastIndex)
+        listState.scrollToItem(target)
+        keyAt(target)?.let { rowFocus[it].requestFocusWhenAttached(maxFrames = 20) }
     }
 
     fun rightToListConsumed(): Boolean {
@@ -282,20 +288,18 @@ private fun PlaylistContent(
                     focusRequester = rowFocus[itemKey],
                     leftFocus = shuffleFocus,
                     reordering = reorderKey == itemKey,
-                    onFocused = { focusedIndex = index },
+                    onFocused = { focusedKey = itemKey },
                     onPlay = onPlay,
                     onLongClick = { contextMenuItem = item },
                     onMoveUp = {
                         if (index > 0) {
                             viewModel.move(index, index - 1)
-                            focusedIndex = index - 1
                             scope.launch { rowFocus[itemKey].requestFocusWhenAttached(maxFrames = 20) }
                         }
                     },
                     onMoveDown = {
                         if (index < items.lastIndex) {
                             viewModel.move(index, index + 1)
-                            focusedIndex = index + 1
                             scope.launch { rowFocus[itemKey].requestFocusWhenAttached(maxFrames = 20) }
                         }
                     },
