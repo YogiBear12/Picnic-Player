@@ -65,7 +65,7 @@ fun PlayerScreen(
 
     val state by viewModel.state.collectAsStateWithLifecycle()
     val settings by viewModel.settings.collectAsStateWithLifecycle()
-    LaunchedEffect(itemId) { viewModel.load(itemId, startTicks) }
+    LaunchedEffect(itemId) { viewModel.load(itemId, startTicks, mediaSourceId) }
 
     val view = LocalView.current
     SideEffect { view.keepScreenOn = state.isPlaying }
