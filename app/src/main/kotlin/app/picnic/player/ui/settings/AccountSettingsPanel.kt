@@ -32,6 +32,8 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -39,6 +41,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import app.picnic.player.data.seerr.SeerrLinkState
+import app.picnic.player.ui.common.DialogTextField
 import app.picnic.player.ui.common.rememberIdentityBrush
 import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.theme.PicnicColors
@@ -161,7 +164,7 @@ private fun SeerrConnectDialog(
 
     Dialog(
         onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
+        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
     ) {
         Column(
             verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -178,19 +181,21 @@ private fun SeerrConnectDialog(
                 fontWeight = FontWeight.SemiBold,
                 color = Color.White
             )
-            SettingsTextField(
+            DialogTextField(
                 value = url,
                 onValueChange = { url = it },
+                placeholder = "https://requests.example.com",
                 label = "Seerr URL",
-                focusRequester = urlFieldFr,
-                modifier = Modifier.fillMaxWidth()
+                keyboardType = KeyboardType.Uri,
+                imeAction = ImeAction.Next,
+                modifier = Modifier.focusRequester(urlFieldFr)
             )
-            SettingsTextField(
+            DialogTextField(
                 value = password,
                 onValueChange = { password = it },
+                placeholder = "Password",
                 label = "Jellyfin password",
-                password = true,
-                modifier = Modifier.fillMaxWidth()
+                password = true
             )
             if (error != null) {
                 Text(error, color = PicnicColors.Error, style = MaterialTheme.typography.bodyMedium)

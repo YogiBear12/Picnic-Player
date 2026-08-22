@@ -39,8 +39,8 @@ import androidx.tv.material3.ListItem
 import androidx.tv.material3.ListItemDefaults
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import app.picnic.player.ui.common.DialogTextField
 import app.picnic.player.ui.common.requestFocusWhenAttached
-import app.picnic.player.ui.onboarding.OnboardingTextField
 import app.picnic.player.ui.theme.PicnicColors
 import org.jellyfin.sdk.model.api.BaseItemDto
 
@@ -57,7 +57,10 @@ fun AddToPlaylistDialog(
     var newName by remember { mutableStateOf("") }
     val itemId = item.id.toString()
 
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
+    ) {
         Column(
             verticalArrangement = Arrangement.spacedBy(2.dp),
             modifier = Modifier
@@ -79,17 +82,18 @@ fun AddToPlaylistDialog(
             if (creating) {
                 val nameFocus = remember { FocusRequester() }
                 LaunchedEffect(Unit) { nameFocus.requestFocusWhenAttached() }
-                OnboardingTextField(
+                val create: () -> Unit = {
+                    if (newName.isNotBlank()) {
+                        viewModel.createAndAdd(newName, itemId)
+                        onDismiss()
+                    }
+                }
+                DialogTextField(
                     value = newName,
                     onValueChange = { newName = it },
                     placeholder = "Playlist name",
-                    onImeAction = {
-                        if (newName.isNotBlank()) {
-                            viewModel.createAndAdd(newName, itemId)
-                            onDismiss()
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth().focusRequester(nameFocus)
+                    onImeAction = create,
+                    modifier = Modifier.focusRequester(nameFocus)
                 )
             } else {
                 val firstFocus = remember { FocusRequester() }
