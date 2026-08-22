@@ -162,26 +162,15 @@ class NavRailState @Inject constructor() {
     }
 
     private fun ensureSelectionValid() {
-        if (!discoverAvailable && _selectedKey.value == BrowseDest.Discover.key) {
-            _selectedKey.value = BrowseDest.Home.key
-            if (_drawerPage.value == NavDrawerPage.More) {
-                _drawerPage.value = NavDrawerPage.Primary
-                rebuildDestinations()
-            }
-        }
-        if (!playlistsAvailable && _selectedKey.value == BrowseDest.Playlists.key) {
-            _selectedKey.value = BrowseDest.Home.key
-            if (_drawerPage.value == NavDrawerPage.More) {
-                _drawerPage.value = NavDrawerPage.Primary
-                rebuildDestinations()
-            }
-        }
-        if (_allDestinations.value.none { it.key == _selectedKey.value }) {
-            _selectedKey.value = BrowseDest.Home.key
-            if (_drawerPage.value == NavDrawerPage.More) {
-                _drawerPage.value = NavDrawerPage.Primary
-                rebuildDestinations()
-            }
+        val gone = (!discoverAvailable && _selectedKey.value == BrowseDest.Discover.key) ||
+            (!playlistsAvailable && _selectedKey.value == BrowseDest.Playlists.key) ||
+            _allDestinations.value.none { it.key == _selectedKey.value }
+        if (!gone) return
+        _selectedKey.value = BrowseDest.Home.key
+        _pendingCommit.value = true
+        if (_drawerPage.value == NavDrawerPage.More) {
+            _drawerPage.value = NavDrawerPage.Primary
+            rebuildDestinations()
         }
     }
 
