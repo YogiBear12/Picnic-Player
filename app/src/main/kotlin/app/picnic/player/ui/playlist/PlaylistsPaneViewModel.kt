@@ -48,6 +48,13 @@ class PlaylistsPaneViewModel @Inject constructor(
         refresh()
     }
 
+    fun delete(playlist: BaseItemDto) {
+        _state.update { it.copy(playlists = it.playlists.filterNot { p -> p.id == playlist.id }) }
+        viewModelScope.launch {
+            runCatching { playlistRepository.deletePlaylist(playlist.id) }
+        }
+    }
+
     private fun refresh() {
         viewModelScope.launch {
             val session = authRepository.activeSession()

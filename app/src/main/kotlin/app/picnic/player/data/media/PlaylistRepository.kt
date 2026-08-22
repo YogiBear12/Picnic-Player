@@ -4,6 +4,7 @@ import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 import org.jellyfin.sdk.api.client.extensions.itemsApi
+import org.jellyfin.sdk.api.client.extensions.libraryApi
 import org.jellyfin.sdk.api.client.extensions.playlistsApi
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
@@ -73,6 +74,11 @@ class PlaylistRepository @Inject constructor(
             entryIds = entryIds
         )
         changeBus.emit(LibraryChange.ItemUpdated(playlistId.toString(), null))
+    }
+
+    suspend fun deletePlaylist(playlistId: UUID) = onIo {
+        api().libraryApi.deleteItem(playlistId)
+        changeBus.emit(LibraryChange.LibraryContentChanged)
     }
 
     suspend fun movePlaylistItem(
