@@ -8,9 +8,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -29,11 +26,6 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
-import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
@@ -94,48 +86,4 @@ internal fun ActionRow(
             Text(value, style = MaterialTheme.typography.titleMedium, color = PicnicColors.Cyan)
         }
     }
-}
-
-@Composable
-internal fun SettingsTextField(
-    value: String,
-    onValueChange: (String) -> Unit,
-    label: String,
-    leftFocus: FocusRequester? = null,
-    modifier: Modifier = Modifier,
-    password: Boolean = false,
-    focusRequester: FocusRequester? = null
-) {
-    val keyboard = LocalSoftwareKeyboardController.current
-    val accent = MaterialTheme.colorScheme.primary
-    OutlinedTextField(
-        value = value,
-        onValueChange = onValueChange,
-        label = { Text(label) },
-        singleLine = true,
-        visualTransformation = if (password) {
-            PasswordVisualTransformation()
-        } else {
-            VisualTransformation.None
-        },
-        keyboardOptions = KeyboardOptions(
-            imeAction = if (password) ImeAction.Done else ImeAction.Next,
-            keyboardType = if (password) KeyboardType.Password else KeyboardType.Uri
-        ),
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = accent,
-            unfocusedBorderColor = PicnicColors.OnDarkMuted,
-            focusedLabelColor = accent,
-            unfocusedLabelColor = PicnicColors.OnDarkMuted,
-            cursorColor = accent,
-            focusedTextColor = PicnicColors.OnDark,
-            unfocusedTextColor = PicnicColors.OnDark
-        ),
-        modifier = modifier
-            .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
-            .focusProperties { leftFocus?.let { left = it } }
-            .onFocusChanged { state ->
-                if (state.isFocused) keyboard?.show()
-            }
-    )
 }

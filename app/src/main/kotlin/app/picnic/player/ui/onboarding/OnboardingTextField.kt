@@ -2,7 +2,6 @@
 
 package app.picnic.player.ui.onboarding
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -12,19 +11,9 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusDirection
-import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.input.key.type
-import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -33,7 +22,10 @@ import androidx.compose.ui.unit.dp
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import app.picnic.player.ui.common.rememberTvTextEntry
+import app.picnic.player.ui.common.tvTextEntry
 import app.picnic.player.ui.theme.PicnicColors
+import kotlinx.coroutines.flow.drop
 
 @Composable
 fun OnboardingTextField(
@@ -46,22 +38,17 @@ fun OnboardingTextField(
     onImeAction: (() -> Unit)? = null,
     onEditingChange: ((Boolean) -> Unit)? = null
 ) {
-    var editing by remember { mutableStateOf(false) }
-    val keyboard = LocalSoftwareKeyboardController.current
-    val focusManager = LocalFocusManager.current
+    val entry = rememberTvTextEntry()
+    val editing = entry.editing
     val accent = MaterialTheme.colorScheme.primary
 
-    fun setEditing(next: Boolean) {
-        if (editing == next) return
-        editing = next
-        onEditingChange?.invoke(next)
+    val editingChanged by rememberUpdatedState(onEditingChange)
+    LaunchedEffect(entry) {
+        snapshotFlow { entry.editing }.drop(1).collect { editingChanged?.invoke(it) }
     }
 
-    LaunchedEffect(editing) { if (editing) keyboard?.show() else keyboard?.hide() }
-    BackHandler(enabled = editing) { setEditing(false) }
-
     val finishEditing: () -> Unit = {
-        setEditing(false)
+        entry.stop()
         onImeAction?.invoke()
     }
 
@@ -69,7 +56,7 @@ fun OnboardingTextField(
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
-        readOnly = !editing,
+        readOnly = entry.readOnly,
         placeholder = { Text(placeholder, color = PicnicColors.OnDarkMuted) },
         singleLine = true,
         shape = shape,
@@ -96,28 +83,6 @@ fun OnboardingTextField(
         ),
         modifier = modifier
             .heightIn(min = 56.dp)
-            .onFocusChanged { if (!it.isFocused) setEditing(false) }
-            .onPreviewKeyEvent { event ->
-                if (editing) return@onPreviewKeyEvent false
-                val direction = when (event.key) {
-                    Key.DirectionLeft -> FocusDirection.Left
-                    Key.DirectionRight -> FocusDirection.Right
-                    Key.DirectionUp -> FocusDirection.Up
-                    Key.DirectionDown -> FocusDirection.Down
-                    else -> null
-                }
-                val select = event.key == Key.DirectionCenter || event.key == Key.Enter
-                when {
-                    direction != null -> {
-                        if (event.type == KeyEventType.KeyDown) focusManager.moveFocus(direction)
-                        true
-                    }
-                    select -> {
-                        if (event.type == KeyEventType.KeyUp) setEditing(true)
-                        true
-                    }
-                    else -> false
-                }
-            }
+            .tvTextEntry(entry)
     )
 }

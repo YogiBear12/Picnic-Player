@@ -1,6 +1,5 @@
 package app.picnic.player.ui.search
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
@@ -18,29 +17,24 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.input.key.type
-import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import app.picnic.player.ui.common.rememberTvTextEntry
+import app.picnic.player.ui.common.tvTextEntry
 
 @Composable
 internal fun SearchField(
@@ -50,14 +44,11 @@ internal fun SearchField(
     onFocused: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val keyboard = LocalSoftwareKeyboardController.current
-    var imeActive by remember { mutableStateOf(false) }
-    var focused by remember { mutableStateOf(false) }
+    val entry = rememberTvTextEntry()
+    val focused = entry.focused
+    val focusedCallback by rememberUpdatedState(onFocused)
 
-    BackHandler(enabled = imeActive) {
-        imeActive = false
-        keyboard?.hide()
-    }
+    LaunchedEffect(focused) { if (focused) focusedCallback() }
 
     Box(
         modifier = modifier
@@ -95,7 +86,7 @@ internal fun SearchField(
                 BasicTextField(
                     value = query,
                     onValueChange = onQueryChange,
-                    readOnly = !imeActive,
+                    readOnly = entry.readOnly,
                     singleLine = true,
                     textStyle = TextStyle(
                         color = Color.White,
@@ -103,27 +94,11 @@ internal fun SearchField(
                     ),
                     cursorBrush = SolidColor(Color.White),
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                    keyboardActions = KeyboardActions(onSearch = {
-                        imeActive = false
-                        keyboard?.hide()
-                    }),
+                    keyboardActions = KeyboardActions(onSearch = { entry.stop() }),
                     modifier = Modifier
                         .fillMaxWidth()
                         .focusRequester(focusRequester)
-                        .onFocusChanged { state ->
-                            focused = state.isFocused
-                            if (state.isFocused) onFocused() else imeActive = false
-                        }
-                        .onPreviewKeyEvent { event ->
-                            val select = event.key == Key.DirectionCenter || event.key == Key.Enter
-                            if (event.type == KeyEventType.KeyUp && select && !imeActive) {
-                                imeActive = true
-                                keyboard?.show()
-                                true
-                            } else {
-                                false
-                            }
-                        }
+                        .tvTextEntry(entry)
                 )
             }
         }
