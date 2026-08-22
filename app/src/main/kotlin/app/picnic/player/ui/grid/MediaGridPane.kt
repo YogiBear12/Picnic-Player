@@ -58,8 +58,11 @@ import androidx.tv.material3.Text
 import app.picnic.player.ui.ambient.LocalAmbientPrewarmer
 import app.picnic.player.ui.browse.BrowseLayoutMetrics
 import app.picnic.player.ui.browse.posterCardStyle
+import app.picnic.player.ui.common.LoadFailedState
 import app.picnic.player.ui.common.LocalContextMenuHandler
 import app.picnic.player.ui.common.LocalImageUrls
+import app.picnic.player.ui.common.rememberRetrySeed
+import app.picnic.player.ui.common.rememberSeededFocus
 import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.theme.PicnicColors
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -90,14 +93,24 @@ internal fun MediaGridPane(
     emptyStateFocus: FocusRequester? = null,
     onEmptyFilteredChange: (Boolean) -> Unit = {}
 ) {
+    val retrySeed = rememberRetrySeed()
     when {
+        state.error != null -> {
+            val retryFocus = rememberSeededFocus(seedContentFocus, onContentFocusSeeded)
+            LoadFailedState(
+                message = state.error,
+                retryFocus = retryFocus,
+                onRetry = {
+                    retrySeed.arm()
+                    viewModel.retry()
+                },
+                retrying = state.loading,
+                upExitFocus = upExitFocus
+            )
+        }
         state.loading && state.session == null ->
             Box(Modifier.fillMaxSize(), Alignment.Center) {
                 CircularProgressIndicator(color = PicnicColors.Accent)
-            }
-        state.session == null || state.error != null ->
-            Box(Modifier.fillMaxSize(), Alignment.Center) {
-                Text(state.error ?: "Nothing here")
             }
         else -> MediaGridBody(
             metrics = metrics,
@@ -105,8 +118,11 @@ internal fun MediaGridPane(
             pendingScrollIndex = state.pendingScrollIndex,
             scrollNonce = state.scrollNonce,
             revision = state.revision,
-            seedContentFocus = seedContentFocus,
-            onContentFocusSeeded = onContentFocusSeeded,
+            seedContentFocus = seedContentFocus || retrySeed.pending,
+            onContentFocusSeeded = {
+                retrySeed.consume()
+                onContentFocusSeeded()
+            },
             sort = state.sort,
             filter = state.filter,
             facets = state.facets,

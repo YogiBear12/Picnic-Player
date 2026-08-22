@@ -117,6 +117,12 @@ class LibraryGridViewModel @Inject constructor(
         }
     }
 
+    fun retry() {
+        bound = true
+        _state.update { it.copy(loading = true) }
+        load()
+    }
+
     fun consumeSessionExpired() {
         _state.update { it.copy(sessionExpiredServerId = null) }
     }
@@ -214,6 +220,7 @@ class LibraryGridViewModel @Inject constructor(
         viewModelScope.launch {
             val session = authRepository.activeSession()
             if (session == null) {
+                bound = false
                 _state.update { it.copy(loading = false, error = "No active session") }
                 return@launch
             }
@@ -233,7 +240,7 @@ class LibraryGridViewModel @Inject constructor(
                         session = session,
                         totalCount = store.totalCount,
                         revision = it.revision + 1,
-                        error = if (store.totalCount == 0) "Nothing here yet." else null
+                        error = null
                     )
                 }
             } catch (e: Exception) {
@@ -243,6 +250,7 @@ class LibraryGridViewModel @Inject constructor(
                         it.copy(loading = true, session = null, sessionExpiredServerId = session.server.id)
                     }
                 } else {
+                    bound = false
                     _state.update { it.copy(loading = false, error = "Could not load ${title.lowercase()}") }
                 }
             }

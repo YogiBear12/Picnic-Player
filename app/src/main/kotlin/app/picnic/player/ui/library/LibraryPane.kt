@@ -39,6 +39,10 @@ import app.picnic.player.ui.browse.BrowseDest
 import app.picnic.player.ui.browse.BrowseLayoutMetrics
 import app.picnic.player.ui.browse.ImmersiveBrowseScaffold
 import app.picnic.player.ui.browse.rememberHomeBrowseFocus
+import app.picnic.player.ui.common.LoadFailedState
+import app.picnic.player.ui.common.rememberRetrySeed
+import app.picnic.player.ui.common.rememberSeededFocus
+import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.genre.GenreBrowseGrid
 import app.picnic.player.ui.genre.GenreGridColumns
 import app.picnic.player.ui.grid.LibraryGridViewModel
@@ -69,10 +73,7 @@ internal fun LibraryPane(
     val gridViewModel: LibraryGridViewModel = hiltViewModel(key = dest.key)
     val collectionsViewModel: LibraryGridViewModel = hiltViewModel(key = CollectionsGridVmKey)
 
-    LaunchedEffect(dest) {
-        paneViewModel.bind(dest.id, dest.kinds)
-        gridViewModel.bindLibrary(dest.id, dest.kinds, dest.title)
-    }
+    LaunchedEffect(dest) { paneViewModel.bind(dest.id, dest.kinds) }
 
     val paneState by paneViewModel.state.collectAsStateWithLifecycle()
     val gridState by gridViewModel.state.collectAsStateWithLifecycle()
@@ -149,24 +150,30 @@ internal fun LibraryPane(
                 label = "libraryTabContent"
             ) { tab ->
                 when (tab) {
-                    LibraryTab.LIBRARY -> MediaGridPane(
-                        state = gridState,
-                        viewModel = gridViewModel,
-                        metrics = metrics,
-                        seedContentFocus = seedContentFocus && tab == selectedTab,
-                        onContentFocusSeeded = onContentFocusSeeded,
-                        onItem = onItem,
-                        onChromeVisibleChange = { libraryChromeVisible = it },
-                        upExitFocus = tabFocus,
-                        emptyStateFocus = libraryEmptyFocus,
-                        onEmptyFilteredChange = { libraryEmptyFiltered = it }
-                    )
+                    LibraryTab.LIBRARY -> {
+                        LaunchedEffect(dest) {
+                            gridViewModel.bindLibrary(dest.id, dest.kinds, dest.title)
+                        }
+                        MediaGridPane(
+                            state = gridState,
+                            viewModel = gridViewModel,
+                            metrics = metrics,
+                            seedContentFocus = seedContentFocus && tab == selectedTab,
+                            onContentFocusSeeded = onContentFocusSeeded,
+                            onItem = onItem,
+                            onChromeVisibleChange = { libraryChromeVisible = it },
+                            upExitFocus = tabFocus,
+                            emptyStateFocus = libraryEmptyFocus,
+                            onEmptyFilteredChange = { libraryEmptyFiltered = it }
+                        )
+                    }
                     LibraryTab.FOR_YOU -> ForYouTabContent(
                         state = forYouState,
                         viewModel = forYouViewModel,
                         dest = dest,
                         metrics = metrics,
                         horizontalInset = horizontalInset,
+                        tabFocus = tabFocus,
                         active = tab == selectedTab,
                         seedContentFocus = seedContentFocus && tab == selectedTab,
                         onContentFocusSeeded = onContentFocusSeeded,
@@ -180,6 +187,7 @@ internal fun LibraryPane(
                         seedContentFocus = seedContentFocus && tab == selectedTab,
                         onContentFocusSeeded = onContentFocusSeeded,
                         onGenreFocused = paneViewModel::onGenreFocused,
+                        onRetryGenres = paneViewModel::retryGenres,
                         onGenre = onGenre
                     )
                     LibraryTab.COLLECTIONS -> {
@@ -210,6 +218,9 @@ internal fun LibraryPane(
     }
 }
 
+private const val ForYouEmptyMessage =
+    "Watch something from this library and suggestions will appear here."
+
 @Composable
 private fun ForYouTabContent(
     state: ForYouViewModel.UiState,
@@ -217,6 +228,7 @@ private fun ForYouTabContent(
     dest: BrowseDest.Library,
     metrics: BrowseLayoutMetrics,
     horizontalInset: Dp,
+    tabFocus: FocusRequester,
     active: Boolean,
     seedContentFocus: Boolean,
     onContentFocusSeeded: () -> Unit,
@@ -228,14 +240,28 @@ private fun ForYouTabContent(
         focusedRowIndex = state.focusedRowIndex,
         scrollEnabled = active
     )
+    val retrySeed = rememberRetrySeed()
     when {
+        state.error != null -> {
+            val retryFocus = rememberSeededFocus(seedContentFocus, onContentFocusSeeded)
+            LoadFailedState(
+                message = state.error,
+                retryFocus = retryFocus,
+                onRetry = {
+                    retrySeed.arm()
+                    viewModel.retry()
+                },
+                retrying = state.loading,
+                upExitFocus = tabFocus
+            )
+        }
         state.loading ->
             Box(Modifier.fillMaxSize(), Alignment.Center) {
                 CircularProgressIndicator(color = PicnicColors.Accent)
             }
         state.rows.isEmpty() ->
             Box(Modifier.fillMaxSize(), Alignment.Center) {
-                Text(state.error ?: "Nothing here yet")
+                Text(ForYouEmptyMessage)
             }
         else -> ImmersiveBrowseScaffold(
             rows = state.rows,
@@ -248,8 +274,11 @@ private fun ForYouTabContent(
             seasonCounts = state.seasonCounts,
             heroStreams = state.heroStreams,
             focus = focus,
-            seedContentFocus = seedContentFocus,
-            onContentFocusSeeded = onContentFocusSeeded,
+            seedContentFocus = seedContentFocus || retrySeed.pending,
+            onContentFocusSeeded = {
+                retrySeed.consume()
+                onContentFocusSeeded()
+            },
             onBrowseItemFocused = viewModel::onBrowseItemFocused,
             onItem = onItem,
             horizontalInset = horizontalInset,
@@ -267,18 +296,38 @@ private fun GenresTabContent(
     seedContentFocus: Boolean,
     onContentFocusSeeded: () -> Unit,
     onGenreFocused: (Int) -> Unit,
+    onRetryGenres: () -> Unit,
     onGenre: (BaseItemDto) -> Unit
 ) {
     val genreCardFocus = remember { FocusRequester() }
     val genreGridState = rememberLazyGridState()
+    val retrySeed = rememberRetrySeed()
+    val failed = paneState.genresError
+    val retryFocus = rememberSeededFocus(
+        seed = seedContentFocus && failed && !paneState.genresLoading,
+        onSeeded = onContentFocusSeeded
+    )
 
-    LaunchedEffect(seedContentFocus, paneState.genresLoading, paneState.genres.size) {
-        if (!seedContentFocus || paneState.genresLoading) return@LaunchedEffect
-        runCatching { genreCardFocus.requestFocus() }
+    LaunchedEffect(seedContentFocus, retrySeed.pending, paneState.genresLoading, failed, paneState.genres.size) {
+        if (paneState.genresLoading || failed) return@LaunchedEffect
+        if (!seedContentFocus && !retrySeed.pending) return@LaunchedEffect
+        genreCardFocus.requestFocusWhenAttached()
+        retrySeed.consume()
         onContentFocusSeeded()
     }
 
     when {
+        failed ->
+            LoadFailedState(
+                message = "Could not load genres",
+                retryFocus = retryFocus,
+                onRetry = {
+                    retrySeed.arm()
+                    onRetryGenres()
+                },
+                retrying = paneState.genresLoading,
+                upExitFocus = tabFocus
+            )
         paneState.genresLoading ->
             Box(Modifier.fillMaxSize(), Alignment.Center) {
                 CircularProgressIndicator(color = PicnicColors.Accent)

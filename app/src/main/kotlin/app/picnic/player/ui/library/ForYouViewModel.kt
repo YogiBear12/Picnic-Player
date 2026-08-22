@@ -53,6 +53,8 @@ class ForYouViewModel @Inject constructor(
     val state = _state.asStateFlow()
 
     private var bound = false
+    private var libraryId: UUID? = null
+    private var kinds: List<BaseItemKind> = emptyList()
 
     private val focusChangedFlow = MutableSharedFlow<Unit>(
         extraBufferCapacity = 1,
@@ -68,6 +70,15 @@ class ForYouViewModel @Inject constructor(
     fun bind(libraryId: UUID, kinds: List<BaseItemKind>) {
         if (bound) return
         bound = true
+        this.libraryId = libraryId
+        this.kinds = kinds
+        load(libraryId, kinds)
+    }
+
+    fun retry() {
+        val libraryId = libraryId ?: return
+        bound = true
+        _state.update { it.copy(loading = true) }
         load(libraryId, kinds)
     }
 
@@ -102,6 +113,7 @@ class ForYouViewModel @Inject constructor(
         viewModelScope.launch {
             val session = authRepository.activeSession()
             if (session == null) {
+                bound = false
                 _state.update { it.copy(loading = false, error = "No active session") }
                 return@launch
             }
@@ -116,11 +128,7 @@ class ForYouViewModel @Inject constructor(
                         loading = false,
                         session = session,
                         rows = rows,
-                        error = if (rows.isEmpty()) {
-                            "Watch something from this library and suggestions will appear here."
-                        } else {
-                            null
-                        }
+                        error = null
                     )
                 }
                 resolveSeasonCounts(rows)
@@ -132,6 +140,7 @@ class ForYouViewModel @Inject constructor(
                         it.copy(loading = true, session = null, sessionExpiredServerId = session.server.id)
                     }
                 } else {
+                    bound = false
                     _state.update { it.copy(loading = false, error = "Could not load suggestions") }
                 }
             }
@@ -142,8 +151,7 @@ class ForYouViewModel @Inject constructor(
         libraryId: UUID,
         kinds: List<BaseItemKind>
     ): HomeRow? {
-        val suggested = runCatching { mediaRepository.suggestions(SUGGESTION_FETCH_LIMIT) }
-            .getOrDefault(emptyList())
+        val suggested = mediaRepository.suggestions(SUGGESTION_FETCH_LIMIT)
             .filter { it.type in kinds }
         val inLibrary = filterToLibrary(libraryId, suggested).take(ROW_ITEM_LIMIT)
         if (inLibrary.size < MIN_ROW_ITEMS) return null
@@ -154,9 +162,7 @@ class ForYouViewModel @Inject constructor(
         libraryId: UUID,
         kinds: List<BaseItemKind>
     ): List<HomeRow> {
-        val seeds = runCatching {
-            mediaRepository.randomWatched(libraryId, kinds, SEED_FETCH_LIMIT)
-        }.getOrDefault(emptyList())
+        val seeds = mediaRepository.randomWatched(libraryId, kinds, SEED_FETCH_LIMIT)
         if (seeds.isEmpty()) return emptyList()
         val gate = Semaphore(ROW_BUILD_CONCURRENCY)
         return coroutineScope {
@@ -190,9 +196,8 @@ class ForYouViewModel @Inject constructor(
         candidates: List<BaseItemDto>
     ): List<BaseItemDto> {
         if (candidates.isEmpty()) return emptyList()
-        val inLibrary = runCatching {
-            mediaRepository.itemsInLibrary(libraryId, candidates.map { it.id })
-        }.getOrDefault(emptyList()).associateBy { it.id }
+        val inLibrary = mediaRepository.itemsInLibrary(libraryId, candidates.map { it.id })
+            .associateBy { it.id }
         return candidates.mapNotNull { inLibrary[it.id] }
     }
 

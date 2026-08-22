@@ -61,11 +61,6 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onKeyEvent
-import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
@@ -79,6 +74,8 @@ import app.picnic.player.data.media.GridSortSpec
 import app.picnic.player.data.media.MediaGridFilter
 import app.picnic.player.data.media.ResolutionFilter
 import app.picnic.player.data.media.WatchedFilter
+import app.picnic.player.ui.common.CenteredMessage
+import app.picnic.player.ui.common.MessageActionButton
 import app.picnic.player.ui.common.PanelHeader
 import app.picnic.player.ui.common.PanelRowKeys
 import app.picnic.player.ui.common.PanelRowMetrics
@@ -433,7 +430,6 @@ private fun buildSectionOptions(
     }
 }
 
-/** Descending minimums: the server has no maximum-rating parameter, so "below N" is not expressible. */
 private val CommunityRatingSteps = listOf(10, 9, 8, 7, 6, 5, 4, 3, 2, 1)
 private val RatingStarGold = Color(0xFFE0C05C)
 
@@ -581,55 +577,19 @@ internal fun GridEmptyFilteredState(
     clearing: Boolean,
     onClearFilters: () -> Unit
 ) {
-    Column(
-        modifier = Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
-        horizontalAlignment = Alignment.CenterHorizontally
+    CenteredMessage(
+        message = if (filterActive) "No titles match these filters" else "Nothing here yet"
     ) {
-        Text(
-            text = if (filterActive) "No titles match these filters" else "Nothing here yet",
-            color = Color.White.copy(alpha = 0.8f),
-            style = MaterialTheme.typography.titleMedium
-        )
         if (filterActive) {
-            var focused by remember { mutableStateOf(false) }
-            Box(
+            MessageActionButton(
+                label = "Clear filters",
+                focusRequester = focusRequester,
+                onActivate = onClearFilters,
+                busy = clearing,
                 modifier = Modifier
-                    .clip(RoundedCornerShape(GridRowMetrics.cornerRadius))
-                    .background(if (focused) Color.White else Color.White.copy(alpha = 0.12f))
-                    .padding(horizontal = 20.dp, vertical = 10.dp)
-                    .focusRequester(focusRequester)
                     .then(downEntryFocus?.let { Modifier.focusRequester(it) } ?: Modifier)
                     .focusProperties { up = upExitFocus ?: FocusRequester.Default }
-                    .onFocusChanged { focused = it.isFocused }
-                    .focusable()
-                    .onKeyEvent { event ->
-                        if (
-                            !clearing &&
-                            event.type == KeyEventType.KeyDown &&
-                            (event.key == Key.DirectionCenter || event.key == Key.Enter)
-                        ) {
-                            onClearFilters()
-                            true
-                        } else {
-                            false
-                        }
-                    }
-            ) {
-                if (clearing) {
-                    CircularProgressIndicator(
-                        color = if (focused) Color.Black else Color.White,
-                        strokeWidth = 2.dp,
-                        modifier = Modifier.size(18.dp)
-                    )
-                } else {
-                    Text(
-                        text = "Clear filters",
-                        color = if (focused) Color.Black else Color.White,
-                        style = MaterialTheme.typography.titleSmall
-                    )
-                }
-            }
+            )
         }
     }
 }

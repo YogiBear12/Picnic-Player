@@ -24,6 +24,7 @@ class LibraryPaneViewModel @Inject constructor(
         val collectionsAvailable: Boolean = false,
         val genres: List<BaseItemDto> = emptyList(),
         val genresLoading: Boolean = false,
+        val genresError: Boolean = false,
         val focusedGenreIndex: Int = 0
     ) {
         val tabs: List<LibraryTab>
@@ -41,40 +42,58 @@ class LibraryPaneViewModel @Inject constructor(
     private var libraryId: UUID? = null
     private var kinds: List<BaseItemKind> = emptyList()
     private var bound = false
+    private var collectionsProbed = false
     private var genresRequested = false
 
     fun bind(libraryId: UUID, kinds: List<BaseItemKind>) {
+        probeCollections()
         if (bound) return
         bound = true
         this.libraryId = libraryId
         this.kinds = kinds
-        viewModelScope.launch {
-            authRepository.activeSession() ?: return@launch
-            val count = runCatching { mediaRepository.collectionCount() }.getOrDefault(0)
-            _state.update { it.copy(collectionsAvailable = count > 0) }
-        }
     }
 
     fun selectTab(tab: LibraryTab) {
+        probeCollections()
         if (_state.value.selectedTab == tab) return
         _state.update { it.copy(selectedTab = tab) }
         if (tab == LibraryTab.GENRES) ensureGenresLoaded()
     }
 
+    private fun probeCollections() {
+        if (collectionsProbed) return
+        collectionsProbed = true
+        viewModelScope.launch {
+            val session = authRepository.activeSession()
+            val count = session?.let { runCatching { mediaRepository.collectionCount() }.getOrNull() }
+            if (count == null) {
+                collectionsProbed = false
+                return@launch
+            }
+            _state.update { it.copy(collectionsAvailable = count > 0) }
+        }
+    }
+
+    fun retryGenres() = ensureGenresLoaded()
+
     private fun ensureGenresLoaded() {
         if (genresRequested) return
-        genresRequested = true
         val libraryId = libraryId ?: return
+        genresRequested = true
         viewModelScope.launch {
             _state.update { it.copy(genresLoading = true) }
             val session = authRepository.activeSession()
-            val genres = if (session == null) {
-                emptyList()
-            } else {
-                runCatching { mediaRepository.genres(libraryId, kinds) }
-                    .getOrDefault(emptyList())
+            val genres = session?.let {
+                runCatching { mediaRepository.genres(libraryId, kinds) }.getOrNull()
             }
-            _state.update { it.copy(genresLoading = false, genres = genres) }
+            if (genres == null) genresRequested = false
+            _state.update {
+                it.copy(
+                    genresLoading = false,
+                    genresError = genres == null,
+                    genres = genres.orEmpty()
+                )
+            }
         }
     }
 
