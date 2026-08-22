@@ -16,10 +16,10 @@ fun LoadFailedState(
     upExitFocus: FocusRequester? = null
 ) {
     CenteredMessage(message = message, modifier = modifier, detail = detail) {
-        MessageActionButton(
+        ActionButton(
             label = "Retry",
-            focusRequester = retryFocus,
             onActivate = onRetry,
+            focusRequester = retryFocus,
             busy = retrying,
             modifier = Modifier.focusProperties { up = upExitFocus ?: FocusRequester.Default }
         )

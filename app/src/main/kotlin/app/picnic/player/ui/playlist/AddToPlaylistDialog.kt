@@ -39,12 +39,12 @@ import androidx.tv.material3.ListItem
 import androidx.tv.material3.ListItemDefaults
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import app.picnic.player.ui.common.ActionButton
 import app.picnic.player.ui.common.DialogTextField
 import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.theme.PicnicColors
 import org.jellyfin.sdk.model.api.BaseItemDto
 
-/** Adds [item] to a chosen playlist, or a newly created one. */
 @Composable
 fun AddToPlaylistDialog(
     item: BaseItemDto,
@@ -95,6 +95,13 @@ fun AddToPlaylistDialog(
                     onImeAction = create,
                     modifier = Modifier.focusRequester(nameFocus)
                 )
+                Spacer(Modifier.height(8.dp))
+                ActionButton(
+                    label = "Create playlist",
+                    onActivate = create,
+                    enabled = newName.isNotBlank(),
+                    modifier = Modifier.fillMaxWidth()
+                )
             } else {
                 val firstFocus = remember { FocusRequester() }
                 LaunchedEffect(state.loading) {
@@ -126,14 +133,6 @@ fun AddToPlaylistDialog(
                         },
                         colors = playlistPickerColors(),
                         modifier = Modifier.fillMaxWidth()
-                    )
-                }
-                if (state.playlists.isEmpty() && !state.loading) {
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        "No playlists yet — create one above.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = PicnicColors.OnDarkMuted
                     )
                 }
             }

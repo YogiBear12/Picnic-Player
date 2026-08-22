@@ -41,6 +41,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import app.picnic.player.data.seerr.SeerrLinkState
+import app.picnic.player.ui.common.ActionButton
 import app.picnic.player.ui.common.DialogTextField
 import app.picnic.player.ui.common.rememberIdentityBrush
 import app.picnic.player.ui.common.requestFocusWhenAttached
@@ -200,12 +201,12 @@ private fun SeerrConnectDialog(
             if (error != null) {
                 Text(error, color = PicnicColors.Error, style = MaterialTheme.typography.bodyMedium)
             }
-            ActionRow(
-                label = if (connecting) "Connecting…" else "Connect",
-                leftFocus = null,
-                enabled = !connecting && url.isNotBlank() && password.isNotBlank(),
-                blockDown = true,
-                onActivate = { onConnect(url, password) }
+            ActionButton(
+                label = "Connect",
+                onActivate = { onConnect(url, password) },
+                enabled = url.isNotBlank() && password.isNotBlank(),
+                busy = connecting,
+                modifier = Modifier.fillMaxWidth()
             )
             if (connecting) {
                 CircularProgressIndicator(color = PicnicColors.Accent, modifier = Modifier.padding(4.dp))

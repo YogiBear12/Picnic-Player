@@ -74,8 +74,8 @@ import app.picnic.player.data.media.GridSortSpec
 import app.picnic.player.data.media.MediaGridFilter
 import app.picnic.player.data.media.ResolutionFilter
 import app.picnic.player.data.media.WatchedFilter
+import app.picnic.player.ui.common.ActionButton
 import app.picnic.player.ui.common.CenteredMessage
-import app.picnic.player.ui.common.MessageActionButton
 import app.picnic.player.ui.common.PanelHeader
 import app.picnic.player.ui.common.PanelRowKeys
 import app.picnic.player.ui.common.PanelRowMetrics
@@ -581,10 +581,10 @@ internal fun GridEmptyFilteredState(
         message = if (filterActive) "No titles match these filters" else "Nothing here yet"
     ) {
         if (filterActive) {
-            MessageActionButton(
+            ActionButton(
                 label = "Clear filters",
-                focusRequester = focusRequester,
                 onActivate = onClearFilters,
+                focusRequester = focusRequester,
                 busy = clearing,
                 modifier = Modifier
                     .then(downEntryFocus?.let { Modifier.focusRequester(it) } ?: Modifier)

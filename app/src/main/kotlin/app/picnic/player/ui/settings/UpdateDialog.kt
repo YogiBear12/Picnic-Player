@@ -41,6 +41,7 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import app.picnic.player.BuildConfig
+import app.picnic.player.ui.common.ActionButton
 import app.picnic.player.ui.settings.UpdateViewModel.Phase
 import app.picnic.player.ui.theme.PicnicColors
 
@@ -229,10 +230,10 @@ private fun DialogButton(
     focusRequester: FocusRequester?,
     onActivate: () -> Unit
 ) {
-    ActionRow(
+    ActionButton(
         label = label,
-        leftFocus = null,
+        onActivate = onActivate,
         focusRequester = focusRequester,
-        onActivate = onActivate
+        modifier = Modifier.fillMaxWidth()
     )
 }
