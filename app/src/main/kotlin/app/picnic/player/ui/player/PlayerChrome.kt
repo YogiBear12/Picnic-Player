@@ -49,14 +49,20 @@ class PlayerChrome {
         private set
 
     private var nextUpVisible by mutableStateOf(false)
+    private var segmentActive by mutableStateOf(false)
     private var inPictureInPicture by mutableStateOf(false)
 
-    val videoHasFocus: Boolean
+    val videoKeysActive: Boolean
         get() = !osdVisible && panel == Panel.NONE && !nextUpVisible && !subtitleAdjust
 
-    fun skipPillShowing(segmentActive: Boolean): Boolean = segmentActive && !skipPillDismissed && !osdVisible && panel == Panel.NONE && !nextUpVisible
+    val videoHasFocus: Boolean
+        get() = videoKeysActive && !skipPillShowing
 
-    fun skipInOsd(segmentActive: Boolean): Boolean = segmentActive && (skipPillDismissed || osdVisible || panel != Panel.NONE)
+    val skipPillShowing: Boolean
+        get() = segmentActive && !skipPillDismissed && !osdVisible && panel == Panel.NONE && !nextUpVisible
+
+    val skipInOsd: Boolean
+        get() = segmentActive && (skipPillDismissed || osdVisible || panel != Panel.NONE)
 
     fun reveal() {
         if (inPictureInPicture) return
@@ -110,6 +116,7 @@ class PlayerChrome {
     }
 
     fun onSegmentChanged(segmentActive: Boolean, enteredAtStart: Boolean) {
+        this.segmentActive = segmentActive
         skipPillDismissed = when {
             !segmentActive -> false
             osdVisible || panel != Panel.NONE -> true
@@ -142,7 +149,7 @@ class PlayerChrome {
         if (inPip) clearOverlays()
     }
 
-    fun onBack(segmentActive: Boolean): BackOutcome = when {
+    fun onBack(): BackOutcome = when {
         subtitleAdjust -> {
             exitSubtitleAdjust()
             BackOutcome.Handled
@@ -156,7 +163,7 @@ class PlayerChrome {
             osdVisible = false
             BackOutcome.ClosedOsd
         }
-        skipPillShowing(segmentActive) -> {
+        skipPillShowing -> {
             skipPillDismissed = true
             BackOutcome.Handled
         }
@@ -180,7 +187,7 @@ class PlayerChrome {
         endQuickSkip()
     }
 
-    internal suspend fun awaitSkipPillTimeout(segmentActive: Boolean) {
+    internal suspend fun awaitSkipPillTimeout() {
         if (!segmentActive || skipPillDismissed) return
         delay(SkipPillVisibleMs)
         dismissSkipPill()
@@ -202,7 +209,7 @@ fun rememberPlayerChrome(
         chrome.awaitQuickSkipEnd()
     }
     LaunchedEffect(segment, chrome.skipPillDismissed) {
-        chrome.awaitSkipPillTimeout(segment != null)
+        chrome.awaitSkipPillTimeout()
     }
     return chrome
 }

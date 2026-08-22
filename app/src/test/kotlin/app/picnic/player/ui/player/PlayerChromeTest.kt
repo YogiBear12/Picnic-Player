@@ -9,8 +9,6 @@ class PlayerChromeTest {
 
     private val chrome = PlayerChrome()
 
-    // --- what is on screen ------------------------------------------------------
-
     @Test
     fun startsClearOfTheVideo() {
         assertFalse(chrome.osdVisible)
@@ -32,28 +30,26 @@ class PlayerChromeTest {
         assertTrue(chrome.osdVisible)
     }
 
-    // --- the skip pill ----------------------------------------------------------
-
     @Test
     fun pillShowsForASegmentEnteredWithTheVideoClear() {
         chrome.onSegmentChanged(segmentActive = true, enteredAtStart = true)
-        assertTrue(chrome.skipPillShowing(segmentActive = true))
-        assertFalse(chrome.skipInOsd(segmentActive = true))
+        assertTrue(chrome.skipPillShowing)
+        assertFalse(chrome.skipInOsd)
     }
 
     @Test
     fun pillStaysDownForASegmentEnteredBySeeking() {
         chrome.onSegmentChanged(segmentActive = true, enteredAtStart = false)
-        assertFalse(chrome.skipPillShowing(segmentActive = true))
-        assertTrue(chrome.skipInOsd(segmentActive = true))
+        assertFalse(chrome.skipPillShowing)
+        assertTrue(chrome.skipInOsd)
     }
 
     @Test
     fun segmentStartingUnderAnOpenOsdKeepsSkipInTheOsd() {
         chrome.reveal()
         chrome.onSegmentChanged(segmentActive = true, enteredAtStart = true)
-        assertFalse(chrome.skipPillShowing(segmentActive = true))
-        assertTrue(chrome.skipInOsd(segmentActive = true))
+        assertFalse(chrome.skipPillShowing)
+        assertTrue(chrome.skipInOsd)
     }
 
     @Test
@@ -61,8 +57,8 @@ class PlayerChromeTest {
         chrome.onSegmentChanged(segmentActive = true, enteredAtStart = true)
         chrome.reveal()
         chrome.hideOsd()
-        assertFalse(chrome.skipPillShowing(segmentActive = true))
-        assertTrue(chrome.skipInOsd(segmentActive = true))
+        assertFalse(chrome.skipPillShowing)
+        assertTrue(chrome.skipInOsd)
     }
 
     @Test
@@ -71,16 +67,31 @@ class PlayerChromeTest {
         chrome.dismissSkipPill()
         chrome.onSegmentChanged(segmentActive = false, enteredAtStart = false)
         chrome.onSegmentChanged(segmentActive = true, enteredAtStart = true)
-        assertTrue(chrome.skipPillShowing(segmentActive = true))
+        assertTrue(chrome.skipPillShowing)
     }
 
-    // --- back ordering ----------------------------------------------------------
+    @Test
+    fun theVideoIsNotFocusedWhileThePillIsUp() {
+        chrome.onSegmentChanged(segmentActive = true, enteredAtStart = true)
+        assertFalse(chrome.videoHasFocus)
+        chrome.dismissSkipPill()
+        assertTrue(chrome.videoHasFocus)
+    }
+
+    @Test
+    fun transportKeysKeepWorkingUnderThePill() {
+        chrome.onSegmentChanged(segmentActive = true, enteredAtStart = true)
+        assertFalse(chrome.videoHasFocus)
+        assertTrue(chrome.videoKeysActive)
+        chrome.reveal()
+        assertFalse(chrome.videoKeysActive)
+    }
 
     @Test
     fun backClosesThePanelBeforeTheOsd() {
         chrome.reveal()
         chrome.openPanel(Panel.AUDIO)
-        assertEquals(BackOutcome.Handled, chrome.onBack(segmentActive = false))
+        assertEquals(BackOutcome.Handled, chrome.onBack())
         assertEquals(Panel.NONE, chrome.panel)
         assertTrue(chrome.osdVisible)
     }
@@ -88,29 +99,28 @@ class PlayerChromeTest {
     @Test
     fun backThenClosesTheOsd() {
         chrome.reveal()
-        assertEquals(BackOutcome.ClosedOsd, chrome.onBack(segmentActive = false))
+        assertEquals(BackOutcome.ClosedOsd, chrome.onBack())
         assertFalse(chrome.osdVisible)
     }
 
     @Test
     fun backDismissesThePillRatherThanLeaving() {
         chrome.onSegmentChanged(segmentActive = true, enteredAtStart = true)
-        assertEquals(BackOutcome.Handled, chrome.onBack(segmentActive = true))
-        assertFalse(chrome.skipPillShowing(segmentActive = true))
-        // A second Back now leaves.
-        assertEquals(BackOutcome.ExitPlayer, chrome.onBack(segmentActive = true))
+        assertEquals(BackOutcome.Handled, chrome.onBack())
+        assertFalse(chrome.skipPillShowing)
+        assertEquals(BackOutcome.ExitPlayer, chrome.onBack())
     }
 
     @Test
     fun backLeavesWhenNothingIsOpen() {
-        assertEquals(BackOutcome.ExitPlayer, chrome.onBack(segmentActive = false))
+        assertEquals(BackOutcome.ExitPlayer, chrome.onBack())
     }
 
     @Test
     fun backReturnsSubtitleAdjustToTheSettingsPanel() {
         chrome.enterSubtitleAdjust()
         assertFalse(chrome.osdVisible)
-        assertEquals(BackOutcome.Handled, chrome.onBack(segmentActive = false))
+        assertEquals(BackOutcome.Handled, chrome.onBack())
         assertEquals(Panel.SETTINGS, chrome.panel)
         assertFalse(chrome.subtitleAdjust)
     }
@@ -122,10 +132,8 @@ class PlayerChromeTest {
         chrome.onNextUpVisibleChanged(true)
         assertFalse(chrome.osdVisible)
         assertEquals(Panel.NONE, chrome.panel)
-        assertEquals(BackOutcome.NextUp, chrome.onBack(segmentActive = true))
+        assertEquals(BackOutcome.NextUp, chrome.onBack())
     }
-
-    // --- picture-in-picture -----------------------------------------------------
 
     @Test
     fun nothingOpensOverAPipWindow() {
@@ -138,8 +146,6 @@ class PlayerChromeTest {
         chrome.reveal()
         assertTrue(chrome.osdVisible)
     }
-
-    // --- quick-skip burst -------------------------------------------------------
 
     @Test
     fun quickSkipAccumulatesAndClears() {

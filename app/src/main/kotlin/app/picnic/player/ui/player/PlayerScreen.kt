@@ -182,7 +182,7 @@ fun PlayerScreen(
 
     BackHandler {
         subtitleAdjust.release()
-        when (chrome.onBack(segmentActive = state.currentSegment != null)) {
+        when (chrome.onBack()) {
             BackOutcome.Handled -> Unit
             BackOutcome.ClosedOsd -> scrub.cancel()
             BackOutcome.NextUp -> onNextUpBack()
@@ -198,7 +198,7 @@ fun PlayerScreen(
             .focusable(chrome.videoHasFocus)
             .onKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
-                if (!chrome.videoHasFocus) return@onKeyEvent false
+                if (!chrome.videoKeysActive) return@onKeyEvent false
                 when (event.key) {
                     Key.DirectionCenter, Key.Enter, Key.MediaPlayPause -> {
                         togglePlay()
@@ -271,7 +271,7 @@ fun PlayerScreen(
                 settingsFocusRequester = osdFocus.settings,
                 scrubberFocusRequester = osdFocus.scrubber,
                 osdSkipFocusRequester = osdFocus.osdSkip,
-                showSkipInOsd = chrome.skipInOsd(state.currentSegment != null),
+                showSkipInOsd = chrome.skipInOsd,
                 onSkip = { viewModel.skipCurrentSegment() },
                 focusEnabled = chrome.panel == Panel.NONE
             )
@@ -295,7 +295,7 @@ fun PlayerScreen(
         }
 
         AnimatedVisibility(
-            visible = chrome.skipPillShowing(state.currentSegment != null),
+            visible = chrome.skipPillShowing,
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(end = 56.dp, bottom = 56.dp)
@@ -315,6 +315,10 @@ fun PlayerScreen(
                         .onKeyEvent { event ->
                             if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
                             when (event.key) {
+                                Key.Back -> {
+                                    chrome.dismissSkipPill()
+                                    true
+                                }
                                 Key.DirectionUp, Key.DirectionDown, Key.DirectionLeft, Key.DirectionRight -> true
                                 else -> false
                             }
