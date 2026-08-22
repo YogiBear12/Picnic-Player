@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -98,11 +99,26 @@ fun BoxScope.PlayerStage(
             videoRectHeight,
             blackBars
         )
+        val anchoredTextCues = remember(
+            textCues,
+            subtitleAppearance.area,
+            subtitleAppearance.insetPercent,
+            videoRectHeight,
+            blackBars
+        ) {
+            anchorTextCues(
+                textCues,
+                subtitleAppearance.area,
+                subtitleAppearance.insetPercent,
+                videoRectHeight,
+                blackBars
+            )
+        }
         AndroidView(
             factory = { context -> SubtitleView(context) },
             update = { subtitleView ->
                 viewModel.attachSubtitleView(subtitleView, bottomPadding, videoDynamicRange)
-                subtitleView.setCues(textCues)
+                subtitleView.setCues(anchoredTextCues)
             },
             onReset = { it.setCues(emptyList()) },
             modifier = Modifier.fillMaxSize()
