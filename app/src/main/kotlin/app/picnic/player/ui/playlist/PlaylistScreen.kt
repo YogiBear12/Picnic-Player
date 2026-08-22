@@ -70,7 +70,7 @@ import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
-import app.picnic.player.data.media.inQueueOrder
+import app.picnic.player.data.media.PlaylistQueue
 import app.picnic.player.ui.ambient.BackdropSpec
 import app.picnic.player.ui.ambient.PublishBackdrop
 import app.picnic.player.ui.browse.CardTimeLeftBadge
@@ -81,6 +81,7 @@ import app.picnic.player.ui.common.ContextMenuAction
 import app.picnic.player.ui.common.GlobalContextMenuDialog
 import app.picnic.player.ui.common.ImageUrls
 import app.picnic.player.ui.common.LocalImageUrls
+import app.picnic.player.ui.common.rememberKeyedFocusRequesters
 import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.common.watchProgress
 import app.picnic.player.ui.detail.ExpandableButton
@@ -95,7 +96,7 @@ import org.jellyfin.sdk.model.api.BaseItemKind
 fun PlaylistScreen(
     playlistId: String,
     playlistName: String?,
-    onPlay: (itemId: String, startTicks: Long?) -> Unit,
+    onPlay: (itemId: String, startTicks: Long?, queuePosition: Int) -> Unit,
     onShuffle: (itemId: String, queueSeed: Long) -> Unit,
     onGoToSeries: (String) -> Unit,
     onAddToPlaylist: (BaseItemDto) -> Unit,
@@ -117,6 +118,7 @@ fun PlaylistScreen(
             )
             session == null || state.items.isEmpty() -> EmptyPlaylist(title)
             else -> PlaylistContent(
+                playlistId = playlistId,
                 name = title,
                 items = state.items,
                 viewModel = viewModel,
@@ -149,10 +151,11 @@ private fun EmptyPlaylist(name: String) {
 
 @Composable
 private fun PlaylistContent(
+    playlistId: String,
     name: String,
     items: List<BaseItemDto>,
     viewModel: PlaylistViewModel,
-    onPlay: (String, Long?) -> Unit,
+    onPlay: (String, Long?, Int) -> Unit,
     onShuffle: (String, Long) -> Unit,
     onGoToSeries: (String) -> Unit,
     onAddToPlaylist: (BaseItemDto) -> Unit,
@@ -168,16 +171,10 @@ private fun PlaylistContent(
     var contextMenuItem by remember { mutableStateOf<BaseItemDto?>(null) }
     var reorderKey by remember { mutableStateOf<String?>(null) }
 
-    val rowFocus = remember {
-        object {
-            private val map = mutableMapOf<String, FocusRequester>()
-            operator fun get(key: String) = map.getOrPut(key) { FocusRequester() }
-        }
-    }
+    val rowFocus = rememberKeyedFocusRequesters()
     fun keyAt(index: Int): String? = items.getOrNull(index)?.let { keyOf(it) }
     val playFocus = remember { FocusRequester() }
     val shuffleFocus = remember { FocusRequester() }
-    var listHasFocus by remember { mutableStateOf(false) }
 
     fun focusRow(index: Int) {
         val target = index.coerceIn(0, items.lastIndex)
@@ -192,6 +189,13 @@ private fun PlaylistContent(
         val target = focusedIndex.coerceIn(0, items.lastIndex)
         listState.scrollToItem(target)
         keyAt(target)?.let { rowFocus[it].requestFocusWhenAttached(maxFrames = 20) }
+    }
+
+    fun moveRow(from: Int, to: Int) {
+        if (to !in items.indices) return
+        val key = keyAt(from) ?: return
+        viewModel.move(from, to)
+        scope.launch { rowFocus[key].requestFocusWhenAttached(maxFrames = 20) }
     }
 
     fun exitReorder() {
@@ -210,7 +214,6 @@ private fun PlaylistContent(
     }
 
     BackHandler(enabled = reorderKey != null) { exitReorder() }
-    BackHandler(enabled = reorderKey == null && listHasFocus) { playFocus.requestFocus() }
 
     Row(Modifier.fillMaxSize()) {
         Column(
@@ -236,7 +239,7 @@ private fun PlaylistContent(
                 ExpandableButton(
                     title = "Play from start",
                     icon = Icons.Default.PlayArrow,
-                    onClick = { items.firstOrNull()?.let { onPlay(it.id.toString(), 1L) } },
+                    onClick = { items.firstOrNull()?.let { onPlay(it.id.toString(), 1L, 0) } },
                     modifier = Modifier
                         .focusRequester(playFocus)
                         .focusProperties { right = shuffleFocus }
@@ -246,7 +249,8 @@ private fun PlaylistContent(
                     icon = Icons.Default.Shuffle,
                     onClick = {
                         val seed = Random.nextLong()
-                        items.inQueueOrder(seed).firstOrNull()?.let { onShuffle(it.id.toString(), seed) }
+                        PlaylistQueue(playlistId, seed).order(items).firstOrNull()
+                            ?.let { onShuffle(it.id.toString(), seed) }
                     },
                     modifier = Modifier
                         .focusRequester(shuffleFocus)
@@ -283,8 +287,7 @@ private fun PlaylistContent(
             state = listState,
             modifier = Modifier
                 .weight(1f)
-                .fillMaxHeight()
-                .onFocusChanged { listHasFocus = it.hasFocus },
+                .fillMaxHeight(),
             contentPadding = PaddingValues(start = 24.dp, end = 48.dp, top = 48.dp, bottom = 64.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
@@ -299,18 +302,8 @@ private fun PlaylistContent(
                     onFocused = { focusedKey = itemKey },
                     onPlay = onPlay,
                     onLongClick = { contextMenuItem = item },
-                    onMoveUp = {
-                        if (index > 0) {
-                            viewModel.move(index, index - 1)
-                            scope.launch { rowFocus[itemKey].requestFocusWhenAttached(maxFrames = 20) }
-                        }
-                    },
-                    onMoveDown = {
-                        if (index < items.lastIndex) {
-                            viewModel.move(index, index + 1)
-                            scope.launch { rowFocus[itemKey].requestFocusWhenAttached(maxFrames = 20) }
-                        }
-                    },
+                    onMoveUp = { moveRow(index, index - 1) },
+                    onMoveDown = { moveRow(index, index + 1) },
                     onExitReorder = { exitReorder() }
                 )
             }
@@ -324,7 +317,7 @@ private fun PlaylistContent(
             onDismiss = { contextMenuItem = null },
             onPlay = { id, ticks ->
                 contextMenuItem = null
-                onPlay(id, ticks)
+                onPlay(id, ticks, items.indexOfFirst { it.id == item.id }.coerceAtLeast(0))
             },
             onMarkWatched = { played -> viewModel.markWatched(item.id.toString(), played, item.seriesId?.toString()) },
             onToggleFavorite = { fav -> viewModel.markFavorite(item.id.toString(), fav, item.seriesId?.toString()) },
@@ -366,7 +359,7 @@ private fun PlaylistRow(
     leftFocus: FocusRequester,
     reordering: Boolean,
     onFocused: () -> Unit,
-    onPlay: (String, Long?) -> Unit,
+    onPlay: (String, Long?, Int) -> Unit,
     onLongClick: () -> Unit,
     onMoveUp: () -> Unit,
     onMoveDown: () -> Unit,
@@ -380,7 +373,9 @@ private fun PlaylistRow(
     }
 
     Card(
-        onClick = { if (reordering) onExitReorder() else onPlay(item.id.toString(), resumeTicks(item)) },
+        onClick = {
+            if (reordering) onExitReorder() else onPlay(item.id.toString(), resumeTicks(item), index)
+        },
         onLongClick = onLongClick,
         shape = CardDefaults.shape(rowShape),
         colors = CardDefaults.colors(

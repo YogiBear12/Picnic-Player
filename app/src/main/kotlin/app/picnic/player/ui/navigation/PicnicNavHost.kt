@@ -338,8 +338,10 @@ fun PicnicNavHost(
                         PlaylistScreen(
                             playlistId = key.playlistId,
                             playlistName = key.name,
-                            onPlay = { id, ticks ->
-                                navViewModel.push(PlayerKey(id, ticks, queue = PlaylistQueue(key.playlistId)))
+                            onPlay = { id, ticks, position ->
+                                navViewModel.push(
+                                    PlayerKey(id, ticks, queue = PlaylistQueue(key.playlistId, position = position))
+                                )
                             },
                             onShuffle = { id, seed ->
                                 navViewModel.push(PlayerKey(id, queue = PlaylistQueue(key.playlistId, seed)))
