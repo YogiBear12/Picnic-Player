@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
@@ -25,6 +26,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -45,6 +47,7 @@ import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import app.picnic.player.R
+import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.theme.PicnicColors
 import com.mikepenz.aboutlibraries.Libs
 import com.mikepenz.aboutlibraries.entity.Library
@@ -68,6 +71,8 @@ internal fun OpenSourceLicensesScreen(onBack: () -> Unit) {
         }
     }
     var selected by remember { mutableStateOf<Library?>(null) }
+    var lastViewedId by rememberSaveable { mutableStateOf<String?>(null) }
+    val listState = rememberLazyListState()
 
     BackHandler {
         if (selected != null) selected = null else onBack()
@@ -88,7 +93,15 @@ internal fun OpenSourceLicensesScreen(onBack: () -> Unit) {
                 style = MaterialTheme.typography.titleMedium,
                 color = PicnicColors.OnDarkMuted
             )
-            else -> LicenseListPage(libraries = libs, onSelect = { selected = it })
+            else -> LicenseListPage(
+                libraries = libs,
+                listState = listState,
+                restoreId = lastViewedId,
+                onSelect = {
+                    lastViewedId = it.uniqueId
+                    selected = it
+                }
+            )
         }
     }
 }
@@ -96,10 +109,12 @@ internal fun OpenSourceLicensesScreen(onBack: () -> Unit) {
 @Composable
 private fun LicenseListPage(
     libraries: List<Library>,
+    listState: LazyListState,
+    restoreId: String?,
     onSelect: (Library) -> Unit
 ) {
-    val listState = rememberLazyListState()
-    val firstRowFr = remember { FocusRequester() }
+    val restoreIndex = libraries.indexOfFirst { it.uniqueId == restoreId }.coerceAtLeast(0)
+    val restoreRowFr = remember { FocusRequester() }
 
     Column {
         Text(
@@ -115,7 +130,7 @@ private fun LicenseListPage(
             itemsIndexed(libraries, key = { _, lib -> lib.uniqueId }) { index, library ->
                 LicenseListRow(
                     library = library,
-                    rowFocus = if (index == 0) firstRowFr else null,
+                    rowFocus = if (index == restoreIndex) restoreRowFr else null,
                     blockUp = index == 0,
                     blockDown = index == libraries.lastIndex,
                     onActivate = { onSelect(library) }
@@ -124,8 +139,11 @@ private fun LicenseListPage(
         }
     }
 
-    LaunchedEffect(Unit) {
-        runCatching { firstRowFr.requestFocus() }
+    LaunchedEffect(restoreIndex) {
+        if (listState.layoutInfo.visibleItemsInfo.none { it.index == restoreIndex }) {
+            listState.scrollToItem(restoreIndex)
+        }
+        restoreRowFr.requestFocusWhenAttached()
     }
 }
 
