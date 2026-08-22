@@ -8,6 +8,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -36,6 +39,7 @@ fun GenreScreen(
     PublishBackdrop(null)
     BackHandler(onBack = onBack)
     val state by viewModel.state.collectAsStateWithLifecycle()
+    var seedContentFocus by remember { mutableStateOf(true) }
     val title = genreName ?: "Genre"
 
     LaunchedEffect(genreId) {
@@ -57,8 +61,8 @@ fun GenreScreen(
             state = state,
             viewModel = viewModel,
             metrics = browseLayoutMetrics(maxWidth, maxHeight),
-            seedContentFocus = true,
-            onContentFocusSeeded = {},
+            seedContentFocus = seedContentFocus,
+            onContentFocusSeeded = { seedContentFocus = false },
             onItem = onItem,
             onChromeVisibleChange = {},
             offeredFilters = setOf(GridFilterSection.CONTENT_TYPE),
