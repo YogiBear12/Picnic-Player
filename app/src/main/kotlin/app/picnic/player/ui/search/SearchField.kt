@@ -42,11 +42,6 @@ import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 
-/**
- * Search input pill. On TV the field is read-only until Select is pressed — D-pad
- * moves focus straight through it; Select opens the IME, Back closes the IME first
- * and only then bubbles up to the shell's ladder.
- */
 @Composable
 internal fun SearchField(
     query: String,
@@ -59,8 +54,6 @@ internal fun SearchField(
     var imeActive by remember { mutableStateOf(false) }
     var focused by remember { mutableStateOf(false) }
 
-    // Back while typing: dismiss the IME, keep focus on the field. The shell ladder
-    // (focus to tab) only sees Back once the IME is gone.
     BackHandler(enabled = imeActive) {
         imeActive = false
         keyboard?.hide()

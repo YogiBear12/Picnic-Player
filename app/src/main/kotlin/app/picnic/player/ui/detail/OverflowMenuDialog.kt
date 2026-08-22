@@ -55,7 +55,7 @@ fun SeasonContextMenu(
         )
         if (onGoToSeries != null) {
             add(
-                ContextMenuAction("Go to series", Icons.Default.ArrowForward) {
+                ContextMenuAction("Go to show", Icons.Default.ArrowForward) {
                     onGoToSeries()
                     onDismiss()
                 }

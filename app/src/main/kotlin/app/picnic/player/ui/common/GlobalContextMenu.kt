@@ -89,7 +89,7 @@ fun GlobalContextMenuDialog(
 
         if (item.type == BaseItemKind.EPISODE && item.seriesId != null && onGoToSeries != null) {
             add(
-                ContextMenuAction("Go to series", Icons.Default.ArrowForward) {
+                ContextMenuAction("Go to show", Icons.Default.ArrowForward) {
                     onGoToSeries(item.seriesId.toString())
                     onDismiss()
                 }

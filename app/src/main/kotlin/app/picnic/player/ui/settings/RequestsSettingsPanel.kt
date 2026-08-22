@@ -320,7 +320,7 @@ internal fun RequestsSettingsPanel(
 internal fun requestRowMetaLine(row: SeerrRequestDisplay): String {
     val parts = mutableListOf(requestRowTypeLabel(row.request))
     row.yearLabel?.let { parts += it }
-    if (requestRowTypeLabel(row.request) == "SERIES") {
+    if (resolvedRequestMediaType(row.request) == SeerrMediaType.TV) {
         val seasonNumbers = row.request.seasons.mapNotNull { it.seasonNumber }
         formatRequestedSeasonsLabel(seasonNumbers)?.let { parts += it }
     }
@@ -329,7 +329,7 @@ internal fun requestRowMetaLine(row: SeerrRequestDisplay): String {
 
 internal fun requestRowTypeLabel(request: SeerrMediaRequest): String = when (resolvedRequestMediaType(request)) {
     SeerrMediaType.MOVIE -> "MOVIE"
-    SeerrMediaType.TV -> "SERIES"
+    SeerrMediaType.TV -> "SHOW"
     null -> "MEDIA"
 }
 
@@ -352,7 +352,7 @@ internal fun requestContextMenuActions(
 ): List<RequestMenuEntry> = buildList {
     val goToLabel = when (resolvedRequestMediaType(request)) {
         SeerrMediaType.MOVIE -> "Go to movie"
-        SeerrMediaType.TV -> "Go to series"
+        SeerrMediaType.TV -> "Go to show"
         null -> "Go to title"
     }
     add(RequestMenuEntry(RequestMenuAction.GO_TO, goToLabel))

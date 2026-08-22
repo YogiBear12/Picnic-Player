@@ -36,7 +36,7 @@ class RequestRowMetaTest {
             yearLabel = "2022",
             seasons = listOf(1, 2, 3, 4, 5, 7, 8)
         )
-        assertEquals("SERIES • 2022 • Seasons 1–5, 7–8", requestRowMetaLine(row))
+        assertEquals("SHOW • 2022 • Seasons 1–5, 7–8", requestRowMetaLine(row))
     }
 
     @Test
@@ -46,7 +46,7 @@ class RequestRowMetaTest {
             yearLabel = "2020",
             seasons = listOf(1)
         )
-        assertEquals("SERIES • 2020 • Season 1", requestRowMetaLine(row))
+        assertEquals("SHOW • 2020 • Season 1", requestRowMetaLine(row))
     }
 
     @Test
@@ -56,7 +56,7 @@ class RequestRowMetaTest {
             yearLabel = "2020",
             seasons = emptyList()
         )
-        assertEquals("SERIES • 2020", requestRowMetaLine(row))
+        assertEquals("SHOW • 2020", requestRowMetaLine(row))
     }
 
     @Test
@@ -66,7 +66,7 @@ class RequestRowMetaTest {
             yearLabel = "2021",
             seasons = listOf(0)
         )
-        assertEquals("SERIES • 2021 • Specials", requestRowMetaLine(row))
+        assertEquals("SHOW • 2021 • Specials", requestRowMetaLine(row))
     }
 
     @Test
@@ -76,13 +76,13 @@ class RequestRowMetaTest {
             yearLabel = "2021",
             seasons = listOf(0, 1, 2)
         )
-        assertEquals("SERIES • 2021 • Specials, Seasons 1–2", requestRowMetaLine(row))
+        assertEquals("SHOW • 2021 • Specials, Seasons 1–2", requestRowMetaLine(row))
     }
 
     @Test
     fun requestRowMetaLine_tv_typeUntilHydrate() {
         val row = displayRow(mediaType = "tv")
-        assertEquals("SERIES", requestRowMetaLine(row))
+        assertEquals("SHOW", requestRowMetaLine(row))
     }
 
     @Test
@@ -97,7 +97,7 @@ class RequestRowMetaTest {
     fun requestContextMenuActions_seriesIncludesCancelWhenAllowed() {
         assertEquals(
             listOf(
-                RequestMenuEntry(RequestMenuAction.GO_TO, "Go to series"),
+                RequestMenuEntry(RequestMenuAction.GO_TO, "Go to show"),
                 RequestMenuEntry(RequestMenuAction.CANCEL, "Cancel request")
             ),
             requestContextMenuActions(displayRow(mediaType = "tv").request, canCancel = true)

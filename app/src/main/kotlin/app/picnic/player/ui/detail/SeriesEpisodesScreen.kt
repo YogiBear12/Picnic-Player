@@ -363,7 +363,7 @@ private fun SeriesHeader(seriesItem: BaseItemDto) {
         )
     } else {
         Text(
-            text = seriesItem.name ?: "Series",
+            text = seriesItem.name ?: "Show",
             style = MaterialTheme.typography.headlineSmall,
             color = Color.White,
             modifier = Modifier.fillMaxWidth(),
