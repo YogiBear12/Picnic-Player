@@ -10,10 +10,16 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.focus.FocusRequester
-import app.picnic.player.ui.common.requestFocusWhenAttached
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
+
+private const val FocusAttempts = 15
+private const val FocusSettleMs = 120L
 
 @Stable
 class EpisodeFocus(
@@ -36,13 +42,8 @@ class EpisodeFocus(
     }
 
     fun focusTarget(count: Int) {
-        scope.launch {
-            if (count <= 0) return@launch
-            val index = targetIndex.coerceIn(0, count - 1)
-            targetIndex = index
-            listState.scrollToItem(index)
-            requesterFor(index).requestFocusWhenAttached(maxFrames = 20)
-        }
+        if (count <= 0) return
+        scope.launch { focusWhenLaidOut(targetIndex.coerceIn(0, count - 1)) }
     }
 
     fun rightConsumed(count: Int): Boolean {
@@ -53,10 +54,19 @@ class EpisodeFocus(
         return true
     }
 
-    suspend fun restoreTo(index: Int) {
+    suspend fun focusWhenLaidOut(index: Int): Boolean {
         targetIndex = index
         listState.scrollToItem(index)
-        requesterFor(index).requestFocusWhenAttached(maxFrames = 20)
+        repeat(FocusAttempts) {
+            if (listState.layoutInfo.visibleItemsInfo.any { it.index == index }) {
+                runCatching { requesterFor(index).requestFocus() }
+                val held = withTimeoutOrNull(FocusSettleMs) { snapshotFlow { hasFocus }.first { it } } == true
+                if (held) return true
+            } else {
+                delay(FocusSettleMs)
+            }
+        }
+        return hasFocus
     }
 
     suspend fun scrollTo(index: Int) {

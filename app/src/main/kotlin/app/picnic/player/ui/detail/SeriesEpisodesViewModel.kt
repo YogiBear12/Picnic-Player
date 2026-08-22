@@ -82,6 +82,9 @@ class SeriesEpisodesViewModel @Inject constructor(
     var seasonsError by mutableStateOf<Throwable?>(null)
         private set
 
+    var seasonsLoading by mutableStateOf(false)
+        private set
+
     private var currentSeriesId: String? = null
 
     private val _selectedSeasonId = MutableStateFlow<String?>(null)
@@ -164,8 +167,8 @@ class SeriesEpisodesViewModel @Inject constructor(
                 .onFailure { Log.w(TAG, "Series item load failed (series=$seriesId)", it) }
         }
         viewModelScope.launch {
+            seasonsLoading = true
             try {
-                seasonsError = null
                 val fastResponse = withContext(ioDispatcher) {
                     val api = jellyfin.api(currentSession.server.baseUrl, currentSession.accessToken)
                     api.tvShowsApi.getSeasons(
@@ -183,9 +186,12 @@ class SeriesEpisodesViewModel @Inject constructor(
                 }
 
                 seasons = mergedSeasons.sortedWith(compareBy({ it.indexNumber == 0 }, { it.indexNumber }))
+                seasonsError = null
             } catch (e: Exception) {
                 Log.e(TAG, "Season list load failed (series=$seriesId)", e)
                 seasonsError = e
+            } finally {
+                seasonsLoading = false
             }
         }
     }

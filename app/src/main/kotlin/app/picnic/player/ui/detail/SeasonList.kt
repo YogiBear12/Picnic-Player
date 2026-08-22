@@ -1,11 +1,13 @@
+@file:OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
+
 package app.picnic.player.ui.detail
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.basicMarquee
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.gestures.BringIntoViewSpec
 import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -34,24 +36,20 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.tv.material3.Button
 import androidx.tv.material3.ListItem
 import androidx.tv.material3.ListItemDefaults
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
-import app.picnic.player.ui.theme.PicnicColors
 import org.jellyfin.sdk.model.api.BaseItemDto
 
 @Composable
 fun ColumnScope.SeasonList(
     seasons: List<BaseItemDto>,
-    seasonsError: Throwable?,
     selectedSeasonId: String?,
     rail: SeasonRail,
     rightTarget: () -> FocusRequester,
     onRightPressed: () -> Boolean,
     onSelect: (String) -> Unit,
-    onRetry: () -> Unit,
     onLongPress: (BaseItemDto) -> Unit
 ) {
     val seasonBringIntoViewSpec = remember {
@@ -64,33 +62,17 @@ fun ColumnScope.SeasonList(
         }
     }
 
-    val seasonsError = seasonsError
-    if (seasons.isEmpty() && seasonsError != null) {
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-                .padding(top = 24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Text("Couldn't load seasons", color = PicnicColors.OnDark, textAlign = TextAlign.Center)
-            Text(
-                seasonsError.message ?: seasonsError.javaClass.simpleName,
-                style = MaterialTheme.typography.bodySmall,
-                color = PicnicColors.OnDarkMuted,
-                textAlign = TextAlign.Center,
-                maxLines = 4
-            )
-            Button(onClick = onRetry) { Text("Retry") }
-        }
-    }
-
     @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
     CompositionLocalProvider(LocalBringIntoViewSpec provides seasonBringIntoViewSpec) {
+        val selectedIndex = seasons.indexOfFirst { it.id.toString() == selectedSeasonId }.coerceAtLeast(0)
         LazyColumn(
             state = rail.listState,
-            modifier = Modifier.weight(1f),
+            modifier = Modifier
+                .weight(1f)
+                .focusGroup()
+                .focusProperties {
+                    enter = { rail.requesterFor(selectedIndex) ?: FocusRequester.Default }
+                },
             contentPadding = PaddingValues(top = 16.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {

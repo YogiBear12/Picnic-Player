@@ -53,7 +53,6 @@ import androidx.paging.compose.LazyPagingItems
 import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.compose.itemContentType
 import androidx.tv.material3.Border
-import androidx.tv.material3.Button
 import androidx.tv.material3.Card
 import androidx.tv.material3.CardDefaults
 import androidx.tv.material3.ExperimentalTvMaterial3Api
@@ -72,6 +71,7 @@ import app.picnic.player.ui.browse.ShortDateFormat
 import app.picnic.player.ui.browse.minutesLeft
 import app.picnic.player.ui.browse.runtimeMinutes
 import app.picnic.player.ui.common.ArtworkImage
+import app.picnic.player.ui.common.LoadFailedState
 import app.picnic.player.ui.common.LocalImageUrls
 import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.theme.PicnicColors
@@ -109,7 +109,6 @@ fun SeriesEpisodesScreen(
         ?: viewModel.seriesItem?.let { images.primary(it, fillWidth = 240) }
     PublishBackdrop(BackdropSpec(backdropUrl = null, ambientUrl = paletteUrl))
     var selectedSeasonId by rememberSaveable { mutableStateOf(initialSeasonId) }
-    var pendingFocusEpisodeId by rememberSaveable { mutableStateOf(initialFocusEpisodeId) }
 
     LaunchedEffect(viewModel.seasons) {
         if (selectedSeasonId == null && viewModel.seasons.isNotEmpty()) {
@@ -133,11 +132,11 @@ fun SeriesEpisodesScreen(
     val selectedSeasonFr = seasonRail.requesterFor(selectedSeasonIndex)
 
     val episodeFocus = rememberEpisodeFocus()
+    val listFocus = rememberEpisodeListFocus(episodeFocus, initialFocusEpisodeId)
     val episodes = viewModel.episodes.collectAsLazyPagingItems()
 
     var contextMenuEpisode by remember { mutableStateOf<BaseItemDto?>(null) }
     var contextMenuSeason by remember { mutableStateOf<BaseItemDto?>(null) }
-    var lastScrolledSeasonId by rememberSaveable { mutableStateOf<String?>(null) }
 
     val initialLoadComplete = rememberInitialLoadComplete(
         seasons = viewModel.seasons,
@@ -146,37 +145,49 @@ fun SeriesEpisodesScreen(
         episodes = episodes
     )
 
-    var initialFocusRequested by rememberSaveable { mutableStateOf(false) }
+    val seasonsFailed = viewModel.seasons.isEmpty() && viewModel.seasonsError != null
+
+    val episodeRetryFocus = remember { FocusRequester() }
+    var episodesFailure by remember { mutableStateOf<String?>(null) }
+    val episodesRefresh = episodes.loadState.refresh
+    LaunchedEffect(episodesRefresh) {
+        when (episodesRefresh) {
+            is LoadState.Error -> {
+                val listHadFocus = episodeFocus.hasFocus
+                episodesFailure = episodesRefresh.error.message
+                    ?: episodesRefresh.error.javaClass.simpleName
+                if (listHadFocus) episodeRetryFocus.requestFocusWhenAttached()
+            }
+            is LoadState.NotLoading -> episodesFailure = null
+            is LoadState.Loading -> Unit
+        }
+    }
+
     LaunchedEffect(Unit) {
-        snapshotFlow { Triple(initialLoadComplete.value, selectedSeasonId, episodes.itemCount) }
-            .collect { (complete, _, count) ->
-                if (!complete || count == 0) return@collect
-                val returningIndex = pendingFocusEpisodeId
+        snapshotFlow {
+            EpisodeListState(
+                loadComplete = initialLoadComplete.value,
+                seasonId = selectedSeasonId,
+                itemCount = episodes.itemCount,
+                refreshSettled = episodes.loadState.refresh is LoadState.NotLoading,
+                listShowing = episodesFailure == null && !seasonsFailed
+            )
+        }
+            .collect { state ->
+                if (!state.loadComplete || state.itemCount == 0 || !state.refreshSettled) return@collect
+                if (!state.listShowing) return@collect
+                val restoreIndex = listFocus.restoreEpisodeId
                     ?.let { id -> episodes.itemSnapshotList.indexOfFirst { it?.id?.toString() == id } }
                     ?.takeIf { it >= 0 }
-                if (returningIndex != null) {
-                    lastScrolledSeasonId = selectedSeasonId
-                    episodeFocus.restoreTo(returningIndex)
-                    pendingFocusEpisodeId = null
-                    initialFocusRequested = true
-                    return@collect
-                }
-                if (selectedSeasonId != lastScrolledSeasonId) {
-                    val target = if (initialFocusRequested) {
-                        0
-                    } else {
+                listFocus.settle(
+                    seasonId = state.seasonId,
+                    restoreIndex = restoreIndex,
+                    firstUnwatchedIndex = {
                         episodes.itemSnapshotList.indexOfFirst { ep ->
                             ep != null && ((ep.userData?.playbackPositionTicks ?: 0L) > 0L || ep.userData?.played != true)
                         }.coerceAtLeast(0)
                     }
-                    episodeFocus.scrollTo(target)
-                    lastScrolledSeasonId = selectedSeasonId
-                }
-
-                if (!initialFocusRequested) {
-                    episodeFocus.targetRequester.requestFocusWhenAttached(maxFrames = 20)
-                    initialFocusRequested = true
-                }
+                )
             }
     }
 
@@ -188,83 +199,98 @@ fun SeriesEpisodesScreen(
         }
     }
 
+    LaunchedEffect(seasonsFailed) {
+        if (!seasonsFailed && episodesFailure != null) episodes.retry()
+    }
+
     Box(Modifier.fillMaxSize()) {
-        Row(Modifier.fillMaxSize().graphicsLayer { alpha = if (initialLoadComplete.value) 1f else 0f }) {
-            Column(
-                modifier = Modifier
-                    .width(300.dp)
-                    .fillMaxHeight()
-                    .padding(start = 60.dp, end = 16.dp)
-            ) {
-                Spacer(Modifier.height(76.dp))
-                val seriesItem = viewModel.seriesItem
-                if (seriesItem != null) SeriesHeader(seriesItem)
-
-                SeasonList(
-                    seasons = viewModel.seasons,
-                    seasonsError = viewModel.seasonsError,
-                    selectedSeasonId = selectedSeasonId,
-                    rail = seasonRail,
-                    rightTarget = { episodeFocus.targetRequester },
-                    onRightPressed = { episodeFocus.rightConsumed(episodes.itemCount) },
-                    onSelect = { id ->
-                        selectedSeasonId = id
-                    },
-                    onRetry = { viewModel.loadSeasons(seriesId) },
-                    onLongPress = { contextMenuSeason = it }
-                )
-            }
-
-            Box(Modifier.fillMaxSize()) {
-                val refreshError = episodes.loadState.refresh as? LoadState.Error
-                if (refreshError != null) {
-                    Column(
-                        modifier = Modifier.align(Alignment.Center).padding(horizontal = 40.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Text("Couldn't load episodes", color = PicnicColors.OnDark)
-                        Text(
-                            refreshError.error.message ?: refreshError.error.javaClass.simpleName,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = PicnicColors.OnDarkMuted,
-                            maxLines = 3
-                        )
-                        Button(onClick = { episodes.retry() }) { Text("Retry") }
-                    }
-                }
-                LazyColumn(
-                    state = episodeFocus.listState,
+        if (seasonsFailed) {
+            val retryFocus = remember { FocusRequester() }
+            LaunchedEffect(Unit) { retryFocus.requestFocusWhenAttached() }
+            LoadFailedState(
+                message = "Could not load seasons",
+                retryFocus = retryFocus,
+                onRetry = {
+                    listFocus.onRetryPressed()
+                    viewModel.loadSeasons(seriesId)
+                },
+                detail = viewModel.seasonsError?.let { it.message ?: it.javaClass.simpleName },
+                retrying = viewModel.seasonsLoading
+            )
+        } else {
+            Row(Modifier.fillMaxSize().graphicsLayer { alpha = if (initialLoadComplete.value) 1f else 0f }) {
+                Column(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .onFocusChanged { episodeFocus.hasFocus = it.hasFocus },
-                    contentPadding = PaddingValues(start = 44.dp, end = 40.dp, top = 24.dp, bottom = 24.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                        .width(300.dp)
+                        .fillMaxHeight()
+                        .padding(start = 60.dp, end = 16.dp)
                 ) {
-                    items(
-                        count = episodes.itemCount,
-                        contentType = episodes.itemContentType { "episode" }
-                    ) { index ->
-                        val episode = episodes[index]
-                        if (episode != null) {
-                            EpisodeItem(
-                                episode = episode,
-                                leftFocus = selectedSeasonFr,
-                                enterFr = episodeFocus.requesterFor(index),
-                                onFocused = { episodeFocus.onEpisodeFocused(index) },
-                                onPlay = { id, resumeTicks ->
-                                    pendingFocusEpisodeId = id
-                                    onPlay(id, resumeTicks)
-                                },
-                                onLongClick = { contextMenuEpisode = episode }
-                            )
+                    Spacer(Modifier.height(76.dp))
+                    val seriesItem = viewModel.seriesItem
+                    if (seriesItem != null) SeriesHeader(seriesItem)
+
+                    SeasonList(
+                        seasons = viewModel.seasons,
+                        selectedSeasonId = selectedSeasonId,
+                        rail = seasonRail,
+                        rightTarget = {
+                            if (episodesFailure != null) episodeRetryFocus else episodeFocus.targetRequester
+                        },
+                        onRightPressed = {
+                            episodesFailure == null && episodeFocus.rightConsumed(episodes.itemCount)
+                        },
+                        onSelect = { id -> selectedSeasonId = id },
+                        onLongPress = { contextMenuSeason = it }
+                    )
+                }
+
+                Box(Modifier.fillMaxSize()) {
+                    if (episodesFailure != null) {
+                        LoadFailedState(
+                            message = "Could not load episodes",
+                            retryFocus = episodeRetryFocus,
+                            onRetry = {
+                                listFocus.onRetryPressed()
+                                episodes.retry()
+                            },
+                            detail = episodesFailure,
+                            retrying = episodes.loadState.refresh is LoadState.Loading
+                        )
+                    } else {
+                        LazyColumn(
+                            state = episodeFocus.listState,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .onFocusChanged { episodeFocus.hasFocus = it.hasFocus },
+                            contentPadding = PaddingValues(start = 44.dp, end = 40.dp, top = 24.dp, bottom = 24.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            items(
+                                count = episodes.itemCount,
+                                contentType = episodes.itemContentType { "episode" }
+                            ) { index ->
+                                val episode = episodes[index]
+                                if (episode != null) {
+                                    EpisodeItem(
+                                        episode = episode,
+                                        leftFocus = selectedSeasonFr,
+                                        enterFr = episodeFocus.requesterFor(index),
+                                        onFocused = { episodeFocus.onEpisodeFocused(index) },
+                                        onPlay = { id, resumeTicks ->
+                                            listFocus.onEpisodeOpened(id)
+                                            onPlay(id, resumeTicks)
+                                        },
+                                        onLongClick = { contextMenuEpisode = episode }
+                                    )
+                                }
+                            }
                         }
                     }
                 }
             }
         }
 
-        if (!initialLoadComplete.value) {
+        if (!initialLoadComplete.value && !seasonsFailed) {
             CircularProgressIndicator(
                 Modifier.align(Alignment.Center),
                 color = PicnicColors.Accent
@@ -277,7 +303,7 @@ fun SeriesEpisodesScreen(
                 onDismiss = { contextMenuEpisode = null },
                 onPlay = { ticks ->
                     contextMenuEpisode = null
-                    pendingFocusEpisodeId = ep.id.toString()
+                    listFocus.onEpisodeOpened(ep.id.toString())
                     onPlay(ep.id.toString(), ticks)
                 },
                 onMarkWatched = { played ->
@@ -290,7 +316,7 @@ fun SeriesEpisodesScreen(
                 },
                 onGoToSeries = onGoToSeries?.let { go ->
                     { targetSeriesId ->
-                        pendingFocusEpisodeId = ep.id.toString()
+                        listFocus.onEpisodeOpened(ep.id.toString())
                         go(targetSeriesId)
                     }
                 }
@@ -316,6 +342,14 @@ fun SeriesEpisodesScreen(
         }
     }
 }
+
+private data class EpisodeListState(
+    val loadComplete: Boolean,
+    val seasonId: String?,
+    val itemCount: Int,
+    val refreshSettled: Boolean,
+    val listShowing: Boolean
+)
 
 @Composable
 private fun rememberInitialLoadComplete(
