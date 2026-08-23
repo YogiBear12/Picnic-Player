@@ -116,7 +116,9 @@ class SearchViewModel @Inject constructor(
                 val (rows, discover) = coroutineScope {
                     val movies = async { search(query, BaseItemKind.MOVIE) }
                     val shows = async { search(query, BaseItemKind.SERIES) }
+                    val collections = async { search(query, BaseItemKind.BOX_SET) }
                     val episodes = async { search(query, BaseItemKind.EPISODE) }
+                    val people = async { searchPeople(query) }
                     val seerr = async {
                         if (_state.value.seerrLinked) {
                             runCatching { seerrRepository.search(query) }.getOrDefault(emptyList())
@@ -127,7 +129,9 @@ class SearchViewModel @Inject constructor(
                     val libraryRows = listOf(
                         ResultRow(BaseItemKind.MOVIE, "Movies", movies.await()),
                         ResultRow(BaseItemKind.SERIES, "Shows", shows.await()),
-                        ResultRow(BaseItemKind.EPISODE, "Episodes", episodes.await())
+                        ResultRow(BaseItemKind.EPISODE, "Episodes", episodes.await()),
+                        ResultRow(BaseItemKind.BOX_SET, "Collections", collections.await()),
+                        ResultRow(BaseItemKind.PERSON, "People", people.await())
                     ).filter { it.items.isNotEmpty() }
                     val seerrItems = seerr.await()
                     val discoverRows = if (seerrItems.isEmpty()) {
@@ -172,6 +176,10 @@ class SearchViewModel @Inject constructor(
     }
 
     private suspend fun search(query: String, kind: BaseItemKind): List<BaseItemDto> = runCatching { mediaRepository.search(query, kind) }
+        .getOrDefault(emptyList())
+        .sortedWith(compareBy({ relevance(it, query) }, { it.sortName ?: it.name ?: "" }))
+
+    private suspend fun searchPeople(query: String): List<BaseItemDto> = runCatching { mediaRepository.searchPersons(query) }
         .getOrDefault(emptyList())
         .sortedWith(compareBy({ relevance(it, query) }, { it.sortName ?: it.name ?: "" }))
 

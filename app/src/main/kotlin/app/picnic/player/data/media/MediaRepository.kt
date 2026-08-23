@@ -14,6 +14,7 @@ import org.jellyfin.sdk.api.client.extensions.genresApi
 import org.jellyfin.sdk.api.client.extensions.itemsApi
 import org.jellyfin.sdk.api.client.extensions.libraryApi
 import org.jellyfin.sdk.api.client.extensions.localizationApi
+import org.jellyfin.sdk.api.client.extensions.personsApi
 import org.jellyfin.sdk.api.client.extensions.studiosApi
 import org.jellyfin.sdk.api.client.extensions.suggestionsApi
 import org.jellyfin.sdk.api.client.extensions.tvShowsApi
@@ -494,6 +495,18 @@ class MediaRepository @Inject constructor(
             recursive = true,
             limit = limit,
             fields = GRID_FIELDS,
+            enableImageTypes = IMAGE_TYPES
+        ).content.items.orEmpty()
+    }
+
+    suspend fun searchPersons(
+        query: String,
+        limit: Int = SEARCH_ROW_LIMIT
+    ): List<BaseItemDto> = onIo {
+        api().personsApi.getPersons(
+            userId = session().userUuid,
+            searchTerm = query,
+            limit = limit,
             enableImageTypes = IMAGE_TYPES
         ).content.items.orEmpty()
     }

@@ -61,6 +61,7 @@ fun BrowseShellHost(
     onLibraryGenre: (BaseItemDto, BrowseDest.Library) -> Unit,
     onCollection: (BaseItemDto) -> Unit,
     onPlaylist: (BaseItemDto) -> Unit,
+    onPerson: (BaseItemDto) -> Unit,
     onSessionExpired: (String) -> Unit,
     onServerUnreachable: (String, String) -> Unit,
     onSettings: () -> Unit,
@@ -281,7 +282,9 @@ fun BrowseShellHost(
                                 onContentFocusSeeded = onPaneSeeded,
                                 onItem = onItem,
                                 onSeerrItem = onSeerrItem,
-                                onGenre = onGenre
+                                onGenre = onGenre,
+                                onCollection = onCollection,
+                                onPerson = onPerson
                             )
                             BrowseDest.Home -> HomeBrowsePane(
                                 state = homeState,

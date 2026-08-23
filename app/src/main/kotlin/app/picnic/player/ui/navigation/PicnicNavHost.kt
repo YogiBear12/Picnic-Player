@@ -236,6 +236,9 @@ fun PicnicNavHost(
                                     PlaylistKey(playlist.id.toString(), playlist.name)
                                 )
                             },
+                            onPerson = { person ->
+                                navViewModel.push(PersonKey(jellyfinPersonId = person.id.toString()))
+                            },
                             onSessionExpired = { serverId -> goProfilePicker(serverId) },
                             onServerUnreachable = { serverId, msg -> goServerPicker(serverId, msg) },
                             onSettings = { navViewModel.push(SettingsKey) },

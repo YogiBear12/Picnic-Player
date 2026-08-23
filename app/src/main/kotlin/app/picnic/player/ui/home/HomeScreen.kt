@@ -7,7 +7,6 @@ import app.picnic.player.ui.browse.BrowseDest
 import app.picnic.player.ui.browse.BrowseShellHost
 import org.jellyfin.sdk.model.api.BaseItemDto
 
-/** Browse shell entry — home tab lives inside [BrowseShellHost]. */
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 fun HomeScreen(
@@ -17,6 +16,7 @@ fun HomeScreen(
     onLibraryGenre: (BaseItemDto, BrowseDest.Library) -> Unit,
     onCollection: (BaseItemDto) -> Unit,
     onPlaylist: (BaseItemDto) -> Unit,
+    onPerson: (BaseItemDto) -> Unit,
     onSessionExpired: (String) -> Unit,
     onServerUnreachable: (String, String) -> Unit,
     onSettings: () -> Unit,
@@ -29,6 +29,7 @@ fun HomeScreen(
     onLibraryGenre = onLibraryGenre,
     onCollection = onCollection,
     onPlaylist = onPlaylist,
+    onPerson = onPerson,
     onSessionExpired = onSessionExpired,
     onServerUnreachable = onServerUnreachable,
     onSettings = onSettings,

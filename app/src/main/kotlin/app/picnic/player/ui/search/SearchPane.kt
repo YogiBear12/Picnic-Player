@@ -30,7 +30,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
@@ -41,6 +43,7 @@ import app.picnic.player.ui.ambient.LocalAmbientPrewarmer
 import app.picnic.player.ui.browse.BrowseLayoutMetrics
 import app.picnic.player.ui.browse.landscapeCardStyle
 import app.picnic.player.ui.browse.posterCardStyle
+import app.picnic.player.ui.common.CircularPersonCard
 import app.picnic.player.ui.common.LocalContextMenuHandler
 import app.picnic.player.ui.common.LocalImageUrls
 import app.picnic.player.ui.genre.GenreBrowseGrid
@@ -59,7 +62,9 @@ internal fun SearchPane(
     onContentFocusSeeded: () -> Unit,
     onItem: (BaseItemDto, String?, String?) -> Unit,
     onSeerrItem: (app.picnic.player.data.seerr.SeerrCatalogItem, String?, String?) -> Unit,
-    onGenre: (BaseItemDto) -> Unit
+    onGenre: (BaseItemDto) -> Unit,
+    onCollection: (BaseItemDto) -> Unit,
+    onPerson: (BaseItemDto) -> Unit
 ) {
     LaunchedEffect(Unit) { viewModel.ensureLoaded() }
 
@@ -152,7 +157,9 @@ internal fun SearchPane(
                 onResultFocused = viewModel::onResultFocused,
                 onDiscoverFocused = viewModel::onDiscoverFocused,
                 onItem = onItem,
-                onSeerrItem = onSeerrItem
+                onSeerrItem = onSeerrItem,
+                onCollection = onCollection,
+                onPerson = onPerson
             )
         }
     }
@@ -170,7 +177,9 @@ private fun ResultRowsSection(
     onResultFocused: (Int, BaseItemDto) -> Unit,
     onDiscoverFocused: (Int, app.picnic.player.data.seerr.SeerrCatalogItem) -> Unit,
     onItem: (BaseItemDto, String?, String?) -> Unit,
-    onSeerrItem: (app.picnic.player.data.seerr.SeerrCatalogItem, String?, String?) -> Unit
+    onSeerrItem: (app.picnic.player.data.seerr.SeerrCatalogItem, String?, String?) -> Unit,
+    onCollection: (BaseItemDto) -> Unit,
+    onPerson: (BaseItemDto) -> Unit
 ) {
     if (state.session == null) return
     val posterStyle = posterCardStyle(sy = metrics.sy)
@@ -227,19 +236,38 @@ private fun ResultRowsSection(
                         key = { _, item -> item.id },
                         contentType = { _, _ -> "SearchResultCard" }
                     ) { index, item ->
-                        SearchResultCard(
-                            item = item,
-                            kind = row.kind,
-                            style = cardStyle,
-                            focusRequester = if (index == focusIndex) rowCardFocus[rowIndex] else null,
-                            onClick = {
-                                val nav = images.navImages(item)
-                                ambientPrewarmer.warm(nav.ambUrl)
-                                onItem(item, nav.bgUrl, nav.ambUrl)
-                            },
-                            onLongClick = { contextMenu.show(item) },
-                            onFocused = { onResultFocused(rowIndex, item) }
-                        )
+                        val requester = if (index == focusIndex) rowCardFocus[rowIndex] else null
+                        if (row.kind == org.jellyfin.sdk.model.api.BaseItemKind.PERSON) {
+                            CircularPersonCard(
+                                imageUrl = images.primary(item),
+                                name = item.name,
+                                subtitle = null,
+                                imageSize = metrics.sy(96f),
+                                onClick = { onPerson(item) },
+                                modifier = Modifier
+                                    .then(requester?.let { Modifier.focusRequester(it) } ?: Modifier)
+                                    .onFocusChanged { if (it.isFocused) onResultFocused(rowIndex, item) }
+                            )
+                        } else {
+                            SearchResultCard(
+                                item = item,
+                                kind = row.kind,
+                                style = cardStyle,
+                                focusRequester = requester,
+                                onClick = {
+                                    when (row.kind) {
+                                        org.jellyfin.sdk.model.api.BaseItemKind.BOX_SET -> onCollection(item)
+                                        else -> {
+                                            val nav = images.navImages(item)
+                                            ambientPrewarmer.warm(nav.ambUrl)
+                                            onItem(item, nav.bgUrl, nav.ambUrl)
+                                        }
+                                    }
+                                },
+                                onLongClick = { contextMenu.show(item) },
+                                onFocused = { onResultFocused(rowIndex, item) }
+                            )
+                        }
                     }
                 }
             }
