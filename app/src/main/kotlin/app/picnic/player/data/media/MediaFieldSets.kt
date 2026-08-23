@@ -6,7 +6,8 @@ import org.jellyfin.sdk.model.api.ItemFields
 internal val BROWSE_FIELDS = listOf(
     ItemFields.OVERVIEW,
     ItemFields.GENRES,
-    ItemFields.PRIMARY_IMAGE_ASPECT_RATIO
+    ItemFields.PRIMARY_IMAGE_ASPECT_RATIO,
+    ItemFields.MEDIA_SOURCE_COUNT
 )
 internal val CONTINUE_FIELDS = BROWSE_FIELDS
 internal val LATEST_FIELDS = BROWSE_FIELDS + ItemFields.CHILD_COUNT

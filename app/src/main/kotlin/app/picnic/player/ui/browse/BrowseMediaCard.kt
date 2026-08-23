@@ -190,16 +190,7 @@ internal fun BrowsePosterCard(
                 }
             }
 
-            val unwatchedCount = item.userData?.unplayedItemCount ?: 0
-            val played = item.userData?.played ?: false
-            val remaining = minutesLeft(item)
-            if (remaining != null && progress > 0f) {
-                CardTimeLeftBadge(remaining)
-            } else if (unwatchedCount > 0) {
-                CardCountBadge(unwatchedCount)
-            } else if (played && progress < 0.01f) {
-                CardWatchedBadge()
-            }
+            CardBadge(item, progress)
         }
     }
 }
@@ -293,6 +284,20 @@ internal fun BoxScope.CardTimeLeftBadge(minutes: Int) {
             style = MaterialTheme.typography.labelSmall,
             color = Color.White
         )
+    }
+}
+
+@Composable
+private fun BoxScope.CardBadge(item: BaseItemDto, progress: Float) {
+    val unwatchedCount = item.userData?.unplayedItemCount ?: 0
+    val versionCount = item.mediaSourceCount ?: 0
+    val played = item.userData?.played ?: false
+    val remaining = minutesLeft(item)
+    when {
+        remaining != null && progress > 0f -> CardTimeLeftBadge(remaining)
+        unwatchedCount > 0 -> CardCountBadge(unwatchedCount)
+        played && progress < 0.01f -> CardWatchedBadge()
+        versionCount > 1 -> CardCountBadge(versionCount)
     }
 }
 
