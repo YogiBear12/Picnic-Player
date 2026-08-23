@@ -34,7 +34,7 @@ import org.jellyfin.sdk.model.api.request.GetSimilarItemsRequest
 
 internal const val MEDIA_GRID_PAGE_SIZE = 100
 
-const val LIBRARY_LOG_TAG = "PicnicLibrary"
+private const val LIBRARY_LOG_TAG = "PicnicLibrary"
 
 @Singleton
 class MediaRepository @Inject constructor(
@@ -341,7 +341,6 @@ class MediaRepository @Inject constructor(
         sort: GridSortSpec,
         startIndex: Int,
         limit: Int = MEDIA_GRID_PAGE_SIZE,
-        parentIdOverride: UUID? = null,
         nameLessThan: String? = null
     ): MediaGridPage = onIo {
         val direction = if (sort.ascending) SortOrder.ASCENDING else SortOrder.DESCENDING
@@ -355,7 +354,7 @@ class MediaRepository @Inject constructor(
             userId = session().userUuid,
             includeItemTypes = filter.contentType.itemKinds(kinds),
             recursive = filter.collectionId == null,
-            parentId = parentIdOverride ?: filter.collectionId ?: filter.libraryId,
+            parentId = filter.collectionId ?: filter.libraryId,
             startIndex = startIndex,
             limit = limit,
             nameLessThan = nameLessThan,
@@ -394,7 +393,7 @@ class MediaRepository @Inject constructor(
         if (BuildConfig.DEBUG) {
             Log.d(
                 LIBRARY_LOG_TAG,
-                "grid parent=${parentIdOverride ?: filter.collectionId ?: filter.libraryId} " +
+                "grid parent=${filter.collectionId ?: filter.libraryId} " +
                     "recursive=${filter.collectionId == null} kinds=${filter.contentType.itemKinds(kinds)} " +
                     "sort=${sortBy.firstOrNull()} start=$startIndex limit=$limit " +
                     "got=${response.items.orEmpty().size} total=${response.totalRecordCount}"
