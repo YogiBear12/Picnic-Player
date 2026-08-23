@@ -186,7 +186,7 @@ class PlayerChrome {
     }
 
     internal suspend fun awaitSkipPillTimeout() {
-        if (!segmentActive || skipPillDismissed) return
+        if (!skipPillShowing) return
         delay(SkipPillVisibleMs)
         dismissSkipPill()
     }
@@ -206,7 +206,7 @@ fun rememberPlayerChrome(
     LaunchedEffect(chrome.quickSkipTick) {
         chrome.awaitQuickSkipEnd()
     }
-    LaunchedEffect(segment, chrome.skipPillDismissed) {
+    LaunchedEffect(segment, chrome.skipPillShowing) {
         chrome.awaitSkipPillTimeout()
     }
     return chrome
