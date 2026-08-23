@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -76,6 +77,8 @@ internal fun SearchPane(
     }
     val genreGridState = rememberLazyGridState()
     val resultListState = rememberLazyListState()
+
+    LaunchedEffect(state.query) { resultListState.scrollToItem(0) }
 
     LaunchedEffect(
         seedContentFocus,
@@ -213,6 +216,7 @@ private fun ResultRowsSection(
                     modifier = Modifier.padding(start = horizontalInset, bottom = 2.dp)
                 )
                 LazyRow(
+                    state = remember(state.query, row.title) { LazyListState() },
                     contentPadding = PaddingValues(horizontal = horizontalInset),
                     horizontalArrangement = Arrangement.spacedBy(metrics.cardSpacing),
                     modifier = Modifier
