@@ -148,14 +148,16 @@ class PlayerChromeTest {
     }
 
     @Test
-    fun quickSkipAccumulatesAndClears() {
+    fun quickSkipAccumulatesAndRestarts() {
         chrome.onQuickSkip(-10_000)
         chrome.onQuickSkip(-10_000)
         assertEquals(-20_000L, chrome.quickSkipMs)
         assertTrue(chrome.quickSkipVisible)
         chrome.endQuickSkip()
-        assertEquals(0L, chrome.quickSkipMs)
+        assertEquals(-20_000L, chrome.quickSkipMs)
         assertFalse(chrome.quickSkipVisible)
+        chrome.onQuickSkip(-10_000)
+        assertEquals(-10_000L, chrome.quickSkipMs)
     }
 
     @Test
@@ -163,6 +165,5 @@ class PlayerChromeTest {
         chrome.onQuickSkip(10_000)
         chrome.reveal()
         assertFalse(chrome.quickSkipVisible)
-        assertEquals(0L, chrome.quickSkipMs)
     }
 }

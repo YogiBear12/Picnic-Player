@@ -69,7 +69,6 @@ class PlayerChrome {
         osdVisible = true
         revealTick++
         quickSkipVisible = false
-        quickSkipMs = 0L
         skipPillDismissed = true
     }
 
@@ -129,14 +128,13 @@ class PlayerChrome {
     }
 
     fun onQuickSkip(deltaMs: Long) {
-        quickSkipMs += deltaMs
+        quickSkipMs = if (quickSkipVisible) quickSkipMs + deltaMs else deltaMs
         quickSkipVisible = true
         quickSkipTick++
     }
 
     fun endQuickSkip() {
         quickSkipVisible = false
-        quickSkipMs = 0L
     }
 
     fun onNextUpVisibleChanged(visible: Boolean) {
