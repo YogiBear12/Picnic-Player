@@ -354,8 +354,7 @@ class MediaRepository @Inject constructor(
         val response = api().itemsApi.getItems(
             userId = session().userUuid,
             includeItemTypes = filter.contentType.itemKinds(kinds),
-            recursive = filter.genreId != null ||
-                (filter.collectionId == null && kinds == listOf(BaseItemKind.BOX_SET)),
+            recursive = filter.collectionId == null,
             parentId = parentIdOverride ?: filter.collectionId ?: filter.libraryId,
             startIndex = startIndex,
             limit = limit,
