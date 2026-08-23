@@ -7,11 +7,12 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -378,13 +379,16 @@ fun PlayerScreen(
             )
         }
 
-        if (state.showStatsForNerds) {
-            Box(Modifier.fillMaxSize().zIndex(4f)) {
-                StatsForNerdsPanel(
-                    state = state,
-                    player = viewModel.player
-                )
-            }
+        AnimatedVisibility(
+            visible = state.showStatsForNerds && chrome.osdVisible,
+            modifier = Modifier.fillMaxSize().zIndex(4f),
+            enter = slideInHorizontally { -it } + fadeIn(),
+            exit = slideOutHorizontally { -it } + fadeOut()
+        ) {
+            StatsForNerdsPanel(
+                state = state,
+                player = viewModel.player
+            )
         }
 
         SkipIndicator(
