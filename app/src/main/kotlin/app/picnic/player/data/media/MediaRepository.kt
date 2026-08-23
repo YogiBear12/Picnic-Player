@@ -1,5 +1,7 @@
 package app.picnic.player.data.media
 
+import android.util.Log
+import app.picnic.player.BuildConfig
 import app.picnic.player.data.auth.UserSession
 import java.util.UUID
 import javax.inject.Inject
@@ -31,6 +33,8 @@ import org.jellyfin.sdk.model.api.UserConfiguration
 import org.jellyfin.sdk.model.api.request.GetSimilarItemsRequest
 
 internal const val MEDIA_GRID_PAGE_SIZE = 100
+
+const val LIBRARY_LOG_TAG = "PicnicLibrary"
 
 @Singleton
 class MediaRepository @Inject constructor(
@@ -388,6 +392,15 @@ class MediaRepository @Inject constructor(
             enableImageTypes = IMAGE_TYPES,
             enableTotalRecordCount = true
         ).content
+        if (BuildConfig.DEBUG) {
+            Log.d(
+                LIBRARY_LOG_TAG,
+                "grid parent=${parentIdOverride ?: filter.collectionId ?: filter.libraryId} " +
+                    "recursive=${filter.collectionId == null} kinds=${filter.contentType.itemKinds(kinds)} " +
+                    "sort=${sortBy.firstOrNull()} start=$startIndex limit=$limit " +
+                    "got=${response.items.orEmpty().size} total=${response.totalRecordCount}"
+            )
+        }
         MediaGridPage(
             items = response.items.orEmpty(),
             totalCount = response.totalRecordCount ?: response.items.orEmpty().size
