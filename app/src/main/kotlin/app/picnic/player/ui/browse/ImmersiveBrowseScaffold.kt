@@ -23,6 +23,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -35,6 +36,7 @@ import app.picnic.player.ui.ambient.AmbientPaletteLoader
 import app.picnic.player.ui.ambient.LocalAmbientPaletteLoader
 import app.picnic.player.ui.common.requestFocusWhenAttached
 import java.util.UUID
+import kotlinx.coroutines.flow.first
 import org.jellyfin.sdk.model.api.BaseItemDto
 
 @Composable
@@ -99,6 +101,14 @@ internal fun ImmersiveBrowseScaffold(
     }
     val rowColumnPivot = androidx.compose.runtime.remember(spaceAbovePx) {
         ScrollToTopBringIntoView(spaceAbovePx)
+    }
+
+    LaunchedEffect(focusedRowIndex, spaceAbovePx) {
+        snapshotFlow { focus.listState.isScrollInProgress }.first { !it }
+        val onScreen = focus.listState.layoutInfo.visibleItemsInfo.any { it.index == focusedRowIndex }
+        if (!onScreen) {
+            runCatching { focus.listState.animateScrollToItem(focusedRowIndex, -spaceAbovePx.toInt()) }
+        }
     }
 
     CompositionLocalProvider(LocalAmbientPaletteLoader provides ambientLoader) {
