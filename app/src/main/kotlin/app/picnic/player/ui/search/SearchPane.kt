@@ -80,15 +80,8 @@ internal fun SearchPane(
 
     LaunchedEffect(state.query) { resultListState.scrollToItem(0) }
 
-    LaunchedEffect(
-        seedContentFocus,
-        state.loading,
-        state.genres.size,
-        state.results.size,
-        state.discoverResults.size
-    ) {
-        if (!seedContentFocus || state.loading) return@LaunchedEffect
-        val target = when {
+    val entryFocus = {
+        when {
             state.focusArea == SearchViewModel.FocusArea.GENRES &&
                 state.query.isBlank() &&
                 state.genres.isNotEmpty() -> genreCardFocus
@@ -100,7 +93,17 @@ internal fun SearchPane(
                 rowCardFocus.getOrElse(state.focusedResultRow) { fieldFocus }
             else -> fieldFocus
         }
-        runCatching { target.requestFocus() }
+    }
+
+    LaunchedEffect(
+        seedContentFocus,
+        state.loading,
+        state.genres.size,
+        state.results.size,
+        state.discoverResults.size
+    ) {
+        if (!seedContentFocus || state.loading) return@LaunchedEffect
+        runCatching { entryFocus().requestFocus() }
         onContentFocusSeeded()
     }
 
@@ -111,7 +114,13 @@ internal fun SearchPane(
         return
     }
 
-    Column(Modifier.fillMaxSize()) {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .focusProperties {
+                onEnter = { runCatching { entryFocus().requestFocus() } }
+            }
+    ) {
         SearchField(
             query = state.query,
             onQueryChange = viewModel::setQuery,
