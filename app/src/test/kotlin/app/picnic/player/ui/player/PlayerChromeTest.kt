@@ -165,5 +165,6 @@ class PlayerChromeTest {
         chrome.onQuickSkip(10_000)
         chrome.reveal()
         assertFalse(chrome.quickSkipVisible)
+        assertEquals(10_000L, chrome.quickSkipMs)
     }
 }

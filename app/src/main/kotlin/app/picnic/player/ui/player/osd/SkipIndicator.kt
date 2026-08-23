@@ -23,47 +23,46 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import kotlin.math.abs
 
-private val PillGlassFill = Color(0xC0181E24)
+private val IndicatorGlassFill = Color(0xC0181E24)
 
-/** Transient quick-skip pill state: signed running total of the current burst. */
 data class SkipIndicatorState(
     val accumMs: Long,
     val visible: Boolean
 )
 
-/**
- * Presentation-only quick-skip pill (never focusable). Shows a rewind/forward icon
- * plus the accumulated seconds skipped in the current burst, e.g. "+90s".
- */
 @Composable
 fun SkipIndicator(
     state: SkipIndicatorState,
     modifier: Modifier = Modifier
 ) {
     AnimatedVisibility(
-        visible = state.visible && state.accumMs != 0L,
+        visible = state.visible,
         modifier = modifier,
         enter = fadeIn(),
         exit = fadeOut()
     ) {
-        val forward = state.accumMs > 0
+        val sign = when {
+            state.accumMs > 0 -> "+"
+            state.accumMs < 0 -> "-"
+            else -> ""
+        }
         val seconds = (abs(state.accumMs) / 1000).toInt()
         Row(
             modifier = Modifier
                 .clip(RoundedCornerShape(28.dp))
-                .background(PillGlassFill)
+                .background(IndicatorGlassFill)
                 .padding(horizontal = 20.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Icon(
-                imageVector = if (forward) Icons.Filled.FastForward else Icons.Filled.FastRewind,
+                imageVector = if (state.accumMs < 0) Icons.Filled.FastRewind else Icons.Filled.FastForward,
                 contentDescription = null,
                 tint = Color.White,
                 modifier = Modifier.size(28.dp)
             )
             Text(
-                text = "${if (forward) "+" else "-"}${seconds}s",
+                text = "$sign${seconds}s",
                 style = MaterialTheme.typography.titleMedium,
                 color = Color.White
             )
