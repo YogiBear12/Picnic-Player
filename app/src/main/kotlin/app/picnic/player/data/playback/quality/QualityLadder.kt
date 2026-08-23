@@ -128,12 +128,32 @@ private fun formatHourlySize(bitrate: Int): String {
     return "$text GB"
 }
 
+private val AudioOnlyTranscodeReasons = setOf(
+    "ContainerNotSupported",
+    "AudioCodecNotSupported",
+    "AudioChannelsNotSupported",
+    "AudioProfileNotSupported",
+    "AudioSampleRateNotSupported",
+    "AudioBitDepthNotSupported",
+    "AudioBitrateNotSupported",
+    "AudioIsExternal",
+    "SecondaryAudioNotSupported",
+    "SubtitleCodecNotSupported"
+)
+
+fun videoIsConverted(transcodeReasons: List<String>): Boolean {
+    if (transcodeReasons.isEmpty()) return true
+    return transcodeReasons.any { reason -> AudioOnlyTranscodeReasons.none { it.equals(reason, ignoreCase = true) } }
+}
+
 data class NegotiatedSource(
     val supportsDirectPlay: Boolean?,
     val transcodingUrl: String?,
-    val quality: SourceQuality
+    val quality: SourceQuality,
+    val transcodeReasons: List<String> = emptyList()
 ) {
-    val serverIsConverting: Boolean get() = supportsDirectPlay != true && transcodingUrl != null
+    val serverIsConverting: Boolean
+        get() = supportsDirectPlay != true && transcodingUrl != null && videoIsConverted(transcodeReasons)
 }
 
 sealed interface ConversionPlan {

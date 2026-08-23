@@ -138,7 +138,8 @@ class PlaybackRepository @Inject constructor(
     private fun MediaSourceInfo.negotiated(): NegotiatedSource = NegotiatedSource(
         supportsDirectPlay = supportsDirectPlay,
         transcodingUrl = transcodingUrl,
-        quality = SourceQuality.of(bitrate, mediaStreams.orEmpty())
+        quality = SourceQuality.of(bitrate, mediaStreams.orEmpty()),
+        transcodeReasons = transcodeReasons(this)
     )
 
     private fun transcodeReasons(source: MediaSourceInfo): List<String> {

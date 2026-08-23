@@ -230,8 +230,54 @@ class QualityLadderTest {
     private fun converting(quality: SourceQuality) = NegotiatedSource(
         supportsDirectPlay = false,
         transcodingUrl = "/videos/x/master.m3u8",
-        quality = quality
+        quality = quality,
+        transcodeReasons = listOf("VideoCodecNotSupported")
     )
+
+    @Test
+    fun anAudioOnlyConversionKeepsTheNegotiatedStream() {
+        val plan = conversionPlan(
+            NegotiatedSource(
+                supportsDirectPlay = false,
+                transcodingUrl = "/videos/x/master.m3u8",
+                quality = uhd,
+                transcodeReasons = listOf("AudioCodecNotSupported")
+            ),
+            requested = null,
+            ceiling = capped
+        )
+        assertEquals(ConversionPlan.AsNegotiated, plan)
+    }
+
+    @Test
+    fun aRemuxKeepsTheNegotiatedStream() {
+        val plan = conversionPlan(
+            NegotiatedSource(
+                supportsDirectPlay = false,
+                transcodingUrl = "/videos/x/master.m3u8",
+                quality = uhd,
+                transcodeReasons = listOf("ContainerNotSupported", "AudioCodecNotSupported")
+            ),
+            requested = null,
+            ceiling = capped
+        )
+        assertEquals(ConversionPlan.AsNegotiated, plan)
+    }
+
+    @Test
+    fun aMixedConversionStillPicksARung() {
+        val plan = conversionPlan(
+            NegotiatedSource(
+                supportsDirectPlay = false,
+                transcodingUrl = "/videos/x/master.m3u8",
+                quality = uhd,
+                transcodeReasons = listOf("AudioCodecNotSupported", "VideoResolutionNotSupported")
+            ),
+            requested = null,
+            ceiling = capped
+        )
+        assertTrue(plan is ConversionPlan.Renegotiate)
+    }
 
     @Test
     fun rungLabels_readAsResolutionAndQualifier() {
