@@ -21,11 +21,6 @@ import app.picnic.player.data.auth.AuthRepository
 import app.picnic.player.ui.common.ExitOnBack
 import app.picnic.player.ui.theme.PicnicColors
 
-/**
- * Return-user Profile Picker. A row of profile avatars plus "Add
- * user", with a "Change server" footer. Stored-token profiles switch session;
- * others route to Login.
- */
 @Composable
 fun ProfilePickerScreen(
     serverId: String,
@@ -36,7 +31,6 @@ fun ProfilePickerScreen(
         creationCallback = { factory -> factory.create(serverId) }
     )
 ) {
-    // Onboarding shows the plain ocean wash — drop any backdrop left by a media screen.
     app.picnic.player.ui.ambient.PublishBackdrop(null)
     val state by viewModel.state.collectAsStateWithLifecycle()
     // Consume the one-shot nav flags after acting, so returning here (Back from
@@ -53,7 +47,6 @@ fun ProfilePickerScreen(
             viewModel.consumeNav()
         }
     }
-    // Entry point: Back always exits the app, never navigates backward.
     ExitOnBack()
 
     var rowEditing by remember { mutableStateOf(false) }
@@ -92,7 +85,7 @@ fun ProfilePickerScreen(
                     errorText = it.authError
                 )
             },
-            addTile = if (!state.loading) {
+            addTile = if (!state.localDataPending) {
                 PickerEntry(
                     id = ADD_TILE_ID,
                     label = "Add user",

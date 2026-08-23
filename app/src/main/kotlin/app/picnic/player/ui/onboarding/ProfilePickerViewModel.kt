@@ -6,6 +6,7 @@ import app.picnic.player.data.auth.AuthRepository
 import app.picnic.player.data.auth.ProfilePickerLocal
 import app.picnic.player.data.auth.ServerConnection
 import app.picnic.player.data.jellyfin.JellyfinImages
+import app.picnic.player.data.media.HomeContentLoader
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
@@ -16,15 +17,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-/**
- * Return-user Profile Picker for one server. Lists the server's public
- * users unioned with locally stored sessions: a profile with a cached token
- * switches session without re-login, anything else routes to Login with the
- * username prefilled. "Add user" goes to Login with a clean slate.
- */
 @HiltViewModel(assistedFactory = ProfilePickerViewModel.Factory::class)
 class ProfilePickerViewModel @AssistedInject constructor(
     private val authRepository: AuthRepository,
+    private val homeLoader: HomeContentLoader,
     private val onboarding: OnboardingSession,
     @Assisted private val serverId: String
 ) : ViewModel() {
@@ -45,8 +41,7 @@ class ProfilePickerViewModel @AssistedInject constructor(
     data class UiState(
         val serverName: String = "",
         val profiles: List<Profile> = emptyList(),
-        /** False once local (disk) picker data has been applied — not network. */
-        val loading: Boolean = true,
+        val localDataPending: Boolean = true,
         val goReady: Boolean = false,
         val goLogin: Boolean = false
     )
@@ -58,7 +53,7 @@ class ProfilePickerViewModel @AssistedInject constructor(
 
     init {
         viewModelScope.launch {
-            if (_state.value.loading) {
+            if (_state.value.localDataPending) {
                 authRepository.warmLocalCache()
                 authRepository.peekProfilePickerLocal(serverId)?.let { local ->
                     server = local.server
@@ -75,16 +70,15 @@ class ProfilePickerViewModel @AssistedInject constructor(
         return UiState(
             serverName = local.server.name,
             profiles = mergeProfiles(local, authRepository::peekHasStoredToken),
-            loading = false
+            localDataPending = false
         )
     }
 
-    /** Refreshes the public-user list from the server; stored sessions stay visible. */
     private suspend fun refreshPublicUsers() {
         val server = server
             ?: authRepository.onboardedServers().firstOrNull { it.id == serverId }
             ?: run {
-                _state.update { it.copy(loading = false) }
+                _state.update { it.copy(localDataPending = false) }
                 return
             }
         this.server = server
@@ -123,7 +117,7 @@ class ProfilePickerViewModel @AssistedInject constructor(
             it.copy(
                 serverName = local.server.name,
                 profiles = mergeProfiles(local, authRepository::peekHasStoredToken),
-                loading = false
+                localDataPending = false
             )
         }
     }
@@ -162,10 +156,8 @@ class ProfilePickerViewModel @AssistedInject constructor(
         return applyPickerOrder(fromStored + fromPublicOnly, local.profileOrder) { it.userId }
     }
 
-    /** Clears the one-shot navigation flags once the screen has acted on them. */
     fun consumeNav() = _state.update { it.copy(goReady = false, goLogin = false) }
 
-    /** "Change server" soft-logs-out the server so cold start shows Server Picker. */
     fun changeServer() {
         viewModelScope.launch { authRepository.clearActiveServer() }
     }
@@ -194,6 +186,7 @@ class ProfilePickerViewModel @AssistedInject constructor(
             viewModelScope.launch {
                 val session = authRepository.useStoredSession(serverId, profile.userId)
                 if (session != null) {
+                    homeLoader.prefetch(session)
                     _state.update { it.copy(goReady = true) }
                 } else {
                     routeToLogin(server, profile.name)
