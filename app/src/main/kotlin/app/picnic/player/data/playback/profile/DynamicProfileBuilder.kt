@@ -4,6 +4,7 @@ import android.content.Context
 import android.media.MediaCodecList
 import app.picnic.player.data.playback.quality.QualityRung
 import app.picnic.player.data.settings.PlaybackSettings
+import app.picnic.player.playback.PlaybackDiagnostics
 import org.jellyfin.sdk.model.api.CodecType
 import org.jellyfin.sdk.model.api.DeviceProfile
 import org.jellyfin.sdk.model.api.DlnaProfileType
@@ -34,6 +35,8 @@ object DynamicProfileBuilder {
         } else {
             baseAudioCodecs
         }
+
+        PlaybackDiagnostics.logProfile(settings, allowedAudioCodecs)
 
         val codecRules = videoCodecRules(capabilities.videoDecoderSupport())
         val allowedVideoCodecs = codecRules.map { it.codec }.toTypedArray()

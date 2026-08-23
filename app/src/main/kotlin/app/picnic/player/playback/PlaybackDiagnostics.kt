@@ -30,6 +30,8 @@ import androidx.media3.extractor.SeekMap
 import androidx.media3.extractor.TrackOutput
 import app.picnic.player.BuildConfig
 import app.picnic.player.data.playback.StreamInfo
+import app.picnic.player.data.settings.BurnInSubtitles
+import app.picnic.player.data.settings.PlaybackSettings
 import java.io.IOException
 import org.jellyfin.sdk.model.api.MediaSourceInfo
 import org.jellyfin.sdk.model.api.MediaStream
@@ -44,10 +46,33 @@ object PlaybackDiagnostics : AnalyticsListener {
         if (enabled) Log.d(PLAYBACK_LOG_TAG, message)
     }
 
+    fun logProfile(settings: PlaybackSettings, audioCodecs: Array<String>) {
+        if (!enabled) return
+        log(
+            "profile downmixStereo=${settings.downmixStereo} forceDirectPlay=${settings.forceDirectPlay} " +
+                "burnInSubtitles=${settings.burnInSubtitles} audioCodecs=${audioCodecs.joinToString(",")}"
+        )
+    }
+
+    fun logNegotiationRequest(
+        pass: Int,
+        burnIn: Boolean,
+        forceTranscode: Boolean,
+        subtitleStreamIndex: Int?,
+        burnMode: BurnInSubtitles
+    ) {
+        if (!enabled) return
+        log(
+            "negotiation pass=$pass request burnIn=$burnIn forceTranscode=$forceTranscode " +
+                "subtitleStreamIndex=$subtitleStreamIndex burnMode=$burnMode"
+        )
+    }
+
     fun logNegotiation(pass: Int, requestedRung: Any?, source: MediaSourceInfo) {
         if (!enabled) return
+        val audioStreams = source.mediaStreams.orEmpty().filter { it.type == MediaStreamType.AUDIO }
         val video = source.mediaStreams.orEmpty().firstOrNull { it.type == MediaStreamType.VIDEO }
-        val audio = source.mediaStreams.orEmpty().firstOrNull { it.type == MediaStreamType.AUDIO && it.isDefault }
+        val audio = audioStreams.firstOrNull { it.isDefault } ?: audioStreams.firstOrNull()
         log(
             "negotiation pass=$pass requestedRung=$requestedRung " +
                 "supportsDirectPlay=${source.supportsDirectPlay} supportsDirectStream=${source.supportsDirectStream} " +

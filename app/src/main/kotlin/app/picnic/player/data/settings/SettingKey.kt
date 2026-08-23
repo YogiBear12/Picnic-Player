@@ -29,6 +29,7 @@ object SettingKeys {
     val DefaultVideoQuality = SettingKey<QualityRung?>({ it.defaultVideoQuality }, SettingsStore::setDefaultVideoQuality)
     val PreferredSubtitleLanguage = SettingKey<String?>({ it.preferredSubtitleLanguage }, SettingsStore::setPreferredSubtitleLanguage)
     val AlwaysDisplaySubtitles = SettingKey({ it.alwaysDisplaySubtitles }, SettingsStore::setAlwaysDisplaySubtitles)
+    val BurnInSubtitles = SettingKey({ it.burnInSubtitles }, SettingsStore::setBurnInSubtitles)
 
     val PictureInPicture = SettingKey({ it.pictureInPicture }, SettingsStore::setPictureInPicture)
     val MatchRefreshRate = SettingKey({ it.matchRefreshRate }, SettingsStore::setMatchRefreshRate)

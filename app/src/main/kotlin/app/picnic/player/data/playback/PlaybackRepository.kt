@@ -46,6 +46,7 @@ import org.jellyfin.sdk.model.api.PlaybackStartInfo
 import org.jellyfin.sdk.model.api.PlaybackStopInfo
 import org.jellyfin.sdk.model.api.RepeatMode
 import org.jellyfin.sdk.model.api.SubtitleDeliveryMethod
+import org.jellyfin.sdk.model.api.TranscodeReason
 import org.jellyfin.sdk.model.api.TranscodingInfo
 
 enum class SegmentKind { INTRO, OUTRO, RECAP, PREVIEW, COMMERCIAL }
@@ -91,17 +92,29 @@ class PlaybackRepository @Inject constructor(
         val chosen = negotiation.quality ?: settings.defaultVideoQuality?.let { QualityOption.Transcode(it) }
         val rung = (chosen as? QualityOption.Transcode)?.rung
         val ceiling = QualityRung.conversionCeiling(settings.allowFourKTranscoding)
-        val first = negotiate(negotiation, settings, rung, pass = 1)
+        val burn = subtitleBurn(settings, negotiation.subtitleStreamIndex)
+        val forceBurn = burn == SubtitleBurn.ALWAYS
+        val first = negotiate(negotiation, settings, rung, pass = 1, burnIn = forceBurn, forceTranscode = forceBurn)
         val blockedBy = transcodeReasons(first.source)
-        when (val plan = conversionPlan(first.source.negotiated(), rung, ceiling)) {
-            ConversionPlan.AsNegotiated ->
-                buildStreamInfo(negotiation, first.source, first.playSessionId, rung, blockedBy)
-            is ConversionPlan.Renegotiate -> {
-                stopEncoding(session, first.playSessionId)
-                val second = negotiate(negotiation, settings, plan.rung, pass = 2)
-                buildStreamInfo(negotiation, second.source, second.playSessionId, plan.rung, blockedBy)
-            }
+        val negotiated = first.source.negotiated()
+        val burnIn = forceBurn ||
+            (burn == SubtitleBurn.WHEN_VIDEO_CONVERTED && negotiated.serverIsConverting)
+        val plan = conversionPlan(negotiated, rung, ceiling)
+        val adoptedRung = (plan as? ConversionPlan.Renegotiate)?.rung ?: rung
+        val adopted = if (plan is ConversionPlan.Renegotiate || (burnIn && !forceBurn)) {
+            stopEncoding(session, first.playSessionId)
+            negotiate(negotiation, settings, adoptedRung, pass = 2, burnIn = burnIn, forceTranscode = forceBurn)
+        } else {
+            first
         }
+        buildStreamInfo(
+            negotiation,
+            adopted.source,
+            adopted.playSessionId,
+            adoptedRung,
+            blockedBy,
+            subtitlesBurnedIn = burnsSubtitles(adopted.source, negotiation.subtitleStreamIndex)
+        )
     }
 
     private class Negotiated(val source: MediaSourceInfo, val playSessionId: String?)
@@ -110,9 +123,18 @@ class PlaybackRepository @Inject constructor(
         negotiation: StreamNegotiation,
         settings: PlaybackSettings,
         rung: QualityRung?,
-        pass: Int
+        pass: Int,
+        burnIn: Boolean,
+        forceTranscode: Boolean
     ): Negotiated {
         val session = negotiation.session
+        PlaybackDiagnostics.logNegotiationRequest(
+            pass = pass,
+            burnIn = burnIn,
+            forceTranscode = forceTranscode,
+            subtitleStreamIndex = negotiation.subtitleStreamIndex,
+            burnMode = settings.burnInSubtitles
+        )
         val response = api(session).mediaInfoApi.getPostedPlaybackInfo(
             itemId = negotiation.itemId,
             data = PlaybackInfoDto(
@@ -123,10 +145,10 @@ class PlaybackRepository @Inject constructor(
                 mediaSourceId = negotiation.mediaSourceId,
                 audioStreamIndex = negotiation.audioStreamIndex,
                 subtitleStreamIndex = negotiation.subtitleStreamIndex,
-                enableDirectPlay = negotiation.allowDirectPlay,
-                allowVideoStreamCopy = true,
+                enableDirectPlay = negotiation.allowDirectPlay && !forceTranscode,
+                allowVideoStreamCopy = !forceTranscode,
                 allowAudioStreamCopy = true,
-                alwaysBurnInSubtitleWhenTranscoding = false,
+                alwaysBurnInSubtitleWhenTranscoding = burnIn,
                 autoOpenLiveStream = true
             )
         ).content
@@ -139,8 +161,15 @@ class PlaybackRepository @Inject constructor(
         supportsDirectPlay = supportsDirectPlay,
         transcodingUrl = transcodingUrl,
         quality = SourceQuality.of(bitrate, mediaStreams.orEmpty()),
-        transcodeReasons = transcodeReasons(this)
+        transcodeReasons = transcodeReasons(this).mapNotNull { TranscodeReason.fromNameOrNull(it) }
     )
+
+    private fun burnsSubtitles(source: MediaSourceInfo, subtitleStreamIndex: Int?): Boolean {
+        val index = subtitleStreamIndex ?: return false
+        val url = Uri.parse(source.transcodingUrl ?: return false)
+        return url.getQueryParameter("alwaysBurnInSubtitleWhenTranscoding").toBoolean() &&
+            url.getQueryParameter("SubtitleStreamIndex")?.toIntOrNull() == index
+    }
 
     private fun transcodeReasons(source: MediaSourceInfo): List<String> {
         val url = source.transcodingUrl ?: return emptyList()
@@ -153,7 +182,8 @@ class PlaybackRepository @Inject constructor(
         source: MediaSourceInfo,
         playSessionId: String?,
         rung: QualityRung?,
-        directPlayBlockedBy: List<String>
+        directPlayBlockedBy: List<String>,
+        subtitlesBurnedIn: Boolean = false
     ): StreamInfo {
         val session = negotiation.session
         val itemId = negotiation.itemId
@@ -172,7 +202,7 @@ class PlaybackRepository @Inject constructor(
         }
         source.transcodingUrl?.let { path ->
             val url = base + path
-            return streamInfo(url, PlayMethodKind.TRANSCODE, playSessionId, sourceId, source, negotiatedSubtitleStreamIndex = subtitleStreamIndex, rung = rung, session = session, directPlayBlockedBy = directPlayBlockedBy)
+            return streamInfo(url, PlayMethodKind.TRANSCODE, playSessionId, sourceId, source, negotiatedSubtitleStreamIndex = subtitleStreamIndex, subtitlesBurnedIn = subtitlesBurnedIn, rung = rung, session = session, directPlayBlockedBy = directPlayBlockedBy)
         }
         val url =
             "$base/Videos/$itemId/stream?static=true&mediaSourceId=$sourceId&api_key=${session.accessToken}"
@@ -216,6 +246,7 @@ class PlaybackRepository @Inject constructor(
         sourceId: String,
         source: MediaSourceInfo,
         negotiatedSubtitleStreamIndex: Int?,
+        subtitlesBurnedIn: Boolean = false,
         rung: QualityRung? = null,
         session: UserSession? = null,
         directPlayBlockedBy: List<String> = emptyList()
@@ -229,6 +260,7 @@ class PlaybackRepository @Inject constructor(
         defaultAudioStreamIndex = source.defaultAudioStreamIndex,
         defaultSubtitleStreamIndex = source.defaultSubtitleStreamIndex,
         negotiatedSubtitleStreamIndex = negotiatedSubtitleStreamIndex,
+        subtitlesBurnedIn = subtitlesBurnedIn,
         mediaSource = source,
         rung = rung,
         externalSubtitles = session?.let { externalSubtitles(it, source) }.orEmpty(),

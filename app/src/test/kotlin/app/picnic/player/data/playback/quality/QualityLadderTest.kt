@@ -2,6 +2,7 @@ package app.picnic.player.data.playback.quality
 
 import org.jellyfin.sdk.model.api.MediaStream
 import org.jellyfin.sdk.model.api.MediaStreamType
+import org.jellyfin.sdk.model.api.TranscodeReason
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -231,8 +232,38 @@ class QualityLadderTest {
         supportsDirectPlay = false,
         transcodingUrl = "/videos/x/master.m3u8",
         quality = quality,
-        transcodeReasons = listOf("VideoCodecNotSupported")
+        transcodeReasons = listOf(TranscodeReason.VIDEO_CODEC_NOT_SUPPORTED)
     )
+
+    @Test
+    fun aSubtitleConversionStillPicksARung() {
+        val plan = conversionPlan(
+            NegotiatedSource(
+                supportsDirectPlay = false,
+                transcodingUrl = "/videos/x/master.m3u8",
+                quality = uhd,
+                transcodeReasons = listOf(TranscodeReason.SUBTITLE_CODEC_NOT_SUPPORTED)
+            ),
+            requested = null,
+            ceiling = capped
+        )
+        assertTrue(plan is ConversionPlan.Renegotiate)
+    }
+
+    @Test
+    fun aConversionWithNoStatedReasonPicksARung() {
+        val plan = conversionPlan(
+            NegotiatedSource(
+                supportsDirectPlay = false,
+                transcodingUrl = "/videos/x/master.m3u8",
+                quality = uhd,
+                transcodeReasons = emptyList()
+            ),
+            requested = null,
+            ceiling = capped
+        )
+        assertTrue(plan is ConversionPlan.Renegotiate)
+    }
 
     @Test
     fun anAudioOnlyConversionKeepsTheNegotiatedStream() {
@@ -241,7 +272,7 @@ class QualityLadderTest {
                 supportsDirectPlay = false,
                 transcodingUrl = "/videos/x/master.m3u8",
                 quality = uhd,
-                transcodeReasons = listOf("AudioCodecNotSupported")
+                transcodeReasons = listOf(TranscodeReason.AUDIO_CODEC_NOT_SUPPORTED)
             ),
             requested = null,
             ceiling = capped
@@ -256,7 +287,7 @@ class QualityLadderTest {
                 supportsDirectPlay = false,
                 transcodingUrl = "/videos/x/master.m3u8",
                 quality = uhd,
-                transcodeReasons = listOf("ContainerNotSupported", "AudioCodecNotSupported")
+                transcodeReasons = listOf(TranscodeReason.CONTAINER_NOT_SUPPORTED, TranscodeReason.AUDIO_CODEC_NOT_SUPPORTED)
             ),
             requested = null,
             ceiling = capped
@@ -271,7 +302,7 @@ class QualityLadderTest {
                 supportsDirectPlay = false,
                 transcodingUrl = "/videos/x/master.m3u8",
                 quality = uhd,
-                transcodeReasons = listOf("AudioCodecNotSupported", "VideoResolutionNotSupported")
+                transcodeReasons = listOf(TranscodeReason.AUDIO_CODEC_NOT_SUPPORTED, TranscodeReason.VIDEO_RESOLUTION_NOT_SUPPORTED)
             ),
             requested = null,
             ceiling = capped

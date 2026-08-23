@@ -7,6 +7,7 @@ import androidx.compose.runtime.setValue
 import app.picnic.player.data.playback.quality.QualityRung
 import app.picnic.player.data.playback.quality.defaultQualityLabel
 import app.picnic.player.data.playback.resolveLanguageCode
+import app.picnic.player.data.settings.BurnInSubtitles
 import app.picnic.player.data.settings.PlaybackSettings
 import app.picnic.player.data.settings.SegmentAction
 import app.picnic.player.data.settings.SettingKey
@@ -92,6 +93,26 @@ private fun defaultQualityPicker(
             label = defaultQualityLabel(quality),
             selected = quality == current,
             onSelect = { onSelect(quality) }
+        )
+    }
+)
+
+private fun burnInSubtitlesLabel(mode: BurnInSubtitles): String = when (mode) {
+    BurnInSubtitles.OFF -> "Off"
+    BurnInSubtitles.AUTOMATIC -> "Automatic"
+    BurnInSubtitles.ALWAYS -> "Always"
+}
+
+private fun burnInSubtitlesPicker(
+    current: BurnInSubtitles,
+    onSelect: (BurnInSubtitles) -> Unit
+) = ActivePicker(
+    title = "Burn in subtitles",
+    options = BurnInSubtitles.entries.map { mode ->
+        PickerOption(
+            label = burnInSubtitlesLabel(mode),
+            selected = mode == current,
+            onSelect = { onSelect(mode) }
         )
     }
 )
@@ -462,6 +483,20 @@ private fun advancedSections(
                     settings,
                     "Enable 4K transcoding",
                     SettingKeys.AllowFourKTranscoding,
+                    enabled = !settings.forceDirectPlay
+                )
+            )
+            add(
+                SettingItem(
+                    "Burn in subtitles",
+                    burnInSubtitlesLabel(settings.burnInSubtitles),
+                    onActivate = {
+                        showPicker(
+                            burnInSubtitlesPicker(settings.burnInSubtitles) {
+                                viewModel.set(SettingKeys.BurnInSubtitles, it)
+                            }
+                        )
+                    },
                     enabled = !settings.forceDirectPlay
                 )
             )

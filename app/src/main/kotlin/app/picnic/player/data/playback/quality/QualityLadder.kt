@@ -3,6 +3,7 @@ package app.picnic.player.data.playback.quality
 import kotlin.math.roundToInt
 import org.jellyfin.sdk.model.api.MediaStream
 import org.jellyfin.sdk.model.api.MediaStreamType
+import org.jellyfin.sdk.model.api.TranscodeReason
 
 enum class QualityRung(
     val videoBitrate: Int,
@@ -128,29 +129,27 @@ private fun formatHourlySize(bitrate: Int): String {
     return "$text GB"
 }
 
-private val AudioOnlyTranscodeReasons = setOf(
-    "ContainerNotSupported",
-    "AudioCodecNotSupported",
-    "AudioChannelsNotSupported",
-    "AudioProfileNotSupported",
-    "AudioSampleRateNotSupported",
-    "AudioBitDepthNotSupported",
-    "AudioBitrateNotSupported",
-    "AudioIsExternal",
-    "SecondaryAudioNotSupported",
-    "SubtitleCodecNotSupported"
+private val VideoCopyTranscodeReasons = setOf(
+    TranscodeReason.CONTAINER_NOT_SUPPORTED,
+    TranscodeReason.AUDIO_CODEC_NOT_SUPPORTED,
+    TranscodeReason.AUDIO_CHANNELS_NOT_SUPPORTED,
+    TranscodeReason.AUDIO_PROFILE_NOT_SUPPORTED,
+    TranscodeReason.AUDIO_SAMPLE_RATE_NOT_SUPPORTED,
+    TranscodeReason.AUDIO_BIT_DEPTH_NOT_SUPPORTED,
+    TranscodeReason.AUDIO_BITRATE_NOT_SUPPORTED,
+    TranscodeReason.AUDIO_IS_EXTERNAL,
+    TranscodeReason.SECONDARY_AUDIO_NOT_SUPPORTED,
+    TranscodeReason.UNKNOWN_AUDIO_STREAM_INFO
 )
 
-fun videoIsConverted(transcodeReasons: List<String>): Boolean {
-    if (transcodeReasons.isEmpty()) return true
-    return transcodeReasons.any { reason -> AudioOnlyTranscodeReasons.none { it.equals(reason, ignoreCase = true) } }
-}
+fun videoIsConverted(transcodeReasons: List<TranscodeReason>): Boolean = transcodeReasons.isEmpty() ||
+    transcodeReasons.any { it !in VideoCopyTranscodeReasons }
 
 data class NegotiatedSource(
     val supportsDirectPlay: Boolean?,
     val transcodingUrl: String?,
     val quality: SourceQuality,
-    val transcodeReasons: List<String> = emptyList()
+    val transcodeReasons: List<TranscodeReason> = emptyList()
 ) {
     val serverIsConverting: Boolean
         get() = supportsDirectPlay != true && transcodingUrl != null && videoIsConverted(transcodeReasons)

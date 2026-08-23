@@ -13,6 +13,7 @@ import app.picnic.player.data.playback.StreamInfo
 import app.picnic.player.data.playback.TrackMemoryKind
 import app.picnic.player.data.playback.pickTracksWithMemory
 import app.picnic.player.data.playback.resolveLanguageCode
+import app.picnic.player.data.settings.BurnInSubtitles
 import app.picnic.player.data.settings.PlaybackSettings
 import app.picnic.player.data.settings.SeriesTrackMemoryStore
 import app.picnic.player.playback.JellyfinTrackSelection
@@ -58,6 +59,8 @@ class PlayerTracks(
     private val exhausted = mutableSetOf<Int>()
     private var attachedSubtitleIndex: Int? = null
     private var negotiatedSubtitleIndex: Int? = null
+    private var burnedInSubtitleIndex: Int? = null
+    private var burnMode: BurnInSubtitles = BurnInSubtitles.OFF
 
     private var itemType: BaseItemKind? = null
     private var seriesId: UUID? = null
@@ -73,6 +76,7 @@ class PlayerTracks(
         mediaStreams = info.mediaStreams
         converting = info.playMethod == PlayMethodKind.TRANSCODE
         negotiatedSubtitleIndex = info.negotiatedSubtitleStreamIndex
+        burnedInSubtitleIndex = info.negotiatedSubtitleStreamIndex.takeIf { info.subtitlesBurnedIn }
         externalSubtitles = info.externalSubtitles.map {
             ExternalSubtitleRef(it.streamIndex, it.url.substringBefore('?'))
         }
@@ -86,6 +90,7 @@ class PlayerTracks(
     }
 
     suspend fun initDefaults(prefs: PlaybackSettings) {
+        burnMode = if (prefs.forceDirectPlay) BurnInSubtitles.OFF else prefs.burnInSubtitles
         ensureServerLanguagePrefs()
         val deviceLanguage = Locale.getDefault().language
         val memory = if (itemType == BaseItemKind.EPISODE) {
@@ -151,7 +156,12 @@ class PlayerTracks(
 
     fun needsStreamForSelection(): Boolean = needsAttach(subtitleIndex) || needsBurnIn(subtitleIndex)
 
-    private fun needsBurnIn(streamIndex: Int?): Boolean = converting && isBurnedIn(streamIndex) && streamIndex != negotiatedSubtitleIndex
+    private fun needsBurnIn(streamIndex: Int?): Boolean {
+        val index = streamIndex ?: return false
+        if (index == burnedInSubtitleIndex) return false
+        if (burnMode == BurnInSubtitles.ALWAYS) return true
+        return converting && isBurnedIn(index) && index != negotiatedSubtitleIndex
+    }
 
     private fun needsAttach(streamIndex: Int?): Boolean = isSideloaded(streamIndex) && streamIndex != attachedSubtitleIndex
 
@@ -162,12 +172,17 @@ class PlayerTracks(
 
     private fun isBurnedIn(streamIndex: Int?): Boolean {
         val index = streamIndex ?: return false
+        if (burnedInSubtitleIndex == index) return true
         return mediaStreams.firstOrNull { it.index == index }?.deliveryMethod ==
             SubtitleDeliveryMethod.ENCODE
     }
 
     fun subtitleConfigurationsFor(info: StreamInfo): List<MediaItem.SubtitleConfiguration> {
         val wanted = subtitleIndex ?: info.defaultSubtitleStreamIndex
+        if (info.subtitlesBurnedIn && wanted == info.negotiatedSubtitleStreamIndex) {
+            attachedSubtitleIndex = null
+            return emptyList()
+        }
         val attach = info.externalSubtitles.filter { it.streamIndex == wanted }
         attachedSubtitleIndex = attach.firstOrNull()?.streamIndex
         return attach.map { subtitle ->

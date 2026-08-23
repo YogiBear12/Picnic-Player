@@ -18,6 +18,8 @@ enum class ThemeMusicVolume { DISABLED, QUIET, LOW, MEDIUM, HIGH, LOUD }
 
 enum class SegmentAction { ASK_TO_SKIP, SKIP_AUTOMATICALLY, DO_NOT_SKIP }
 
+enum class BurnInSubtitles { OFF, AUTOMATIC, ALWAYS }
+
 enum class SubtitleSize { SMALLER, SMALL, STANDARD, LARGE, LARGER }
 
 enum class SubtitleColour { WHITE, YELLOW, CYAN, GREEN }
@@ -73,6 +75,7 @@ data class PlaybackSettings(
     val preferDefaultAudioTrack: Boolean = false,
     val preferredSubtitleLanguage: String? = null,
     val alwaysDisplaySubtitles: Boolean = false,
+    val burnInSubtitles: BurnInSubtitles = BurnInSubtitles.OFF,
     val subtitleAppearance: SubtitleAppearance = SubtitleAppearance()
 )
 
@@ -113,6 +116,8 @@ class SettingsStore @Inject constructor(
             preferDefaultAudioTrack = p.userBoolean(scope, PREFER_DEFAULT_AUDIO_TRACK) ?: false,
             preferredSubtitleLanguage = p.userString(scope, PREFERRED_SUBTITLE_LANGUAGE),
             alwaysDisplaySubtitles = p.userBoolean(scope, ALWAYS_DISPLAY_SUBTITLES) ?: false,
+            burnInSubtitles = p[BURN_IN_SUBTITLES]?.let { enumOrNull<BurnInSubtitles>(it) }
+                ?: BurnInSubtitles.OFF,
             subtitleAppearance = SubtitleAppearance(
                 size = p.userString(scope, SUBTITLE_SIZE)?.let { enumOrNull<SubtitleSize>(it) }
                     ?: SubtitleSize.STANDARD,
@@ -169,6 +174,8 @@ class SettingsStore @Inject constructor(
     suspend fun setPreferDefaultAudioTrack(value: Boolean) = putUserBoolean(PREFER_DEFAULT_AUDIO_TRACK, value)
 
     suspend fun setPreferredSubtitleLanguage(value: String?) = putUserString(PREFERRED_SUBTITLE_LANGUAGE, value)
+
+    suspend fun setBurnInSubtitles(value: BurnInSubtitles) = put { it[BURN_IN_SUBTITLES] = value.name }
 
     suspend fun setAlwaysDisplaySubtitles(value: Boolean) = putUserBoolean(ALWAYS_DISPLAY_SUBTITLES, value)
 
@@ -240,6 +247,7 @@ class SettingsStore @Inject constructor(
         const val PREFERRED_AUDIO_LANGUAGE = "playback.preferredAudioLanguage"
         const val PREFER_DEFAULT_AUDIO_TRACK = "playback.preferDefaultAudioTrack"
         const val PREFERRED_SUBTITLE_LANGUAGE = "playback.preferredSubtitleLanguage"
+        val BURN_IN_SUBTITLES = stringPreferencesKey("advanced.burnInSubtitles")
         const val ALWAYS_DISPLAY_SUBTITLES = "playback.alwaysDisplaySubtitles"
         const val SUBTITLE_SIZE = "playback.subtitleSize"
         const val SUBTITLE_COLOUR = "playback.subtitleColour"
