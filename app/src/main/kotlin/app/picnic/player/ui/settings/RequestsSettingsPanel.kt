@@ -101,9 +101,7 @@ internal fun partitionSettingsRequestSections(
 @Composable
 internal fun RequestsSettingsPanel(
     viewModel: SettingsViewModel,
-    enterFr: FocusRequester,
-    leftFocus: FocusRequester,
-    onFocusChanged: (Boolean) -> Unit,
+    focus: SettingsPanelFocus,
     onOpenSeerrDetail: ((SeerrMediaRequest) -> Unit)?,
     modifier: Modifier = Modifier
 ) {
@@ -122,7 +120,7 @@ internal fun RequestsSettingsPanel(
         if (seerr.linkState != SeerrLinkState.Linked) {
             if (viewModel.focusedRequestId.value != null) {
                 viewModel.clearFocusedRequest()
-                leftFocus.requestFocusWhenAttached()
+                focus.leftFocus.requestFocusWhenAttached()
             }
             return@LaunchedEffect
         }
@@ -157,12 +155,12 @@ internal fun RequestsSettingsPanel(
                 completedHeaderFr.requestFocusWhenAttached(maxFrames = 20)
             }
             else -> {
-                leftFocus.requestFocusWhenAttached()
+                focus.leftFocus.requestFocusWhenAttached()
                 true
             }
         }
         if (!focused) {
-            leftFocus.requestFocusWhenAttached()
+            focus.leftFocus.requestFocusWhenAttached()
         }
         viewModel.clearFocusedRequest()
     }
@@ -171,7 +169,7 @@ internal fun RequestsSettingsPanel(
 
     if (seerr.linkState != SeerrLinkState.Linked || !hasAnyRequest) {
         Box(
-            modifier = modifier.fillMaxSize().onFocusChanged { onFocusChanged(it.hasFocus) },
+            modifier = modifier.fillMaxSize().onFocusChanged { focus.onFocusChanged(it.hasFocus) },
             contentAlignment = Alignment.Center
         ) {
             Text(
@@ -189,7 +187,7 @@ internal fun RequestsSettingsPanel(
     Column(
         modifier = modifier
             .verticalScroll(rememberScrollState())
-            .onFocusChanged { onFocusChanged(it.hasFocus) },
+            .onFocusChanged { focus.onFocusChanged(it.hasFocus) },
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         when {
@@ -213,11 +211,12 @@ internal fun RequestsSettingsPanel(
                         row = row,
                         seerrBaseUrl = seerr.serverUrl,
                         cacheImages = seerr.cacheImages,
-                        leftFocus = leftFocus,
+                        leftFocus = focus.leftFocus,
                         focusRequester = rowFr,
-                        enterFr = if (isFirst) enterFr else null,
+                        enterFr = if (isFirst) focus.enterFr else null,
                         blockUp = isFirst,
                         blockDown = isLast && sections.completed.isEmpty(),
+                        onFocused = { focus.onRowFocused(rowFr) },
                         onActivate = {
                             viewModel.rememberFocusedRequest(row.request.id)
                             onOpenSeerrDetail?.invoke(row.request)
@@ -234,11 +233,12 @@ internal fun RequestsSettingsPanel(
             ActionRow(
                 label = "Completed requests (${sections.completed.size})",
                 value = if (completedExpanded) "Hide" else "Show",
-                leftFocus = leftFocus,
+                leftFocus = focus.leftFocus,
                 focusRequester = completedHeaderFr,
-                enterFr = if (sections.active.isEmpty()) enterFr else null,
+                enterFr = if (sections.active.isEmpty()) focus.enterFr else null,
                 blockUp = sections.active.isEmpty(),
                 blockDown = !completedExpanded,
+                onFocused = focus.onRowFocused,
                 onActivate = { completedExpanded = !completedExpanded }
             )
             if (completedExpanded) {
@@ -255,11 +255,12 @@ internal fun RequestsSettingsPanel(
                             row = row,
                             seerrBaseUrl = seerr.serverUrl,
                             cacheImages = seerr.cacheImages,
-                            leftFocus = leftFocus,
+                            leftFocus = focus.leftFocus,
                             focusRequester = rowFr,
                             enterFr = null,
                             blockUp = false,
                             blockDown = row.request.id == sections.completed.last().request.id,
+                            onFocused = { focus.onRowFocused(rowFr) },
                             onActivate = {
                                 viewModel.rememberFocusedRequest(row.request.id)
                                 onOpenSeerrDetail?.invoke(row.request)
@@ -310,7 +311,7 @@ internal fun RequestsSettingsPanel(
                             completedHeaderFr.requestFocusWhenAttached(maxFrames = 20)
                         else -> false
                     }
-                    if (!restored) leftFocus.requestFocusWhenAttached()
+                    if (!restored) focus.leftFocus.requestFocusWhenAttached()
                 }
             }
         )
@@ -385,6 +386,7 @@ private fun RequestRow(
     enterFr: FocusRequester?,
     blockUp: Boolean,
     blockDown: Boolean,
+    onFocused: () -> Unit,
     onActivate: () -> Unit,
     onLongActivate: () -> Unit
 ) {
@@ -455,6 +457,7 @@ private fun RequestRow(
             }
             .onFocusChanged {
                 focused = it.isFocused
+                if (it.isFocused) onFocused()
                 if (!it.isFocused) {
                     holdJob?.cancel()
                     holdJob = null

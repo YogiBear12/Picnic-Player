@@ -83,6 +83,21 @@ fun SettingsScreen(
     }
     val detailEnterFr = remember { FocusRequester() }
     var detailHasFocus by remember { mutableStateOf(false) }
+    var detailReturnFocus by remember(selected) { mutableStateOf<FocusRequester?>(null) }
+    val enterDetail = {
+        val stored = detailReturnFocus
+        val landed = stored != null && runCatching { stored.requestFocus() }.isSuccess
+        if (!landed) detailReturnFocus = null
+        landed || runCatching { detailEnterFr.requestFocus() }.isSuccess
+    }
+    val panelFocus = remember(detailEnterFr, selected) {
+        SettingsPanelFocus(
+            enterFr = detailEnterFr,
+            leftFocus = categoryFocusRequesters.getValue(selected),
+            onFocusChanged = { detailHasFocus = it },
+            onRowFocused = { detailReturnFocus = it }
+        )
+    }
 
     var activePicker by remember { mutableStateOf<ActivePicker?>(null) }
     var languagePickerKind by remember { mutableStateOf<LanguagePickerKind?>(null) }
@@ -142,7 +157,7 @@ fun SettingsScreen(
                 selected = selected,
                 onSelect = viewModel::selectCategory,
                 focusRequesters = categoryFocusRequesters,
-                detailEnterFr = detailEnterFr,
+                enterDetail = enterDetail,
                 badgedCategory = if (updateBadge) SettingsCategory.ABOUT else null,
                 modifier = Modifier.fillMaxHeight().width(IntrinsicSize.Max)
             )
@@ -152,9 +167,7 @@ fun SettingsScreen(
                 settings = settings,
                 viewModel = viewModel,
                 onSignedOut = onSignedOut,
-                enterFr = detailEnterFr,
-                leftFocus = categoryFocusRequesters.getValue(selected),
-                onFocusChanged = { detailHasFocus = it },
+                focus = panelFocus,
                 youtubeApps = youtubeApps,
                 showPicker = { activePicker = it },
                 onShowAudioLanguagePicker = { languagePickerKind = LanguagePickerKind.AUDIO },
@@ -232,7 +245,7 @@ private fun CategoryRail(
     selected: SettingsCategory,
     onSelect: (SettingsCategory) -> Unit,
     focusRequesters: Map<SettingsCategory, FocusRequester>,
-    detailEnterFr: FocusRequester,
+    enterDetail: () -> Boolean,
     badgedCategory: SettingsCategory? = null,
     modifier: Modifier = Modifier
 ) {
@@ -245,7 +258,7 @@ private fun CategoryRail(
                 label = category.label,
                 selected = category == selected,
                 focusRequester = focusRequesters.getValue(category),
-                detailEnterFr = detailEnterFr,
+                enterDetail = enterDetail,
                 isFirst = index == 0,
                 isLast = index == categories.lastIndex,
                 badge = category == badgedCategory,
@@ -260,7 +273,7 @@ private fun CategoryRailItem(
     label: String,
     selected: Boolean,
     focusRequester: FocusRequester,
-    detailEnterFr: FocusRequester,
+    enterDetail: () -> Boolean,
     isFirst: Boolean,
     isLast: Boolean,
     badge: Boolean = false,
@@ -287,8 +300,7 @@ private fun CategoryRailItem(
                 if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
                 when (event.key) {
                     Key.DirectionCenter, Key.Enter, Key.DirectionRight -> {
-                        runCatching { detailEnterFr.requestFocus() }
-                            .onFailure { focusManager.moveFocus(FocusDirection.Right) }
+                        if (!enterDetail()) focusManager.moveFocus(FocusDirection.Right)
                         true
                     }
                     else -> false
@@ -320,9 +332,7 @@ private fun DetailPanel(
     settings: PlaybackSettings,
     viewModel: SettingsViewModel,
     onSignedOut: () -> Unit,
-    enterFr: FocusRequester,
-    leftFocus: FocusRequester,
-    onFocusChanged: (Boolean) -> Unit,
+    focus: SettingsPanelFocus,
     youtubeApps: List<YouTubeAppInfo>,
     showPicker: (ActivePicker) -> Unit,
     onShowAudioLanguagePicker: () -> Unit,
@@ -342,9 +352,7 @@ private fun DetailPanel(
         SettingsCategory.REQUESTS -> {
             RequestsSettingsPanel(
                 viewModel = viewModel,
-                enterFr = enterFr,
-                leftFocus = leftFocus,
-                onFocusChanged = onFocusChanged,
+                focus = focus,
                 onOpenSeerrDetail = onOpenSeerrDetail,
                 modifier = modifier
             )
@@ -354,18 +362,14 @@ private fun DetailPanel(
             AccountSettingsPanel(
                 viewModel = viewModel,
                 onSignedOut = onSignedOut,
-                enterFr = enterFr,
-                leftFocus = leftFocus,
-                onFocusChanged = onFocusChanged,
+                focus = focus,
                 modifier = modifier.verticalScroll(rememberScrollState())
             )
             return
         }
         SettingsCategory.ABOUT -> {
             AboutSettingsPanel(
-                enterFr = enterFr,
-                leftFocus = leftFocus,
-                onFocusChanged = onFocusChanged,
+                focus = focus,
                 onOpenLicenses = onOpenLicenses,
                 restoreRow = restoreRow,
                 onRestored = onRestored,
@@ -405,7 +409,7 @@ private fun DetailPanel(
     Column(
         modifier = modifier
             .verticalScroll(scrollState)
-            .onFocusChanged { onFocusChanged(it.hasFocus) },
+            .onFocusChanged { focus.onFocusChanged(it.hasFocus) },
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         sections.forEachIndexed { si, section ->
@@ -418,14 +422,15 @@ private fun DetailPanel(
                     value = item.value,
                     description = item.description,
                     enabled = item.enabled,
-                    rowFocus = when {
+                    enterOrRestoreFr = when {
                         item.subPage != null && item.subPage == restoreRow -> restoreFr
-                        si == 0 && ii == 0 -> enterFr
+                        si == 0 && ii == 0 -> focus.enterFr
                         else -> null
                     },
-                    leftFocus = leftFocus,
+                    leftFocus = focus.leftFocus,
                     blockUp = si == 0 && ii == 0,
                     blockDown = si == lastSection && ii == section.items.lastIndex,
+                    onFocused = focus.onRowFocused,
                     onActivate = item.onActivate
                 )
             }
@@ -453,13 +458,15 @@ private fun SettingRow(
     value: String,
     description: String?,
     enabled: Boolean = true,
-    rowFocus: FocusRequester?,
+    enterOrRestoreFr: FocusRequester?,
     leftFocus: FocusRequester,
     blockUp: Boolean,
     blockDown: Boolean,
+    onFocused: (FocusRequester) -> Unit,
     onActivate: () -> Unit
 ) {
     var focused by remember { mutableStateOf(false) }
+    val rowFocus = remember { FocusRequester() }
     Row(
         modifier = Modifier
             .widthIn(max = 720.dp)
@@ -468,7 +475,14 @@ private fun SettingRow(
             .background(
                 if (focused) Color.White.copy(alpha = 0.14f) else Color.White.copy(alpha = 0.04f)
             )
-            .then(if (rowFocus != null) Modifier.focusRequester(rowFocus) else Modifier)
+            .focusRequester(rowFocus)
+            .then(
+                if (enterOrRestoreFr != null) {
+                    Modifier.focusRequester(enterOrRestoreFr)
+                } else {
+                    Modifier
+                }
+            )
             .focusProperties {
                 left = leftFocus
                 right = FocusRequester.Cancel
@@ -486,7 +500,10 @@ private fun SettingRow(
                     else -> false
                 }
             }
-            .onFocusChanged { focused = it.isFocused }
+            .onFocusChanged {
+                focused = it.isFocused
+                if (it.isFocused) onFocused(rowFocus)
+            }
             .focusable(),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalAlignment = Alignment.CenterVertically

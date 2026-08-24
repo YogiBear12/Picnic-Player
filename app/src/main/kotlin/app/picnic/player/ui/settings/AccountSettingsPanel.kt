@@ -53,9 +53,7 @@ import coil3.compose.AsyncImagePainter
 internal fun AccountSettingsPanel(
     viewModel: SettingsViewModel,
     onSignedOut: () -> Unit,
-    enterFr: FocusRequester,
-    leftFocus: FocusRequester,
-    onFocusChanged: (Boolean) -> Unit,
+    focus: SettingsPanelFocus,
     modifier: Modifier = Modifier
 ) {
     val seerr by viewModel.seerrState.collectAsStateWithLifecycle()
@@ -69,12 +67,12 @@ internal fun AccountSettingsPanel(
     LaunchedEffect(linked) {
         if (linked && showConnectDialog) {
             showConnectDialog = false
-            enterFr.requestFocusWhenAttached(maxFrames = 20)
+            focus.enterFr.requestFocusWhenAttached(maxFrames = 20)
         }
     }
 
     Column(
-        modifier = modifier.onFocusChanged { onFocusChanged(it.hasFocus) },
+        modifier = modifier.onFocusChanged { focus.onFocusChanged(it.hasFocus) },
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Column(
@@ -92,17 +90,19 @@ internal fun AccountSettingsPanel(
         }
         ActionRow(
             label = if (linked) "Disconnect Seerr" else "Connect to Seerr",
-            leftFocus = leftFocus,
-            focusRequester = enterFr,
+            leftFocus = focus.leftFocus,
+            focusRequester = focus.enterFr,
             blockUp = true,
+            onFocused = focus.onRowFocused,
             onActivate = {
                 if (linked) viewModel.disconnectSeerr() else showConnectDialog = true
             }
         )
         ActionRow(
             label = "Sign out",
-            leftFocus = leftFocus,
+            leftFocus = focus.leftFocus,
             blockDown = true,
+            onFocused = focus.onRowFocused,
             onActivate = { viewModel.signOut(onSignedOut) }
         )
     }

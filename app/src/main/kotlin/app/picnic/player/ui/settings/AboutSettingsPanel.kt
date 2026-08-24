@@ -34,9 +34,7 @@ import app.picnic.player.ui.theme.PicnicColors
 
 @Composable
 internal fun AboutSettingsPanel(
-    enterFr: FocusRequester,
-    leftFocus: FocusRequester,
-    onFocusChanged: (Boolean) -> Unit,
+    focus: SettingsPanelFocus,
     onOpenLicenses: () -> Unit,
     restoreRow: SubPageRow?,
     onRestored: () -> Unit,
@@ -55,7 +53,7 @@ internal fun AboutSettingsPanel(
         }
     }
     Column(
-        modifier = modifier.onFocusChanged { onFocusChanged(it.hasFocus) },
+        modifier = modifier.onFocusChanged { focus.onFocusChanged(it.hasFocus) },
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Column(
@@ -92,9 +90,10 @@ internal fun AboutSettingsPanel(
                 label = if (updateAvailable) "Install update" else "Check for updates",
                 value = (phase as? UpdateViewModel.Phase.Available)
                     ?.release?.version?.let { "v$it" } ?: "",
-                leftFocus = leftFocus,
-                focusRequester = enterFr,
+                leftFocus = focus.leftFocus,
+                focusRequester = focus.enterFr,
                 blockUp = true,
+                onFocused = focus.onRowFocused,
                 onActivate = {
                     if (!updateAvailable) updateViewModel.check()
                     showUpdateDialog = true
@@ -103,14 +102,15 @@ internal fun AboutSettingsPanel(
         }
         ActionRow(
             label = stringResource(R.string.about_licenses_title),
-            leftFocus = leftFocus,
+            leftFocus = focus.leftFocus,
             focusRequester = when {
                 restoreLicenses -> restoreFr
                 updateViewModel.enabled -> null
-                else -> enterFr
+                else -> focus.enterFr
             },
             blockUp = !updateViewModel.enabled,
             blockDown = true,
+            onFocused = focus.onRowFocused,
             onActivate = onOpenLicenses
         )
     }

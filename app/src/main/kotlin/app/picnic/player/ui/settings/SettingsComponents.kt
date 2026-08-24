@@ -31,6 +31,13 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import app.picnic.player.ui.theme.PicnicColors
 
+internal data class SettingsPanelFocus(
+    val enterFr: FocusRequester,
+    val leftFocus: FocusRequester,
+    val onFocusChanged: (Boolean) -> Unit,
+    val onRowFocused: (FocusRequester) -> Unit
+)
+
 @Composable
 internal fun ActionRow(
     label: String,
@@ -41,9 +48,12 @@ internal fun ActionRow(
     enterFr: FocusRequester? = null,
     blockUp: Boolean = false,
     blockDown: Boolean = false,
+    onFocused: (FocusRequester) -> Unit,
     onActivate: () -> Unit
 ) {
     var focused by remember { mutableStateOf(false) }
+    val ownFocus = remember { FocusRequester() }
+    val rowFocus = focusRequester ?: ownFocus
     Row(
         modifier = Modifier
             .widthIn(max = 720.dp)
@@ -52,7 +62,7 @@ internal fun ActionRow(
             .background(
                 if (focused) Color.White.copy(alpha = 0.14f) else Color.White.copy(alpha = 0.04f)
             )
-            .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
+            .focusRequester(rowFocus)
             .then(if (enterFr != null) Modifier.focusRequester(enterFr) else Modifier)
             .focusProperties {
                 leftFocus?.let { left = it }
@@ -71,7 +81,10 @@ internal fun ActionRow(
                     else -> false
                 }
             }
-            .onFocusChanged { focused = it.isFocused }
+            .onFocusChanged {
+                focused = it.isFocused
+                if (it.isFocused) onFocused(rowFocus)
+            }
             .focusable(enabled),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalAlignment = Alignment.CenterVertically
