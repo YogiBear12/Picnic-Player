@@ -1,6 +1,7 @@
 package app.picnic.player.ui.home
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
 import androidx.tv.material3.DrawerState
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import app.picnic.player.ui.browse.BrowseDest
@@ -21,7 +22,8 @@ fun HomeScreen(
     onServerUnreachable: (String, String) -> Unit,
     onSettings: () -> Unit,
     onSwapUser: () -> Unit,
-    drawerState: DrawerState
+    drawerState: DrawerState,
+    drawerDim: State<Float>
 ) = BrowseShellHost(
     onItem = onItem,
     onSeerrItem = onSeerrItem,
@@ -34,5 +36,6 @@ fun HomeScreen(
     onServerUnreachable = onServerUnreachable,
     onSettings = onSettings,
     onSwapUser = onSwapUser,
-    drawerState = drawerState
+    drawerState = drawerState,
+    drawerDim = drawerDim
 )

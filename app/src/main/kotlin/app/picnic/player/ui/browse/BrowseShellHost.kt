@@ -16,6 +16,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -67,6 +68,7 @@ fun BrowseShellHost(
     onSettings: () -> Unit,
     onSwapUser: () -> Unit,
     drawerState: DrawerState,
+    drawerDim: State<Float>,
     homeViewModel: HomeViewModel = hiltViewModel(),
     searchViewModel: SearchViewModel = hiltViewModel(),
     discoverViewModel: DiscoverViewModel = hiltViewModel(),
@@ -240,6 +242,7 @@ fun BrowseShellHost(
                 itemFocusRequesters = railRequesters,
                 contentFocusOnRight = contentFocusOnRight,
                 drawerState = drawerState,
+                drawerDim = drawerDim,
                 drawerPage = drawerPage,
                 moreVisible = moreVisible,
                 layout = layout,

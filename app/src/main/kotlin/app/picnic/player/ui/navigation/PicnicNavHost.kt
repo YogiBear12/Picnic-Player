@@ -3,6 +3,7 @@ package app.picnic.player.ui.navigation
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -53,6 +54,7 @@ import app.picnic.player.ui.playlist.AddToPlaylistDialog
 import app.picnic.player.ui.playlist.PlaylistScreen
 import app.picnic.player.ui.settings.SettingsScreen
 import app.picnic.player.ui.startup.StartupScreen
+import app.picnic.player.ui.theme.TvBrowseMotion
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
 
@@ -73,6 +75,15 @@ fun PicnicNavHost(
     val rail = railViewModel.rail
 
     val drawerState = rememberSaveable(saver = DrawerState.Saver) { DrawerState(DrawerValue.Closed) }
+    val drawerDim = animateFloatAsState(
+        targetValue = if (drawerState.currentValue == DrawerValue.Open) {
+            TvBrowseMotion.DIM_ALPHA
+        } else {
+            1f
+        },
+        animationSpec = tween(TvBrowseMotion.DIM_FADE_MS),
+        label = "drawerDim"
+    )
 
     fun resetShellTo(key: NavKey) {
         backdropController.clear()
@@ -115,7 +126,7 @@ fun PicnicNavHost(
         LocalImageUrls provides imageUrls
     ) {
         Box(Modifier.fillMaxSize()) {
-            BackdropHostLayer(Modifier.fillMaxSize())
+            BackdropHostLayer(drawerDim, Modifier.fillMaxSize())
 
             NavDisplay(
                 backStack = backStack,
@@ -243,7 +254,8 @@ fun PicnicNavHost(
                             onServerUnreachable = { serverId, msg -> goServerPicker(serverId, msg) },
                             onSettings = { navViewModel.push(SettingsKey) },
                             onSwapUser = onSwapUser,
-                            drawerState = drawerState
+                            drawerState = drawerState,
+                            drawerDim = drawerDim
                         )
                     }
                     entry<GenreKey> { key ->

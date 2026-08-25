@@ -45,6 +45,7 @@ import androidx.compose.material.icons.outlined.Tv
 import androidx.compose.material.icons.outlined.VideoLibrary
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -61,6 +62,7 @@ import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -111,6 +113,7 @@ internal fun BrowseSideNavDrawer(
     itemFocusRequesters: Map<String, FocusRequester>,
     contentFocusOnRight: () -> FocusRequester,
     drawerState: DrawerState,
+    drawerDim: State<Float>,
     drawerPage: NavDrawerPage,
     moreVisible: Boolean,
     layout: NavLayout,
@@ -333,6 +336,7 @@ internal fun BrowseSideNavDrawer(
                     .fillMaxHeight()
                     .wrapContentWidth(align = Alignment.Start, unbounded = true)
                     .width(browseContentWidth)
+                    .graphicsLayer { alpha = drawerDim.value }
             ) { content() }
         }
     }

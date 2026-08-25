@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -34,33 +35,20 @@ import coil3.compose.AsyncImage
 import coil3.compose.AsyncImagePainter
 import kotlinx.coroutines.flow.first
 
-/** Backdrop image width as a fraction of the screen. */
 private const val BACKDROP_WIDTH_FRACTION = 0.78f
 
-/**
- * Backdrop band: black base → ambient washes → focused item
- * backdrop (top-right, 78% screen width, 16:9) with DstIn edge dissolve.
- */
 @Composable
 internal fun BrowseBackdrop(
     backdropUrl: String?,
     ambientUrl: String?,
     ambientLoader: AmbientPaletteLoader,
+    alphaScale: State<Float>,
     modifier: Modifier = Modifier
 ) {
     var displayedUrl by remember { mutableStateOf<String?>(null) }
-    // Set by the AsyncImage when the *currently committed* backdrop finishes loading.
     var imageLoaded by remember { mutableStateOf(false) }
     val layerAlpha = remember { Animatable(0f) }
 
-    // Single owner of [layerAlpha]: fade the outgoing image out, commit the newest URL, wait for
-    // it to load, then fade it in. Keyed on backdropUrl so the latest navigation always wins.
-    //
-    // The fade-in MUST live here, not in a competing coroutine. Previously onState launched its
-    // own layerAlpha.animateTo(1f); when the *outgoing* image loaded late, that mutation cancelled
-    // this effect's fade-out via the Animatable mutation mutex, so the effect never reached
-    // `displayedUrl = backdropUrl` and the backdrop stayed stuck on the previous item while the
-    // palette/logo/details had already advanced (the reported desync).
     LaunchedEffect(backdropUrl) {
         if (backdropUrl == displayedUrl) return@LaunchedEffect
         if (displayedUrl != null) {
@@ -70,24 +58,16 @@ internal fun BrowseBackdrop(
         layerAlpha.snapTo(0f)
         displayedUrl = backdropUrl
         if (backdropUrl == null) return@LaunchedEffect
-        // Wait for the committed image, then fade it in. snapshotFlow reads the current value
-        // first, so a cache hit that already flipped the flag fades in immediately.
         snapshotFlow { imageLoaded }.first { it }
         layerAlpha.animateTo(1f, tween(TvBrowseMotion.ARTWORK_FADE_IN_MS, easing = EaseOut))
     }
 
-    // One-time scrim fade-in, started together with the first ambient-colour fade (when the
-    // palette first loads) and using the same duration, so the colour isn't delayed by it.
     val scrimAlpha = remember { Animatable(0f) }
 
-    // OFF → static ocean wash; no colour extraction (skips the decode entirely). The focused
-    // backdrop image, its DstIn dissolve, and the scrim are unchanged — only the wash swaps.
     val ambientOn = LocalAmbientBackgrounds.current
     val palette = if (ambientOn) rememberAmbientPalette(ambientUrl, ambientLoader) else null
     val hasImage = displayedUrl != null
 
-    // Fade the scrim in alongside the first ambient colour (same trigger + duration). With the
-    // ocean wash there is no colour load to wait on, so the scrim fades in from first composition.
     val scrimReady = !ambientOn || palette != null
     LaunchedEffect(scrimReady) {
         if (scrimReady) {
@@ -105,20 +85,10 @@ internal fun BrowseBackdrop(
         Box(
             Modifier
                 .fillMaxSize()
-                // The offscreen layer exists for the DstIn edge dissolve. Applying the fade
-                // ALPHA on this same layer (not on the inner image) is the key perf move: the
-                // image + dissolve rasterise into the offscreen once, then the fade only
-                // varies the layer's composite alpha — so an animating backdrop no longer
-                // re-renders the full-screen offscreen every frame (the old per-move GPU spike).
-                // The offscreen layer exists for the DstIn edge dissolve. Applying the fade
-                // ALPHA on this same layer (not on the inner image) keeps the fade composite-
-                // only — the image + dissolve rasterise once, then only the layer alpha varies.
                 .graphicsLayer {
                     compositingStrategy = CompositingStrategy.Offscreen
-                    alpha = layerAlpha.value
+                    alpha = layerAlpha.value * alphaScale.value
                 }
-                // drawWithCache builds the two dissolve gradients once per size instead of
-                // allocating fresh shaders on every draw.
                 .drawWithCache {
                     val imgW = size.width * BACKDROP_WIDTH_FRACTION
                     val imgH = imgW * 9f / 16f
@@ -146,9 +116,6 @@ internal fun BrowseBackdrop(
                 contentScale = ContentScale.Fit,
                 alignment = Alignment.TopEnd,
                 onState = { st ->
-                    // Only flag the load whose URL matches the committed backdrop; the swap
-                    // effect owns the fade-in. Guarding on the URL stops a late-arriving
-                    // success for the outgoing image from fading the wrong artwork in.
                     if (st is AsyncImagePainter.State.Success &&
                         st.result.request.data == displayedUrl
                     ) {
@@ -162,8 +129,6 @@ internal fun BrowseBackdrop(
             )
         }
 
-        // Scrim baked into a single drawBehind so the fade reads alpha in the draw phase
-        // (no recomposition, no full-screen offscreen alpha layer competing with the colour).
         Box(
             Modifier
                 .fillMaxSize()
@@ -187,5 +152,4 @@ internal fun BrowseBackdrop(
     }
 }
 
-/** Matches AmbientBackground's PALETTE_FADE_MS so scrim + colour finish together. */
 private const val SCRIM_FADE_IN_MS = 1250
