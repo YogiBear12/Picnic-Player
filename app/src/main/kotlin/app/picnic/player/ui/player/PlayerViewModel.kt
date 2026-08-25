@@ -17,7 +17,7 @@ import app.picnic.player.data.auth.AuthRepository
 import app.picnic.player.data.auth.UserSession
 import app.picnic.player.data.jellyfin.JellyfinImages
 import app.picnic.player.data.media.MediaRepository
-import app.picnic.player.data.media.PlaylistQueue
+import app.picnic.player.data.media.ItemQueue
 import app.picnic.player.data.media.PlaylistRepository
 import app.picnic.player.data.playback.BlackBarProbe
 import app.picnic.player.data.playback.DirectPlayVeto
@@ -143,7 +143,7 @@ class PlayerViewModel @Inject constructor(
     private var session: UserSession? = null
     private var stream: StreamInfo? = null
     private var itemId: UUID? = null
-    private var queue: PlaylistQueue? = null
+    private var queue: ItemQueue? = null
     private var seriesId: UUID? = null
     private val latchedBars = CueLatchedBars()
     private var loaded = false
@@ -461,7 +461,7 @@ class PlayerViewModel @Inject constructor(
         itemIdString: String,
         startTicks: Long?,
         mediaSourceId: String? = null,
-        queue: PlaylistQueue? = null
+        queue: ItemQueue? = null
     ) {
         if (loaded) return
         loaded = true

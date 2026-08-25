@@ -6,16 +6,16 @@ import kotlinx.serialization.Serializable
 import org.jellyfin.sdk.model.api.BaseItemDto
 
 @Serializable
-data class PlaylistQueue(
-    val playlistId: String,
+data class ItemQueue(
+    val parentId: String,
     val shuffleSeed: Long? = null,
     val position: Int = 0
 ) {
-    val id: UUID? get() = runCatching { UUID.fromString(playlistId) }.getOrNull()
+    val id: UUID? get() = runCatching { UUID.fromString(parentId) }.getOrNull()
 
     fun order(entries: List<BaseItemDto>): List<BaseItemDto> = if (shuffleSeed == null) entries else entries.shuffled(Random(shuffleSeed))
 
     fun itemAfter(entries: List<BaseItemDto>): BaseItemDto? = order(entries).getOrNull(position + 1)
 
-    fun advanced(): PlaylistQueue = copy(position = position + 1)
+    fun advanced(): ItemQueue = copy(position = position + 1)
 }

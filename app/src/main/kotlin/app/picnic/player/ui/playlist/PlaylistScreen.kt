@@ -70,7 +70,7 @@ import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
-import app.picnic.player.data.media.PlaylistQueue
+import app.picnic.player.data.media.ItemQueue
 import app.picnic.player.ui.ambient.BackdropSpec
 import app.picnic.player.ui.ambient.PublishBackdrop
 import app.picnic.player.ui.browse.CardTimeLeftBadge
@@ -249,7 +249,7 @@ private fun PlaylistContent(
                     icon = Icons.Default.Shuffle,
                     onClick = {
                         val seed = Random.nextLong()
-                        PlaylistQueue(playlistId, seed).order(items).firstOrNull()
+                        ItemQueue(playlistId, seed).order(items).firstOrNull()
                             ?.let { onShuffle(it.id.toString(), seed) }
                     },
                     modifier = Modifier

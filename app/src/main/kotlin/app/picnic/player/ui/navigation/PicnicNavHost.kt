@@ -28,7 +28,7 @@ import androidx.navigation3.ui.NavDisplay
 import androidx.tv.material3.DrawerState
 import androidx.tv.material3.DrawerValue
 import androidx.tv.material3.ExperimentalTvMaterial3Api
-import app.picnic.player.data.media.PlaylistQueue
+import app.picnic.player.data.media.ItemQueue
 import app.picnic.player.ui.ambient.BackdropHostLayer
 import app.picnic.player.ui.ambient.LocalBackdropController
 import app.picnic.player.ui.browse.NavRailViewModel
@@ -355,11 +355,11 @@ fun PicnicNavHost(
                             playlistName = key.name,
                             onPlay = { id, ticks, position ->
                                 navViewModel.push(
-                                    PlayerKey(id, ticks, queue = PlaylistQueue(key.playlistId, position = position))
+                                    PlayerKey(id, ticks, queue = ItemQueue(key.playlistId, position = position))
                                 )
                             },
                             onShuffle = { id, seed ->
-                                navViewModel.push(PlayerKey(id, queue = PlaylistQueue(key.playlistId, seed)))
+                                navViewModel.push(PlayerKey(id, queue = ItemQueue(key.playlistId, seed)))
                             },
                             onGoToSeries = { seriesId -> navViewModel.push(DetailKey(seriesId)) },
                             onAddToPlaylist = { item -> addToPlaylistItem = item },

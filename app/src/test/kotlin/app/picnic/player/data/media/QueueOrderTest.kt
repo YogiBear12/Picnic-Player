@@ -17,7 +17,7 @@ class QueueOrderTest {
 
     private val entries = (1..12).map { entry(it) }
 
-    private fun queue(shuffleSeed: Long? = null, position: Int = 0) = PlaylistQueue(playlistId = UUID.randomUUID().toString(), shuffleSeed = shuffleSeed, position = position)
+    private fun queue(shuffleSeed: Long? = null, position: Int = 0) = ItemQueue(parentId = UUID.randomUUID().toString(), shuffleSeed = shuffleSeed, position = position)
 
     @Test
     fun noSeed_keepsPlaylistOrder() {

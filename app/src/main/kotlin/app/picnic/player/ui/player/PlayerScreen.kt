@@ -41,7 +41,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import app.picnic.player.data.media.PlaylistQueue
+import app.picnic.player.data.media.ItemQueue
 import app.picnic.player.playback.videoDisplayHints
 import app.picnic.player.ui.ambient.PublishBackdrop
 import app.picnic.player.ui.common.requestFocusWhenAttached
@@ -59,7 +59,7 @@ fun PlayerScreen(
     itemId: String,
     startTicks: Long?,
     mediaSourceId: String? = null,
-    queue: PlaylistQueue? = null,
+    queue: ItemQueue? = null,
     onExit: () -> Unit,
     onPlayNext: (nextItemId: String) -> Unit = {},
     viewModel: PlayerViewModel = hiltViewModel()
