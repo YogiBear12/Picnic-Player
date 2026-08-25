@@ -1,5 +1,6 @@
 package app.picnic.player.data.seerr
 
+import app.picnic.player.data.media.countLabel
 import java.time.LocalDate
 
 fun SeerrMediaInfo?.hasLibraryLink(): Boolean {
@@ -37,7 +38,7 @@ fun personCreditDetailLine(
 ): String? = when (mediaType) {
     SeerrMediaType.MOVIE -> releaseDate?.take(4)?.takeIf { it.length == 4 }
     SeerrMediaType.TV -> episodeCount?.takeIf { it > 0 }?.let { count ->
-        if (count == 1) "1 episode" else "$count episodes"
+        countLabel(count, "episode")
     }
 }
 

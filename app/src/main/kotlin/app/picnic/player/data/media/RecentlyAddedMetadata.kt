@@ -14,12 +14,11 @@ fun recentlyAddedDetail(
 ): String = when (item.type) {
     BaseItemKind.SERIES -> {
         if (seasonCount != null && seasonCount > 0) {
-            if (seasonCount == 1) "1 season" else "$seasonCount seasons"
+            countLabel(seasonCount, "season")
         } else {
             val episodes = item.childCount
             when {
-                episodes != null && episodes > 0 ->
-                    if (episodes == 1) "1 episode" else "$episodes episodes"
+                episodes != null && episodes > 0 -> countLabel(episodes, "episode")
                 else -> runtime
             }
         }

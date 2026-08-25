@@ -33,6 +33,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import app.picnic.player.data.media.countLabel
 import app.picnic.player.ui.browse.BrowseLayoutMetrics
 import app.picnic.player.ui.browse.posterCardStyle
 import app.picnic.player.ui.common.ContextMenuAction
@@ -155,4 +156,4 @@ internal fun PlaylistsPane(
     }
 }
 
-private fun playlistCountLabel(item: BaseItemDto): String? = item.childCount?.let { if (it == 1) "1 item" else "$it items" }
+private fun playlistCountLabel(item: BaseItemDto): String? = item.childCount?.let { countLabel(it, "item") }

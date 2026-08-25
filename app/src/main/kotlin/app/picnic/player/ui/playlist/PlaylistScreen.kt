@@ -71,6 +71,7 @@ import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import app.picnic.player.data.media.ItemQueue
+import app.picnic.player.data.media.countLabel
 import app.picnic.player.ui.ambient.BackdropSpec
 import app.picnic.player.ui.ambient.PublishBackdrop
 import app.picnic.player.ui.browse.CardTimeLeftBadge
@@ -537,7 +538,7 @@ private fun runtimeText(mins: Int): String = if (mins >= 60) "${mins / 60}h ${mi
 
 private fun playlistMetaLine(items: List<BaseItemDto>): String {
     val totalMins = items.sumOf { runtimeMinutes(it) ?: 0 }
-    val count = if (items.size == 1) "1 item" else "${items.size} items"
+    val count = countLabel(items.size, "item")
     return if (totalMins > 0) "$count • ${runtimeText(totalMins)}" else count
 }
 

@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import app.picnic.player.data.media.countLabel
 import app.picnic.player.ui.browse.BrowseCardStyle
 import app.picnic.player.ui.browse.BrowsePosterCard
 import org.jellyfin.sdk.model.api.BaseItemDto
@@ -105,7 +106,6 @@ internal fun MediaGridCard(
 
 private fun gridSubtitle(item: BaseItemDto): String? = when (item.type) {
     org.jellyfin.sdk.model.api.BaseItemKind.SERIES ->
-        item.childCount?.let { seasons -> if (seasons == 1) "1 season" else "$seasons seasons" }
-            ?: item.productionYear?.toString()
+        item.childCount?.let { countLabel(it, "season") } ?: item.productionYear?.toString()
     else -> item.productionYear?.toString()
 }
