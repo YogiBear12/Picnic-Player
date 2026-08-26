@@ -60,6 +60,7 @@ import app.picnic.player.data.seerr.SeerrImages
 import app.picnic.player.data.seerr.SeerrMediaType
 import app.picnic.player.data.seerr.jellyfinDetailIdOrNull
 import app.picnic.player.ui.ambient.BackdropSpec
+import app.picnic.player.ui.ambient.DimBackdrop
 import app.picnic.player.ui.ambient.LocalAmbientPrewarmer
 import app.picnic.player.ui.ambient.PublishBackdrop
 import app.picnic.player.ui.browse.DetailContentStartInset
@@ -105,7 +106,8 @@ fun SeerrDetailScreen(
             state.cacheImages
         )
 
-    PublishBackdrop(BackdropSpec(backdropUrl = resolvedBg, ambientUrl = resolvedAmb))
+    val backdrop = BackdropSpec(backdropUrl = resolvedBg, ambientUrl = resolvedAmb)
+    PublishBackdrop(backdrop)
     BackHandler { onBack() }
 
     Box(Modifier.fillMaxSize()) {
@@ -172,6 +174,7 @@ private fun SeerrDetailContent(
 
     var lastActionFocus by rememberSaveable { mutableStateOf(SeerrActionFocusTarget.Primary) }
     var lastSection by rememberSaveable { mutableStateOf(SeerrDetailSection.Actions) }
+    DimBackdrop { lastSection != SeerrDetailSection.Actions }
 
     fun actionFocusRequester(): FocusRequester = when (lastActionFocus) {
         SeerrActionFocusTarget.Cancel -> if (actionRow.showCancel) cancelFocus else primaryFocus

@@ -24,6 +24,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.Text
 import app.picnic.player.playback.LocalThemeMusicPlayer
 import app.picnic.player.ui.ambient.BackdropSpec
+import app.picnic.player.ui.ambient.DimBackdrop
 import app.picnic.player.ui.ambient.LocalAmbientPrewarmer
 import app.picnic.player.ui.ambient.PublishBackdrop
 import app.picnic.player.ui.browse.BrowseHero
@@ -79,12 +80,11 @@ fun DetailScreen(
     }
 
     val derivedNav = item?.let { images.navImages(it) }
-    PublishBackdrop(
-        BackdropSpec(
-            backdropUrl = bgUrl ?: derivedNav?.bgUrl,
-            ambientUrl = ambUrl ?: derivedNav?.ambUrl
-        )
+    val backdrop = BackdropSpec(
+        backdropUrl = bgUrl ?: derivedNav?.bgUrl,
+        ambientUrl = ambUrl ?: derivedNav?.ambUrl
     )
+    PublishBackdrop(backdrop)
 
     Box(Modifier.fillMaxSize()) {
         when {
@@ -150,6 +150,7 @@ private fun DetailContent(
         if (similarItems.isNotEmpty()) add(PageRow(ROW_SIMILAR, similarItems.map { it.id.toString() }))
     }
     val focus = rememberRowPageFocus(pageRows) { restoring = false }
+    DimBackdrop { focus.lastRowKey != null }
 
     val actions = detailActions(
         item = item,
