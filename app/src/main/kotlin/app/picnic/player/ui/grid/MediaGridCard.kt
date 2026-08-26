@@ -26,10 +26,11 @@ import androidx.compose.ui.unit.dp
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
-import app.picnic.player.data.media.countLabel
+import app.picnic.player.text.countLabel
 import app.picnic.player.ui.browse.BrowseCardStyle
 import app.picnic.player.ui.browse.BrowsePosterCard
 import org.jellyfin.sdk.model.api.BaseItemDto
+import org.jellyfin.sdk.model.api.BaseItemKind
 
 private val GridLabelGap = 6.dp
 private val GridLabelGapFocused = 14.dp
@@ -43,7 +44,7 @@ internal fun MediaGridCard(
     item: BaseItemDto,
     style: BrowseCardStyle,
     focusRequester: FocusRequester?,
-    upFocus: FocusRequester?,
+    upFocus: (() -> FocusRequester)?,
     onClick: () -> Unit,
     onLongClick: (() -> Unit)? = null,
     onFocused: () -> Unit,
@@ -105,7 +106,6 @@ internal fun MediaGridCard(
 }
 
 private fun gridSubtitle(item: BaseItemDto): String? = when (item.type) {
-    org.jellyfin.sdk.model.api.BaseItemKind.SERIES ->
-        item.childCount?.let { countLabel(it, "season") } ?: item.productionYear?.toString()
+    BaseItemKind.SERIES -> item.childCount?.let { countLabel(it, "season") } ?: item.productionYear?.toString()
     else -> item.productionYear?.toString()
 }

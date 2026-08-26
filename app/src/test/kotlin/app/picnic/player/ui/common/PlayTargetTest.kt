@@ -1,4 +1,4 @@
-package app.picnic.player.ui.detail
+package app.picnic.player.ui.common
 
 import java.util.UUID
 import org.jellyfin.sdk.model.api.BaseItemDto
@@ -8,7 +8,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 
-class DetailPlayTargetTest {
+class PlayTargetTest {
     private val movieId = UUID.fromString("00000000-0000-0000-0000-0000000000a1")
     private val seriesId = UUID.fromString("00000000-0000-0000-0000-0000000000b1")
     private val episodeId = UUID.fromString("00000000-0000-0000-0000-0000000000c1")
@@ -38,7 +38,7 @@ class DetailPlayTargetTest {
 
     @Test
     fun `unwatched movie plays itself`() {
-        val target = detailPlayTarget(item(movieId, BaseItemKind.MOVIE), nextUpEpisode = null)
+        val target = playTarget(item(movieId, BaseItemKind.MOVIE), nextUpEpisode = null)
         assertEquals(movieId.toString(), target.itemId)
         assertNull(target.resumeTicks)
         assertEquals("Play", target.title)
@@ -46,21 +46,21 @@ class DetailPlayTargetTest {
 
     @Test
     fun `part watched movie resumes`() {
-        val target = detailPlayTarget(item(movieId, BaseItemKind.MOVIE, positionTicks = 5_000), nextUpEpisode = null)
+        val target = playTarget(item(movieId, BaseItemKind.MOVIE, positionTicks = 5_000), nextUpEpisode = null)
         assertEquals(5_000L, target.resumeTicks)
         assertEquals("Resume", target.title)
     }
 
     @Test
     fun `zero position is not a resume`() {
-        val target = detailPlayTarget(item(movieId, BaseItemKind.MOVIE, positionTicks = 0), nextUpEpisode = null)
+        val target = playTarget(item(movieId, BaseItemKind.MOVIE, positionTicks = 0), nextUpEpisode = null)
         assertNull(target.resumeTicks)
         assertEquals("Play", target.title)
     }
 
     @Test
     fun `series plays its next up episode`() {
-        val target = detailPlayTarget(
+        val target = playTarget(
             item(seriesId, BaseItemKind.SERIES),
             item(episodeId, BaseItemKind.EPISODE, season = 2, episode = 5)
         )
@@ -70,7 +70,7 @@ class DetailPlayTargetTest {
 
     @Test
     fun `series resumes a part watched episode`() {
-        val target = detailPlayTarget(
+        val target = playTarget(
             item(seriesId, BaseItemKind.SERIES),
             item(episodeId, BaseItemKind.EPISODE, positionTicks = 900, season = 2, episode = 5)
         )
@@ -80,7 +80,7 @@ class DetailPlayTargetTest {
 
     @Test
     fun `specials label as season zero`() {
-        val target = detailPlayTarget(
+        val target = playTarget(
             item(seriesId, BaseItemKind.SERIES),
             item(episodeId, BaseItemKind.EPISODE, season = 0, episode = 3)
         )
@@ -89,14 +89,14 @@ class DetailPlayTargetTest {
 
     @Test
     fun `series with no next up falls back to itself`() {
-        val target = detailPlayTarget(item(seriesId, BaseItemKind.SERIES), nextUpEpisode = null)
+        val target = playTarget(item(seriesId, BaseItemKind.SERIES), nextUpEpisode = null)
         assertEquals(seriesId.toString(), target.itemId)
         assertEquals("Play", target.title)
     }
 
     @Test
     fun `a next up episode is ignored for a movie`() {
-        val target = detailPlayTarget(
+        val target = playTarget(
             item(movieId, BaseItemKind.MOVIE),
             item(episodeId, BaseItemKind.EPISODE, season = 1, episode = 1)
         )

@@ -1,12 +1,9 @@
-package app.picnic.player.data.media
+package app.picnic.player.ui.common
 
+import app.picnic.player.text.countLabel
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
 
-/**
- * Metadata "detail" slot for a "Recently added" item — the value that replaces
- * runtime.
- */
 fun recentlyAddedDetail(
     item: BaseItemDto,
     seasonCount: Int?,
@@ -24,5 +21,9 @@ fun recentlyAddedDetail(
         }
     }
     BaseItemKind.SEASON -> item.indexNumber?.let { "Season $it" } ?: runtime
+    BaseItemKind.BOX_SET -> {
+        val count = item.childCount ?: 0
+        if (count > 0) countLabel(count, "item") else runtime
+    }
     else -> runtime
 }

@@ -1,6 +1,6 @@
 package app.picnic.player.data.seerr
 
-import app.picnic.player.data.media.countLabel
+import app.picnic.player.text.countLabel
 import java.time.LocalDate
 
 fun SeerrMediaInfo?.hasLibraryLink(): Boolean {

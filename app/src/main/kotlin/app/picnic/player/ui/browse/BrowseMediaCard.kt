@@ -61,7 +61,7 @@ internal fun BrowsePosterCard(
     item: BaseItemDto,
     style: BrowseCardStyle,
     focusRequester: FocusRequester?,
-    upFocus: FocusRequester?,
+    upFocus: (() -> FocusRequester)?,
     onClick: () -> Unit,
     onLongClick: (() -> Unit)? = null,
     onFocused: () -> Unit,
@@ -94,7 +94,7 @@ internal fun BrowsePosterCard(
             if (it.isFocused) onFocused()
         }
     if (focusRequester != null) cardModifier = cardModifier.focusRequester(focusRequester)
-    if (upFocus != null) cardModifier = cardModifier.focusProperties { up = upFocus }
+    if (upFocus != null) cardModifier = cardModifier.focusProperties { up = upFocus() }
     if (leftFocus != null) cardModifier = cardModifier.focusProperties { left = leftFocus }
 
     Card(
@@ -326,7 +326,7 @@ internal fun BrowseMediaCard(
     item: BaseItemDto,
     style: BrowseCardStyle,
     focusRequester: FocusRequester?,
-    upFocus: FocusRequester? = null,
+    upFocus: (() -> FocusRequester)? = null,
     onClick: () -> Unit,
     onLongClick: (() -> Unit)? = null,
     onFocused: () -> Unit

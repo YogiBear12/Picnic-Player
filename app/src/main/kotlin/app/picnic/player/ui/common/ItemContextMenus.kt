@@ -1,4 +1,4 @@
-package app.picnic.player.ui.detail
+package app.picnic.player.ui.common
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
@@ -16,19 +16,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.graphics.Color
 import androidx.tv.material3.ExperimentalTvMaterial3Api
-import app.picnic.player.ui.common.ContextMenuAction
-import app.picnic.player.ui.common.ContextMenuDialog
-import app.picnic.player.ui.common.GlobalContextMenuDialog
-import app.picnic.player.ui.common.LocalAddToPlaylist
-import app.picnic.player.ui.common.MediaInfoDialog
-import app.picnic.player.ui.theme.PicnicColors
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
-
-private val ContextMenuGlassFill = PicnicColors.GlassFill
-private val SynopsisBackground = Color(0xFF181E24)
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable

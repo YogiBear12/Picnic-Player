@@ -130,7 +130,7 @@ fun PersonScreen(
     var summaryText by remember { mutableStateOf<String?>(null) }
 
     val overviewFocusRequester = remember { FocusRequester() }
-    val libraryFocus = rememberRowFocusState(state.libraryItems)
+    val libraryFocus = rememberRowFocusState()
     val librarySeerrRowFocus = remember { FocusRequester() }
     val knownForRowFocus = remember { FocusRequester() }
 
@@ -235,7 +235,7 @@ fun PersonScreen(
                 PersonSection.Overview -> overviewFocusRequester
                 PersonSection.Library ->
                     if (hasLibraryJf) {
-                        libraryFocus.requesters[libraryFocus.focusedIndex]
+                        libraryFocus.requesterAt(libraryFocus.focusedIndex)
                     } else {
                         librarySeerrRowFocus
                     }
@@ -338,7 +338,7 @@ fun PersonScreen(
                             MediaGridCard(
                                 item = item,
                                 style = posterStyle,
-                                focusRequester = libraryFocus.requesters[index],
+                                focusRequester = libraryFocus.requesterAt(index),
                                 upFocus = null,
                                 onClick = {
                                     val nav = images.navImages(item)

@@ -167,8 +167,8 @@ private fun SeerrDetailContent(
     val cast = state.cast
     val recommended = state.recommended
 
-    val castFocus = rememberRowFocusState(cast)
-    val recommendedFocus = rememberRowFocusState(recommended)
+    val castFocus = rememberRowFocusState()
+    val recommendedFocus = rememberRowFocusState()
 
     var lastActionFocus by rememberSaveable { mutableStateOf(SeerrActionFocusTarget.Primary) }
     var lastSection by rememberSaveable { mutableStateOf(SeerrDetailSection.Actions) }
@@ -444,8 +444,8 @@ private fun SeerrDetailContent(
                                 seerrBaseUrl = state.serverUrl,
                                 cacheImages = state.cacheImages,
                                 style = cardStyle,
-                                focusRequester = recommendedFocus.requesters[index],
-                                upFocus = if (cast.isEmpty()) actionFocusRequester() else null,
+                                focusRequester = recommendedFocus.requesterAt(index),
+                                upFocus = if (cast.isEmpty()) ({ actionFocusRequester() }) else null,
                                 leftFocus = if (index == 0) FocusRequester.Cancel else null,
                                 onFocused = {
                                     recommendedFocus.onItemFocused(index, "${item.mediaType}-${item.tmdbId}")

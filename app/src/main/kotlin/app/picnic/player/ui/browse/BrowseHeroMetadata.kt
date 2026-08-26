@@ -1,15 +1,13 @@
 package app.picnic.player.ui.browse
 
-import app.picnic.player.data.media.recentlyAddedDetail
+import app.picnic.player.ui.common.recentlyAddedDetail
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
 
-/** Jellyfin ticks (100ns) per minute: 10 000 ticks/ms × 1 000 ms/s × 60 s/min. */
 internal const val TICKS_PER_MINUTE = 600_000_000L
 
-/** The app's short date rendering for air/premiere dates, e.g. "4 Jun 2013". */
 internal val ShortDateFormat: DateTimeFormatter =
     DateTimeFormatter.ofPattern("d MMM yyyy", Locale.ENGLISH)
 
@@ -33,7 +31,6 @@ internal fun formatSeriesYears(item: BaseItemDto): String {
     return start.toString()
 }
 
-/** Minutes left in an in-progress item, or null when unstarted/finished. */
 internal fun minutesLeft(item: BaseItemDto): Int? {
     val runtime = item.runTimeTicks ?: return null
     val positionTicks = item.userData?.playbackPositionTicks ?: 0L
@@ -49,23 +46,17 @@ internal fun movieMetadataLine(item: BaseItemDto): String {
 }
 
 internal fun recentlyAddedMetadataLine(item: BaseItemDto, seasonCount: Int?): String {
-    val parts = mutableListOf<String>()
-    when (item.type) {
-        BaseItemKind.SERIES, BaseItemKind.SEASON -> formatSeriesYears(item).takeIf { it.isNotEmpty() }?.let { parts += it }
-        else -> item.productionYear?.let { parts += it.toString() }
+    val years = when (item.type) {
+        BaseItemKind.SERIES, BaseItemKind.SEASON -> formatSeriesYears(item)
+        else -> item.productionYear?.toString().orEmpty()
     }
     val runtime = runtimeMinutes(item)?.let(::runtimeLabel).orEmpty()
-    parts += recentlyAddedDetail(item, seasonCount, runtime)
-    return parts.filter { it.isNotEmpty() }.joinToString(" • ")
+    val detail = recentlyAddedDetail(item, seasonCount, runtime)
+    return listOf(years, detail).filter { it.isNotEmpty() }.joinToString(" • ")
 }
 
-/** Genres get their own hero line (below the badge rail), not the details line. */
 internal fun heroGenresLine(item: BaseItemDto): String = item.genres.orEmpty().take(3).joinToString(" • ")
 
-/**
- * `{air date} • {runtime}`. The SxEy marker lives on the episode-title line ([BrowseHero]);
- * time remaining lives on the card badge, not here.
- */
 internal fun episodeMetadataLine(item: BaseItemDto): String {
     val parts = mutableListOf<String>()
     val airDate = item.premiereDate?.format(ShortDateFormat)

@@ -1,4 +1,4 @@
-package app.picnic.player.data.media
+package app.picnic.player.text
 
 import org.junit.Assert.assertEquals
 import org.junit.Test

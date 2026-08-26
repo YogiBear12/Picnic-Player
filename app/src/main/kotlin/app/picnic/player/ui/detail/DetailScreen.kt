@@ -6,21 +6,11 @@
 package app.picnic.player.ui.detail
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -28,10 +18,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.Text
@@ -39,21 +26,30 @@ import app.picnic.player.playback.LocalThemeMusicPlayer
 import app.picnic.player.ui.ambient.BackdropSpec
 import app.picnic.player.ui.ambient.LocalAmbientPrewarmer
 import app.picnic.player.ui.ambient.PublishBackdrop
-import app.picnic.player.ui.browse.BrowseCardStyle
-import app.picnic.player.ui.browse.ScrollToTopBringIntoView
+import app.picnic.player.ui.browse.BrowseHero
+import app.picnic.player.ui.browse.DetailPageScaffold
+import app.picnic.player.ui.browse.DetailPosterRow
 import app.picnic.player.ui.browse.browseLayoutMetrics
+import app.picnic.player.ui.browse.heroBlockHeight
+import app.picnic.player.ui.browse.heroRegionHeight
 import app.picnic.player.ui.browse.posterCardStyle
 import app.picnic.player.ui.common.LocalContextMenuHandler
 import app.picnic.player.ui.common.LocalImageUrls
+import app.picnic.player.ui.common.OverflowMenuDialog
+import app.picnic.player.ui.common.PageRow
 import app.picnic.player.ui.common.ScrollableTextDialog
-import app.picnic.player.ui.grid.MediaGridCard
-import app.picnic.player.ui.grid.gridCellHeight
+import app.picnic.player.ui.common.playTarget
+import app.picnic.player.ui.common.rememberRowPageFocus
 import app.picnic.player.ui.navigation.PersonKey
 import app.picnic.player.ui.seerr.SeasonRequestDialog
 import app.picnic.player.ui.theme.PicnicColors
 import java.util.UUID
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
+
+private const val ROW_CAST = "cast"
+private const val ROW_COLLECTIONS = "collections"
+private const val ROW_SIMILAR = "similar"
 
 @Composable
 fun DetailScreen(
@@ -139,125 +135,127 @@ private fun DetailContent(
     val contextMenu = LocalContextMenuHandler.current
 
     val metrics = browseLayoutMetrics(maxWidth, maxHeight)
-    val heroRegionHeight = maxHeight - metrics.rowsRegionHeight
-
-    val focus = rememberDetailPageFocus(people, collections, similarItems)
+    var restoring by remember { mutableStateOf(true) }
 
     var showOverflowMenu by remember { mutableStateOf(false) }
     var showTrailersDialog by remember { mutableStateOf(false) }
     var showSummaryDialog by remember { mutableStateOf(false) }
 
-    val playTarget = detailPlayTarget(item, state.nextUpEpisode)
+    val playTarget = playTarget(item, state.nextUpEpisode)
     val cardStyle = posterCardStyle(sy = metrics.sy)
 
-    val rowsGap = metrics.rowsViewportOffset + metrics.rowTitleHeight
-    val buttonsToRowGap = rowsGap / 3
-    val pinSpec = with(LocalDensity.current) {
-        remember(heroRegionHeight, buttonsToRowGap) {
-            ScrollToTopBringIntoView((heroRegionHeight + buttonsToRowGap).toPx())
-        }
+    val pageRows = buildList {
+        if (people.isNotEmpty()) add(PageRow(ROW_CAST, people.map { it.id.toString() }))
+        if (collections.isNotEmpty()) add(PageRow(ROW_COLLECTIONS, collections.map { it.id.toString() }))
+        if (similarItems.isNotEmpty()) add(PageRow(ROW_SIMILAR, similarItems.map { it.id.toString() }))
     }
-    val horizontalRowSpec = LocalBringIntoViewSpec.current
+    val focus = rememberRowPageFocus(pageRows) { restoring = false }
 
-    CompositionLocalProvider(LocalBringIntoViewSpec provides pinSpec) {
-        LazyColumn(
-            state = focus.listState,
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(bottom = metrics.bottomInset),
-            verticalArrangement = Arrangement.spacedBy(metrics.rowSpacing + metrics.sy(12f))
-        ) {
-            item(key = "hero") {
-                Column(Modifier.fillMaxWidth()) {
-                    DetailHero(
-                        item = item,
-                        metrics = metrics,
-                        heroRegionHeight = heroRegionHeight,
-                        leadStreams = state.leadStreams,
-                        focus = focus,
-                        onSummaryClick = { showSummaryDialog = true }
-                    )
-                    DetailActionButtons(
-                        item = item,
-                        playTitle = playTarget.title,
-                        trailerCount = trailerCount,
-                        requestMoreError = state.requestMoreError,
-                        metrics = metrics,
-                        focus = focus,
-                        buttonsToRowGap = buttonsToRowGap,
-                        actions = DetailButtonActions(
-                            onPlay = { onPlay(playTarget.itemId, playTarget.resumeTicks, null) },
-                            onEpisodes = {
-                                onEpisodes(
-                                    item.id.toString(),
-                                    images.ambient(item),
-                                    state.nextUpEpisode?.seasonId?.toString(),
-                                    state.nextUpEpisode?.id?.toString()
-                                )
-                            },
-                            onToggleWatched = viewModel::toggleWatched,
-                            onTrailers = {
-                                if (trailerCount == 1) {
-                                    if (localTrailers.isNotEmpty()) {
-                                        onPlay(localTrailers.first().id.toString(), null, null)
-                                    } else {
-                                        context.launchRemoteTrailer(remoteTrailers.first().url ?: "", state.trailerYouTubePackage)
-                                    }
-                                } else {
-                                    showTrailersDialog = true
-                                }
-                            },
-                            onMore = { showOverflowMenu = true }
-                        )
-                    )
+    val actions = detailActions(
+        item = item,
+        playTitle = playTarget.title,
+        trailerCount = trailerCount,
+        actions = DetailButtonActions(
+            onPlay = { onPlay(playTarget.itemId, playTarget.resumeTicks, null) },
+            onEpisodes = {
+                onEpisodes(
+                    item.id.toString(),
+                    images.ambient(item),
+                    state.nextUpEpisode?.seasonId?.toString(),
+                    state.nextUpEpisode?.id?.toString()
+                )
+            },
+            onToggleWatched = viewModel::toggleWatched,
+            onTrailers = {
+                if (trailerCount == 1) {
+                    if (localTrailers.isNotEmpty()) {
+                        onPlay(localTrailers.first().id.toString(), null, null)
+                    } else {
+                        context.launchRemoteTrailer(remoteTrailers.first().url ?: "", state.trailerYouTubePackage)
+                    }
+                } else {
+                    showTrailersDialog = true
                 }
+            },
+            onMore = { showOverflowMenu = true }
+        )
+    )
+
+    val blockHeight = heroBlockHeight(metrics.logoHeight)
+
+    DetailPageScaffold(
+        focus = focus,
+        metrics = metrics,
+        heroRegionHeight = heroRegionHeight(metrics, maxHeight, blockHeight),
+        rowSpacing = metrics.rowSpacing + metrics.sy(12f),
+        restoring = restoring,
+        actions = actions,
+        notice = state.requestMoreError,
+        hero = { heroModifier ->
+            BrowseHero(
+                item = item,
+                logoHeight = metrics.logoHeight,
+                continueWatching = false,
+                streamsOverride = state.leadStreams,
+                seasonCount = if (item.type == BaseItemKind.SERIES) item.childCount else null,
+                onSummaryClick = { showSummaryDialog = true },
+                summaryDown = { focus.lastFocusedButton },
+                blockHeight = blockHeight,
+                modifier = heroModifier
+            )
+        }
+    ) { horizontalRowSpec ->
+        if (people.isNotEmpty()) {
+            item(key = ROW_CAST) {
+                DetailCastRow(
+                    people = people,
+                    metrics = metrics,
+                    horizontalRowSpec = horizontalRowSpec,
+                    rowFocus = focus.rowFocus(ROW_CAST),
+                    upFocus = { focus.lastFocusedButton },
+                    onFocused = { index, person -> focus.onRowFocused(ROW_CAST, index, person.id.toString()) },
+                    onPersonClick = { person -> viewModel.resolvePersonKey(person.id, onPersonClick) }
+                )
             }
+        }
 
-            if (people.isNotEmpty()) {
-                item(key = "cast") {
-                    DetailCastRow(
-                        people = people,
-                        metrics = metrics,
-                        horizontalRowSpec = horizontalRowSpec,
-                        focus = focus,
-                        onPersonClick = { person -> viewModel.resolvePersonKey(person.id, onPersonClick) }
-                    )
-                }
+        if (collections.isNotEmpty()) {
+            item(key = ROW_COLLECTIONS) {
+                DetailPosterRow(
+                    title = "Included in",
+                    items = collections,
+                    metrics = metrics,
+                    cardStyle = cardStyle,
+                    horizontalRowSpec = horizontalRowSpec,
+                    rowFocus = focus.rowFocus(ROW_COLLECTIONS),
+                    onClick = { onCollection(it) },
+                    onLongClick = { contextMenu.show(it) },
+                    onFocused = { index, collection ->
+                        focus.onRowFocused(ROW_COLLECTIONS, index, collection.id.toString())
+                    }
+                )
             }
+        }
 
-            if (collections.isNotEmpty()) {
-                item(key = "collections") {
-                    DetailPosterRow(
-                        title = "Included in",
-                        items = collections,
-                        metrics = metrics,
-                        cardStyle = cardStyle,
-                        horizontalRowSpec = horizontalRowSpec,
-                        rowFocus = focus.collections,
-                        onClick = { onCollection(it) },
-                        onLongClick = { contextMenu.show(it) },
-                        onFocused = { index, collection -> focus.onCollectionFocused(index, collection.id.toString()) }
-                    )
-                }
-            }
-
-            if (similarItems.isNotEmpty()) {
-                item(key = "similar") {
-                    DetailPosterRow(
-                        title = "More like this",
-                        items = similarItems,
-                        metrics = metrics,
-                        cardStyle = cardStyle,
-                        horizontalRowSpec = horizontalRowSpec,
-                        rowFocus = focus.similar,
-                        onClick = { similarItem ->
-                            val nav = images.navImages(similarItem)
-                            ambientPrewarmer.warm(nav.ambUrl)
-                            onItem(similarItem, nav.bgUrl, nav.ambUrl)
-                        },
-                        onLongClick = { contextMenu.show(it) },
-                        onFocused = { index, similarItem -> focus.onSimilarFocused(index, similarItem.id.toString()) }
-                    )
-                }
+        if (similarItems.isNotEmpty()) {
+            item(key = ROW_SIMILAR) {
+                DetailPosterRow(
+                    title = "More like this",
+                    items = similarItems,
+                    metrics = metrics,
+                    cardStyle = cardStyle,
+                    horizontalRowSpec = horizontalRowSpec,
+                    rowFocus = focus.rowFocus(ROW_SIMILAR),
+                    onClick = { similarItem ->
+                        val nav = images.navImages(similarItem)
+                        ambientPrewarmer.warm(nav.ambUrl)
+                        onItem(similarItem, nav.bgUrl, nav.ambUrl)
+                    },
+                    onLongClick = { contextMenu.show(it) },
+                    onFocused = { index, similarItem ->
+                        focus.onRowFocused(ROW_SIMILAR, index, similarItem.id.toString())
+                    }
+                )
             }
         }
     }
@@ -301,34 +299,6 @@ private fun DetailContent(
             seasons = state.requestMoreSeasons,
             onConfirm = viewModel::requestMoreSeasons,
             onDismiss = viewModel::dismissSeasonPicker
-        )
-    }
-}
-
-@Composable
-internal fun DetailRowCard(
-    item: BaseItemDto,
-    style: BrowseCardStyle,
-    focusRequester: FocusRequester?,
-    firstInRow: Boolean,
-    onClick: () -> Unit,
-    onLongClick: (() -> Unit)? = null,
-    onFocused: () -> Unit
-) {
-    Box(
-        Modifier.width(style.width).height(style.topInset + gridCellHeight(style)),
-        contentAlignment = Alignment.TopCenter
-    ) {
-        MediaGridCard(
-            item = item,
-            style = style,
-            focusRequester = focusRequester,
-            upFocus = null,
-            leftFocus = if (firstInRow) FocusRequester.Cancel else null,
-            onClick = onClick,
-            onLongClick = onLongClick,
-            onFocused = onFocused,
-            modifier = Modifier.padding(top = style.topInset)
         )
     }
 }

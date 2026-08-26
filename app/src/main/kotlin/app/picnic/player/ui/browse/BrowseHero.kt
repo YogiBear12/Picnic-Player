@@ -37,12 +37,15 @@ internal val BrowseHeroSummaryLineHeight = 20.sp
 
 private val EpisodeTitleLineHeight = 16.dp
 
-private val HeroInfoTopGap = 14.dp // logo → details line
-private val HeroTitleTopGap = 4.dp // details line → episode title
-private val HeroSummaryTopGap = 6.dp // (episode title / details) → summary
-private val HeroRailTopGap = 10.dp // summary → badge rail
-private val HeroGenresTopGap = 10.dp // summary / rail → genres
-private val HeroSummaryFocusInset = 8.dp // focus highlight → summary text
+private val HeroInfoTopGap = 14.dp
+private val HeroTitleTopGap = 4.dp
+private val HeroSummaryTopGap = 6.dp
+private val HeroRailTopGap = 10.dp
+private val HeroGenresTopGap = 10.dp
+private val HeroGenresLineHeight = 16.dp
+private val HeroSummaryFocusInset = 8.dp
+
+internal val HeroBadgeRailReserve = HeroRailTopGap + HeroSpecPillHeight
 
 private fun Modifier.outsetHorizontally(inset: Dp) = layout { measurable, constraints ->
     val extra = inset.roundToPx() * 2
@@ -56,10 +59,15 @@ private fun Modifier.outsetHorizontally(inset: Dp) = layout { measurable, constr
 }
 
 @Composable
-internal fun heroBlockHeight(logoHeight: Dp): Dp {
+internal fun heroBlockHeight(logoHeight: Dp, reserveBadgeRail: Boolean = true): Dp {
     val summaryLine = with(LocalDensity.current) { BrowseHeroSummaryLineHeight.toDp() }
-    return logoHeight + 96.dp + summaryLine * 3
+    val badgeRail = if (reserveBadgeRail) HeroBadgeRailReserve else 0.dp
+    return logoHeight + HeroInfoTopGap + HeroDetailsRowHeight + HeroSummaryTopGap +
+        summaryLine * 3 + badgeRail + HeroGenresTopGap + HeroGenresLineHeight
 }
+
+@Composable
+internal fun heroRegionHeight(metrics: BrowseLayoutMetrics, screenHeight: Dp, blockHeight: Dp): Dp = screenHeight - metrics.rowsRegionHeight - heroBlockHeight(metrics.logoHeight) + blockHeight
 
 @Composable
 internal fun BrowseHero(
@@ -71,7 +79,8 @@ internal fun BrowseHero(
     summaryLines: Int? = null,
     onSummaryClick: (() -> Unit)? = null,
     summaryDown: (() -> FocusRequester)? = null,
-    streamsOverride: List<org.jellyfin.sdk.model.api.MediaStream>? = null
+    streamsOverride: List<org.jellyfin.sdk.model.api.MediaStream>? = null,
+    blockHeight: Dp = heroBlockHeight(logoHeight)
 ) {
     if (item == null) return
     val isEpisode = item.type == BaseItemKind.EPISODE
@@ -85,7 +94,7 @@ internal fun BrowseHero(
         specs.hasAny -> 3
         else -> 4
     }
-    Column(modifier = modifier.height(heroBlockHeight(logoHeight))) {
+    Column(modifier = modifier.height(blockHeight)) {
         val logoUrl = LocalImageUrls.current.logo(item, fillWidth = 480)
         val headline = when {
             isEpisode || isSeason -> item.seriesName ?: item.name.orEmpty()

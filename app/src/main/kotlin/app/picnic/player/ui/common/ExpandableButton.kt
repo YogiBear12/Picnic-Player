@@ -1,4 +1,4 @@
-package app.picnic.player.ui.detail
+package app.picnic.player.ui.common
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -31,14 +31,11 @@ fun ExpandableButton(
     val isFocused = interactionSource.collectIsFocusedAsState().value
     Button(
         onClick = onClick,
-        modifier = modifier.height(40.dp),
+        modifier = modifier.height(ActionButtonHeight),
         contentPadding = if (isFocused) PaddingValues(start = 12.dp, end = 16.dp) else PaddingValues(horizontal = 12.dp),
         colors = ButtonDefaults.colors(
-            // Dark glass at rest to match dialogs/context menus; focus stays solid.
             containerColor = PicnicColors.GlassFill
         ),
-        // No focus scale: the default 1.1 scales around the centre, which drags the left edge
-        // outward and fights the width expansion. The expanding label is the focus affordance.
         scale = ButtonDefaults.scale(focusedScale = 1f),
         interactionSource = interactionSource
     ) {

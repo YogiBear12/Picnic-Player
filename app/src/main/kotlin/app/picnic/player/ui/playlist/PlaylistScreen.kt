@@ -71,7 +71,7 @@ import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import app.picnic.player.data.media.ItemQueue
-import app.picnic.player.data.media.countLabel
+import app.picnic.player.text.countLabel
 import app.picnic.player.ui.ambient.BackdropSpec
 import app.picnic.player.ui.ambient.PublishBackdrop
 import app.picnic.player.ui.browse.CardTimeLeftBadge
@@ -79,13 +79,13 @@ import app.picnic.player.ui.browse.CardWatchedBadge
 import app.picnic.player.ui.browse.minutesLeft
 import app.picnic.player.ui.browse.runtimeMinutes
 import app.picnic.player.ui.common.ContextMenuAction
+import app.picnic.player.ui.common.ExpandableButton
 import app.picnic.player.ui.common.GlobalContextMenuDialog
 import app.picnic.player.ui.common.ImageUrls
 import app.picnic.player.ui.common.LocalImageUrls
 import app.picnic.player.ui.common.rememberKeyedFocusRequesters
 import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.common.watchProgress
-import app.picnic.player.ui.detail.ExpandableButton
 import app.picnic.player.ui.theme.PicnicColors
 import coil3.compose.AsyncImage
 import kotlin.random.Random
@@ -250,7 +250,7 @@ private fun PlaylistContent(
                     icon = Icons.Default.Shuffle,
                     onClick = {
                         val seed = Random.nextLong()
-                        ItemQueue(playlistId, seed).order(items).firstOrNull()
+                        ItemQueue(playlistId, shuffleSeed = seed).order(items).firstOrNull()
                             ?.let { onShuffle(it.id.toString(), seed) }
                     },
                     modifier = Modifier

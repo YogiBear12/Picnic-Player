@@ -57,13 +57,8 @@ import app.picnic.player.ui.grid.gridCellHeight
 private val LabelGap = 6.dp
 private val LabelGapFocused = 14.dp
 
-/** Extra label reserve when Known-for shows role + year/episodes (third text line). */
 private val PersonCreditLabelExtra = 14.dp
 
-/**
- * Immersive-row Seerr poster: same focus chrome + slot headroom as [app.picnic.player.ui.browse.BrowseMediaCard].
- * No under-card labels — hero carries the title (Home immersive pattern).
- */
 @Composable
 internal fun SeerrMediaCard(
     item: SeerrCatalogItem,
@@ -91,9 +86,6 @@ internal fun SeerrMediaCard(
     }
 }
 
-/**
- * Search/grid Seerr card: poster + title/subtitle under, matching [app.picnic.player.ui.grid.MediaGridCard].
- */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun SeerrLabeledCard(
@@ -102,7 +94,7 @@ internal fun SeerrLabeledCard(
     cacheImages: Boolean,
     style: BrowseCardStyle,
     focusRequester: FocusRequester?,
-    upFocus: FocusRequester? = null,
+    upFocus: (() -> FocusRequester)? = null,
     leftFocus: FocusRequester? = null,
     onFocused: () -> Unit,
     onClick: () -> Unit,
@@ -195,7 +187,6 @@ internal fun SeerrLabeledCard(
     }
 }
 
-/** Poster face only — shared focus chrome with [app.picnic.player.ui.browse.BrowsePosterCard]. */
 @Composable
 private fun SeerrPosterFace(
     item: SeerrCatalogItem,
@@ -203,15 +194,13 @@ private fun SeerrPosterFace(
     cacheImages: Boolean,
     style: BrowseCardStyle,
     focusRequester: FocusRequester?,
-    upFocus: FocusRequester? = null,
+    upFocus: (() -> FocusRequester)? = null,
     leftFocus: FocusRequester? = null,
     onFocused: () -> Unit,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val imageUrl = SeerrImages.poster(seerrBaseUrl, item.posterPath, cacheImages)
-    // Accent comes from the smallest poster size so prefetching one per card stays cheap, and so
-    // its URL differs from the displayed poster's — a shared cache entry can be read mid-write.
     val accentUrl = SeerrImages.poster(seerrBaseUrl, item.posterPath, cacheImages, size = AccentPosterSize)
     val focusAccent = rememberCardFocusAccent(accentUrl)
     val shape = RoundedCornerShape(12.dp)
@@ -226,7 +215,7 @@ private fun SeerrPosterFace(
             if (it.isFocused) onFocused()
         }
     if (focusRequester != null) cardModifier = cardModifier.focusRequester(focusRequester)
-    if (upFocus != null) cardModifier = cardModifier.focusProperties { up = upFocus }
+    if (upFocus != null) cardModifier = cardModifier.focusProperties { up = upFocus() }
     if (leftFocus != null) cardModifier = cardModifier.focusProperties { left = leftFocus }
 
     Card(
@@ -248,7 +237,6 @@ private fun SeerrPosterFace(
         modifier = cardModifier
     ) {
         Box(Modifier.fillMaxSize()) {
-            // Same underlay pattern as BrowseMediaCard — never a blank/transparent card.
             SeerrPosterPlaceholder(item.title)
             if (imageUrl != null) {
                 ArtworkImage(
@@ -258,13 +246,10 @@ private fun SeerrPosterFace(
                     modifier = Modifier.fillMaxSize()
                 )
             }
-            // Poster only — no media-status overlay (Available / Pending / …).
-            // Availability is clear on Detail after OK.
         }
     }
 }
 
-/** Smallest TMDB poster rendition — plenty for picking a focus accent colour. */
 private const val AccentPosterSize = "w92"
 
 @Composable
@@ -299,7 +284,6 @@ private fun SeerrPosterPlaceholder(name: String?) {
     }
 }
 
-/** Total height when wrapping [SeerrLabeledCard] in a focus-scale slot (Search rows). */
 internal fun seerrLabeledSlotHeight(
     style: BrowseCardStyle,
     personCreditMetaline: Boolean = false
