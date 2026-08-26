@@ -53,10 +53,7 @@ data class EpisodesKey(
 ) : NavKey
 
 @Serializable
-data class CollectionKey(
-    val itemId: String,
-    val name: String? = null
-) : NavKey
+data class CollectionKey(val itemId: String) : NavKey
 
 @Serializable
 data class PlaylistKey(

@@ -71,6 +71,7 @@ import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import app.picnic.player.data.media.ItemQueue
+import app.picnic.player.data.media.QueueKind
 import app.picnic.player.text.countLabel
 import app.picnic.player.ui.ambient.BackdropSpec
 import app.picnic.player.ui.ambient.PublishBackdrop
@@ -250,7 +251,7 @@ private fun PlaylistContent(
                     icon = Icons.Default.Shuffle,
                     onClick = {
                         val seed = Random.nextLong()
-                        ItemQueue(playlistId, shuffleSeed = seed).order(items).firstOrNull()
+                        ItemQueue(playlistId, QueueKind.PLAYLIST, shuffleSeed = seed).order(items).firstOrNull()
                             ?.let { onShuffle(it.id.toString(), seed) }
                     },
                     modifier = Modifier

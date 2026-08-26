@@ -29,6 +29,7 @@ import androidx.tv.material3.DrawerState
 import androidx.tv.material3.DrawerValue
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import app.picnic.player.data.media.ItemQueue
+import app.picnic.player.data.media.QueueKind
 import app.picnic.player.ui.ambient.BackdropHostLayer
 import app.picnic.player.ui.ambient.LocalBackdropController
 import app.picnic.player.ui.browse.NavRailViewModel
@@ -60,8 +61,8 @@ import org.jellyfin.sdk.model.api.BaseItemKind
 
 private const val EnterDurationMs = 400
 private const val ExitDurationMs = 300
-private val EnterEasing = CubicBezierEasing(0.05f, 0.7f, 0.1f, 1.0f) // Emphasized Decelerate
-private val ExitEasing = CubicBezierEasing(0.3f, 0.0f, 0.8f, 0.15f) // Emphasized Accelerate
+private val EnterEasing = CubicBezierEasing(0.05f, 0.7f, 0.1f, 1.0f)
+private val ExitEasing = CubicBezierEasing(0.3f, 0.0f, 0.8f, 0.15f)
 
 @OptIn(ExperimentalSharedTransitionApi::class, ExperimentalTvMaterial3Api::class)
 @Composable
@@ -239,7 +240,7 @@ fun PicnicNavHost(
                             },
                             onCollection = { collection ->
                                 navViewModel.push(
-                                    CollectionKey(collection.id.toString(), collection.name)
+                                    CollectionKey(collection.id.toString())
                                 )
                             },
                             onPlaylist = { playlist ->
@@ -288,7 +289,7 @@ fun PicnicNavHost(
                             onEpisodes = { id, ambUrl, seasonId, focusId -> navViewModel.push(EpisodesKey(id, ambUrl, focusId, seasonId)) },
                             onCollection = { collection ->
                                 navViewModel.push(
-                                    CollectionKey(collection.id.toString(), collection.name)
+                                    CollectionKey(collection.id.toString())
                                 )
                             },
                             onPersonClick = { key -> navViewModel.push(key) },
@@ -343,10 +344,18 @@ fun PicnicNavHost(
                     entry<CollectionKey> { key ->
                         CollectionScreen(
                             collectionId = key.itemId,
-                            collectionName = key.name,
+                            onPlay = { id ->
+                                navViewModel.push(
+                                    PlayerKey(id, queue = ItemQueue(key.itemId, QueueKind.COLLECTION))
+                                )
+                            },
+                            onShuffle = { id, seed ->
+                                navViewModel.push(
+                                    PlayerKey(id, queue = ItemQueue(key.itemId, QueueKind.COLLECTION, shuffleSeed = seed))
+                                )
+                            },
                             onItem = navViewModel::openItem,
-                            onBack = { navViewModel.pop() },
-                            onSessionExpired = { serverId -> goProfilePicker(serverId) }
+                            onBack = { navViewModel.pop() }
                         )
                     }
                     entry<PlaylistKey> { key ->
@@ -355,11 +364,13 @@ fun PicnicNavHost(
                             playlistName = key.name,
                             onPlay = { id, ticks, position ->
                                 navViewModel.push(
-                                    PlayerKey(id, ticks, queue = ItemQueue(key.playlistId, position = position))
+                                    PlayerKey(id, ticks, queue = ItemQueue(key.playlistId, QueueKind.PLAYLIST, position = position))
                                 )
                             },
                             onShuffle = { id, seed ->
-                                navViewModel.push(PlayerKey(id, queue = ItemQueue(key.playlistId, seed)))
+                                navViewModel.push(
+                                    PlayerKey(id, queue = ItemQueue(key.playlistId, QueueKind.PLAYLIST, shuffleSeed = seed))
+                                )
                             },
                             onGoToSeries = { seriesId -> navViewModel.push(DetailKey(seriesId)) },
                             onAddToPlaylist = { item -> addToPlaylistItem = item },

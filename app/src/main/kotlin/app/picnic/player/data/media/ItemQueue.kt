@@ -5,9 +5,15 @@ import kotlin.random.Random
 import kotlinx.serialization.Serializable
 import org.jellyfin.sdk.model.api.BaseItemDto
 
+enum class QueueKind {
+    PLAYLIST,
+    COLLECTION
+}
+
 @Serializable
 data class ItemQueue(
     val parentId: String,
+    val kind: QueueKind,
     val shuffleSeed: Long? = null,
     val position: Int = 0
 ) {

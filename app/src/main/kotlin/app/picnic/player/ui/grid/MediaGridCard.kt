@@ -59,7 +59,7 @@ internal fun MediaGridCard(
         if (focused) GridLabelGapFocused else GridLabelGap,
         label = "gridLabelGap"
     )
-    val title = titleOverride ?: item.name.orEmpty()
+    val title = titleOverride ?: gridTitle(item)
     val subtitle = subtitleOverride ?: gridSubtitle(item)
 
     Column(
@@ -105,7 +105,13 @@ internal fun MediaGridCard(
     }
 }
 
+private fun gridTitle(item: BaseItemDto): String = when (item.type) {
+    BaseItemKind.SEASON -> item.seriesName ?: item.name.orEmpty()
+    else -> item.name.orEmpty()
+}
+
 private fun gridSubtitle(item: BaseItemDto): String? = when (item.type) {
     BaseItemKind.SERIES -> item.childCount?.let { countLabel(it, "season") } ?: item.productionYear?.toString()
+    BaseItemKind.SEASON -> item.name?.takeIf { it.isNotBlank() } ?: item.indexNumber?.let { "Season $it" }
     else -> item.productionYear?.toString()
 }

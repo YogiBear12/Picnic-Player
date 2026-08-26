@@ -16,9 +16,10 @@ import androidx.media3.ui.SubtitleView
 import app.picnic.player.data.auth.AuthRepository
 import app.picnic.player.data.auth.UserSession
 import app.picnic.player.data.jellyfin.JellyfinImages
-import app.picnic.player.data.media.MediaRepository
 import app.picnic.player.data.media.ItemQueue
+import app.picnic.player.data.media.MediaRepository
 import app.picnic.player.data.media.PlaylistRepository
+import app.picnic.player.data.media.QueueKind
 import app.picnic.player.data.playback.BlackBarProbe
 import app.picnic.player.data.playback.DirectPlayVeto
 import app.picnic.player.data.playback.MediaSegment
@@ -92,6 +93,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.last
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -720,9 +722,13 @@ class PlayerViewModel @Inject constructor(
 
     private suspend fun nextInQueue(id: UUID, item: BaseItemDto): BaseItemDto? {
         val playing = queue
-        val playlistId = playing?.id
+        val parentId = playing?.id
             ?: return if (item.type == BaseItemKind.EPISODE) mediaRepository.nextEpisode(id) else null
-        return playing.itemAfter(playlistRepository.playlistItems(playlistId))
+        val entries = when (playing.kind) {
+            QueueKind.PLAYLIST -> playlistRepository.playlistItems(parentId)
+            QueueKind.COLLECTION -> mediaRepository.collectionQueue(parentId).last()
+        }
+        return playing.itemAfter(entries)
     }
 
     private fun refreshQualityOptions(info: StreamInfo) {

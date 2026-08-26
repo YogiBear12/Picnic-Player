@@ -94,15 +94,6 @@ class LibraryGridViewModel @Inject constructor(
         load()
     }
 
-    fun bindCollection(collectionId: UUID, title: String) {
-        if (bound) return
-        bound = true
-        kinds = listOf(BaseItemKind.MOVIE, BaseItemKind.SERIES)
-        this.title = title
-        _state.update { it.copy(filter = it.filter.copy(collectionId = collectionId)) }
-        load()
-    }
-
     private fun patchCard(itemId: String) {
         if (!storeReady) return
         viewModelScope.launch {

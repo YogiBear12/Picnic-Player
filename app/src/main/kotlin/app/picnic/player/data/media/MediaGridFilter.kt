@@ -7,7 +7,6 @@ import org.jellyfin.sdk.model.api.ItemSortBy
 data class MediaGridFilter(
     val libraryId: UUID? = null,
     val genreId: UUID? = null,
-    val collectionId: UUID? = null,
     val contentType: GridContentType = GridContentType.ALL,
     val watched: WatchedFilter = WatchedFilter.ALL,
     val favoritesOnly: Boolean = false,
@@ -33,8 +32,7 @@ data class MediaGridFilter(
 
     fun clearUserFilters(): MediaGridFilter = MediaGridFilter(
         libraryId = libraryId,
-        genreId = genreId,
-        collectionId = collectionId
+        genreId = genreId
     )
 }
 

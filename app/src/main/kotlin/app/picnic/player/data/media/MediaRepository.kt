@@ -8,6 +8,8 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.sync.withPermit
 import org.jellyfin.sdk.api.client.extensions.filterApi
 import org.jellyfin.sdk.api.client.extensions.genresApi
@@ -55,7 +57,6 @@ class MediaRepository @Inject constructor(
         api().localizationApi.getCultures().content
     }
 
-    /** A blank language preference means the user set none, not "". */
     suspend fun userConfiguration(): UserConfiguration? = onIo {
         api().userApi.getCurrentUser().content.configuration
     }
@@ -220,6 +221,51 @@ class MediaRepository @Inject constructor(
         return ids
     }
 
+    fun collectionChildren(collectionId: UUID): Flow<List<BaseItemDto>> = pagedItems { startIndex ->
+        childPage(collectionId, startIndex, excludeItemTypes = NON_VIDEO_KINDS)
+    }
+
+    fun collectionQueue(collectionId: UUID): Flow<List<BaseItemDto>> = pagedItems { startIndex ->
+        childPage(collectionId, startIndex, includeItemTypes = PLAYABLE_KINDS, recursive = true)
+    }
+
+    private fun pagedItems(page: suspend (startIndex: Int) -> MediaGridPage): Flow<List<BaseItemDto>> = flow {
+        val loaded = mutableListOf<BaseItemDto>()
+        var total = Int.MAX_VALUE
+        while (loaded.size < total) {
+            val next = page(loaded.size)
+            if (next.items.isEmpty()) break
+            total = next.totalCount
+            loaded += next.items
+            emit(loaded.toList())
+        }
+    }
+
+    private suspend fun childPage(
+        parentId: UUID,
+        startIndex: Int,
+        includeItemTypes: List<BaseItemKind>? = null,
+        excludeItemTypes: List<BaseItemKind>? = null,
+        recursive: Boolean = false
+    ): MediaGridPage = onIo {
+        val response = api().itemsApi.getItems(
+            userId = session().userUuid,
+            parentId = parentId,
+            recursive = recursive,
+            includeItemTypes = includeItemTypes,
+            excludeItemTypes = excludeItemTypes,
+            startIndex = startIndex,
+            limit = MEDIA_GRID_PAGE_SIZE,
+            fields = GRID_FIELDS,
+            enableImageTypes = IMAGE_TYPES,
+            enableTotalRecordCount = true
+        ).content
+        MediaGridPage(
+            items = response.items.orEmpty(),
+            totalCount = response.totalRecordCount ?: response.items.orEmpty().size
+        )
+    }
+
     suspend fun getPerson(personId: UUID): BaseItemDto = onIo {
         api().userLibraryApi.getItem(itemId = personId).content
     }
@@ -354,8 +400,8 @@ class MediaRepository @Inject constructor(
         val response = api().itemsApi.getItems(
             userId = session().userUuid,
             includeItemTypes = filter.contentType.itemKinds(kinds),
-            recursive = filter.collectionId == null,
-            parentId = filter.collectionId ?: filter.libraryId,
+            recursive = true,
+            parentId = filter.libraryId,
             startIndex = startIndex,
             limit = limit,
             nameLessThan = nameLessThan,
@@ -394,8 +440,8 @@ class MediaRepository @Inject constructor(
         if (BuildConfig.DEBUG) {
             Log.d(
                 LIBRARY_LOG_TAG,
-                "grid parent=${filter.collectionId ?: filter.libraryId} " +
-                    "recursive=${filter.collectionId == null} kinds=${filter.contentType.itemKinds(kinds)} " +
+                "grid parent=${filter.libraryId} " +
+                    "kinds=${filter.contentType.itemKinds(kinds)} " +
                     "sort=${sortBy.firstOrNull()} start=$startIndex limit=$limit " +
                     "got=${response.items.orEmpty().size} total=${response.totalRecordCount}"
             )
@@ -413,7 +459,6 @@ class MediaRepository @Inject constructor(
     ): Int {
         if (filter.libraryId == null &&
             filter.genreId == null &&
-            filter.collectionId == null &&
             kinds != listOf(BaseItemKind.BOX_SET)
         ) {
             return 0
@@ -569,7 +614,6 @@ class MediaRepository @Inject constructor(
     }
 
     private companion object {
-        /** Bounded latest fetch (Jellyfin API default is 20 if omitted). */
         const val LATEST_ROW_LIMIT = 25
 
         const val SEARCH_ROW_LIMIT = 24

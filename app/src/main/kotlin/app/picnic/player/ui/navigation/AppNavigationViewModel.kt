@@ -35,8 +35,8 @@ class AppNavigationViewModel @Inject constructor() : ViewModel() {
 
     fun openItem(item: BaseItemDto, bgUrl: String?, ambUrl: String?) {
         val seriesId = item.seriesId
-        if (item.type == BaseItemKind.EPISODE && seriesId != null) {
-            push(
+        when {
+            item.type == BaseItemKind.EPISODE && seriesId != null -> push(
                 EpisodesKey(
                     seriesId = seriesId.toString(),
                     ambUrl = ambUrl,
@@ -44,8 +44,15 @@ class AppNavigationViewModel @Inject constructor() : ViewModel() {
                     seasonId = item.seasonId?.toString()
                 )
             )
-        } else {
-            push(DetailKey(item.id.toString(), bgUrl, ambUrl))
+            item.type == BaseItemKind.SEASON && seriesId != null -> push(
+                EpisodesKey(
+                    seriesId = seriesId.toString(),
+                    ambUrl = ambUrl,
+                    seasonId = item.id.toString()
+                )
+            )
+            item.type == BaseItemKind.BOX_SET -> push(CollectionKey(item.id.toString()))
+            else -> push(DetailKey(item.id.toString(), bgUrl, ambUrl))
         }
     }
 
