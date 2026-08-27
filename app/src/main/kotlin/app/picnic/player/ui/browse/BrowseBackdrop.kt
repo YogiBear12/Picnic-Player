@@ -23,11 +23,14 @@ import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import app.picnic.player.ui.ambient.AmbientBackground
 import app.picnic.player.ui.ambient.AmbientPaletteLoader
 import app.picnic.player.ui.ambient.LocalAmbientBackgrounds
+import app.picnic.player.ui.ambient.bakeGradient
+import app.picnic.player.ui.ambient.drawBakedGradient
 import app.picnic.player.ui.ambient.rememberAmbientPalette
 import app.picnic.player.ui.theme.TvBrowseMotion
 import coil3.compose.AsyncImage
@@ -131,22 +134,37 @@ internal fun BrowseBackdrop(
                 .fillMaxSize()
                 .drawBehind {
                     val s = scrimAlpha.value
-                    drawRect(
-                        Brush.horizontalGradient(
-                            0f to Color.Black.copy(alpha = 0.55f * s),
-                            0.35f to Color.Black.copy(alpha = 0.18f * s),
-                            0.65f to Color.Transparent
-                        )
-                    )
-                    drawRect(
-                        Brush.verticalGradient(
-                            0.65f to Color.Transparent,
-                            1f to Color.Black.copy(alpha = 0.55f * s)
-                        )
-                    )
+                    drawBakedGradient(sideScrim, s)
+                    drawBakedGradient(bottomScrim, s)
                 }
         )
     }
 }
 
 private const val SCRIM_FADE_IN_MS = 1250
+
+private const val SCRIM_BITMAP_W = 480
+private const val SCRIM_BITMAP_H = 270
+
+private val sideScrim: ImageBitmap by lazy {
+    bakeGradient(SCRIM_BITMAP_W, SCRIM_BITMAP_H) {
+        drawRect(
+            Brush.horizontalGradient(
+                0f to Color.Black.copy(alpha = 0.55f),
+                0.35f to Color.Black.copy(alpha = 0.18f),
+                0.65f to Color.Transparent
+            )
+        )
+    }
+}
+
+private val bottomScrim: ImageBitmap by lazy {
+    bakeGradient(SCRIM_BITMAP_W, SCRIM_BITMAP_H) {
+        drawRect(
+            Brush.verticalGradient(
+                0.65f to Color.Transparent,
+                1f to Color.Black.copy(alpha = 0.55f)
+            )
+        )
+    }
+}
