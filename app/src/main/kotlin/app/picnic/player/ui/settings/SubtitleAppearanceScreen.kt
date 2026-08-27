@@ -67,7 +67,6 @@ import app.picnic.player.playback.subtitleBottomPaddingFraction
 import app.picnic.player.ui.common.PanelRowMetrics
 import app.picnic.player.ui.common.PicnicListRow
 import app.picnic.player.ui.common.rowPrimaryColor
-import app.picnic.player.ui.grid.OceanAmbientBackground
 import app.picnic.player.ui.theme.PicnicColors
 import coil3.compose.AsyncImage
 import coil3.compose.AsyncImagePainter
@@ -112,8 +111,6 @@ private const val ScopeAspect = 2.39f
 @Composable
 private fun SubtitleBackground(splashUrl: String?, modifier: Modifier = Modifier) {
     Box(modifier) {
-        OceanAmbientBackground(Modifier.fillMaxSize())
-
         if (splashUrl != null) {
             var loaded by remember(splashUrl) { mutableStateOf(false) }
             val imageAlpha by animateFloatAsState(

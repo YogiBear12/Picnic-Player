@@ -29,7 +29,6 @@ import app.picnic.player.ui.ambient.AmbientBackground
 import app.picnic.player.ui.ambient.AmbientPaletteLoader
 import app.picnic.player.ui.ambient.LocalAmbientBackgrounds
 import app.picnic.player.ui.ambient.rememberAmbientPalette
-import app.picnic.player.ui.grid.OceanAmbientBackground
 import app.picnic.player.ui.theme.TvBrowseMotion
 import coil3.compose.AsyncImage
 import coil3.compose.AsyncImagePainter
@@ -78,8 +77,6 @@ internal fun BrowseBackdrop(
     Box(modifier) {
         if (ambientOn) {
             AmbientBackground(palette, Modifier.fillMaxSize(), base = Color.Transparent)
-        } else {
-            OceanAmbientBackground(Modifier.fillMaxSize())
         }
 
         Box(
