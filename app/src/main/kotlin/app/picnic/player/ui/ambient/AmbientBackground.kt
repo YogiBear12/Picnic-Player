@@ -20,8 +20,6 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 
-val AmbientBase = Color(0xFF0E0E10)
-
 private const val PALETTE_FADE_MS = 1250
 private const val FOCUS_DEBOUNCE_MS = 250L
 private const val WASH_RADIUS = 0.85f
@@ -77,11 +75,9 @@ fun rememberAmbientWash(palette: AmbientPalette?): AmbientWash {
 @Composable
 fun AmbientBackground(
     wash: AmbientWash,
-    modifier: Modifier = Modifier,
-    base: Color = AmbientBase
+    modifier: Modifier = Modifier
 ) {
     Canvas(modifier) {
-        drawRect(base)
         val p = wash.progress.value
         wash.previous?.let { drawBakedGradient(it, 1f - p) }
         wash.current?.let { drawBakedGradient(it, p) }

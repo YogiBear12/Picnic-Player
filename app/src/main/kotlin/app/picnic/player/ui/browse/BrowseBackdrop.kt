@@ -71,7 +71,7 @@ internal fun BrowseBackdrop(
 
     Box(modifier) {
         if (ambientOn) {
-            AmbientBackground(wash, Modifier.fillMaxSize(), base = Color.Transparent)
+            AmbientBackground(wash, Modifier.fillMaxSize())
         }
 
         Box(
