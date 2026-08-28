@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -166,47 +167,49 @@ private fun SeerrConnectDialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
     ) {
-        Column(
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-            modifier = Modifier
-                .width(440.dp)
-                .shadow(8.dp, RoundedCornerShape(20.dp))
-                .clip(RoundedCornerShape(20.dp))
-                .background(DialogGlassFill)
-                .padding(28.dp)
-        ) {
-            Text(
-                "Connect to Seerr",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = Color.White
-            )
-            DialogTextField(
-                value = url,
-                onValueChange = { url = it },
-                placeholder = "https://requests.example.com",
-                label = "Seerr URL",
-                keyboardType = KeyboardType.Uri,
-                imeAction = ImeAction.Next,
-                modifier = Modifier.focusRequester(urlFieldFr)
-            )
-            DialogTextField(
-                value = password,
-                onValueChange = { password = it },
-                placeholder = "Password",
-                label = "Jellyfin password",
-                password = true
-            )
-            if (error != null) {
-                Text(error, color = PicnicColors.Error, style = MaterialTheme.typography.bodyMedium)
+        Box(Modifier.fillMaxSize().imePadding(), contentAlignment = Alignment.Center) {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                modifier = Modifier
+                    .width(440.dp)
+                    .shadow(8.dp, RoundedCornerShape(20.dp))
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(DialogGlassFill)
+                    .padding(28.dp)
+            ) {
+                Text(
+                    "Connect to Seerr",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color.White
+                )
+                DialogTextField(
+                    value = url,
+                    onValueChange = { url = it },
+                    placeholder = "https://requests.example.com",
+                    label = "Seerr URL",
+                    keyboardType = KeyboardType.Uri,
+                    imeAction = ImeAction.Next,
+                    modifier = Modifier.focusRequester(urlFieldFr)
+                )
+                DialogTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    placeholder = "Password",
+                    label = "Jellyfin password",
+                    password = true
+                )
+                if (error != null) {
+                    Text(error, color = PicnicColors.Error, style = MaterialTheme.typography.bodyMedium)
+                }
+                ActionButton(
+                    label = "Connect",
+                    onActivate = { onConnect(url, password) },
+                    enabled = url.isNotBlank() && password.isNotBlank(),
+                    busy = connecting,
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
-            ActionButton(
-                label = "Connect",
-                onActivate = { onConnect(url, password) },
-                enabled = url.isNotBlank() && password.isNotBlank(),
-                busy = connecting,
-                modifier = Modifier.fillMaxWidth()
-            )
         }
     }
     LaunchedEffect(Unit) {
