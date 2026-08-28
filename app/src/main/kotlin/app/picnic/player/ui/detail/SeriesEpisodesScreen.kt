@@ -75,6 +75,7 @@ import app.picnic.player.ui.common.EpisodeContextMenu
 import app.picnic.player.ui.common.LoadFailedState
 import app.picnic.player.ui.common.LocalImageUrls
 import app.picnic.player.ui.common.SeasonContextMenu
+import app.picnic.player.ui.common.isResumable
 import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.theme.PicnicColors
 import coil3.compose.AsyncImage
@@ -186,7 +187,7 @@ fun SeriesEpisodesScreen(
                     restoreIndex = restoreIndex,
                     firstUnwatchedIndex = {
                         episodes.itemSnapshotList.indexOfFirst { ep ->
-                            ep != null && ((ep.userData?.playbackPositionTicks ?: 0L) > 0L || ep.userData?.played != true)
+                            ep != null && ep.isResumable()
                         }.coerceAtLeast(0)
                     }
                 )

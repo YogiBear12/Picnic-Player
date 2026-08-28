@@ -85,8 +85,10 @@ import app.picnic.player.ui.common.ExpandableButton
 import app.picnic.player.ui.common.GlobalContextMenuDialog
 import app.picnic.player.ui.common.ImageUrls
 import app.picnic.player.ui.common.LocalImageUrls
+import app.picnic.player.ui.common.isResumable
 import app.picnic.player.ui.common.rememberKeyedFocusRequesters
 import app.picnic.player.ui.common.requestFocusWhenAttached
+import app.picnic.player.ui.common.resumeTicks
 import app.picnic.player.ui.common.watchProgress
 import app.picnic.player.ui.theme.PicnicColors
 import coil3.compose.AsyncImage
@@ -179,7 +181,8 @@ private fun PlaylistContent(
     val playFocus = remember { FocusRequester() }
     val unwatchedFocus = remember { FocusRequester() }
     val shuffleFocus = remember { FocusRequester() }
-    val unwatchedIndex = remember(items) { items.indexOfFirst(::unplayed) }
+    val unwatchedIndex = remember(items) { items.indexOfFirst { it.isResumable() } }
+    val resumeHadFocus = remember { mutableStateOf(false) }
 
     fun focusRow(index: Int) {
         val target = index.coerceIn(0, items.lastIndex)
@@ -250,16 +253,19 @@ private fun PlaylistContent(
                         .focusProperties { right = if (unwatchedIndex >= 0) unwatchedFocus else shuffleFocus }
                 )
                 if (unwatchedIndex >= 0) {
+                    val resumeItem = items[unwatchedIndex]
                     ExpandableButton(
                         title = "Resume",
                         icon = Icons.Default.PlayCircleOutline,
-                        onClick = {
-                            items[unwatchedIndex].let { onPlay(it.id.toString(), resumeTicks(it), unwatchedIndex) }
-                        },
+                        onClick = { onPlay(resumeItem.id.toString(), resumeItem.resumeTicks(), unwatchedIndex) },
                         modifier = Modifier
                             .focusRequester(unwatchedFocus)
+                            .onFocusChanged { resumeHadFocus.value = it.isFocused }
                             .focusProperties { right = shuffleFocus }
                     )
+                    DisposableEffect(Unit) {
+                        onDispose { if (resumeHadFocus.value) playFocus.requestFocus() }
+                    }
                 }
                 ExpandableButton(
                     title = "Shuffle",
@@ -391,7 +397,7 @@ private fun PlaylistRow(
 
     Card(
         onClick = {
-            if (reordering) onExitReorder() else onPlay(item.id.toString(), resumeTicks(item), index)
+            if (reordering) onExitReorder() else onPlay(item.id.toString(), item.resumeTicks(), index)
         },
         onLongClick = onLongClick,
         shape = CardDefaults.shape(rowShape),
@@ -538,10 +544,6 @@ private fun BoxScope.ItemProgressBar(item: BaseItemDto) {
 }
 
 private fun keyOf(item: BaseItemDto): String = item.playlistItemId ?: item.id.toString()
-
-private fun resumeTicks(item: BaseItemDto): Long? = item.userData?.playbackPositionTicks?.takeIf { it > 0 }
-
-private fun unplayed(item: BaseItemDto): Boolean = item.userData?.played != true || resumeTicks(item) != null
 
 private fun seLabel(item: BaseItemDto): String = "S${item.parentIndexNumber ?: "?"} E${item.indexNumber ?: "?"}"
 

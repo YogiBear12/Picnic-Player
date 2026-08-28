@@ -17,3 +17,7 @@ fun BaseItemDto.watchProgress(): Float = if (type in PlayableKinds) {
 } else {
     0f
 }
+
+fun BaseItemDto.resumeTicks(): Long? = userData?.playbackPositionTicks?.takeIf { it > 0 }
+
+fun BaseItemDto.isResumable(): Boolean = userData?.played != true || resumeTicks() != null
