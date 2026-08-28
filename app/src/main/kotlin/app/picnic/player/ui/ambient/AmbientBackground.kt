@@ -5,6 +5,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -45,30 +46,45 @@ fun rememberAmbientPalette(url: String?, loader: AmbientPaletteLoader): AmbientP
     return palette
 }
 
+@Stable
+class AmbientWash internal constructor() {
+    internal var current by mutableStateOf<ImageBitmap?>(null)
+    internal var previous by mutableStateOf<ImageBitmap?>(null)
+    internal val progress = Animatable(1f)
+
+    val alpha: Float
+        get() {
+            val p = progress.value
+            val leaving = if (previous != null) 1f - p else 0f
+            val arriving = if (current != null) p else 0f
+            return leaving + arriving
+        }
+}
+
+@Composable
+fun rememberAmbientWash(palette: AmbientPalette?): AmbientWash {
+    val wash = remember { AmbientWash() }
+    val washBitmap = remember(palette) { palette?.let(::renderWash) }
+    LaunchedEffect(washBitmap) {
+        wash.previous = wash.current
+        wash.current = washBitmap
+        wash.progress.snapTo(0f)
+        wash.progress.animateTo(1f, tween(PALETTE_FADE_MS))
+    }
+    return wash
+}
+
 @Composable
 fun AmbientBackground(
-    palette: AmbientPalette?,
+    wash: AmbientWash,
     modifier: Modifier = Modifier,
     base: Color = AmbientBase
 ) {
-    val washBitmap = remember(palette) { palette?.let(::renderWash) }
-
-    var current by remember { mutableStateOf<ImageBitmap?>(null) }
-    var previous by remember { mutableStateOf<ImageBitmap?>(null) }
-    val progress = remember { Animatable(1f) }
-
-    LaunchedEffect(washBitmap) {
-        previous = current
-        current = washBitmap
-        progress.snapTo(0f)
-        progress.animateTo(1f, tween(PALETTE_FADE_MS))
-    }
-
     Canvas(modifier) {
         drawRect(base)
-        val p = progress.value
-        previous?.let { drawBakedGradient(it, 1f - p) }
-        current?.let { drawBakedGradient(it, p) }
+        val p = wash.progress.value
+        wash.previous?.let { drawBakedGradient(it, 1f - p) }
+        wash.current?.let { drawBakedGradient(it, p) }
     }
 }
 

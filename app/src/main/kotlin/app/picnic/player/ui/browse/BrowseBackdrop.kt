@@ -32,6 +32,7 @@ import app.picnic.player.ui.ambient.LocalAmbientBackgrounds
 import app.picnic.player.ui.ambient.bakeGradient
 import app.picnic.player.ui.ambient.drawBakedGradient
 import app.picnic.player.ui.ambient.rememberAmbientPalette
+import app.picnic.player.ui.ambient.rememberAmbientWash
 import app.picnic.player.ui.theme.TvBrowseMotion
 import coil3.compose.AsyncImage
 import coil3.compose.AsyncImagePainter
@@ -64,22 +65,13 @@ internal fun BrowseBackdrop(
         layerAlpha.animateTo(1f, tween(TvBrowseMotion.ARTWORK_FADE_IN_MS, easing = EaseOut))
     }
 
-    val scrimAlpha = remember { Animatable(0f) }
-
     val ambientOn = LocalAmbientBackgrounds.current
     val palette = if (ambientOn) rememberAmbientPalette(ambientUrl, ambientLoader) else null
-    val hasImage = displayedUrl != null
-
-    val scrimReady = !ambientOn || palette != null
-    LaunchedEffect(scrimReady) {
-        if (scrimReady) {
-            scrimAlpha.animateTo(1f, tween(SCRIM_FADE_IN_MS, easing = EaseOut))
-        }
-    }
+    val wash = rememberAmbientWash(palette)
 
     Box(modifier) {
         if (ambientOn) {
-            AmbientBackground(palette, Modifier.fillMaxSize(), base = Color.Transparent)
+            AmbientBackground(wash, Modifier.fillMaxSize(), base = Color.Transparent)
         }
 
         Box(
@@ -133,15 +125,13 @@ internal fun BrowseBackdrop(
             Modifier
                 .fillMaxSize()
                 .drawBehind {
-                    val s = scrimAlpha.value
+                    val s = if (ambientOn) wash.alpha else 1f
                     drawBakedGradient(sideScrim, s)
                     drawBakedGradient(bottomScrim, s)
                 }
         )
     }
 }
-
-private const val SCRIM_FADE_IN_MS = 1250
 
 private const val SCRIM_BITMAP_W = 480
 private const val SCRIM_BITMAP_H = 270
