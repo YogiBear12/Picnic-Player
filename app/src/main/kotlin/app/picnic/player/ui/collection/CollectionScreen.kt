@@ -169,6 +169,7 @@ private fun CollectionContent(
                 onFocused = { cardIndex, rowItem ->
                     focus.onRowFocused(row.section.name, cardIndex, rowItem.id.toString())
                 },
+                listState = focus.listState,
                 upFocus = if (index == 0) ({ focus.lastFocusedButton }) else null
             )
         }

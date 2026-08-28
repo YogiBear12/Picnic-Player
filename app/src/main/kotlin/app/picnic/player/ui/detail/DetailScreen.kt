@@ -233,7 +233,8 @@ private fun DetailContent(
                     onLongClick = { contextMenu.show(it) },
                     onFocused = { index, collection ->
                         focus.onRowFocused(ROW_COLLECTIONS, index, collection.id.toString())
-                    }
+                    },
+                    listState = focus.listState
                 )
             }
         }
@@ -255,7 +256,8 @@ private fun DetailContent(
                     onLongClick = { contextMenu.show(it) },
                     onFocused = { index, similarItem ->
                         focus.onRowFocused(ROW_SIMILAR, index, similarItem.id.toString())
-                    }
+                    },
+                    listState = focus.listState
                 )
             }
         }
