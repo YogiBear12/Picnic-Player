@@ -33,6 +33,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.PlayCircleOutline
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material3.CircularProgressIndicator
@@ -176,7 +177,9 @@ private fun PlaylistContent(
     val rowFocus = rememberKeyedFocusRequesters()
     fun keyAt(index: Int): String? = items.getOrNull(index)?.let { keyOf(it) }
     val playFocus = remember { FocusRequester() }
+    val unwatchedFocus = remember { FocusRequester() }
     val shuffleFocus = remember { FocusRequester() }
+    val unwatchedIndex = remember(items) { items.indexOfFirst(::unplayed) }
 
     fun focusRow(index: Int) {
         val target = index.coerceIn(0, items.lastIndex)
@@ -244,8 +247,20 @@ private fun PlaylistContent(
                     onClick = { items.firstOrNull()?.let { onPlay(it.id.toString(), 1L, 0) } },
                     modifier = Modifier
                         .focusRequester(playFocus)
-                        .focusProperties { right = shuffleFocus }
+                        .focusProperties { right = if (unwatchedIndex >= 0) unwatchedFocus else shuffleFocus }
                 )
+                if (unwatchedIndex >= 0) {
+                    ExpandableButton(
+                        title = "Resume",
+                        icon = Icons.Default.PlayCircleOutline,
+                        onClick = {
+                            items[unwatchedIndex].let { onPlay(it.id.toString(), resumeTicks(it), unwatchedIndex) }
+                        },
+                        modifier = Modifier
+                            .focusRequester(unwatchedFocus)
+                            .focusProperties { right = shuffleFocus }
+                    )
+                }
                 ExpandableButton(
                     title = "Shuffle",
                     icon = Icons.Default.Shuffle,
@@ -525,6 +540,8 @@ private fun BoxScope.ItemProgressBar(item: BaseItemDto) {
 private fun keyOf(item: BaseItemDto): String = item.playlistItemId ?: item.id.toString()
 
 private fun resumeTicks(item: BaseItemDto): Long? = item.userData?.playbackPositionTicks?.takeIf { it > 0 }
+
+private fun unplayed(item: BaseItemDto): Boolean = item.userData?.played != true || resumeTicks(item) != null
 
 private fun seLabel(item: BaseItemDto): String = "S${item.parentIndexNumber ?: "?"} E${item.indexNumber ?: "?"}"
 
