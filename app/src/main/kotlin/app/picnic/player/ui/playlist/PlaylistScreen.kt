@@ -1,4 +1,8 @@
-@file:OptIn(ExperimentalTvMaterial3Api::class, ExperimentalFoundationApi::class)
+@file:OptIn(
+    ExperimentalTvMaterial3Api::class,
+    ExperimentalFoundationApi::class,
+    androidx.compose.ui.ExperimentalComposeUiApi::class
+)
 
 package app.picnic.player.ui.playlist
 
@@ -7,6 +11,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -54,6 +59,7 @@ import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -87,6 +93,7 @@ import app.picnic.player.ui.common.ImageUrls
 import app.picnic.player.ui.common.LocalImageUrls
 import app.picnic.player.ui.common.isResumable
 import app.picnic.player.ui.common.rememberKeyedFocusRequesters
+import app.picnic.player.ui.common.rememberRowFocusState
 import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.common.resumeTicks
 import app.picnic.player.ui.common.watchProgress
@@ -96,6 +103,8 @@ import kotlin.random.Random
 import kotlinx.coroutines.launch
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
+
+private data class PlaylistAction(val title: String, val icon: ImageVector, val onClick: () -> Unit)
 
 @Composable
 fun PlaylistScreen(
@@ -178,11 +187,8 @@ private fun PlaylistContent(
 
     val rowFocus = rememberKeyedFocusRequesters()
     fun keyAt(index: Int): String? = items.getOrNull(index)?.let { keyOf(it) }
-    val playFocus = remember { FocusRequester() }
-    val unwatchedFocus = remember { FocusRequester() }
-    val shuffleFocus = remember { FocusRequester() }
+    val buttons = rememberRowFocusState()
     val unwatchedIndex = remember(items) { items.indexOfFirst { it.isResumable() } }
-    val resumeHadFocus = remember { mutableStateOf(false) }
 
     fun focusRow(index: Int) {
         val target = index.coerceIn(0, items.lastIndex)
@@ -243,51 +249,63 @@ private fun PlaylistContent(
                 textAlign = TextAlign.Center
             )
             Spacer(Modifier.height(12.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                ExpandableButton(
-                    title = "Play from start",
-                    icon = Icons.Default.PlayArrow,
-                    onClick = { items.firstOrNull()?.let { onPlay(it.id.toString(), 1L, 0) } },
-                    modifier = Modifier
-                        .focusRequester(playFocus)
-                        .focusProperties { right = if (unwatchedIndex >= 0) unwatchedFocus else shuffleFocus }
+            val actions = buildList {
+                add(
+                    PlaylistAction("Play from start", Icons.Default.PlayArrow) {
+                        items.firstOrNull()?.let { onPlay(it.id.toString(), 1L, 0) }
+                    }
                 )
                 if (unwatchedIndex >= 0) {
                     val resumeItem = items[unwatchedIndex]
-                    ExpandableButton(
-                        title = "Resume",
-                        icon = Icons.Default.PlayCircleOutline,
-                        onClick = { onPlay(resumeItem.id.toString(), resumeItem.resumeTicks(), unwatchedIndex) },
-                        modifier = Modifier
-                            .focusRequester(unwatchedFocus)
-                            .onFocusChanged { resumeHadFocus.value = it.isFocused }
-                            .focusProperties { right = shuffleFocus }
+                    add(
+                        PlaylistAction("Resume", Icons.Default.PlayCircleOutline) {
+                            onPlay(resumeItem.id.toString(), resumeItem.resumeTicks(), unwatchedIndex)
+                        }
                     )
-                    DisposableEffect(Unit) {
-                        onDispose { if (resumeHadFocus.value) playFocus.requestFocus() }
-                    }
                 }
-                ExpandableButton(
-                    title = "Shuffle",
-                    icon = Icons.Default.Shuffle,
-                    onClick = {
+                add(
+                    PlaylistAction("Shuffle", Icons.Default.Shuffle) {
                         val seed = Random.nextLong()
                         ItemQueue(playlistId, QueueKind.PLAYLIST, shuffleSeed = seed).order(items).firstOrNull()
                             ?.let { onShuffle(it.id.toString(), seed) }
-                    },
-                    modifier = Modifier
-                        .focusRequester(shuffleFocus)
-                        .focusProperties {
-                            keyAt(focusedIndex.coerceIn(0, items.lastIndex))?.let { right = rowFocus[it] }
-                        }
-                        .onKeyEvent { event ->
-                            if (event.key == Key.DirectionRight && event.type == KeyEventType.KeyDown) {
-                                rightToListConsumed()
-                            } else {
-                                false
-                            }
-                        }
+                    }
                 )
+            }
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier
+                    .focusGroup()
+                    .focusProperties {
+                        enter = { buttons.requesterAt(buttons.focusedIndex.coerceAtMost(actions.lastIndex)) }
+                    }
+            ) {
+                actions.forEachIndexed { index, action ->
+                    ExpandableButton(
+                        title = action.title,
+                        icon = action.icon,
+                        onClick = action.onClick,
+                        modifier = Modifier
+                            .focusRequester(buttons.requesterAt(index))
+                            .onFocusChanged { if (it.isFocused) buttons.onItemFocused(index) }
+                            .then(
+                                if (index == actions.lastIndex) {
+                                    Modifier
+                                        .focusProperties {
+                                            keyAt(focusedIndex.coerceIn(0, items.lastIndex))?.let { right = rowFocus[it] }
+                                        }
+                                        .onKeyEvent { event ->
+                                            if (event.key == Key.DirectionRight && event.type == KeyEventType.KeyDown) {
+                                                rightToListConsumed()
+                                            } else {
+                                                false
+                                            }
+                                        }
+                                } else {
+                                    Modifier
+                                }
+                            )
+                    )
+                }
             }
             Spacer(Modifier.height(14.dp))
             Box(Modifier.fillMaxWidth().height(1.dp).background(Color.White.copy(alpha = 0.15f)))
@@ -320,7 +338,7 @@ private fun PlaylistContent(
                     index = index,
                     item = item,
                     focusRequester = rowFocus[itemKey],
-                    leftFocus = shuffleFocus,
+                    leftFocus = buttons.requesterAt(buttons.focusedIndex),
                     reordering = reorderKey == itemKey,
                     onFocused = { focusedKey = itemKey },
                     onPlay = onPlay,
