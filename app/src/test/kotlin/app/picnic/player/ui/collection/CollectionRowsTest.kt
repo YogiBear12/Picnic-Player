@@ -29,6 +29,7 @@ class CollectionRowsTest {
     fun rowsFollowSectionOrder_regardlessOfChildOrder() {
         val children = listOf(
             item(BaseItemKind.BOX_SET),
+            item(BaseItemKind.PLAYLIST),
             item(BaseItemKind.EPISODE),
             item(BaseItemKind.MOVIE),
             item(BaseItemKind.SEASON),

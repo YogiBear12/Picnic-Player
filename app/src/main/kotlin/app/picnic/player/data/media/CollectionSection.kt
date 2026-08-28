@@ -13,6 +13,7 @@ enum class CollectionSection(
     EPISODES("Episodes", listOf(BaseItemKind.EPISODE), landscape = true),
     VIDEOS("Videos", listOf(BaseItemKind.VIDEO, BaseItemKind.MUSIC_VIDEO)),
     COLLECTIONS("Collections", listOf(BaseItemKind.BOX_SET)),
+    PLAYLISTS("Playlists", listOf(BaseItemKind.PLAYLIST)),
     OTHER("Other Items", emptyList())
 }
 
@@ -30,7 +31,6 @@ val NON_VIDEO_KINDS: List<BaseItemKind> = listOf(
     BaseItemKind.GENRE,
     BaseItemKind.STUDIO,
     BaseItemKind.PERSON,
-    BaseItemKind.PLAYLIST,
     BaseItemKind.USER_VIEW,
     BaseItemKind.COLLECTION_FOLDER
 )

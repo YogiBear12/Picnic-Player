@@ -52,6 +52,7 @@ class AppNavigationViewModel @Inject constructor() : ViewModel() {
                 )
             )
             item.type == BaseItemKind.BOX_SET -> push(CollectionKey(item.id.toString()))
+            item.type == BaseItemKind.PLAYLIST -> push(PlaylistKey(item.id.toString(), item.name))
             else -> push(DetailKey(item.id.toString(), bgUrl, ambUrl))
         }
     }
