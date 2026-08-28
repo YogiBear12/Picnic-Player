@@ -44,6 +44,7 @@ import app.picnic.player.data.playback.TrickplayFrame
 import app.picnic.player.ui.ambient.CardFocusBorderWidth
 import app.picnic.player.ui.ambient.CardFocusGlowAlpha
 import app.picnic.player.ui.ambient.CardFocusGlowElevation
+import app.picnic.player.ui.common.formatClock
 import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.player.ChapterMark
 import coil3.compose.AsyncImage
@@ -160,7 +161,7 @@ private fun ChapterCard(
                     modifier = if (focused) Modifier.basicMarquee() else Modifier
                 )
                 Text(
-                    text = formatTime(chapter.startMs),
+                    text = formatClock(chapter.startMs),
                     style = MaterialTheme.typography.labelSmall,
                     color = Color.White.copy(alpha = 0.75f)
                 )

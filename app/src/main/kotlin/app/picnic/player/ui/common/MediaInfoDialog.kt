@@ -45,6 +45,7 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.SurfaceDefaults
 import androidx.tv.material3.Text
+import app.picnic.player.data.playback.ticksToMs
 import app.picnic.player.ui.theme.PicnicColors
 import java.util.Locale
 import org.jellyfin.sdk.model.api.BaseItemDto
@@ -53,15 +54,8 @@ import org.jellyfin.sdk.model.api.MediaSourceInfo
 import org.jellyfin.sdk.model.api.MediaStream
 import org.jellyfin.sdk.model.api.MediaStreamType
 
-/** Translucent glass fill shared with the long-press context menus, so this dialog matches them. */
 private val ContextMenuGlassFill = PicnicColors.GlassFill
 
-/**
- * "View media info" — a scrollable, Jellyfin-web-style breakdown of a movie/episode file's media
- * source(s): container/size plus every video, audio and subtitle track with full technical detail.
- * Each track is a collapsible section; video and the primary (default) audio open by default,
- * additional audio and subtitle tracks start collapsed. Multi-version items expose a version picker.
- */
 @Composable
 fun MediaInfoDialog(
     item: BaseItemDto,
@@ -289,8 +283,6 @@ private fun PropertyRow(label: String, value: String) {
     }
 }
 
-// --- Section / row assembly ---------------------------------------------------------------------
-
 private data class InfoSection(
     val title: String,
     val subtitle: String?,
@@ -339,7 +331,7 @@ private fun buildSections(source: MediaSourceInfo, chapters: List<ChapterInfo>):
 
     if (chapters.isNotEmpty()) {
         val rows = chapters.mapIndexed { i, chapter ->
-            formatTicks(chapter.startPositionTicks) to
+            formatClock(chapter.startPositionTicks.ticksToMs()) to
                 (chapter.name?.takeIf { it.isNotBlank() } ?: "Chapter ${i + 1}")
         }
         sections += InfoSection(
@@ -431,19 +423,6 @@ private fun formatBytes(bytes: Long): String {
         mb >= 1.0 -> String.format(Locale.US, "%.2f MiB", mb)
         kb >= 1.0 -> String.format(Locale.US, "%.2f KiB", kb)
         else -> "$bytes B"
-    }
-}
-
-/** Ticks (100 ns units) → H:MM:SS, dropping the hours field when zero. */
-internal fun formatTicks(ticks: Long): String {
-    val totalSeconds = ticks / 10_000_000L
-    val h = totalSeconds / 3600
-    val m = (totalSeconds % 3600) / 60
-    val s = totalSeconds % 60
-    return if (h > 0) {
-        String.format(Locale.US, "%d:%02d:%02d", h, m, s)
-    } else {
-        String.format(Locale.US, "%d:%02d", m, s)
     }
 }
 

@@ -91,6 +91,7 @@ import app.picnic.player.ui.common.ExpandableButton
 import app.picnic.player.ui.common.GlobalContextMenuDialog
 import app.picnic.player.ui.common.ImageUrls
 import app.picnic.player.ui.common.LocalImageUrls
+import app.picnic.player.ui.common.PlayFromStartLabel
 import app.picnic.player.ui.common.isResumable
 import app.picnic.player.ui.common.rememberKeyedFocusRequesters
 import app.picnic.player.ui.common.rememberRowFocusState
@@ -251,8 +252,8 @@ private fun PlaylistContent(
             Spacer(Modifier.height(12.dp))
             val actions = buildList {
                 add(
-                    PlaylistAction("Play from start", Icons.Default.PlayArrow) {
-                        items.firstOrNull()?.let { onPlay(it.id.toString(), 1L, 0) }
+                    PlaylistAction(PlayFromStartLabel, Icons.Default.PlayArrow) {
+                        items.firstOrNull()?.let { onPlay(it.id.toString(), null, 0) }
                     }
                 )
                 if (unwatchedIndex >= 0) {

@@ -51,6 +51,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import app.picnic.player.data.playback.TrickplayFrame
+import app.picnic.player.ui.common.formatClock
 import app.picnic.player.ui.player.PlayerUiState
 import app.picnic.player.ui.player.TrickplayPreview
 
@@ -271,10 +272,10 @@ fun ModernOsd(
 
         Spacer(Modifier.height(6.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(formatTime(shown), color = Color.White, style = MaterialTheme.typography.labelLarge)
+            Text(formatClock(shown), color = Color.White, style = MaterialTheme.typography.labelLarge)
             // Total runtime (not time remaining, no "ends at" clock).
             Text(
-                formatTime(duration),
+                formatClock(duration),
                 color = Color.White.copy(alpha = 0.6f),
                 style = MaterialTheme.typography.labelMedium
             )

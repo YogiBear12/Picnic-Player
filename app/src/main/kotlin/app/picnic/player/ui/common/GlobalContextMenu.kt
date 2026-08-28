@@ -54,7 +54,7 @@ fun GlobalContextMenuDialog(
             if (resumeTicks != null) {
                 add(
                     ContextMenuAction(
-                        if (showResumePosition) "Resume from ${formatTicks(resumeTicks)}" else "Resume",
+                        if (showResumePosition) resumeLabel(resumeTicks) else "Resume",
                         Icons.Default.PlayArrow
                     ) {
                         onPlay(item.id.toString(), resumeTicks)
@@ -62,8 +62,8 @@ fun GlobalContextMenuDialog(
                     }
                 )
                 add(
-                    ContextMenuAction("Play from beginning", Icons.Default.Replay) {
-                        onPlay(item.id.toString(), 1L)
+                    ContextMenuAction(PlayFromStartLabel, Icons.Default.Replay) {
+                        onPlay(item.id.toString(), null)
                         onDismiss()
                     }
                 )

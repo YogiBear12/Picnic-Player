@@ -41,6 +41,7 @@ import app.picnic.player.ui.common.LocalContextMenuHandler
 import app.picnic.player.ui.common.LocalImageUrls
 import app.picnic.player.ui.common.OverflowMenuDialog
 import app.picnic.player.ui.common.PageRow
+import app.picnic.player.ui.common.PlayFromStartLabel
 import app.picnic.player.ui.common.ScrollableTextDialog
 import app.picnic.player.ui.common.playTarget
 import app.picnic.player.ui.common.rememberRowPageFocus
@@ -298,7 +299,7 @@ private fun DetailContent(
             extraActions = buildList {
                 if (item.type == BaseItemKind.MOVIE && item.resumeTicks() != null) {
                     add(
-                        ContextMenuAction("Play from beginning", Icons.Default.Replay) {
+                        ContextMenuAction(PlayFromStartLabel, Icons.Default.Replay) {
                             showOverflowMenu = false
                             onPlay(item.id.toString(), null, null)
                         }

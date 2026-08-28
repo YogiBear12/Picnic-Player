@@ -1,7 +1,12 @@
 package app.picnic.player.ui.common
 
+import app.picnic.player.data.playback.ticksToMs
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
+
+const val PlayFromStartLabel = "Play from start"
+
+fun resumeLabel(resumeTicks: Long): String = "Resume from ${formatClock(resumeTicks.ticksToMs())}"
 
 data class PlayTarget(
     val itemId: String,
@@ -19,7 +24,7 @@ fun playTarget(item: BaseItemDto, nextUpEpisode: BaseItemDto? = null): PlayTarge
         resumeTicks = resumeTicks,
         title = when {
             episode != null -> "$verb ${episodeLabel(episode)}"
-            resumeTicks != null -> "Resume from ${formatTicks(resumeTicks)}"
+            resumeTicks != null -> resumeLabel(resumeTicks)
             else -> verb
         }
     )

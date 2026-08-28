@@ -6,20 +6,9 @@ import app.picnic.player.playback.AudioBoost
 import app.picnic.player.playback.NightMode
 import app.picnic.player.playback.SleepMode
 import app.picnic.player.playback.SleepTimerState
+import app.picnic.player.ui.common.formatClock
 import java.util.Locale
 import kotlin.math.abs
-
-internal fun formatTime(ms: Long): String {
-    val totalSeconds = (ms / 1000).coerceAtLeast(0)
-    val hours = totalSeconds / 3600
-    val minutes = (totalSeconds % 3600) / 60
-    val seconds = totalSeconds % 60
-    return if (hours > 0) {
-        "%d:%02d:%02d".format(hours, minutes, seconds)
-    } else {
-        "%d:%02d".format(minutes, seconds)
-    }
-}
 
 internal fun formatDelay(ms: Long): String {
     val sign = if (ms > 0) {
@@ -63,7 +52,7 @@ internal fun sleepModeLabel(mode: SleepMode): String = when (mode) {
 internal fun sleepSummary(state: SleepTimerState): String = when {
     state.mode == SleepMode.OFF -> "Off"
     state.mode.durationMinutes != null && state.remainingMs > 0 ->
-        "${sleepModeLabel(state.mode)} · ${formatTime(state.remainingMs)} left"
+        "${sleepModeLabel(state.mode)} · ${formatClock(state.remainingMs)} left"
     else -> sleepModeLabel(state.mode)
 }
 

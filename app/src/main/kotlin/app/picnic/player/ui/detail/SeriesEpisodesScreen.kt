@@ -77,6 +77,7 @@ import app.picnic.player.ui.common.LocalImageUrls
 import app.picnic.player.ui.common.SeasonContextMenu
 import app.picnic.player.ui.common.isResumable
 import app.picnic.player.ui.common.requestFocusWhenAttached
+import app.picnic.player.ui.common.resumeTicks
 import app.picnic.player.ui.theme.PicnicColors
 import coil3.compose.AsyncImage
 import java.util.UUID
@@ -463,7 +464,7 @@ private fun EpisodeItem(
 
         Card(
             onClick = {
-                val resumeTicks = episode.userData?.playbackPositionTicks?.takeIf { it > 0L }
+                val resumeTicks = episode.resumeTicks()
                 onPlay(episode.id.toString(), resumeTicks)
             },
             onLongClick = onLongClick,
