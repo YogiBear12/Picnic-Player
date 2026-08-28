@@ -31,15 +31,17 @@ private const val WASH_BITMAP_H = 108
 fun rememberAmbientPalette(url: String?, loader: AmbientPaletteLoader): AmbientPalette? {
     var palette by remember { mutableStateOf<AmbientPalette?>(null) }
     LaunchedEffect(url) {
-        if (url == null) return@LaunchedEffect
+        if (url == null) {
+            palette = null
+            return@LaunchedEffect
+        }
         loader.cached(url)?.let {
             palette = it
             return@LaunchedEffect
         }
         delay(FOCUS_DEBOUNCE_MS)
         if (!currentCoroutineContext().isActive) return@LaunchedEffect
-        val loaded = loader.load(url)
-        if (loaded != null) palette = loaded
+        palette = loader.load(url)
     }
     return palette
 }
