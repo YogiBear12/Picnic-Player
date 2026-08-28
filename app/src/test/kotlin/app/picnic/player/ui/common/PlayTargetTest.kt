@@ -46,9 +46,15 @@ class PlayTargetTest {
 
     @Test
     fun `part watched movie resumes`() {
-        val target = playTarget(item(movieId, BaseItemKind.MOVIE, positionTicks = 5_000), nextUpEpisode = null)
-        assertEquals(5_000L, target.resumeTicks)
-        assertEquals("Resume", target.title)
+        val target = playTarget(item(movieId, BaseItemKind.MOVIE, positionTicks = 27_300_000_000), nextUpEpisode = null)
+        assertEquals(27_300_000_000L, target.resumeTicks)
+        assertEquals("Resume from 45:30", target.title)
+    }
+
+    @Test
+    fun `a resume past an hour keeps the hours field`() {
+        val target = playTarget(item(movieId, BaseItemKind.MOVIE, positionTicks = 45_150_000_000), nextUpEpisode = null)
+        assertEquals("Resume from 1:15:15", target.title)
     }
 
     @Test

@@ -12,12 +12,16 @@ data class PlayTarget(
 fun playTarget(item: BaseItemDto, nextUpEpisode: BaseItemDto? = null): PlayTarget {
     val episode = nextUpEpisode?.takeIf { item.type == BaseItemKind.SERIES }
     val source = episode ?: item
-    val resumeTicks = source.userData?.playbackPositionTicks?.takeIf { it > 0 }
+    val resumeTicks = source.resumeTicks()
     val verb = if (resumeTicks != null) "Resume" else "Play"
     return PlayTarget(
         itemId = source.id.toString(),
         resumeTicks = resumeTicks,
-        title = if (episode == null) verb else "$verb ${episodeLabel(episode)}"
+        title = when {
+            episode != null -> "$verb ${episodeLabel(episode)}"
+            resumeTicks != null -> "Resume from ${formatTicks(resumeTicks)}"
+            else -> verb
+        }
     )
 }
 

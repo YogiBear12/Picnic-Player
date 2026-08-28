@@ -435,7 +435,7 @@ private fun formatBytes(bytes: Long): String {
 }
 
 /** Ticks (100 ns units) → H:MM:SS, dropping the hours field when zero. */
-private fun formatTicks(ticks: Long): String {
+internal fun formatTicks(ticks: Long): String {
     val totalSeconds = ticks / 10_000_000L
     val h = totalSeconds / 3600
     val m = (totalSeconds % 3600) / 60
