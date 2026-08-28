@@ -10,6 +10,7 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.Stable
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -17,9 +18,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 
 private const val FOCUS_RESTORE_FAILSAFE_MS = 2000L
 private val RowPageCacheWindow = LazyLayoutCacheWindow(ahead = 1200.dp, behind = 400.dp)
@@ -31,6 +35,7 @@ data class PageRow(val key: String, val itemKeys: List<String>)
 @Stable
 class RowPageFocus internal constructor(
     val listState: LazyListState,
+    val building: State<Boolean>,
     val buttons: RowFocusState,
     private val rows: () -> List<PageRow>,
     private val rowStates: Map<String, RowFocusState>,
@@ -79,6 +84,7 @@ fun rememberRowPageFocus(
     onSettled: () -> Unit = {}
 ): RowPageFocus {
     val listState = rememberLazyListState(cacheWindow = RowPageCacheWindow)
+    val building = rememberPageBuilding(listState)
     val buttons = rememberRowFocusState()
     val rowStates = rows.associate { row -> row.key to key(row.key) { rememberRowFocusState() } }
     val lastRowKey = rememberSaveable { mutableStateOf<String?>(null) }
@@ -87,6 +93,7 @@ fun rememberRowPageFocus(
     val focus = remember(buttons, rowStates) {
         RowPageFocus(
             listState = listState,
+            building = building,
             buttons = buttons,
             rows = { latestRows.value },
             rowStates = rowStates,
@@ -96,6 +103,20 @@ fun rememberRowPageFocus(
 
     RestoreRowPageFocus(focus, rows, ready, moreRowsPending, onSettled)
     return focus
+}
+
+@Composable
+private fun rememberPageBuilding(listState: LazyListState): State<Boolean> {
+    val building = remember {
+        mutableStateOf(Snapshot.withoutReadObservation { listState.isScrollInProgress })
+    }
+    LaunchedEffect(Unit) {
+        if (building.value) {
+            snapshotFlow { listState.isScrollInProgress }.first { !it }
+            building.value = false
+        }
+    }
+    return building
 }
 
 @Composable

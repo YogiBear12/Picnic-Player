@@ -234,7 +234,7 @@ private fun DetailContent(
                     onFocused = { index, collection ->
                         focus.onRowFocused(ROW_COLLECTIONS, index, collection.id.toString())
                     },
-                    listState = focus.listState
+                    building = focus.building.value
                 )
             }
         }
@@ -257,7 +257,7 @@ private fun DetailContent(
                     onFocused = { index, similarItem ->
                         focus.onRowFocused(ROW_SIMILAR, index, similarItem.id.toString())
                     },
-                    listState = focus.listState
+                    building = focus.building.value
                 )
             }
         }
