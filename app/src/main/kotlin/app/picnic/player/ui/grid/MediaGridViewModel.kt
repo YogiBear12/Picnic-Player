@@ -57,7 +57,7 @@ class LibraryGridViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            changeBus.events.collect { change ->
+            changeBus.changes().collect { change ->
                 if (change is LibraryChange.ItemUpdated) {
                     patchCard(change.itemId)
                     change.seriesId?.let { patchCard(it) }

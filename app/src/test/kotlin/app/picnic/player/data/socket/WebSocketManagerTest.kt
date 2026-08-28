@@ -113,7 +113,7 @@ class WebSocketManagerTest {
         )
 
         fun startCollecting(scope: CoroutineScope) {
-            collectJobs += scope.launch(Dispatchers.Unconfined) { bus.events.collect { received += it } }
+            collectJobs += scope.launch(Dispatchers.Unconfined) { bus.changes().collect { received += it } }
             collectJobs += scope.launch(Dispatchers.Unconfined) { playerBus.commands.collect { playerCommands += it } }
             collectJobs += scope.launch(Dispatchers.Unconfined) { messageBus.messages.collect { notices += it } }
             collectJobs += scope.launch(Dispatchers.Unconfined) { remoteBus.actions.collect { remoteActions += it } }

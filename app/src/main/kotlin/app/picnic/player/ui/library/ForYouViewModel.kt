@@ -69,7 +69,7 @@ class ForYouViewModel @Inject constructor(
             focusChangedFlow.debounce(200).collectLatest { prefetchStreamsAhead() }
         }
         viewModelScope.launch {
-            changeBus.events.collect { change ->
+            changeBus.changes().collect { change ->
                 if (change is LibraryChange.ItemUpdated) {
                     patchCard(change.itemId)
                     change.seriesId?.let { patchCard(it) }
@@ -78,22 +78,20 @@ class ForYouViewModel @Inject constructor(
         }
     }
 
-    private fun patchCard(itemId: String) {
+    private suspend fun patchCard(itemId: String) {
         val id = runCatching { UUID.fromString(itemId) }.getOrNull() ?: return
-        viewModelScope.launch {
-            if (_state.value.rows.none { row -> row.items.any { it.id == id } }) return@launch
-            val fresh = runCatching { mediaRepository.item(id) }.getOrNull() ?: return@launch
-            _state.update { state ->
-                state.copy(
-                    rows = state.rows.map { row ->
-                        if (row.items.none { it.id == id }) {
-                            row
-                        } else {
-                            row.copy(items = row.items.map { if (it.id == id) fresh else it })
-                        }
+        if (_state.value.rows.none { row -> row.items.any { it.id == id } }) return
+        val fresh = runCatching { mediaRepository.item(id) }.getOrNull() ?: return
+        _state.update { state ->
+            state.copy(
+                rows = state.rows.map { row ->
+                    if (row.items.none { it.id == id }) {
+                        row
+                    } else {
+                        row.copy(items = row.items.map { if (it.id == id) fresh else it })
                     }
-                )
-            }
+                }
+            )
         }
     }
 

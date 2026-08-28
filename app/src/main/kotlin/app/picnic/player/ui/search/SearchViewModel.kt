@@ -93,7 +93,7 @@ class SearchViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            changeBus.events.collect { change ->
+            changeBus.changes().collect { change ->
                 if (change is LibraryChange.ItemUpdated) {
                     patchResults(setOfNotNull(change.itemId, change.seriesId))
                 }

@@ -117,7 +117,7 @@ class DetailViewModel @AssistedInject constructor(
         }
 
         viewModelScope.launch {
-            changeBus.events.collect { change ->
+            changeBus.changes().collect { change ->
                 if (change !is LibraryChange.ItemUpdated) return@collect
                 if (change.itemId == itemId || change.seriesId == itemId) {
                     reload()

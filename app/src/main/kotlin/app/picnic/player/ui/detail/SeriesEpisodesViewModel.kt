@@ -146,7 +146,7 @@ class SeriesEpisodesViewModel @Inject constructor(
                 .collect { indices -> runCatching { fetchSeasonCounts(indices) } }
         }
         viewModelScope.launch {
-            changeBus.events.collect { change ->
+            changeBus.changes().collect { change ->
                 if (change !is LibraryChange.ItemUpdated) return@collect
                 val seriesId = currentSeriesId ?: return@collect
                 val affectsThisSeries = change.seriesId == seriesId || change.itemId == seriesId

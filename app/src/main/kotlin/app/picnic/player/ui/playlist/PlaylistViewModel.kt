@@ -58,7 +58,7 @@ class PlaylistViewModel @Inject constructor(
         if (observing) return
         observing = true
         viewModelScope.launch {
-            changeBus.events.collect { change ->
+            changeBus.changes().collect { change ->
                 val session = state.session ?: return@collect
                 val touched = change is LibraryChange.ItemUpdated &&
                     (change.itemId == id.toString() || state.items.any { it.id.toString() == change.itemId })

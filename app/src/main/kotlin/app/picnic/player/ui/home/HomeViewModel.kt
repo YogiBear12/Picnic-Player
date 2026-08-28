@@ -105,7 +105,7 @@ class HomeViewModel @Inject constructor(
     init {
         load()
         viewModelScope.launch {
-            changeBus.events.debounce(400).collectLatest { refresh() }
+            changeBus.changes().debounce(400).collectLatest { refresh() }
         }
         viewModelScope.launch {
             focusChangedFlow.debounce(200).collectLatest { prefetchStreamsAhead() }

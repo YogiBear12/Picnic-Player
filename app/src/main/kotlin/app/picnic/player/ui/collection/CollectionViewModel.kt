@@ -50,7 +50,7 @@ class CollectionViewModel @AssistedInject constructor(
     init {
         viewModelScope.launch { load() }
         viewModelScope.launch {
-            changeBus.events.collect { change ->
+            changeBus.changes().collect { change ->
                 if (change !is LibraryChange.ItemUpdated) return@collect
                 if (change.itemId == collectionId) refreshItem() else patchRow(change.itemId)
             }

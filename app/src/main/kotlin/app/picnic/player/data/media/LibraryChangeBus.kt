@@ -3,9 +3,9 @@ package app.picnic.player.data.media
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.SharedFlow
-import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.buffer
 
 /**
  * App-wide signal that library data changed, so any screen showing the affected item can
@@ -24,13 +24,18 @@ sealed interface LibraryChange {
 
 @Singleton
 class LibraryChangeBus @Inject constructor() {
-    private val _events = MutableSharedFlow<LibraryChange>(
-        extraBufferCapacity = 64,
+    private val events = MutableSharedFlow<LibraryChange>(
+        extraBufferCapacity = BUFFER_CAPACITY,
         onBufferOverflow = BufferOverflow.DROP_OLDEST
     )
-    val events: SharedFlow<LibraryChange> = _events.asSharedFlow()
+
+    fun changes(): Flow<LibraryChange> = events.buffer(BUFFER_CAPACITY, BufferOverflow.DROP_OLDEST)
 
     fun emit(change: LibraryChange) {
-        _events.tryEmit(change)
+        events.tryEmit(change)
+    }
+
+    private companion object {
+        const val BUFFER_CAPACITY = 64
     }
 }
