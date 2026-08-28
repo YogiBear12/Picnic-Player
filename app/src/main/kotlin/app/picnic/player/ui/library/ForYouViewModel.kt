@@ -6,6 +6,8 @@ import app.picnic.player.data.auth.AuthRepository
 import app.picnic.player.data.auth.UserSession
 import app.picnic.player.data.jellyfin.isAuthFailure
 import app.picnic.player.data.media.HomeRow
+import app.picnic.player.data.media.LibraryChange
+import app.picnic.player.data.media.LibraryChangeBus
 import app.picnic.player.data.media.MediaRepository
 import app.picnic.player.data.media.planHeroStreamPrefetch
 import app.picnic.player.data.media.seriesNeedingSeasonCount
@@ -34,6 +36,7 @@ import org.jellyfin.sdk.model.api.MediaStream
 class ForYouViewModel @Inject constructor(
     private val authRepository: AuthRepository,
     private val mediaRepository: MediaRepository,
+    private val changeBus: LibraryChangeBus,
     val ambientLoader: AmbientPaletteLoader
 ) : ViewModel() {
     data class UiState(
@@ -64,6 +67,24 @@ class ForYouViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             focusChangedFlow.debounce(200).collectLatest { prefetchStreamsAhead() }
+        }
+        viewModelScope.launch {
+            changeBus.events.collect { change ->
+                if (change is LibraryChange.ItemUpdated) patchCard(change.itemId)
+            }
+        }
+    }
+
+    private suspend fun patchCard(itemId: String) {
+        val id = runCatching { UUID.fromString(itemId) }.getOrNull() ?: return
+        if (_state.value.rows.none { row -> row.items.any { it.id == id } }) return
+        val fresh = runCatching { mediaRepository.item(id) }.getOrNull() ?: return
+        _state.update { state ->
+            state.copy(
+                rows = state.rows.map { row ->
+                    row.copy(items = row.items.map { if (it.id == id) fresh else it })
+                }
+            )
         }
     }
 
