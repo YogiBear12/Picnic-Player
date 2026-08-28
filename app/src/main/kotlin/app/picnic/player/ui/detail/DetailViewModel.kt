@@ -24,6 +24,7 @@ import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.util.UUID
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
@@ -100,17 +101,7 @@ class DetailViewModel @AssistedInject constructor(
                         }
                     }
                     if (item.type == BaseItemKind.SERIES) {
-                        launch {
-                            loadRequestMoreState(item)
-                        }
-                        launch {
-                            val streams = mediaRepository.seriesLeadStreams(item.id)
-                            _state.update { it.copy(leadStreams = streams) }
-                        }
-                        launch {
-                            val nextUp = mediaRepository.nextEpisodeForSeries(item.id)
-                            _state.update { it.copy(nextUpEpisode = nextUp) }
-                        }
+                        loadSeriesExtras(item)
                     }
                 }
                 .onFailure { _state.update { it.copy(loading = false, error = "Could not load item") } }
@@ -144,14 +135,26 @@ class DetailViewModel @AssistedInject constructor(
         }
     }
 
+    private fun CoroutineScope.loadSeriesExtras(item: BaseItemDto) {
+        launch { loadRequestMoreState(item) }
+        launch {
+            val streams = mediaRepository.seriesLeadStreams(item.id)
+            _state.update { it.copy(leadStreams = streams) }
+        }
+        launch {
+            val nextUp = mediaRepository.nextEpisodeForSeries(item.id)
+            _state.update { it.copy(nextUpEpisode = nextUp) }
+        }
+    }
+
     private fun reload() {
-        val session = state.value.session ?: return
+        if (state.value.session == null) return
         viewModelScope.launch {
             runCatching { mediaRepository.item(UUID.fromString(itemId)) }
                 .onSuccess { item ->
                     _state.update { it.copy(item = item) }
                     if (item.type == BaseItemKind.SERIES) {
-                        loadRequestMoreState(item)
+                        loadSeriesExtras(item)
                     }
                 }
         }
