@@ -117,7 +117,7 @@ internal fun BrowsePosterCard(
         modifier = cardModifier
     ) {
         Box(Modifier.fillMaxSize()) {
-            PosterPlaceholder(item.name)
+            PosterPlaceholder(item.name, labelled = imageUrl == null)
             if (imageUrl == null) {
                 androidx.compose.runtime.LaunchedEffect(item.id) {
                     android.util.Log.w(
@@ -219,32 +219,34 @@ private fun cardArtworkBlurHash(item: BaseItemDto, landscape: Boolean): String? 
 }
 
 @Composable
-private fun PosterPlaceholder(name: String?) {
+private fun PosterPlaceholder(name: String?, labelled: Boolean) {
     Box(
         Modifier
             .fillMaxSize()
             .background(PicnicColors.ArtworkPlaceholder),
         contentAlignment = Alignment.Center
     ) {
-        androidx.compose.foundation.layout.Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(horizontal = 8.dp)
-        ) {
-            Icon(
-                imageVector = Icons.Default.Movie,
-                contentDescription = null,
-                tint = Color.White.copy(alpha = 0.4f),
-                modifier = Modifier.size(32.dp)
-            )
-            if (!name.isNullOrBlank()) {
-                Text(
-                    text = name,
-                    color = Color.White.copy(alpha = 0.7f),
-                    style = MaterialTheme.typography.labelMedium,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                    maxLines = 3,
-                    modifier = Modifier.padding(top = 8.dp)
+        if (labelled) {
+            androidx.compose.foundation.layout.Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.padding(horizontal = 8.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Movie,
+                    contentDescription = null,
+                    tint = Color.White.copy(alpha = 0.4f),
+                    modifier = Modifier.size(32.dp)
                 )
+                if (!name.isNullOrBlank()) {
+                    Text(
+                        text = name,
+                        color = Color.White.copy(alpha = 0.7f),
+                        style = MaterialTheme.typography.labelMedium,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        maxLines = 3,
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+                }
             }
         }
     }
