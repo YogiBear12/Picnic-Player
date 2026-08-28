@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -41,7 +40,7 @@ import app.picnic.player.ui.common.ContextMenuDialog
 import app.picnic.player.ui.common.rememberKeyedFocusRequesters
 import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.grid.MediaGridCard
-import app.picnic.player.ui.grid.gridCellHeight
+import app.picnic.player.ui.grid.gridCellSlot
 import app.picnic.player.ui.theme.PicnicColors
 import org.jellyfin.sdk.model.api.BaseItemDto
 
@@ -106,9 +105,7 @@ internal fun PlaylistsPane(
             ) {
                 items(playlists, key = { it.id.toString() }) { item ->
                     Box(
-                        Modifier
-                            .width(style.width)
-                            .height(style.topInset + gridCellHeight(style)),
+                        Modifier.gridCellSlot(style),
                         contentAlignment = Alignment.TopCenter
                     ) {
                         MediaGridCard(

@@ -75,7 +75,7 @@ import app.picnic.player.ui.common.ScrollableTextDialog
 import app.picnic.player.ui.common.rememberRowFocusState
 import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.grid.MediaGridCard
-import app.picnic.player.ui.grid.gridCellHeight
+import app.picnic.player.ui.grid.gridCellSlot
 import app.picnic.player.ui.seerr.SeerrLabeledCard
 import app.picnic.player.ui.seerr.seerrLabeledSlotHeight
 import app.picnic.player.ui.theme.PicnicColors
@@ -330,9 +330,7 @@ fun PersonScreen(
                         titleFontWeight = FontWeight.Bold
                     ) { index, item ->
                         Box(
-                            Modifier
-                                .width(posterStyle.width)
-                                .height(posterStyle.topInset + gridCellHeight(posterStyle)),
+                            Modifier.gridCellSlot(posterStyle),
                             contentAlignment = Alignment.TopCenter
                         ) {
                             MediaGridCard(

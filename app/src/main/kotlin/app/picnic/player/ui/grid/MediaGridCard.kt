@@ -39,6 +39,8 @@ private val GridLabelReserve = 38.dp
 
 internal fun gridCellHeight(style: BrowseCardStyle): Dp = style.height + GridLabelGap + GridLabelReserve
 
+internal fun Modifier.gridCellSlot(style: BrowseCardStyle): Modifier = width(style.width).height(style.topInset + gridCellHeight(style))
+
 @Composable
 internal fun MediaGridCard(
     item: BaseItemDto,

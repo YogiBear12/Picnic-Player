@@ -49,7 +49,7 @@ import app.picnic.player.ui.common.LocalContextMenuHandler
 import app.picnic.player.ui.common.LocalImageUrls
 import app.picnic.player.ui.genre.GenreBrowseGrid
 import app.picnic.player.ui.grid.MediaGridCard
-import app.picnic.player.ui.grid.gridCellHeight
+import app.picnic.player.ui.grid.gridCellSlot
 import app.picnic.player.ui.theme.PicnicColors
 import org.jellyfin.sdk.model.api.BaseItemDto
 
@@ -381,7 +381,7 @@ private fun SearchResultCard(
         null
     }
     Box(
-        Modifier.width(style.width).height(style.topInset + gridCellHeight(style)),
+        Modifier.gridCellSlot(style),
         contentAlignment = Alignment.TopCenter
     ) {
         MediaGridCard(
