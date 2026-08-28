@@ -39,11 +39,12 @@ fun GlobalContextMenuDialog(
     onToggleFavorite: (Boolean) -> Unit,
     onGoToSeries: ((String) -> Unit)?,
     onAddToPlaylist: (() -> Unit)? = null,
-    extraActions: List<ContextMenuAction> = emptyList()
+    extraActions: List<ContextMenuAction> = emptyList(),
+    showResumePosition: Boolean = true
 ) {
     val played = item.userData?.played ?: false
     val isFavorite = item.userData?.isFavorite ?: false
-    val resumeTicks = item.userData?.playbackPositionTicks?.takeIf { it > 0L }
+    val resumeTicks = item.resumeTicks()
 
     var showSynopsis by remember { mutableStateOf(false) }
     var showMediaInfo by remember { mutableStateOf(false) }
@@ -52,13 +53,16 @@ fun GlobalContextMenuDialog(
         if (item.type in PlayableKinds) {
             if (resumeTicks != null) {
                 add(
-                    ContextMenuAction("Resume", Icons.Default.PlayArrow) {
+                    ContextMenuAction(
+                        if (showResumePosition) "Resume from ${formatTicks(resumeTicks)}" else "Resume",
+                        Icons.Default.PlayArrow
+                    ) {
                         onPlay(item.id.toString(), resumeTicks)
                         onDismiss()
                     }
                 )
                 add(
-                    ContextMenuAction("Restart", Icons.Default.Replay) {
+                    ContextMenuAction("Play from beginning", Icons.Default.Replay) {
                         onPlay(item.id.toString(), 1L)
                         onDismiss()
                     }

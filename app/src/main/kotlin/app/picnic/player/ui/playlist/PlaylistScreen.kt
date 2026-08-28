@@ -387,7 +387,8 @@ private fun PlaylistContent(
                         entryId?.let { viewModel.removeEntry(it) }
                     }
                 )
-            }
+            },
+            showResumePosition = false
         )
     }
 }
