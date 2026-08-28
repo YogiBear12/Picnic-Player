@@ -9,6 +9,8 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -34,6 +36,7 @@ import app.picnic.player.ui.browse.browseLayoutMetrics
 import app.picnic.player.ui.browse.heroBlockHeight
 import app.picnic.player.ui.browse.heroRegionHeight
 import app.picnic.player.ui.browse.posterCardStyle
+import app.picnic.player.ui.common.ContextMenuAction
 import app.picnic.player.ui.common.LocalContextMenuHandler
 import app.picnic.player.ui.common.LocalImageUrls
 import app.picnic.player.ui.common.OverflowMenuDialog
@@ -41,6 +44,7 @@ import app.picnic.player.ui.common.PageRow
 import app.picnic.player.ui.common.ScrollableTextDialog
 import app.picnic.player.ui.common.playTarget
 import app.picnic.player.ui.common.rememberRowPageFocus
+import app.picnic.player.ui.common.resumeTicks
 import app.picnic.player.ui.navigation.PersonKey
 import app.picnic.player.ui.seerr.SeasonRequestDialog
 import app.picnic.player.ui.theme.PicnicColors
@@ -291,6 +295,16 @@ private fun DetailContent(
             },
             onDismiss = { showOverflowMenu = false },
             onToggleFavorite = viewModel::setFavorite,
+            extraActions = buildList {
+                if (item.type == BaseItemKind.MOVIE && item.resumeTicks() != null) {
+                    add(
+                        ContextMenuAction("Play from beginning", Icons.Default.Replay) {
+                            showOverflowMenu = false
+                            onPlay(item.id.toString(), null, null)
+                        }
+                    )
+                }
+            },
             showRequestMore = requestMoreVisible,
             requestMoreBusy = state.requestMoreBusy,
             onRequestMore = { viewModel.showSeasonPicker() }

@@ -99,6 +99,7 @@ fun OverflowMenuDialog(
     onPlayVersion: (String) -> Unit,
     onDismiss: () -> Unit,
     onToggleFavorite: (Boolean) -> Unit,
+    extraActions: List<ContextMenuAction> = emptyList(),
     showRequestMore: Boolean = false,
     requestMoreBusy: Boolean = false,
     onRequestMore: () -> Unit = {}
@@ -135,6 +136,7 @@ fun OverflowMenuDialog(
     }
 
     val mainItems = buildList {
+        addAll(extraActions)
         if (showRequestMore) {
             add(
                 ContextMenuAction(
