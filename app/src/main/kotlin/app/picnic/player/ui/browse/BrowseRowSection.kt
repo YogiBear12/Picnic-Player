@@ -16,7 +16,11 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -51,9 +55,10 @@ internal fun BrowseRowSection(
     onItem: (BaseItemDto, String?, String?) -> Unit,
     onFocusItem: (Int, BaseItemDto) -> Unit
 ) {
-    val focusIndex = focusedItemId
-        ?.let { id -> row.items.indexOfFirst { it.id == id }.takeIf { it >= 0 } }
-        ?: 0
+    val slot = focusedItemId?.let { id -> row.items.indexOfFirst { it.id == id }.takeIf { it >= 0 } }
+    var lastSlot by remember { mutableIntStateOf(0) }
+    LaunchedEffect(slot) { if (slot != null) lastSlot = slot }
+    val focusIndex = slot ?: lastSlot.coerceAtMost(row.items.lastIndex).coerceAtLeast(0)
 
     val focusItem = remember(rowIndex, onFocusItem) {
         { item: BaseItemDto -> onFocusItem(rowIndex, item) }
