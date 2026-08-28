@@ -6,6 +6,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -35,6 +36,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Border
 import androidx.tv.material3.Card
@@ -117,7 +119,8 @@ internal fun BrowsePosterCard(
         modifier = cardModifier
     ) {
         Box(Modifier.fillMaxSize()) {
-            PosterPlaceholder(item.name, labelled = imageUrl == null)
+            var artworkFailed by remember(imageUrl) { mutableStateOf(false) }
+            PosterPlaceholder()
             if (imageUrl == null) {
                 androidx.compose.runtime.LaunchedEffect(item.id) {
                     android.util.Log.w(
@@ -132,8 +135,13 @@ internal fun BrowsePosterCard(
                     url = imageUrl,
                     contentDescription = item.name,
                     label = "item='${item.name}' type=${item.type}",
+                    onSettled = { failed -> artworkFailed = failed },
                     modifier = Modifier.fillMaxSize()
                 )
+            }
+
+            if (imageUrl == null || artworkFailed) {
+                PosterPlaceholderLabel(item.name)
             }
 
             if (showOverlay) {
@@ -219,34 +227,36 @@ private fun cardArtworkBlurHash(item: BaseItemDto, landscape: Boolean): String? 
 }
 
 @Composable
-private fun PosterPlaceholder(name: String?, labelled: Boolean) {
+private fun PosterPlaceholder() {
     Box(
         Modifier
             .fillMaxSize()
-            .background(PicnicColors.ArtworkPlaceholder),
-        contentAlignment = Alignment.Center
-    ) {
-        if (labelled) {
-            androidx.compose.foundation.layout.Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.padding(horizontal = 8.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Movie,
-                    contentDescription = null,
-                    tint = Color.White.copy(alpha = 0.4f),
-                    modifier = Modifier.size(32.dp)
+            .background(PicnicColors.ArtworkPlaceholder)
+    )
+}
+
+@Composable
+private fun PosterPlaceholderLabel(name: String?) {
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.padding(horizontal = 8.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Movie,
+                contentDescription = null,
+                tint = Color.White.copy(alpha = 0.4f),
+                modifier = Modifier.size(32.dp)
+            )
+            if (!name.isNullOrBlank()) {
+                Text(
+                    text = name,
+                    color = Color.White.copy(alpha = 0.7f),
+                    style = MaterialTheme.typography.labelMedium,
+                    textAlign = TextAlign.Center,
+                    maxLines = 3,
+                    modifier = Modifier.padding(top = 8.dp)
                 )
-                if (!name.isNullOrBlank()) {
-                    Text(
-                        text = name,
-                        color = Color.White.copy(alpha = 0.7f),
-                        style = MaterialTheme.typography.labelMedium,
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                        maxLines = 3,
-                        modifier = Modifier.padding(top = 8.dp)
-                    )
-                }
             }
         }
     }
