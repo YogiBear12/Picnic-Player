@@ -259,7 +259,7 @@ private fun PlaylistContent(
                 if (unwatchedIndex >= 0) {
                     val resumeItem = items[unwatchedIndex]
                     add(
-                        PlaylistAction("Resume", Icons.Default.PlayCircleOutline) {
+                        PlaylistAction("Resume playlist", Icons.Default.PlayCircleOutline) {
                             onPlay(resumeItem.id.toString(), resumeItem.resumeTicks(), unwatchedIndex)
                         }
                     )
