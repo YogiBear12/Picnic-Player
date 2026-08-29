@@ -6,7 +6,6 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -18,7 +17,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Movie
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -36,7 +34,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Border
 import androidx.tv.material3.Card
@@ -52,10 +49,11 @@ import app.picnic.player.ui.ambient.rememberCardFocusAccent
 import app.picnic.player.ui.ambient.rememberCardFocusGlow
 import app.picnic.player.ui.common.ArtworkImage
 import app.picnic.player.ui.common.ArtworkLogTag
+import app.picnic.player.ui.common.ArtworkPlaceholder
 import app.picnic.player.ui.common.ImageUrls
 import app.picnic.player.ui.common.LocalImageUrls
+import app.picnic.player.ui.common.PosterPlaceholderLabel
 import app.picnic.player.ui.common.watchProgress
-import app.picnic.player.ui.theme.PicnicColors
 import org.jellyfin.sdk.model.api.BaseItemDto
 
 @Composable
@@ -120,7 +118,7 @@ internal fun BrowsePosterCard(
     ) {
         Box(Modifier.fillMaxSize()) {
             var artworkFailed by remember(imageUrl) { mutableStateOf(false) }
-            PosterPlaceholder()
+            ArtworkPlaceholder()
             if (imageUrl == null) {
                 androidx.compose.runtime.LaunchedEffect(item.id) {
                     android.util.Log.w(
@@ -224,42 +222,6 @@ private fun cardArtworkBlurHash(item: BaseItemDto, landscape: Boolean): String? 
         ?: JellyfinImages.rowPosterBlurHash(item)
 } else {
     JellyfinImages.rowPosterBlurHash(item)
-}
-
-@Composable
-private fun PosterPlaceholder() {
-    Box(
-        Modifier
-            .fillMaxSize()
-            .background(PicnicColors.ArtworkPlaceholder)
-    )
-}
-
-@Composable
-private fun PosterPlaceholderLabel(name: String?) {
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(horizontal = 8.dp)
-        ) {
-            Icon(
-                imageVector = Icons.Default.Movie,
-                contentDescription = null,
-                tint = Color.White.copy(alpha = 0.4f),
-                modifier = Modifier.size(32.dp)
-            )
-            if (!name.isNullOrBlank()) {
-                Text(
-                    text = name,
-                    color = Color.White.copy(alpha = 0.7f),
-                    style = MaterialTheme.typography.labelMedium,
-                    textAlign = TextAlign.Center,
-                    maxLines = 3,
-                    modifier = Modifier.padding(top = 8.dp)
-                )
-            }
-        }
-    }
 }
 
 @Composable

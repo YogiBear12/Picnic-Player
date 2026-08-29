@@ -71,6 +71,7 @@ import app.picnic.player.ui.browse.ShortDateFormat
 import app.picnic.player.ui.browse.minutesLeft
 import app.picnic.player.ui.browse.runtimeMinutes
 import app.picnic.player.ui.common.ArtworkImage
+import app.picnic.player.ui.common.ArtworkPlaceholder
 import app.picnic.player.ui.common.EpisodeContextMenu
 import app.picnic.player.ui.common.LoadFailedState
 import app.picnic.player.ui.common.LocalImageUrls
@@ -491,11 +492,7 @@ private fun EpisodeItem(
                 .then(if (enterFr != null) Modifier.focusRequester(enterFr) else Modifier)
         ) {
             Box(Modifier.fillMaxSize()) {
-                Box(
-                    Modifier
-                        .fillMaxSize()
-                        .background(PicnicColors.ArtworkPlaceholder)
-                )
+                ArtworkPlaceholder()
                 if (imageUrl != null) {
                     ArtworkImage(
                         url = imageUrl,

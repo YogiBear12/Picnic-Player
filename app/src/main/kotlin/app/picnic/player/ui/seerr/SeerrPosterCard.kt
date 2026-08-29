@@ -5,7 +5,6 @@ package app.picnic.player.ui.seerr
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,11 +14,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredWidth
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Movie
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -32,7 +28,6 @@ import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -40,7 +35,6 @@ import androidx.tv.material3.Border
 import androidx.tv.material3.Card
 import androidx.tv.material3.CardDefaults
 import androidx.tv.material3.ExperimentalTvMaterial3Api
-import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import app.picnic.player.data.seerr.SeerrCatalogItem
@@ -52,6 +46,8 @@ import app.picnic.player.ui.ambient.rememberCardFocusAccent
 import app.picnic.player.ui.ambient.rememberCardFocusGlow
 import app.picnic.player.ui.browse.BrowseCardStyle
 import app.picnic.player.ui.common.ArtworkImage
+import app.picnic.player.ui.common.ArtworkPlaceholder
+import app.picnic.player.ui.common.PosterPlaceholderLabel
 import app.picnic.player.ui.grid.gridCellHeight
 
 private val LabelGap = 6.dp
@@ -237,52 +233,25 @@ private fun SeerrPosterFace(
         modifier = cardModifier
     ) {
         Box(Modifier.fillMaxSize()) {
-            SeerrPosterPlaceholder(item.title)
+            var artworkFailed by remember(imageUrl) { mutableStateOf(false) }
+            ArtworkPlaceholder()
             if (imageUrl != null) {
                 ArtworkImage(
                     url = imageUrl,
                     contentDescription = item.title,
                     label = "seerr='${item.title}'",
+                    onSettled = { failed -> artworkFailed = failed },
                     modifier = Modifier.fillMaxSize()
                 )
+            }
+            if (imageUrl == null || artworkFailed) {
+                PosterPlaceholderLabel(item.title)
             }
         }
     }
 }
 
 private const val AccentPosterSize = "w92"
-
-@Composable
-private fun SeerrPosterPlaceholder(name: String?) {
-    Box(
-        Modifier
-            .fillMaxSize()
-            .background(Color(0xFF232A31)),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(horizontal = 8.dp)
-        ) {
-            Icon(
-                imageVector = Icons.Default.Movie,
-                contentDescription = null,
-                tint = Color.White.copy(alpha = 0.4f),
-                modifier = Modifier.size(32.dp)
-            )
-            if (!name.isNullOrBlank()) {
-                Text(
-                    text = name,
-                    color = Color.White.copy(alpha = 0.7f),
-                    style = MaterialTheme.typography.labelMedium,
-                    textAlign = TextAlign.Center,
-                    maxLines = 3,
-                    modifier = Modifier.padding(top = 8.dp)
-                )
-            }
-        }
-    }
-}
 
 internal fun seerrLabeledSlotHeight(
     style: BrowseCardStyle,
