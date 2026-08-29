@@ -3,7 +3,6 @@
 package app.picnic.player.ui.common
 
 import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.layout.LazyLayoutCacheWindow
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
@@ -21,12 +20,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 
 private const val FOCUS_RESTORE_FAILSAFE_MS = 2000L
-private val RowPageCacheWindow = LazyLayoutCacheWindow(ahead = 1200.dp, behind = 400.dp)
 private const val HERO_ITEMS = 1
 
 @Immutable
@@ -83,7 +80,7 @@ fun rememberRowPageFocus(
     moreRowsPending: Boolean = false,
     onSettled: () -> Unit = {}
 ): RowPageFocus {
-    val listState = rememberLazyListState(cacheWindow = RowPageCacheWindow)
+    val listState = rememberLazyListState(cacheWindow = ContentCacheWindow)
     val building = rememberPageBuilding(listState)
     val buttons = rememberRowFocusState()
     val rowStates = rows.associate { row -> row.key to key(row.key) { rememberRowFocusState() } }

@@ -69,6 +69,7 @@ import app.picnic.player.ui.browse.ScrollToTopBringIntoView
 import app.picnic.player.ui.browse.browseLayoutMetrics
 import app.picnic.player.ui.browse.posterCardStyle
 import app.picnic.player.ui.common.CircularPersonCard
+import app.picnic.player.ui.common.ContentCacheWindow
 import app.picnic.player.ui.common.ScrollableTextDialog
 import app.picnic.player.ui.common.rememberRowFocusState
 import app.picnic.player.ui.common.requestFocusWhenAttached
@@ -155,7 +156,7 @@ private fun SeerrDetailContent(
 ) = BoxWithConstraints(Modifier.fillMaxSize()) {
     val metrics = browseLayoutMetrics(maxWidth, maxHeight)
     val heroRegionHeight = maxHeight - metrics.rowsRegionHeight
-    val listState = rememberLazyListState()
+    val listState = rememberLazyListState(cacheWindow = ContentCacheWindow)
     var showSummaryDialog by remember { mutableStateOf(false) }
     var showInfoDialog by remember { mutableStateOf(false) }
     val context = LocalContext.current
