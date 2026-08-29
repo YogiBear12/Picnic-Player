@@ -8,6 +8,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.sync.withPermit
@@ -82,7 +83,25 @@ class MediaRepository @Inject constructor(
         ).content.items.orEmpty()
     }
 
-    suspend fun nextEpisodeForSeries(seriesId: UUID): BaseItemDto? = onIo {
+    private suspend fun resumeEpisodesForSeries(seriesId: UUID): List<BaseItemDto> = onIo {
+        runCatching {
+            api().itemsApi.getResumeItems(
+                userId = session().userUuid,
+                parentId = seriesId,
+                includeItemTypes = listOf(BaseItemKind.EPISODE),
+                fields = CONTINUE_FIELDS,
+                enableImageTypes = IMAGE_TYPES
+            ).content.items.orEmpty()
+        }.getOrDefault(emptyList())
+    }
+
+    suspend fun nextEpisodeForSeries(seriesId: UUID): BaseItemDto? = coroutineScope {
+        val resumable = async { resumeEpisodesForSeries(seriesId) }
+        val nextUp = async { nextUpForSeries(seriesId) }
+        preferResumeEpisode(nextUp.await(), resumable.await())
+    }
+
+    private suspend fun nextUpForSeries(seriesId: UUID): BaseItemDto? = onIo {
         val nextUp = runCatching {
             api().tvShowsApi.getNextUp(
                 seriesId = seriesId,
@@ -105,20 +124,7 @@ class MediaRepository @Inject constructor(
             ).content.items.orEmpty()
         }.getOrNull() ?: emptyList()
 
-        if (episodes.isEmpty()) return@onIo null
-
-        val nonSpecial = episodes
-            .filter { (it.parentIndexNumber ?: 1) > 0 }
-            .sortedWith(compareBy({ it.parentIndexNumber }, { it.indexNumber }))
-            .firstOrNull()
-
-        if (nonSpecial != null) {
-            return@onIo nonSpecial
-        }
-
-        episodes
-            .sortedWith(compareBy({ it.parentIndexNumber }, { it.indexNumber }))
-            .firstOrNull()
+        firstEpisodeToPlay(episodes)
     }
 
     suspend fun latestInLibrary(
