@@ -23,20 +23,20 @@ class SeriesTrackMemoryStore @Inject constructor(
     private val dataStore: DataStore<Preferences>,
     private val json: Json
 ) {
-    suspend fun effectiveMemory(seriesId: String, seasonId: String?) = resolveEffectiveMemory(read(seriesId), seasonId)
+    suspend fun effectiveMemory(itemId: String, seasonId: String?) = resolveEffectiveMemory(read(itemId), seasonId)
 
-    suspend fun read(seriesId: String): SeriesTrackMemoryRecord? {
-        val raw = dataStore.data.map { it[key(seriesId)] }.first() ?: return null
+    suspend fun read(itemId: String): SeriesTrackMemoryRecord? {
+        val raw = dataStore.data.map { it[key(itemId)] }.first() ?: return null
         return decodeRecord(raw)
     }
 
     suspend fun rememberOsdPick(
-        seriesId: String,
+        itemId: String,
         seasonId: String?,
         kind: TrackMemoryKind,
         pick: RememberedTrack
     ) {
-        val prefsKey = key(seriesId)
+        val prefsKey = key(itemId)
         dataStore.edit { prefs ->
             val existing = prefs[prefsKey]?.let { decodeRecord(it) }
             val seriesPref = when (kind) {
@@ -59,7 +59,7 @@ class SeriesTrackMemoryStore @Inject constructor(
         json.decodeFromString<SeriesTrackMemoryRecord>(raw)
     }.getOrNull()
 
-    private fun key(seriesId: String) = stringPreferencesKey("$KEY_PREFIX$seriesId")
+    private fun key(itemId: String) = stringPreferencesKey("$KEY_PREFIX$itemId")
 
     private companion object {
         const val KEY_PREFIX = "playback.seriesTrackMemory."

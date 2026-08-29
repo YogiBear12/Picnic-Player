@@ -63,8 +63,16 @@ class PlayerTracks(
     private var burnMode: BurnInSubtitles = BurnInSubtitles.OFF
 
     private var itemType: BaseItemKind? = null
+    private var itemId: UUID? = null
     private var seriesId: UUID? = null
     private var seasonId: UUID? = null
+
+    private val trackMemoryKey: String?
+        get() = when (itemType) {
+            BaseItemKind.EPISODE -> seriesId?.toString()
+            BaseItemKind.MOVIE -> itemId?.toString()
+            else -> null
+        }
 
     private var serverAudioLanguage: String? = null
     private var serverSubtitleLanguage: String? = null
@@ -83,8 +91,9 @@ class PlayerTracks(
         publishOptions()
     }
 
-    fun onItemMetadata(type: BaseItemKind?, series: UUID?, season: UUID?) {
+    fun onItemMetadata(type: BaseItemKind?, id: UUID?, series: UUID?, season: UUID?) {
         itemType = type
+        itemId = id
         seriesId = series
         seasonId = season
     }
@@ -93,12 +102,8 @@ class PlayerTracks(
         burnMode = if (prefs.forceDirectPlay) BurnInSubtitles.OFF else prefs.burnInSubtitles
         ensureServerLanguagePrefs()
         val deviceLanguage = Locale.getDefault().language
-        val memory = if (itemType == BaseItemKind.EPISODE) {
-            seriesId?.let { sid ->
-                seriesTrackMemoryStore.effectiveMemory(sid.toString(), seasonId?.toString())
-            }
-        } else {
-            null
+        val memory = trackMemoryKey?.let { key ->
+            seriesTrackMemoryStore.effectiveMemory(key, seasonId?.toString())
         }
         val pick = pickTracksWithMemory(
             streams = mediaStreams,
@@ -248,8 +253,7 @@ class PlayerTracks(
     }
 
     private fun persistOsdTrackMemory(audio: Boolean) {
-        if (itemType != BaseItemKind.EPISODE) return
-        val series = seriesId ?: return
+        val memoryKey = trackMemoryKey ?: return
         val season = seasonId?.toString()
         val pick = if (audio) {
             val stream = mediaStreams.firstOrNull {
@@ -270,7 +274,7 @@ class PlayerTracks(
         val kind = if (audio) TrackMemoryKind.AUDIO else TrackMemoryKind.SUBTITLE
         scope.launch {
             seriesTrackMemoryStore.rememberOsdPick(
-                seriesId = series.toString(),
+                itemId = memoryKey,
                 seasonId = season,
                 kind = kind,
                 pick = pick

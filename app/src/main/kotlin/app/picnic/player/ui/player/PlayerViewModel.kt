@@ -685,7 +685,7 @@ class PlayerViewModel @Inject constructor(
 
     private fun applyItemMetadata(activeSession: UserSession, id: UUID, item: BaseItemDto) {
         seriesId = item.seriesId
-        tracks.onItemMetadata(item.type, item.seriesId, item.seasonId)
+        tracks.onItemMetadata(item.type, id, item.seriesId, item.seasonId)
         val sheets = playbackRepository.trickplayFromItem(item)?.let { (sheetWidth, tiles) ->
             Trickplay(tiles) { tileIndex ->
                 JellyfinImages.trickplayTile(activeSession, id, sheetWidth, tileIndex)
