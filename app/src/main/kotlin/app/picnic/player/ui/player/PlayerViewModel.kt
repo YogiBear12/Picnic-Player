@@ -44,12 +44,13 @@ import app.picnic.player.data.playback.quality.SourceQuality
 import app.picnic.player.data.playback.quality.qualityOptions
 import app.picnic.player.data.playback.refinePlayMethod
 import app.picnic.player.data.playback.ticksToMs
+import app.picnic.player.data.playback.trackMemoryKey
 import app.picnic.player.data.settings.PlaybackSettings
-import app.picnic.player.data.settings.SeriesTrackMemoryStore
 import app.picnic.player.data.settings.SettingsStore
 import app.picnic.player.data.settings.SubtitleAppearanceEditor
 import app.picnic.player.data.settings.SubtitleAppearanceSetting
 import app.picnic.player.data.settings.SubtitleArea
+import app.picnic.player.data.settings.TrackMemoryStore
 import app.picnic.player.di.ApplicationScope
 import app.picnic.player.playback.AudioBoost
 import app.picnic.player.playback.AudioRoute
@@ -118,7 +119,7 @@ class PlayerViewModel @Inject constructor(
     private val playlistRepository: PlaylistRepository,
     private val settingsStore: SettingsStore,
     private val subtitleAppearanceEditor: SubtitleAppearanceEditor,
-    private val seriesTrackMemoryStore: SeriesTrackMemoryStore,
+    private val trackMemoryStore: TrackMemoryStore,
     private val sessionController: PlaybackSessionController,
     private val pictureInPictureSupport: app.picnic.player.data.device.PictureInPictureSupport,
     engineFactory: PlaybackEngineFactory,
@@ -157,7 +158,7 @@ class PlayerViewModel @Inject constructor(
         player = player,
         authRepository = authRepository,
         mediaRepository = mediaRepository,
-        seriesTrackMemoryStore = seriesTrackMemoryStore,
+        trackMemoryStore = trackMemoryStore,
         scope = viewModelScope,
         onOptionsChanged = { options ->
             _state.update {
@@ -685,7 +686,7 @@ class PlayerViewModel @Inject constructor(
 
     private fun applyItemMetadata(activeSession: UserSession, id: UUID, item: BaseItemDto) {
         seriesId = item.seriesId
-        tracks.onItemMetadata(item.type, id, item.seriesId, item.seasonId)
+        tracks.onItemMetadata(trackMemoryKey(item.type, id, item.seriesId), item.seasonId?.toString())
         val sheets = playbackRepository.trickplayFromItem(item)?.let { (sheetWidth, tiles) ->
             Trickplay(tiles) { tileIndex ->
                 JellyfinImages.trickplayTile(activeSession, id, sheetWidth, tileIndex)

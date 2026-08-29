@@ -15,17 +15,15 @@ import app.picnic.player.data.playback.pickTracksWithMemory
 import app.picnic.player.data.playback.resolveLanguageCode
 import app.picnic.player.data.settings.BurnInSubtitles
 import app.picnic.player.data.settings.PlaybackSettings
-import app.picnic.player.data.settings.SeriesTrackMemoryStore
+import app.picnic.player.data.settings.TrackMemoryStore
 import app.picnic.player.playback.JellyfinTrackSelection
 import app.picnic.player.playback.PlaybackDiagnostics
 import app.picnic.player.playback.SideloadedTrackId
 import app.picnic.player.playback.externalSubtitleCount
 import app.picnic.player.util.LanguageDisplay
 import java.util.Locale
-import java.util.UUID
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
-import org.jellyfin.sdk.model.api.BaseItemKind
 import org.jellyfin.sdk.model.api.MediaStream
 import org.jellyfin.sdk.model.api.MediaStreamType
 import org.jellyfin.sdk.model.api.SubtitleDeliveryMethod
@@ -41,7 +39,7 @@ class PlayerTracks(
     private val player: ExoPlayer,
     private val authRepository: AuthRepository,
     private val mediaRepository: MediaRepository,
-    private val seriesTrackMemoryStore: SeriesTrackMemoryStore,
+    private val trackMemoryStore: TrackMemoryStore,
     private val scope: CoroutineScope,
     private val onOptionsChanged: (TrackOptions) -> Unit,
     private val onReload: (ReloadReason) -> Unit
@@ -62,17 +60,8 @@ class PlayerTracks(
     private var burnedInSubtitleIndex: Int? = null
     private var burnMode: BurnInSubtitles = BurnInSubtitles.OFF
 
-    private var itemType: BaseItemKind? = null
-    private var itemId: UUID? = null
-    private var seriesId: UUID? = null
-    private var seasonId: UUID? = null
-
-    private val trackMemoryKey: String?
-        get() = when (itemType) {
-            BaseItemKind.EPISODE -> seriesId?.toString()
-            BaseItemKind.MOVIE -> itemId?.toString()
-            else -> null
-        }
+    private var memoryKey: String? = null
+    private var seasonKey: String? = null
 
     private var serverAudioLanguage: String? = null
     private var serverSubtitleLanguage: String? = null
@@ -91,19 +80,17 @@ class PlayerTracks(
         publishOptions()
     }
 
-    fun onItemMetadata(type: BaseItemKind?, id: UUID?, series: UUID?, season: UUID?) {
-        itemType = type
-        itemId = id
-        seriesId = series
-        seasonId = season
+    fun onItemMetadata(memoryKey: String?, seasonKey: String?) {
+        this.memoryKey = memoryKey
+        this.seasonKey = seasonKey
     }
 
     suspend fun initDefaults(prefs: PlaybackSettings) {
         burnMode = if (prefs.forceDirectPlay) BurnInSubtitles.OFF else prefs.burnInSubtitles
         ensureServerLanguagePrefs()
         val deviceLanguage = Locale.getDefault().language
-        val memory = trackMemoryKey?.let { key ->
-            seriesTrackMemoryStore.effectiveMemory(key, seasonId?.toString())
+        val memory = memoryKey?.let { key ->
+            trackMemoryStore.effectiveMemory(key, seasonKey)
         }
         val pick = pickTracksWithMemory(
             streams = mediaStreams,
@@ -253,8 +240,7 @@ class PlayerTracks(
     }
 
     private fun persistOsdTrackMemory(audio: Boolean) {
-        val memoryKey = trackMemoryKey ?: return
-        val season = seasonId?.toString()
+        val key = memoryKey ?: return
         val pick = if (audio) {
             val stream = mediaStreams.firstOrNull {
                 it.type == MediaStreamType.AUDIO && it.index == audioIndex
@@ -273,9 +259,9 @@ class PlayerTracks(
         }
         val kind = if (audio) TrackMemoryKind.AUDIO else TrackMemoryKind.SUBTITLE
         scope.launch {
-            seriesTrackMemoryStore.rememberOsdPick(
-                itemId = memoryKey,
-                seasonId = season,
+            trackMemoryStore.rememberOsdPick(
+                itemId = key,
+                seasonId = seasonKey,
                 kind = kind,
                 pick = pick
             )

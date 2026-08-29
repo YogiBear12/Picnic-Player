@@ -12,7 +12,7 @@ import org.junit.Test
 /**
  * Fixtures with multi-Default English dubs + varied EN/JP subs.
  */
-class SeriesTrackMemoryTest {
+class TrackMemoryTest {
 
     private val remasteredTitle = "2009 5.1 FUNi Remastered Dub [ergiman]"
     private val originalTitle = "2001 2.0 Original FUNi Dub [Krycek7o2]"
@@ -33,7 +33,7 @@ class SeriesTrackMemoryTest {
 
     @Test
     fun hierarchy_seasonOverrideBeatsSeries() {
-        val record = SeriesTrackMemoryRecord(
+        val record = TrackMemoryRecord(
             audio = RememberedTrack(language = "eng", title = remasteredTitle),
             seasons = mapOf(
                 "season-2" to SeasonTrackMemory(
@@ -90,7 +90,7 @@ class SeriesTrackMemoryTest {
             decideTrackMemoryWriteScope(series, pick, seasonId = "season-2")
         )
         val updated = applyTrackMemoryWrite(
-            existing = SeriesTrackMemoryRecord(audio = series),
+            existing = TrackMemoryRecord(audio = series),
             seasonId = "season-2",
             kind = TrackMemoryKind.AUDIO,
             pick = pick,
@@ -191,15 +191,15 @@ class SeriesTrackMemoryTest {
     fun write_seedsSeriesWhenEmpty() {
         val pick = RememberedTrack(language = "eng", title = remasteredTitle)
         assertEquals(
-            TrackMemoryWriteScope.SERIES,
-            decideTrackMemoryWriteScope(seriesPreference = null, pick = pick, seasonId = "s1")
+            TrackMemoryWriteScope.ITEM,
+            decideTrackMemoryWriteScope(itemPreference = null, pick = pick, seasonId = "s1")
         )
         val updated = applyTrackMemoryWrite(
             existing = null,
             seasonId = "s1",
             kind = TrackMemoryKind.AUDIO,
             pick = pick,
-            scope = TrackMemoryWriteScope.SERIES
+            scope = TrackMemoryWriteScope.ITEM
         )
         assertEquals(remasteredTitle, updated.audio?.title)
         assertTrue(updated.seasons.isEmpty())
@@ -210,14 +210,14 @@ class SeriesTrackMemoryTest {
         val series = RememberedTrack(language = "eng", title = remasteredTitle)
         val pick = RememberedTrack(language = "eng", title = remasteredTitle)
         assertEquals(
-            TrackMemoryWriteScope.SERIES,
+            TrackMemoryWriteScope.ITEM,
             decideTrackMemoryWriteScope(series, pick, seasonId = "season-2")
         )
     }
 
     @Test
     fun write_seriesClearsSeasonOverrideForKind() {
-        val existing = SeriesTrackMemoryRecord(
+        val existing = TrackMemoryRecord(
             audio = RememberedTrack(language = "eng", title = remasteredTitle),
             seasons = mapOf(
                 "season-2" to SeasonTrackMemory(
@@ -230,7 +230,7 @@ class SeriesTrackMemoryTest {
             seasonId = "season-2",
             kind = TrackMemoryKind.AUDIO,
             pick = RememberedTrack(language = "eng", title = remasteredTitle),
-            scope = TrackMemoryWriteScope.SERIES
+            scope = TrackMemoryWriteScope.ITEM
         )
         assertNull(updated.seasons["season-2"])
         assertEquals(remasteredTitle, updated.audio?.title)

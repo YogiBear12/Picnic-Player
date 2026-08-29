@@ -1,7 +1,9 @@
 package app.picnic.player.data.playback
 
 import java.util.Locale
+import java.util.UUID
 import kotlinx.serialization.Serializable
+import org.jellyfin.sdk.model.api.BaseItemKind
 import org.jellyfin.sdk.model.api.MediaStream
 import org.jellyfin.sdk.model.api.MediaStreamType
 
@@ -27,7 +29,7 @@ data class RememberedTrack(
 }
 
 @Serializable
-data class SeriesTrackMemoryRecord(
+data class TrackMemoryRecord(
     val audio: RememberedTrack? = null,
     val subtitle: RememberedTrack? = null,
     val seasons: Map<String, SeasonTrackMemory> = emptyMap()
@@ -40,8 +42,14 @@ data class SeasonTrackMemory(
 )
 
 enum class TrackMemoryWriteScope {
-    SERIES,
+    ITEM,
     SEASON
+}
+
+fun trackMemoryKey(type: BaseItemKind?, itemId: UUID?, seriesId: UUID?): String? = when (type) {
+    BaseItemKind.EPISODE -> seriesId?.toString()
+    BaseItemKind.MOVIE -> itemId?.toString()
+    else -> null
 }
 
 data class EffectiveTrackMemory(
@@ -50,7 +58,7 @@ data class EffectiveTrackMemory(
 )
 
 fun resolveEffectiveMemory(
-    record: SeriesTrackMemoryRecord?,
+    record: TrackMemoryRecord?,
     seasonId: String?
 ): EffectiveTrackMemory {
     if (record == null) return EffectiveTrackMemory()
@@ -123,26 +131,26 @@ fun matchRememberedTrack(
 }
 
 fun decideTrackMemoryWriteScope(
-    seriesPreference: RememberedTrack?,
+    itemPreference: RememberedTrack?,
     pick: RememberedTrack,
     seasonId: String?
 ): TrackMemoryWriteScope {
-    if (seriesPreference == null) return TrackMemoryWriteScope.SERIES
-    if (rememberedTracksEquivalent(seriesPreference, pick)) return TrackMemoryWriteScope.SERIES
-    if (seasonId.isNullOrBlank()) return TrackMemoryWriteScope.SERIES
+    if (itemPreference == null) return TrackMemoryWriteScope.ITEM
+    if (rememberedTracksEquivalent(itemPreference, pick)) return TrackMemoryWriteScope.ITEM
+    if (seasonId.isNullOrBlank()) return TrackMemoryWriteScope.ITEM
     return TrackMemoryWriteScope.SEASON
 }
 
 fun applyTrackMemoryWrite(
-    existing: SeriesTrackMemoryRecord?,
+    existing: TrackMemoryRecord?,
     seasonId: String?,
     kind: TrackMemoryKind,
     pick: RememberedTrack,
     scope: TrackMemoryWriteScope
-): SeriesTrackMemoryRecord {
-    val base = existing ?: SeriesTrackMemoryRecord()
+): TrackMemoryRecord {
+    val base = existing ?: TrackMemoryRecord()
     return when (scope) {
-        TrackMemoryWriteScope.SERIES -> {
+        TrackMemoryWriteScope.ITEM -> {
             val clearedSeason = if (!seasonId.isNullOrBlank()) {
                 clearSeasonKind(base.seasons, seasonId, kind)
             } else {
