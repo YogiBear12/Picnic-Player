@@ -14,6 +14,13 @@ data class HomeRow(
 )
 
 object HomeContent {
+    fun withoutHidden(items: List<BaseItemDto>, hidden: Map<String, Long>): List<BaseItemDto> {
+        if (hidden.isEmpty()) return items
+        return items.filter { item ->
+            hidden[item.id.toString()] != (item.userData?.playbackPositionTicks ?: 0L)
+        }
+    }
+
     fun combineContinueWatching(
         resume: List<BaseItemDto>,
         nextUp: List<BaseItemDto>

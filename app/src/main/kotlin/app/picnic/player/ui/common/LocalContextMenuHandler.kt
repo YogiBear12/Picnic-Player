@@ -5,7 +5,7 @@ import app.picnic.player.data.seerr.SeerrCatalogItem
 import org.jellyfin.sdk.model.api.BaseItemDto
 
 interface ContextMenuHandler {
-    fun show(item: BaseItemDto)
+    fun show(item: BaseItemDto, fromContinueWatching: Boolean = false)
 }
 
 val LocalContextMenuHandler = staticCompositionLocalOf<ContextMenuHandler> {

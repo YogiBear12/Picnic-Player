@@ -3,6 +3,7 @@ package app.picnic.player.data.media
 import java.util.UUID
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
+import org.jellyfin.sdk.model.api.UserItemDataDto
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -15,7 +16,49 @@ class HomeContentTest {
         kind: BaseItemKind = BaseItemKind.EPISODE
     ) = BaseItemDto(id = id, type = kind, seriesId = seriesId, name = name)
 
-    // --- combineContinueWatching ----------------------------------------------
+    private fun resumed(ticks: Long, id: UUID = UUID.randomUUID()) = BaseItemDto(
+        id = id,
+        type = BaseItemKind.EPISODE,
+        userData = UserItemDataDto(
+            playbackPositionTicks = ticks,
+            playCount = 0,
+            isFavorite = false,
+            played = false,
+            key = "test",
+            itemId = id
+        )
+    )
+
+    @Test
+    fun hiddenItem_atSamePosition_isFiltered() {
+        val hiddenItem = resumed(ticks = 1200L)
+        val other = resumed(ticks = 900L)
+        val out = HomeContent.withoutHidden(
+            listOf(hiddenItem, other),
+            mapOf(hiddenItem.id.toString() to 1200L)
+        )
+        assertEquals(listOf(other.id), out.map { it.id })
+    }
+
+    @Test
+    fun hiddenItem_returnsAfterPositionChanges() {
+        val watchedAgain = resumed(ticks = 5000L)
+        val out = HomeContent.withoutHidden(
+            listOf(watchedAgain),
+            mapOf(watchedAgain.id.toString() to 1200L)
+        )
+        assertEquals(listOf(watchedAgain.id), out.map { it.id })
+    }
+
+    @Test
+    fun hiddenNextUpItem_withNoProgress_isFiltered() {
+        val nextUpEpisode = item()
+        val out = HomeContent.withoutHidden(
+            listOf(nextUpEpisode),
+            mapOf(nextUpEpisode.id.toString() to 0L)
+        )
+        assertEquals(emptyList<UUID>(), out.map { it.id })
+    }
 
     @Test
     fun resumeFirst_thenNextUp_inOrder() {
@@ -38,7 +81,7 @@ class HomeContentTest {
     fun nextUp_dedupedBySeriesAlreadyResuming() {
         val series = UUID.randomUUID()
         val resumeEp = item(seriesId = series)
-        val nextEp = item(seriesId = series) // different episode id, same series
+        val nextEp = item(seriesId = series)
         val out = HomeContent.combineContinueWatching(listOf(resumeEp), listOf(nextEp))
         assertEquals(listOf(resumeEp.id), out.map { it.id })
     }
@@ -50,8 +93,6 @@ class HomeContentTest {
         val out = HomeContent.combineContinueWatching(listOf(a), listOf(b))
         assertEquals(2, out.size)
     }
-
-    // --- buildHomeRows ---------------------------------------------------------
 
     @Test
     fun continueWatchingRow_firstAndFlagged_whenNonEmpty() {
@@ -108,7 +149,7 @@ class HomeContentTest {
                 libB to listOf(item(kind = BaseItemKind.MOVIE)),
                 libC to listOf(item(kind = BaseItemKind.MOVIE))
             ),
-            pinnedLibraryIds = listOf(libC.id, libA.id) // B unpinned; C before A
+            pinnedLibraryIds = listOf(libC.id, libA.id)
         )
         assertEquals(
             listOf("Recently added in C", "Recently added in A"),

@@ -10,6 +10,8 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
@@ -35,6 +37,7 @@ import app.picnic.player.ui.ambient.BackdropHostLayer
 import app.picnic.player.ui.ambient.LocalBackdropController
 import app.picnic.player.ui.browse.NavRailViewModel
 import app.picnic.player.ui.collection.CollectionScreen
+import app.picnic.player.ui.common.ContextMenuAction
 import app.picnic.player.ui.common.ContextMenuHandler
 import app.picnic.player.ui.common.GlobalContextMenuDialog
 import app.picnic.player.ui.common.GlobalContextMenuViewModel
@@ -109,14 +112,16 @@ fun PicnicNavHost(
     }
 
     var contextMenuItem by remember { mutableStateOf<BaseItemDto?>(null) }
+    var contextMenuFromContinueWatching by remember { mutableStateOf(false) }
     var seerrMenuItem by remember { mutableStateOf<SeerrCatalogItem?>(null) }
     var addToPlaylistItem by remember { mutableStateOf<BaseItemDto?>(null) }
     val contextMenuViewModel: GlobalContextMenuViewModel = hiltViewModel()
 
     val contextMenuHandler = remember {
         object : ContextMenuHandler {
-            override fun show(item: BaseItemDto) {
+            override fun show(item: BaseItemDto, fromContinueWatching: Boolean) {
                 contextMenuItem = item
+                contextMenuFromContinueWatching = fromContinueWatching
             }
         }
     }
@@ -431,6 +436,15 @@ fun PicnicNavHost(
                     onAddToPlaylist = {
                         contextMenuItem = null
                         addToPlaylistItem = item
+                    },
+                    extraActions = if (contextMenuFromContinueWatching) {
+                        listOf(
+                            ContextMenuAction("Remove from Continue watching", Icons.Default.Close) {
+                                contextMenuViewModel.hideFromContinueWatching(item)
+                            }
+                        )
+                    } else {
+                        emptyList()
                     }
                 )
             }

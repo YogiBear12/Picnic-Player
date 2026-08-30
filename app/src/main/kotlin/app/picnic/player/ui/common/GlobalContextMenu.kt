@@ -119,10 +119,6 @@ fun GlobalContextMenuDialog(
             )
         }
 
-        if (item.type == BaseItemKind.MOVIE || item.type == BaseItemKind.EPISODE) {
-            add(ContextMenuAction("View media info", Icons.Default.Info) { showMediaInfo = true })
-        }
-
         extraActions.forEach { extra ->
             add(
                 extra.copy(onClick = {
@@ -130,6 +126,10 @@ fun GlobalContextMenuDialog(
                     onDismiss()
                 })
             )
+        }
+
+        if (item.type == BaseItemKind.MOVIE || item.type == BaseItemKind.EPISODE) {
+            add(ContextMenuAction("View media info", Icons.Default.Info) { showMediaInfo = true })
         }
     }
 

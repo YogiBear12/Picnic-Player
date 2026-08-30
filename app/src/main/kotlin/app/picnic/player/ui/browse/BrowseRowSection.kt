@@ -103,7 +103,7 @@ internal fun BrowseRowSection(
                             onItem(item, nav.bgUrl, nav.ambUrl)
                         },
                         onFocused = { focusItem(item) },
-                        onLongClick = { contextMenu.show(item) }
+                        onLongClick = { contextMenu.show(item, row.continueWatching) }
                     )
                 }
             }

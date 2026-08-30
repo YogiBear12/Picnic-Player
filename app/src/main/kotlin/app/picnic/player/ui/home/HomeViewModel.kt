@@ -7,6 +7,7 @@ import app.picnic.player.data.auth.AuthRepository
 import app.picnic.player.data.auth.UserSession
 import app.picnic.player.data.jellyfin.isAuthFailure
 import app.picnic.player.data.jellyfin.serverErrorMessage
+import app.picnic.player.data.media.HiddenResumeStore
 import app.picnic.player.data.media.HomeContent
 import app.picnic.player.data.media.HomeContentLoader
 import app.picnic.player.data.media.HomeResult
@@ -58,6 +59,7 @@ class HomeViewModel @Inject constructor(
     private val mediaRepository: MediaRepository,
     private val homeLoader: HomeContentLoader,
     private val changeBus: LibraryChangeBus,
+    private val hiddenResumeStore: HiddenResumeStore,
     settingsStore: SettingsStore,
     val ambientLoader: AmbientPaletteLoader,
     private val navRail: NavRailState,
@@ -112,6 +114,9 @@ class HomeViewModel @Inject constructor(
         }
         viewModelScope.launch {
             navRail.layoutEpoch.drop(1).collectLatest { rebuildRowsFromCache() }
+        }
+        viewModelScope.launch {
+            hiddenResumeStore.hidden.drop(1).collectLatest { rebuildRowsFromCache() }
         }
         viewModelScope.launch {
             seerrRepository.state
@@ -262,13 +267,23 @@ class HomeViewModel @Inject constructor(
         focusChangedFlow.tryEmit(Unit)
     }
 
-    private fun rebuildRowsFromCache() {
+    private suspend fun rebuildRowsFromCache() {
         if (latestByLibrary.isEmpty() && lastResume.isEmpty() && lastNextUp.isEmpty()) return
         val pinnedIds = navRail.pinnedLibraries().map { it.id }
-        val rows = HomeContent.buildHomeRows(lastResume, lastNextUp, latestByLibrary, pinnedIds)
+        val hidden = hiddenResumeStore.snapshot()
+        val rows = HomeContent.buildHomeRows(
+            HomeContent.withoutHidden(lastResume, hidden),
+            HomeContent.withoutHidden(lastNextUp, hidden),
+            latestByLibrary,
+            pinnedIds
+        )
+        val visibleIds = rows.flatMap { row -> row.items.map { it.id } }.toSet()
         _state.update { current ->
             current.copy(
                 rows = rows,
+                focusedItemId = current.focusedItemId?.takeIf { it in visibleIds }
+                    ?: rows.getOrNull(current.focusedRowIndex)?.items?.firstOrNull()?.id,
+                rowFocusedItemIds = current.rowFocusedItemIds.filterValues { it in visibleIds },
                 error = if (rows.isEmpty()) "Nothing to watch yet." else null
             )
         }

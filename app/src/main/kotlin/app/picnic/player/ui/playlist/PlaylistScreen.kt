@@ -380,6 +380,11 @@ private fun PlaylistContent(
                 onAddToPlaylist(item)
             },
             extraActions = buildList {
+                add(
+                    ContextMenuAction("Remove from playlist", Icons.Default.Delete) {
+                        entryId?.let { viewModel.removeEntry(it) }
+                    }
+                )
                 if (items.size > 1 && entryId != null) {
                     add(
                         ContextMenuAction("Reorder", Icons.Default.SwapVert) {
@@ -387,11 +392,6 @@ private fun PlaylistContent(
                         }
                     )
                 }
-                add(
-                    ContextMenuAction("Remove from playlist", Icons.Default.Delete) {
-                        entryId?.let { viewModel.removeEntry(it) }
-                    }
-                )
             },
             showResumePosition = false
         )

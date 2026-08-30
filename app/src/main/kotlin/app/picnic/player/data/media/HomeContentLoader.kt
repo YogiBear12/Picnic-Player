@@ -36,6 +36,7 @@ class HomeContentLoader @Inject constructor(
     private val seerrRepository: SeerrRepository,
     private val navLayoutStore: NavLayoutStore,
     private val navRail: NavRailState,
+    private val hiddenResumeStore: HiddenResumeStore,
     @ApplicationScope private val appScope: CoroutineScope
 ) {
     private var inFlightKey: String? = null
@@ -81,8 +82,9 @@ class HomeContentLoader @Inject constructor(
                     }.getOrDefault(emptyList())
                 }
             }
-            val resume = resumeDeferred.await()
-            val nextUp = nextUpDeferred.await()
+            val hidden = hiddenResumeStore.snapshot()
+            val resume = HomeContent.withoutHidden(resumeDeferred.await(), hidden)
+            val nextUp = HomeContent.withoutHidden(nextUpDeferred.await(), hidden)
             val latest = latestDeferred.awaitAll()
 
             val discoverAvailable = seerrRepository.state.value.linkState == SeerrLinkState.Linked

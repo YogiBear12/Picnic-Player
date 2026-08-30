@@ -3,6 +3,7 @@ package app.picnic.player.ui.common
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.picnic.player.data.auth.AuthRepository
+import app.picnic.player.data.media.HiddenResumeStore
 import app.picnic.player.data.media.MediaRepository
 import app.picnic.player.data.media.UserDataRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -15,7 +16,8 @@ import org.jellyfin.sdk.model.api.BaseItemDto
 class GlobalContextMenuViewModel @Inject constructor(
     private val authRepository: AuthRepository,
     private val userDataRepository: UserDataRepository,
-    private val mediaRepository: MediaRepository
+    private val mediaRepository: MediaRepository,
+    private val hiddenResumeStore: HiddenResumeStore
 ) : ViewModel() {
 
     suspend fun libraryItem(itemId: String): BaseItemDto? {
@@ -33,6 +35,12 @@ class GlobalContextMenuViewModel @Inject constructor(
                     seriesId = item.seriesId
                 )
             }
+        }
+    }
+
+    fun hideFromContinueWatching(item: BaseItemDto) {
+        viewModelScope.launch {
+            hiddenResumeStore.hide(item.id, item.userData?.playbackPositionTicks ?: 0L)
         }
     }
 
