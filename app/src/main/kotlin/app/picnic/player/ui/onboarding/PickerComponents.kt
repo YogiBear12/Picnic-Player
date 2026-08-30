@@ -38,8 +38,8 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -66,8 +66,6 @@ import app.picnic.player.ui.common.ArtworkImage
 import app.picnic.player.ui.common.rememberIdentityBrush
 import app.picnic.player.ui.theme.PicnicColors
 
-/** One entry in a picker row. [editable] tiles support long-press edit; the
- *  trailing "Add" tile is not editable. */
 data class PickerEntry(
     val id: String,
     val label: String,
@@ -75,20 +73,12 @@ data class PickerEntry(
     val fallbackInitial: String? = null,
     val icon: ImageVector? = null,
     val editable: Boolean = true,
-    /** Non-null flags this tile as errored (red border + warning icon); text is the reason. */
     val errorText: String? = null
 )
 
 /** Outer slot so focus scale + glow are not clipped (matches browse card slots). */
 private fun pickerTileSlotSize(tileSize: Int) = tileSize.dp * 1.1f + 2.dp + 12.dp
 
-/**
- * Shared cinematic layout for the return-user pickers: the title
- * (plus optional subtitle) and tile row form one vertically centred block over
- * the ambient wash, with an optional bottom-anchored footer action. Keeping the
- * footer out of the centred block means both pickers' rows land at the same
- * height without spacer arithmetic.
- */
 @Composable
 fun PickerScaffold(
     title: String,
@@ -116,8 +106,6 @@ fun PickerScaffold(
             content()
         }
         footer?.let {
-            // Fades out during row edit mode so the held tile's Remove chip
-            // never collides with the footer action.
             AnimatedVisibility(
                 visible = footerVisible,
                 enter = fadeIn(),
@@ -130,12 +118,6 @@ fun PickerScaffold(
     }
 }
 
-/**
- * Horizontal picker row with gate-owned edit mode: long-press an
- * editable tile to enter edit, then ←/→ reorder, ↓ highlights delete, Select on
- * the highlighted delete opens a confirm dialog, a short Select or Back exits
- * edit. Focus stays on the held tile across reorders (keyed by id).
- */
 @Composable
 fun EditablePickerRow(
     items: List<PickerEntry>,
@@ -190,8 +172,8 @@ fun EditablePickerRow(
             .then(
                 if (firstFocusId != null && !editing) {
                     Modifier
+                        .focusRestorer { focuserFor(firstFocusId) }
                         .focusGroup()
-                        .focusProperties { enter = { focuserFor(firstFocusId) } }
                 } else {
                     Modifier
                 }
@@ -335,16 +317,7 @@ private fun PickerTile(
                     if (entry.icon != null) {
                         Icon(entry.icon, contentDescription = entry.label, modifier = Modifier.size(48.dp))
                     } else {
-                        // Identity gradient + initial sit under the avatar image:
-                        // visible for image-less tiles, and the load-in underlay
-                        // while an avatar fetch is in flight.
                         Box(Modifier.fillMaxSize().background(rememberIdentityBrush(entry.label)))
-                        // A tile with an avatar URL is expected to paint it (disk cache
-                        // survives restarts), so the load gap shows the bare gradient —
-                        // no initial flashing under the incoming image, and transparent
-                        // avatars (PNG) sit on the gradient, not on a letter. The
-                        // initial appears instantly for image-less tiles and as the
-                        // fallback when a load fails.
                         var avatarFailed by remember(entry.id) { mutableStateOf(false) }
                         if (entry.imageUrl == null || avatarFailed) {
                             Text(
@@ -383,7 +356,6 @@ private fun PickerTile(
             }
         }
 
-        // Reorder arrows flank the name while editing.
         if (editingThis) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("‹", color = Color.White, fontWeight = FontWeight.Bold)
@@ -396,8 +368,6 @@ private fun PickerTile(
                 Text("›", color = Color.White, fontWeight = FontWeight.Bold)
             }
         } else {
-            // Muted at rest, bright under focus — the label answers "which tile
-            // am I on" without competing with the avatars.
             val labelColor by animateColorAsState(
                 targetValue = if (focused) PicnicColors.OnDark else PicnicColors.OnDarkMuted,
                 label = "pickerTileLabel"
@@ -409,7 +379,6 @@ private fun PickerTile(
             )
         }
 
-        // Delete affordance below the held tile (red when highlighted via ↓).
         if (editingThis) {
             Row(
                 modifier = Modifier
