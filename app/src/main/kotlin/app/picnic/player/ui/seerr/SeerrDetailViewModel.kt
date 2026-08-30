@@ -1,5 +1,11 @@
 package app.picnic.player.ui.seerr
 
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.picnic.player.data.seerr.SeerrCastMember
@@ -36,6 +42,15 @@ enum class SeerrPrimaryAction {
     Pending,
 
     Unavailable
+}
+
+internal fun primaryIcon(action: SeerrPrimaryAction): ImageVector = when (action) {
+    SeerrPrimaryAction.Play -> Icons.Default.PlayArrow
+    SeerrPrimaryAction.Request,
+    SeerrPrimaryAction.RequestMore
+    -> Icons.Default.Add
+    SeerrPrimaryAction.Pending -> Icons.Default.Check
+    SeerrPrimaryAction.Unavailable -> Icons.Default.Close
 }
 
 enum class SeerrActionFocusTarget {

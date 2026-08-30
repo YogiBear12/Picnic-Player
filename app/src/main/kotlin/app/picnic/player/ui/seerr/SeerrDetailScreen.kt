@@ -24,11 +24,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Movie
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -45,7 +42,6 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextAlign
@@ -496,13 +492,4 @@ private enum class SeerrDetailSection {
     Actions,
     Cast,
     Recommended
-}
-
-internal fun primaryIcon(action: SeerrPrimaryAction): ImageVector = when (action) {
-    SeerrPrimaryAction.Play -> Icons.Default.PlayArrow
-    SeerrPrimaryAction.Request,
-    SeerrPrimaryAction.RequestMore
-    -> Icons.Default.Add
-    SeerrPrimaryAction.Pending -> Icons.Default.Check
-    SeerrPrimaryAction.Unavailable -> Icons.Default.Close
 }

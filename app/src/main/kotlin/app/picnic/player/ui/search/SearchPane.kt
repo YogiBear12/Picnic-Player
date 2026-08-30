@@ -23,7 +23,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -199,9 +198,6 @@ private fun ResultRowsSection(
     val ambientPrewarmer = LocalAmbientPrewarmer.current
     val contextMenu = LocalContextMenuHandler.current
     val images = LocalImageUrls.current
-    var seerrMenuItem by remember {
-        mutableStateOf<app.picnic.player.data.seerr.SeerrCatalogItem?>(null)
-    }
 
     LazyColumn(
         state = listState,
@@ -349,7 +345,6 @@ private fun ResultRowsSection(
                                     ambientPrewarmer.warm(nav.ambUrl)
                                     onSeerrItem(item, nav.bgUrl, nav.ambUrl)
                                 },
-                                onLongClick = { seerrMenuItem = item },
                                 modifier = Modifier.padding(top = posterStyle.topInset)
                             )
                         }
@@ -357,13 +352,6 @@ private fun ResultRowsSection(
                 }
             }
         }
-    }
-
-    seerrMenuItem?.let { item ->
-        app.picnic.player.ui.seerr.SeerrCardContextMenu(
-            item = item,
-            onDismiss = { seerrMenuItem = null }
-        )
     }
 }
 

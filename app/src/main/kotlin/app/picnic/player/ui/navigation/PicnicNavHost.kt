@@ -30,6 +30,7 @@ import androidx.tv.material3.DrawerValue
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import app.picnic.player.data.media.ItemQueue
 import app.picnic.player.data.media.QueueKind
+import app.picnic.player.data.seerr.SeerrCatalogItem
 import app.picnic.player.ui.ambient.BackdropHostLayer
 import app.picnic.player.ui.ambient.LocalBackdropController
 import app.picnic.player.ui.browse.NavRailViewModel
@@ -41,6 +42,7 @@ import app.picnic.player.ui.common.ImageUrlsViewModel
 import app.picnic.player.ui.common.LocalAddToPlaylist
 import app.picnic.player.ui.common.LocalContextMenuHandler
 import app.picnic.player.ui.common.LocalImageUrls
+import app.picnic.player.ui.common.LocalSeerrCardMenu
 import app.picnic.player.ui.detail.DetailScreen
 import app.picnic.player.ui.detail.SeriesEpisodesScreen
 import app.picnic.player.ui.genre.GenreScreen
@@ -53,6 +55,7 @@ import app.picnic.player.ui.person.PersonScreen
 import app.picnic.player.ui.player.PlayerScreen
 import app.picnic.player.ui.playlist.AddToPlaylistDialog
 import app.picnic.player.ui.playlist.PlaylistScreen
+import app.picnic.player.ui.seerr.SeerrCardContextMenu
 import app.picnic.player.ui.settings.SettingsScreen
 import app.picnic.player.ui.startup.StartupScreen
 import app.picnic.player.ui.theme.TvBrowseMotion
@@ -106,6 +109,7 @@ fun PicnicNavHost(
     }
 
     var contextMenuItem by remember { mutableStateOf<BaseItemDto?>(null) }
+    var seerrMenuItem by remember { mutableStateOf<SeerrCatalogItem?>(null) }
     var addToPlaylistItem by remember { mutableStateOf<BaseItemDto?>(null) }
     val contextMenuViewModel: GlobalContextMenuViewModel = hiltViewModel()
 
@@ -117,12 +121,15 @@ fun PicnicNavHost(
         }
     }
 
+    val seerrCardMenu: (SeerrCatalogItem) -> Unit = { item -> seerrMenuItem = item }
+
     val addToPlaylistHandler: (BaseItemDto) -> Unit = { item -> addToPlaylistItem = item }
 
     val imageUrls by imageUrlsViewModel.imageUrls.collectAsStateWithLifecycle()
 
     CompositionLocalProvider(
         LocalContextMenuHandler provides contextMenuHandler,
+        LocalSeerrCardMenu provides seerrCardMenu,
         LocalAddToPlaylist provides addToPlaylistHandler,
         LocalImageUrls provides imageUrls
     ) {
@@ -391,8 +398,18 @@ fun PicnicNavHost(
                 }
             )
 
-            if (contextMenuItem != null) {
-                val item = contextMenuItem!!
+            seerrMenuItem?.let { item ->
+                SeerrCardContextMenu(
+                    item = item,
+                    onLibraryItem = { libraryItem ->
+                        seerrMenuItem = null
+                        contextMenuItem = libraryItem
+                    },
+                    onDismiss = { seerrMenuItem = null }
+                )
+            }
+
+            contextMenuItem?.let { item ->
                 GlobalContextMenuDialog(
                     item = item,
                     onDismiss = { contextMenuItem = null },

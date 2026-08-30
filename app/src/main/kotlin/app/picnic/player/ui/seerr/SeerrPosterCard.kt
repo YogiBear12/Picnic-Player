@@ -47,6 +47,7 @@ import app.picnic.player.ui.ambient.rememberCardFocusGlow
 import app.picnic.player.ui.browse.BrowseCardStyle
 import app.picnic.player.ui.common.ArtworkImage
 import app.picnic.player.ui.common.ArtworkPlaceholder
+import app.picnic.player.ui.common.LocalSeerrCardMenu
 import app.picnic.player.ui.common.PosterPlaceholderLabel
 import app.picnic.player.ui.grid.gridCellHeight
 
@@ -63,8 +64,7 @@ internal fun SeerrMediaCard(
     style: BrowseCardStyle,
     focusRequester: FocusRequester?,
     onFocused: () -> Unit,
-    onClick: () -> Unit,
-    onLongClick: (() -> Unit)? = null
+    onClick: () -> Unit
 ) {
     Box(
         Modifier.width(style.width).height(style.slotHeight),
@@ -78,7 +78,6 @@ internal fun SeerrMediaCard(
             focusRequester = focusRequester,
             onFocused = onFocused,
             onClick = onClick,
-            onLongClick = onLongClick,
             modifier = Modifier.padding(top = style.topInset)
         )
     }
@@ -96,7 +95,6 @@ internal fun SeerrLabeledCard(
     leftFocus: FocusRequester? = null,
     onFocused: () -> Unit,
     onClick: () -> Unit,
-    onLongClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     var focused by remember { mutableStateOf(false) }
@@ -133,8 +131,7 @@ internal fun SeerrLabeledCard(
             upFocus = upFocus,
             leftFocus = leftFocus,
             onFocused = onFocused,
-            onClick = onClick,
-            onLongClick = onLongClick
+            onClick = onClick
         )
         Spacer(Modifier.height(labelGap))
         Text(
@@ -198,9 +195,9 @@ private fun SeerrPosterFace(
     leftFocus: FocusRequester? = null,
     onFocused: () -> Unit,
     onClick: () -> Unit,
-    onLongClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
+    val seerrCardMenu = LocalSeerrCardMenu.current
     val imageUrl = SeerrImages.poster(seerrBaseUrl, item.posterPath, cacheImages)
     val accentUrl = SeerrImages.poster(seerrBaseUrl, item.posterPath, cacheImages, size = AccentPosterSize)
     val focusAccent = rememberCardFocusAccent(accentUrl)
@@ -221,7 +218,7 @@ private fun SeerrPosterFace(
 
     Card(
         onClick = onClick,
-        onLongClick = onLongClick,
+        onLongClick = { seerrCardMenu(item) },
         shape = CardDefaults.shape(shape),
         colors = CardDefaults.colors(
             containerColor = Color.Transparent,

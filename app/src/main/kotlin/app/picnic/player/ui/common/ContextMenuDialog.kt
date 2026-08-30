@@ -53,6 +53,7 @@ fun ContextMenuDialog(
     BackHandler { onDismiss() }
     val guard = rememberLongPressGuard()
     val firstFocus = remember { FocusRequester() }
+    val firstEnabled = actions.indexOfFirst { it.enabled }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -87,13 +88,19 @@ fun ContextMenuDialog(
                     ),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .then(if (index == 0) Modifier.focusRequester(firstFocus) else Modifier)
+                        .then(
+                            if (index == firstEnabled) {
+                                Modifier.focusRequester(firstFocus)
+                            } else {
+                                Modifier
+                            }
+                        )
                 )
             }
         }
 
-        LaunchedEffect(Unit) {
-            if (actions.isNotEmpty()) firstFocus.requestFocusWhenAttached()
+        LaunchedEffect(firstEnabled) {
+            if (firstEnabled >= 0) firstFocus.requestFocusWhenAttached()
         }
     }
 }

@@ -27,7 +27,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -57,7 +56,6 @@ import app.picnic.player.ui.browse.ImmersiveBrowseFocus
 import app.picnic.player.ui.browse.ScrollToTopBringIntoView
 import app.picnic.player.ui.browse.posterCardStyle
 import app.picnic.player.ui.common.requestFocusWhenAttached
-import app.picnic.player.ui.seerr.SeerrCardContextMenu
 import app.picnic.player.ui.seerr.SeerrHero
 import app.picnic.player.ui.seerr.SeerrMediaCard
 import app.picnic.player.ui.theme.PicnicColors
@@ -74,7 +72,6 @@ internal fun DiscoverPane(
     onSeerrItem: (SeerrCatalogItem, String?, String?) -> Unit
 ) {
     LaunchedEffect(Unit) { viewModel.ensureLoaded() }
-    var menuItem by remember { mutableStateOf<SeerrCatalogItem?>(null) }
 
     when {
         state.loading -> Box(Modifier.fillMaxSize(), Alignment.Center) {
@@ -91,13 +88,8 @@ internal fun DiscoverPane(
             focus = focus,
             seedContentFocus = seedContentFocus,
             onContentFocusSeeded = onContentFocusSeeded,
-            onSeerrItem = onSeerrItem,
-            onLongPressItem = { menuItem = it }
+            onSeerrItem = onSeerrItem
         )
-    }
-
-    menuItem?.let { item ->
-        SeerrCardContextMenu(item = item, onDismiss = { menuItem = null })
     }
 }
 
@@ -110,17 +102,12 @@ private fun DiscoverImmersiveContent(
     focus: ImmersiveBrowseFocus,
     seedContentFocus: Boolean,
     onContentFocusSeeded: () -> Unit,
-    onSeerrItem: (SeerrCatalogItem, String?, String?) -> Unit,
-    onLongPressItem: (SeerrCatalogItem) -> Unit
+    onSeerrItem: (SeerrCatalogItem, String?, String?) -> Unit
 ) {
     val focused = viewModel.focusedItem(state)
     val seerr = state.seerr
     val restoreRow = state.focusedRowIndex.coerceIn(0, (state.rows.size - 1).coerceAtLeast(0))
 
-    // Same restore contract as ImmersiveBrowseScaffold: the row's LazyListState is
-    // recreated at scroll 0 on nav return, so scroll the saved card into composition
-    // first, request focus attach-aware, and fall back to the row rather than letting
-    // focus escape to the nav drawer.
     LaunchedEffect(seedContentFocus, state.rows.size, state.focusedRowIndex) {
         if (!seedContentFocus || state.rows.isEmpty()) return@LaunchedEffect
         val rowIndex = state.focusedRowIndex.coerceIn(0, state.rows.lastIndex)
@@ -200,8 +187,7 @@ private fun DiscoverImmersiveContent(
                             focusedTmdbId = state.rowFocusedIds[rowIndex],
                             rowBringIntoView = focus.defaultRowBringIntoView,
                             onFocusItem = viewModel::onItemFocused,
-                            onSeerrItem = onSeerrItem,
-                            onLongPressItem = onLongPressItem
+                            onSeerrItem = onSeerrItem
                         )
                     }
                 }
@@ -225,8 +211,7 @@ private fun DiscoverRowSection(
     focusedTmdbId: Int?,
     rowBringIntoView: androidx.compose.foundation.gestures.BringIntoViewSpec,
     onFocusItem: (Int, SeerrCatalogItem) -> Unit,
-    onSeerrItem: (SeerrCatalogItem, String?, String?) -> Unit,
-    onLongPressItem: (SeerrCatalogItem) -> Unit
+    onSeerrItem: (SeerrCatalogItem, String?, String?) -> Unit
 ) {
     val focusIndex = focusedTmdbId
         ?.let { id -> row.items.indexOfFirst { it.tmdbId == id }.takeIf { it >= 0 } }
@@ -268,8 +253,7 @@ private fun DiscoverRowSection(
                             val nav = SeerrImages.navImages(seerrBaseUrl, item, cacheImages)
                             ambientPrewarmer.warm(nav.ambUrl)
                             onSeerrItem(item, nav.bgUrl, nav.ambUrl)
-                        },
-                        onLongClick = { onLongPressItem(item) }
+                        }
                     )
                 }
             }
