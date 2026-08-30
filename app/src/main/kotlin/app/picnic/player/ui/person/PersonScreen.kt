@@ -70,6 +70,7 @@ import app.picnic.player.ui.browse.DetailMediaRow
 import app.picnic.player.ui.browse.ScrollToTopBringIntoView
 import app.picnic.player.ui.browse.browseLayoutMetrics
 import app.picnic.player.ui.browse.posterCardStyle
+import app.picnic.player.ui.common.ContentCacheWindow
 import app.picnic.player.ui.common.LocalImageUrls
 import app.picnic.player.ui.common.ScrollableTextDialog
 import app.picnic.player.ui.common.rememberRowFocusState
@@ -125,7 +126,7 @@ fun PersonScreen(
 
     val session = state.session
     val metrics = browseLayoutMetrics(maxWidth, maxHeight)
-    val listState = rememberLazyListState()
+    val listState = rememberLazyListState(cacheWindow = ContentCacheWindow)
     var showSummaryDialog by remember { mutableStateOf(false) }
     var summaryText by remember { mutableStateOf<String?>(null) }
 
