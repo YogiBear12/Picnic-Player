@@ -239,7 +239,8 @@ private fun DetailContent(
                     onFocused = { index, collection ->
                         focus.onRowFocused(ROW_COLLECTIONS, index, collection.id.toString())
                     },
-                    building = focus.building.value
+                    building = focus.building.value,
+                    subtitleOverride = { "Collection" }
                 )
             }
         }

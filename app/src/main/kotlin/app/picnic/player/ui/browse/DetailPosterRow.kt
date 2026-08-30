@@ -29,7 +29,8 @@ internal fun DetailPosterRow(
     onLongClick: (BaseItemDto) -> Unit,
     onFocused: (Int, BaseItemDto) -> Unit,
     building: Boolean,
-    upFocus: (() -> FocusRequester)? = null
+    upFocus: (() -> FocusRequester)? = null,
+    subtitleOverride: ((BaseItemDto) -> String?)? = null
 ) {
     val keptIndex = if (building) rowFocus.focusedIndex else NO_KEPT_CARD
     DetailMediaRow(
@@ -51,6 +52,7 @@ internal fun DetailPosterRow(
             focusRequester = rowFocus.requesterAt(index),
             firstInRow = index == 0,
             upFocus = upFocus,
+            subtitleOverride = subtitleOverride?.invoke(rowItem),
             onClick = { onClick(rowItem) },
             onLongClick = { onLongClick(rowItem) },
             onFocused = { onFocused(index, rowItem) }
@@ -67,6 +69,7 @@ internal fun DetailRowCard(
     onClick: () -> Unit,
     onLongClick: (() -> Unit)? = null,
     upFocus: (() -> FocusRequester)? = null,
+    subtitleOverride: String? = null,
     onFocused: () -> Unit
 ) {
     Box(
@@ -79,6 +82,7 @@ internal fun DetailRowCard(
             focusRequester = focusRequester,
             upFocus = upFocus,
             leftFocus = if (firstInRow) FocusRequester.Cancel else null,
+            subtitleOverride = subtitleOverride,
             onClick = onClick,
             onLongClick = onLongClick,
             onFocused = onFocused,
