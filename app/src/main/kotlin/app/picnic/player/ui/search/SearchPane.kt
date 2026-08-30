@@ -47,6 +47,7 @@ import app.picnic.player.ui.browse.posterCardStyle
 import app.picnic.player.ui.common.CircularPersonCard
 import app.picnic.player.ui.common.LocalContextMenuHandler
 import app.picnic.player.ui.common.LocalImageUrls
+import app.picnic.player.ui.common.rememberRowFocusRequesters
 import app.picnic.player.ui.genre.GenreBrowseGrid
 import app.picnic.player.ui.grid.MediaGridCard
 import app.picnic.player.ui.grid.gridCellSlot
@@ -71,10 +72,8 @@ internal fun SearchPane(
 
     val fieldFocus = remember { FocusRequester() }
     val genreCardFocus = remember { FocusRequester() }
-    val rowCardFocus = remember(state.results.size) { List(state.results.size) { FocusRequester() } }
-    val discoverCardFocus = remember(state.discoverResults.size) {
-        List(state.discoverResults.size) { FocusRequester() }
-    }
+    val rowCardFocus = rememberRowFocusRequesters(state.results.size)
+    val discoverCardFocus = rememberRowFocusRequesters(state.discoverResults.size)
     val genreGridState = rememberLazyGridState()
     val resultListState = rememberLazyListState()
 

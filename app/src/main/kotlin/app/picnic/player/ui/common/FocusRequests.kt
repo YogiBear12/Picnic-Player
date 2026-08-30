@@ -16,6 +16,16 @@ suspend fun FocusRequester.requestFocusWhenAttached(maxFrames: Int = 10): Boolea
 }
 
 @Composable
+fun rememberRowFocusRequesters(rowCount: Int): List<FocusRequester> = remember {
+    mutableListOf<FocusRequester>()
+}.growTo(rowCount) { FocusRequester() }
+
+fun <T> MutableList<T>.growTo(count: Int, create: () -> T): List<T> {
+    while (size < count) add(create())
+    return this
+}
+
+@Composable
 fun rememberSeededFocus(seed: Boolean, onSeeded: () -> Unit): FocusRequester {
     val requester = remember { FocusRequester() }
     LaunchedEffect(seed) {

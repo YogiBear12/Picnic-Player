@@ -11,6 +11,8 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.focus.FocusRequester
+import app.picnic.player.ui.common.growTo
+import app.picnic.player.ui.common.rememberRowFocusRequesters
 
 internal class ImmersiveBrowseFocus(
     val listState: LazyListState,
@@ -32,9 +34,10 @@ internal fun rememberImmersiveBrowseFocus(
 
     val listState = rememberLazyListState(cacheWindow = ColumnCacheWindow)
     val defaultRowBringIntoView = LocalBringIntoViewSpec.current
-    val rowListStates = remember(rowCount) { List(rowCount) { LazyListState(cacheWindow = RowCacheWindow) } }
-    val rowFocusRequesters = remember(rowCount) { List(rowCount) { FocusRequester() } }
-    val rowCardFocus = remember(rowCount) { List(rowCount) { FocusRequester() } }
+    val rowListStates = remember { mutableListOf<LazyListState>() }
+        .growTo(rowCount) { LazyListState(cacheWindow = RowCacheWindow) }
+    val rowFocusRequesters = rememberRowFocusRequesters(rowCount)
+    val rowCardFocus = rememberRowFocusRequesters(rowCount)
 
     return ImmersiveBrowseFocus(
         listState = listState,
