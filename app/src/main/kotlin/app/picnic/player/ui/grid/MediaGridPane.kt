@@ -311,7 +311,7 @@ private fun MediaGridBody(
                                     androidx.compose.ui.focus.FocusDirection.Right ->
                                         railLetterFocus[railActiveIndex.value]
                                     androidx.compose.ui.focus.FocusDirection.Up ->
-                                        upExitFocus ?: FocusRequester.Default
+                                        upExitFocus ?: FocusRequester.Cancel
                                     androidx.compose.ui.focus.FocusDirection.Down ->
                                         FocusRequester.Cancel
                                     else -> FocusRequester.Default
