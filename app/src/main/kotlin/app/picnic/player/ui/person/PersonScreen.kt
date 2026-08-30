@@ -76,6 +76,7 @@ import app.picnic.player.ui.common.ScrollableTextDialog
 import app.picnic.player.ui.common.rememberRowFocusState
 import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.grid.MediaGridCard
+import app.picnic.player.ui.grid.MetaLineReserve
 import app.picnic.player.ui.grid.gridCellSlot
 import app.picnic.player.ui.seerr.SeerrLabeledCard
 import app.picnic.player.ui.seerr.seerrLabeledSlotHeight
@@ -259,7 +260,7 @@ fun PersonScreen(
 
     val horizontalRowSpec = LocalBringIntoViewSpec.current
     val pinSpec = with(androidx.compose.ui.platform.LocalDensity.current) {
-        remember { ScrollToTopBringIntoView(304.dp.toPx()) }
+        remember { ScrollToTopBringIntoView((304.dp - MetaLineReserve).toPx()) }
     }
     val posterStyle = posterCardStyle(sy = metrics.sy)
     val ambientPrewarmer = LocalAmbientPrewarmer.current
