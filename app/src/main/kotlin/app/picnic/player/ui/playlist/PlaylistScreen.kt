@@ -79,6 +79,7 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import app.picnic.player.data.media.ItemQueue
 import app.picnic.player.data.media.QueueKind
+import app.picnic.player.data.media.seedId
 import app.picnic.player.text.countLabel
 import app.picnic.player.ui.ambient.BackdropSpec
 import app.picnic.player.ui.ambient.PublishBackdrop
@@ -104,6 +105,7 @@ import kotlin.random.Random
 import kotlinx.coroutines.launch
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
+import org.jellyfin.sdk.model.api.ImageType
 
 private data class PlaylistAction(val title: String, val icon: ImageVector, val onClick: () -> Unit)
 
@@ -136,6 +138,7 @@ fun PlaylistScreen(
                 playlistId = playlistId,
                 name = title,
                 items = state.items,
+                playlist = state.playlist,
                 viewModel = viewModel,
                 onPlay = onPlay,
                 onShuffle = onShuffle,
@@ -169,6 +172,7 @@ private fun PlaylistContent(
     playlistId: String,
     name: String,
     items: List<BaseItemDto>,
+    playlist: BaseItemDto?,
     viewModel: PlaylistViewModel,
     onPlay: (String, Long?, Int) -> Unit,
     onShuffle: (String, Long) -> Unit,
@@ -239,7 +243,7 @@ private fun PlaylistContent(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Spacer(Modifier.height(56.dp))
-            PosterMosaic(items, Modifier.width(160.dp))
+            PlaylistPoster(playlist, items, Modifier.width(160.dp))
             Spacer(Modifier.height(14.dp))
             Text(name, style = MaterialTheme.typography.headlineSmall, color = Color.White, textAlign = TextAlign.Center)
             Spacer(Modifier.height(4.dp))
@@ -522,13 +526,31 @@ private fun PlaylistRow(
 }
 
 @Composable
-private fun PosterMosaic(items: List<BaseItemDto>, modifier: Modifier = Modifier) {
+private fun PlaylistPoster(playlist: BaseItemDto?, items: List<BaseItemDto>, modifier: Modifier = Modifier) {
     val images = LocalImageUrls.current
+    val ownArtwork = playlist?.takeIf { it.imageTags?.containsKey(ImageType.PRIMARY) == true }
+        ?.let { images.primary(it) }
+    if (ownArtwork != null) {
+        AsyncImage(
+            model = ownArtwork,
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = modifier
+                .aspectRatio(1f)
+                .clip(RoundedCornerShape(10.dp))
+                .background(PicnicColors.SurfaceVariant)
+        )
+        return
+    }
+    val tiles = remember(items) {
+        val unique = items.distinctBy { it.seedId }.take(4)
+        if (unique.size < 4) unique.take(1) else unique
+    }
     Column(
         modifier = modifier.clip(RoundedCornerShape(10.dp)),
         verticalArrangement = Arrangement.spacedBy(2.dp)
     ) {
-        items.take(4).chunked(2).forEach { rowItems ->
+        tiles.chunked(2).forEach { rowItems ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                 rowItems.forEach { item ->
                     AsyncImage(

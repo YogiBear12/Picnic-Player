@@ -9,6 +9,7 @@ import app.picnic.player.data.auth.AuthRepository
 import app.picnic.player.data.auth.UserSession
 import app.picnic.player.data.media.LibraryChange
 import app.picnic.player.data.media.LibraryChangeBus
+import app.picnic.player.data.media.MediaRepository
 import app.picnic.player.data.media.PlaylistRepository
 import app.picnic.player.data.media.UserDataRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -21,6 +22,7 @@ import org.jellyfin.sdk.model.api.BaseItemDto
 class PlaylistViewModel @Inject constructor(
     private val authRepository: AuthRepository,
     private val playlistRepository: PlaylistRepository,
+    private val mediaRepository: MediaRepository,
     private val userDataRepository: UserDataRepository,
     private val changeBus: LibraryChangeBus
 ) : ViewModel() {
@@ -28,6 +30,7 @@ class PlaylistViewModel @Inject constructor(
         val loading: Boolean = true,
         val session: UserSession? = null,
         val items: List<BaseItemDto> = emptyList(),
+        val playlist: BaseItemDto? = null,
         val error: String? = null
     )
 
@@ -69,10 +72,13 @@ class PlaylistViewModel @Inject constructor(
 
     private suspend fun refresh(session: UserSession, id: UUID) {
         val items = runCatching { playlistRepository.playlistItems(id) }
+        val playlist = state.playlist?.takeIf { it.id == id }
+            ?: runCatching { mediaRepository.item(id) }.getOrNull()
         state = state.copy(
             loading = false,
             session = session,
             items = items.getOrDefault(emptyList()),
+            playlist = playlist,
             error = items.exceptionOrNull()?.let { it.message ?: it.javaClass.simpleName }
         )
     }
