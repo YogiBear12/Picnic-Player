@@ -76,7 +76,6 @@ data class PickerEntry(
     val errorText: String? = null
 )
 
-/** Outer slot so focus scale + glow are not clipped (matches browse card slots). */
 private fun pickerTileSlotSize(tileSize: Int) = tileSize.dp * 1.1f + 2.dp + 12.dp
 
 @Composable
@@ -138,25 +137,23 @@ fun EditablePickerRow(
     val focusers = remember { mutableMapOf<String, FocusRequester>() }
     fun focuserFor(id: String) = focusers.getOrPut(id) { FocusRequester() }
     val firstFocusId = items.firstOrNull()?.id ?: addTile?.id
+    var editExitAnchorId by remember { mutableStateOf<String?>(null) }
 
-    // Cold-start entry (Startup → picker) leaves nothing focused until we request
-    // the first tile; async load means tiles may appear a frame after compose.
-    // Also re-anchors after edit-mode reorder on the held tile.
     LaunchedEffect(items, addTile?.id, editId) {
-        val targetId = editId ?: firstFocusId ?: return@LaunchedEffect
+        val anchorId = editExitAnchorId?.takeIf { id -> items.any { it.id == id } }
+        val targetId = editId ?: anchorId ?: firstFocusId ?: return@LaunchedEffect
+        editExitAnchorId = null
         repeat(2) { withFrameNanos { } }
         runCatching { focuserFor(targetId).requestFocus() }
     }
 
-    BackHandler(enabled = editing) {
+    fun exitEdit() {
+        editExitAnchorId = editId
         editId = null
         deleteHighlight = false
     }
 
-    fun exitEdit() {
-        editId = null
-        deleteHighlight = false
-    }
+    BackHandler(enabled = editing) { exitEdit() }
 
     fun move(direction: Int) {
         val ids = items.map { it.id }.toMutableList()
@@ -170,7 +167,7 @@ fun EditablePickerRow(
     Row(
         modifier = modifier
             .then(
-                if (firstFocusId != null && !editing) {
+                if (firstFocusId != null) {
                     Modifier
                         .focusRestorer { focuserFor(firstFocusId) }
                         .focusGroup()
@@ -330,9 +327,6 @@ private fun PickerTile(
                             ArtworkImage(
                                 url = entry.imageUrl,
                                 contentDescription = entry.label,
-                                // Stable per-identity cache key: when a tag refresh changes the
-                                // URL, the previous avatar stays up as the placeholder and the
-                                // new one crossfades in — no blank flash on revisit.
                                 stableCacheKey = PICKER_AVATAR_KEY_PREFIX + entry.id,
                                 crossfade = true,
                                 label = "avatar='${entry.label}'",
