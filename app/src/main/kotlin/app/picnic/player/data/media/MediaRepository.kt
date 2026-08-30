@@ -585,7 +585,7 @@ class MediaRepository @Inject constructor(
         ).content.totalRecordCount ?: 0
     }
 
-    suspend fun randomWatched(
+    suspend fun recentlyWatched(
         libraryId: UUID,
         kinds: List<BaseItemKind>,
         limit: Int
@@ -593,28 +593,14 @@ class MediaRepository @Inject constructor(
         api().itemsApi.getItems(
             userId = session().userUuid,
             parentId = libraryId,
-            includeItemTypes = kinds,
-            isPlayed = true,
-            sortBy = listOf(ItemSortBy.RANDOM),
-            limit = limit,
-            fields = BROWSE_FIELDS,
-            enableImageTypes = IMAGE_TYPES,
-            enableTotalRecordCount = false
-        ).content.items.orEmpty()
-    }
-
-    suspend fun itemsInLibrary(
-        libraryId: UUID,
-        ids: List<UUID>
-    ): List<BaseItemDto> = onIo {
-        if (ids.isEmpty()) return@onIo emptyList()
-        api().itemsApi.getItems(
-            userId = session().userUuid,
-            parentId = libraryId,
             recursive = true,
-            ids = ids,
-            fields = LATEST_FIELDS,
-            enableImageTypes = IMAGE_TYPES,
+            includeItemTypes = watchHistoryKinds(kinds),
+            isPlayed = true,
+            sortBy = listOf(ItemSortBy.DATE_PLAYED),
+            sortOrder = listOf(SortOrder.DESCENDING),
+            limit = limit,
+            fields = emptyList(),
+            imageTypeLimit = 0,
             enableTotalRecordCount = false
         ).content.items.orEmpty()
     }

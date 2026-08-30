@@ -9,7 +9,10 @@ import app.picnic.player.data.media.HomeRow
 import app.picnic.player.data.media.LibraryChange
 import app.picnic.player.data.media.LibraryChangeBus
 import app.picnic.player.data.media.MediaRepository
+import app.picnic.player.data.media.chooseWatchSeeds
 import app.picnic.player.data.media.planHeroStreamPrefetch
+import app.picnic.player.data.media.seedId
+import app.picnic.player.data.media.seedName
 import app.picnic.player.data.media.seriesNeedingSeasonCount
 import app.picnic.player.ui.ambient.AmbientPaletteLoader
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -146,21 +149,11 @@ class ForYouViewModel @Inject constructor(
                 return@launch
             }
             try {
-                val rows = coroutineScope {
-                    val topPicks = async { topPicksRow(libraryId, kinds) }
-                    val becauseRows = async { becauseYouWatchedRows(libraryId, kinds) }
-                    listOfNotNull(topPicks.await()) + becauseRows.await()
-                }
-                _state.update {
-                    it.copy(
-                        loading = false,
-                        session = session,
-                        rows = rows,
-                        error = null
-                    )
-                }
-                resolveSeasonCounts(rows)
+                val pool = mediaRepository.recentlyWatched(libraryId, kinds, SEED_POOL_SIZE)
+                val rows = becauseYouWatchedRows(kinds, chooseWatchSeeds(pool))
+                publishRows(session, rows)
                 focusChangedFlow.tryEmit(Unit)
+                resolveSeasonCounts(rows)
             } catch (e: Exception) {
                 if (e.isAuthFailure()) {
                     authRepository.expireStoredSession(session.server.id, session.userId)
@@ -175,58 +168,45 @@ class ForYouViewModel @Inject constructor(
         }
     }
 
-    private suspend fun topPicksRow(
-        libraryId: UUID,
-        kinds: List<BaseItemKind>
-    ): HomeRow? {
-        val suggested = mediaRepository.suggestions(SUGGESTION_FETCH_LIMIT)
-            .filter { it.type in kinds }
-        val inLibrary = filterToLibrary(libraryId, suggested).take(ROW_ITEM_LIMIT)
-        if (inLibrary.size < MIN_ROW_ITEMS) return null
-        return HomeRow(title = "Top picks for you", items = inLibrary, continueWatching = false)
+    private fun publishRows(session: UserSession, rows: List<HomeRow>) {
+        _state.update {
+            it.copy(loading = false, session = session, error = null, rows = rows)
+        }
     }
 
     private suspend fun becauseYouWatchedRows(
-        libraryId: UUID,
-        kinds: List<BaseItemKind>
+        kinds: List<BaseItemKind>,
+        seeds: List<BaseItemDto>
     ): List<HomeRow> {
-        val seeds = mediaRepository.randomWatched(libraryId, kinds, SEED_FETCH_LIMIT)
-        if (seeds.isEmpty()) return emptyList()
-        val gate = Semaphore(ROW_BUILD_CONCURRENCY)
-        return coroutineScope {
-            seeds.map { seed ->
-                async {
-                    gate.withPermit {
-                        val similar = runCatching { mediaRepository.similarItems(seed.id) }
-                            .getOrDefault(emptyList())
-                        val items = filterToLibrary(libraryId, similar)
-                            .filter { it.id != seed.id }
-                            .take(ROW_ITEM_LIMIT)
-                        if (items.size < MIN_ROW_ITEMS) {
-                            null
-                        } else {
-                            HomeRow(
-                                title = "Because you watched ${seed.name.orEmpty()}",
-                                items = items,
-                                continueWatching = false
-                            )
-                        }
+        val rows = mutableListOf<HomeRow>()
+        for (batch in seeds.chunked(MAX_BECAUSE_ROWS)) {
+            if (rows.size >= MAX_BECAUSE_ROWS) break
+            coroutineScope {
+                batch.map { seed -> seed to async { becauseYouWatchedItems(seed, kinds) } }
+                    .forEach { (seed, pending) ->
+                        val items = pending.await()
+                        if (items.isEmpty() || rows.size >= MAX_BECAUSE_ROWS) return@forEach
+                        rows += HomeRow(
+                            title = "Because you watched ${seed.seedName.orEmpty()}",
+                            items = items,
+                            continueWatching = false
+                        )
                     }
-                }
-            }.awaitAll()
-        }.filterNotNull()
-            .distinctBy { it.title }
-            .take(MAX_BECAUSE_ROWS)
+            }
+        }
+        return rows
     }
 
-    private suspend fun filterToLibrary(
-        libraryId: UUID,
-        candidates: List<BaseItemDto>
+    private suspend fun becauseYouWatchedItems(
+        seed: BaseItemDto,
+        kinds: List<BaseItemKind>
     ): List<BaseItemDto> {
-        if (candidates.isEmpty()) return emptyList()
-        val inLibrary = mediaRepository.itemsInLibrary(libraryId, candidates.map { it.id })
-            .associateBy { it.id }
-        return candidates.mapNotNull { inLibrary[it.id] }
+        val similar = runCatching { mediaRepository.similarItems(seed.seedId) }
+            .getOrDefault(emptyList())
+        val items = similar
+            .filter { it.type in kinds && it.id != seed.seedId }
+            .take(ROW_ITEM_LIMIT)
+        return if (items.size < MIN_ROW_ITEMS) emptyList() else items
     }
 
     private suspend fun prefetchStreamsAhead() {
@@ -250,7 +230,7 @@ class ForYouViewModel @Inject constructor(
         }
 
         if (plan.seriesIds.isNotEmpty()) {
-            val gate = Semaphore(ROW_BUILD_CONCURRENCY)
+            val gate = Semaphore(STREAM_PREFETCH_CONCURRENCY)
             coroutineScope {
                 plan.seriesIds.map { seriesId ->
                     async {
@@ -273,7 +253,7 @@ class ForYouViewModel @Inject constructor(
     private suspend fun resolveSeasonCounts(rows: List<HomeRow>) {
         val seriesIds = seriesNeedingSeasonCount(rows, _state.value.seasonCounts.keys)
         if (seriesIds.isEmpty()) return
-        val gate = Semaphore(ROW_BUILD_CONCURRENCY)
+        val gate = Semaphore(STREAM_PREFETCH_CONCURRENCY)
         val counts = coroutineScope {
             seriesIds.map { id ->
                 async {
@@ -288,12 +268,11 @@ class ForYouViewModel @Inject constructor(
     }
 
     private companion object {
-        const val SEED_FETCH_LIMIT = 8
-        const val MAX_BECAUSE_ROWS = 5
+        const val SEED_POOL_SIZE = 120
+        const val MAX_BECAUSE_ROWS = 10
         const val ROW_ITEM_LIMIT = 12
 
         const val MIN_ROW_ITEMS = 3
-        const val SUGGESTION_FETCH_LIMIT = 40
-        const val ROW_BUILD_CONCURRENCY = 4
+        const val STREAM_PREFETCH_CONCURRENCY = 4
     }
 }
