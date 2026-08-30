@@ -498,7 +498,7 @@ private enum class SeerrDetailSection {
     Recommended
 }
 
-private fun primaryIcon(action: SeerrPrimaryAction): ImageVector = when (action) {
+internal fun primaryIcon(action: SeerrPrimaryAction): ImageVector = when (action) {
     SeerrPrimaryAction.Play -> Icons.Default.PlayArrow
     SeerrPrimaryAction.Request,
     SeerrPrimaryAction.RequestMore
