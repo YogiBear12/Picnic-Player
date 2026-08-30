@@ -61,6 +61,7 @@ import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import app.picnic.player.data.seerr.SeerrCatalogItem
 import app.picnic.player.data.seerr.SeerrImages
+import app.picnic.player.data.seerr.SeerrMediaType
 import app.picnic.player.data.seerr.SeerrPersonDetails
 import app.picnic.player.ui.ambient.LocalAmbientPrewarmer
 import app.picnic.player.ui.ambient.PublishBackdrop
@@ -72,6 +73,7 @@ import app.picnic.player.ui.browse.browseLayoutMetrics
 import app.picnic.player.ui.browse.posterCardStyle
 import app.picnic.player.ui.common.ContentCacheWindow
 import app.picnic.player.ui.common.LocalImageUrls
+import app.picnic.player.ui.common.RowFocusState
 import app.picnic.player.ui.common.ScrollableTextDialog
 import app.picnic.player.ui.common.rememberRowFocusState
 import app.picnic.player.ui.common.requestFocusWhenAttached
@@ -86,15 +88,18 @@ import coil3.compose.AsyncImagePainter
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import java.util.UUID
 import org.jellyfin.sdk.model.api.BaseItemDto
 
 private enum class PersonSection {
     Overview,
-    Library,
+    Movies,
+    Shows,
     KnownFor
 }
 
-private const val LibraryRowTitle = "Movies and Shows in your libraries"
+private const val MoviesRowTitle = "Movies in your libraries"
+private const val ShowsRowTitle = "Shows in your libraries"
 private const val KnownForRowTitle = "Known for"
 
 @Composable
@@ -132,12 +137,16 @@ fun PersonScreen(
     var summaryText by remember { mutableStateOf<String?>(null) }
 
     val overviewFocusRequester = remember { FocusRequester() }
-    val libraryFocus = rememberRowFocusState()
-    val librarySeerrRowFocus = remember { FocusRequester() }
+    val movieFocus = rememberRowFocusState()
+    val showFocus = rememberRowFocusState()
+    val movieSeerrRowFocus = remember { FocusRequester() }
+    val showSeerrRowFocus = remember { FocusRequester() }
     val knownForRowFocus = remember { FocusRequester() }
 
-    var focusedLibrarySeerrIndex by rememberSaveable { mutableIntStateOf(0) }
-    var focusedLibrarySeerrKey by rememberSaveable { mutableStateOf<String?>(null) }
+    var focusedMovieSeerrIndex by rememberSaveable { mutableIntStateOf(0) }
+    var focusedMovieSeerrKey by rememberSaveable { mutableStateOf<String?>(null) }
+    var focusedShowSeerrIndex by rememberSaveable { mutableIntStateOf(0) }
+    var focusedShowSeerrKey by rememberSaveable { mutableStateOf<String?>(null) }
     var focusedKnownForIndex by rememberSaveable { mutableIntStateOf(0) }
     var focusedKnownForKey by rememberSaveable { mutableStateOf<String?>(null) }
     var lastSection by rememberSaveable { mutableStateOf(PersonSection.Overview) }
@@ -145,20 +154,34 @@ fun PersonScreen(
 
     val hasOverview = !state.person?.overview.isNullOrBlank() ||
         !state.seerrPerson?.biography.isNullOrBlank()
-    val hasLibraryJf = session != null && state.libraryItems.isNotEmpty()
-    val hasLibrarySeerr = state.libraryCredits.isNotEmpty()
-    val hasLibrary = hasLibraryJf || hasLibrarySeerr
+    val libraryFromJellyfin = session != null &&
+        (state.libraryMovies.isNotEmpty() || state.libraryShows.isNotEmpty())
+    val movieItems = if (libraryFromJellyfin) state.libraryMovies else emptyList()
+    val showItems = if (libraryFromJellyfin) state.libraryShows else emptyList()
+    val credits = remember(state.libraryCredits, libraryFromJellyfin) {
+        if (libraryFromJellyfin) {
+            emptyList<SeerrCatalogItem>() to emptyList()
+        } else {
+            state.libraryCredits.partition { it.mediaType == SeerrMediaType.MOVIE }
+        }
+    }
+    val movieCredits = credits.first
+    val showCredits = credits.second
+    val hasMovies = movieItems.isNotEmpty() || movieCredits.isNotEmpty()
+    val hasShows = showItems.isNotEmpty() || showCredits.isNotEmpty()
     val hasKnownFor = state.knownFor.isNotEmpty()
 
     fun sectionLazyIndex(section: PersonSection): Int {
         val keys = buildList {
             add("hero")
-            if (hasLibrary) add("library")
+            if (hasMovies) add("movies")
+            if (hasShows) add("shows")
             if (hasKnownFor) add("known-for")
         }
         val key = when (section) {
             PersonSection.Overview -> "hero"
-            PersonSection.Library -> "library"
+            PersonSection.Movies -> "movies"
+            PersonSection.Shows -> "shows"
             PersonSection.KnownFor -> "known-for"
         }
         return keys.indexOf(key)
@@ -166,33 +189,43 @@ fun PersonScreen(
 
     fun sectionReady(section: PersonSection): Boolean = when (section) {
         PersonSection.Overview -> hasOverview
-        PersonSection.Library -> hasLibrary
+        PersonSection.Movies -> hasMovies
+        PersonSection.Shows -> hasShows
         PersonSection.KnownFor -> hasKnownFor
     }
 
+    fun sectionTarget(section: PersonSection, firstCard: Boolean): FocusRequester? = when (section) {
+        PersonSection.Overview -> overviewFocusRequester
+        PersonSection.Movies ->
+            if (movieItems.isNotEmpty()) {
+                movieFocus.requesterAt(if (firstCard) 0 else movieFocus.focusedIndex)
+            } else {
+                movieSeerrRowFocus
+            }
+        PersonSection.Shows ->
+            if (showItems.isNotEmpty()) {
+                showFocus.requesterAt(if (firstCard) 0 else showFocus.focusedIndex)
+            } else {
+                showSeerrRowFocus
+            }
+        PersonSection.KnownFor -> knownForRowFocus
+    }
+
     suspend fun restoreFirstAvailableSection() {
-        when {
-            hasOverview -> {
-                lastSection = PersonSection.Overview
-                overviewFocusRequester.requestFocusWhenAttached()
-            }
-            hasLibraryJf -> {
-                lastSection = PersonSection.Library
-                libraryFocus.requesterAt(0).requestFocusWhenAttached()
-            }
-            hasLibrarySeerr -> {
-                lastSection = PersonSection.Library
-                librarySeerrRowFocus.requestFocusWhenAttached()
-            }
-            hasKnownFor -> {
-                lastSection = PersonSection.KnownFor
-                knownForRowFocus.requestFocusWhenAttached()
-            }
+        val section = when {
+            hasOverview -> PersonSection.Overview
+            hasMovies -> PersonSection.Movies
+            hasShows -> PersonSection.Shows
+            hasKnownFor -> PersonSection.KnownFor
+            else -> return
         }
+        lastSection = section
+        sectionTarget(section, firstCard = true)?.requestFocusWhenAttached()
     }
 
     LaunchedEffect(
-        state.libraryItems,
+        state.libraryMovies,
+        state.libraryShows,
         state.libraryCredits,
         state.knownFor,
         hasOverview
@@ -205,27 +238,23 @@ fun PersonScreen(
         }
         when (lastSection) {
             PersonSection.Overview -> Unit
-            PersonSection.Library -> {
-                if (hasLibraryJf) {
-                    libraryFocus.resolveAgainst(state.libraryItems)
+            PersonSection.Movies ->
+                if (movieItems.isNotEmpty()) {
+                    movieFocus.resolveAgainst(movieItems)
                 } else {
-                    focusedLibrarySeerrIndex = focusedLibrarySeerrKey
-                        ?.let { key ->
-                            state.libraryCredits.indexOfFirst {
-                                "${it.mediaType}-${it.tmdbId}" == key
-                            }.takeIf { it >= 0 }
-                        }
-                        ?: focusedLibrarySeerrIndex.coerceIn(0, state.libraryCredits.lastIndex)
+                    focusedMovieSeerrIndex =
+                        seerrFocusIndex(movieCredits, focusedMovieSeerrKey, focusedMovieSeerrIndex)
                 }
-            }
+            PersonSection.Shows ->
+                if (showItems.isNotEmpty()) {
+                    showFocus.resolveAgainst(showItems)
+                } else {
+                    focusedShowSeerrIndex =
+                        seerrFocusIndex(showCredits, focusedShowSeerrKey, focusedShowSeerrIndex)
+                }
             PersonSection.KnownFor ->
-                focusedKnownForIndex = focusedKnownForKey
-                    ?.let { key ->
-                        state.knownFor.indexOfFirst {
-                            "${it.mediaType}-${it.tmdbId}" == key
-                        }.takeIf { it >= 0 }
-                    }
-                    ?: focusedKnownForIndex.coerceIn(0, state.knownFor.lastIndex)
+                focusedKnownForIndex =
+                    seerrFocusIndex(state.knownFor, focusedKnownForKey, focusedKnownForIndex)
         }
         focusRestored = true
         val lazyIndex = sectionLazyIndex(lastSection)
@@ -233,16 +262,7 @@ fun PersonScreen(
             if (lazyIndex > 0) {
                 runCatching { listState.scrollToItem(lazyIndex) }
             }
-            val target = when (lastSection) {
-                PersonSection.Overview -> overviewFocusRequester
-                PersonSection.Library ->
-                    if (hasLibraryJf) {
-                        libraryFocus.requesterAt(libraryFocus.focusedIndex)
-                    } else {
-                        librarySeerrRowFocus
-                    }
-                PersonSection.KnownFor -> knownForRowFocus
-            }
+            val target = sectionTarget(lastSection, firstCard = false)
             if (target?.requestFocusWhenAttached(maxFrames = 30) == true) {
                 return@LaunchedEffect
             }
@@ -319,86 +339,100 @@ fun PersonScreen(
                 }
             }
 
-            if (hasLibraryJf && session != null) {
-                item(key = "library") {
-                    DetailMediaRow(
-                        title = LibraryRowTitle,
-                        items = state.libraryItems,
-                        endInset = metrics.hInset,
-                        cardSpacing = metrics.cardSpacing,
-                        horizontalRowSpec = horizontalRowSpec,
-                        rowFocus = libraryFocus.rowModifier(),
-                        modifier = Modifier.padding(bottom = 16.dp),
-                        titleFontWeight = FontWeight.Bold
-                    ) { index, item ->
-                        val lines = state.libraryLines[item.id]
-                        Box(
-                            Modifier.gridCellSlot(posterStyle, metaLine = true),
-                            contentAlignment = Alignment.TopCenter
-                        ) {
-                            MediaGridCard(
-                                item = item,
-                                style = posterStyle,
-                                focusRequester = libraryFocus.requesterAt(index),
-                                upFocus = null,
-                                subtitleOverride = lines?.role.orEmpty(),
-                                metaLine = lines?.detail.orEmpty(),
-                                onClick = {
-                                    val nav = images.navImages(item)
-                                    onItem(item, nav.bgUrl, nav.ambUrl)
-                                },
-                                onFocused = {
-                                    libraryFocus.onItemFocused(index)
-                                    lastSection = PersonSection.Library
-                                },
-                                modifier = Modifier
-                                    .padding(top = posterStyle.topInset)
-                                    .focusProperties {
-                                        if (index == 0) left = FocusRequester.Cancel
-                                    }
-                            )
-                        }
+            if (hasMovies) {
+                item(key = "movies") {
+                    if (movieItems.isNotEmpty()) {
+                        PersonLibraryRow(
+                            title = MoviesRowTitle,
+                            items = movieItems,
+                            lines = state.libraryLines,
+                            rowFocus = movieFocus,
+                            cardStyle = posterStyle,
+                            horizontalRowSpec = horizontalRowSpec,
+                            endInset = metrics.hInset,
+                            cardSpacing = metrics.cardSpacing,
+                            onItemClick = { item ->
+                                val nav = images.navImages(item)
+                                onItem(item, nav.bgUrl, nav.ambUrl)
+                            },
+                            onItemFocused = { lastSection = PersonSection.Movies }
+                        )
+                    } else {
+                        PersonSeerrMediaRow(
+                            title = MoviesRowTitle,
+                            items = movieCredits,
+                            seerrBaseUrl = state.seerrBaseUrl,
+                            cacheImages = state.seerrCacheImages,
+                            cardStyle = posterStyle,
+                            rowFocus = movieSeerrRowFocus,
+                            focusIndex = seerrFocusIndex(
+                                movieCredits,
+                                focusedMovieSeerrKey,
+                                focusedMovieSeerrIndex
+                            ),
+                            onIndexChange = { index, item ->
+                                focusedMovieSeerrIndex = index
+                                focusedMovieSeerrKey = "${item.mediaType}-${item.tmdbId}"
+                                lastSection = PersonSection.Movies
+                            },
+                            onItemClick = ::openSeerrItem,
+                            horizontalRowSpec = horizontalRowSpec,
+                            endInset = metrics.hInset,
+                            cardSpacing = metrics.cardSpacing
+                        )
                     }
                 }
-            } else if (hasLibrarySeerr) {
-                item(key = "library") {
-                    val focusIndex = focusedLibrarySeerrKey
-                        ?.let { key ->
-                            state.libraryCredits.indexOfFirst {
-                                "${it.mediaType}-${it.tmdbId}" == key
-                            }.takeIf { it >= 0 }
-                        }
-                        ?: focusedLibrarySeerrIndex.coerceIn(0, state.libraryCredits.lastIndex)
-                    PersonSeerrMediaRow(
-                        title = LibraryRowTitle,
-                        items = state.libraryCredits,
-                        seerrBaseUrl = state.seerrBaseUrl,
-                        cacheImages = state.seerrCacheImages,
-                        cardStyle = posterStyle,
-                        rowFocus = librarySeerrRowFocus,
-                        focusIndex = focusIndex,
-                        onIndexChange = { index, item ->
-                            focusedLibrarySeerrIndex = index
-                            focusedLibrarySeerrKey = "${item.mediaType}-${item.tmdbId}"
-                            lastSection = PersonSection.Library
-                        },
-                        onItemClick = ::openSeerrItem,
-                        horizontalRowSpec = horizontalRowSpec,
-                        endInset = metrics.hInset,
-                        cardSpacing = metrics.cardSpacing
-                    )
+            }
+
+            if (hasShows) {
+                item(key = "shows") {
+                    if (showItems.isNotEmpty()) {
+                        PersonLibraryRow(
+                            title = ShowsRowTitle,
+                            items = showItems,
+                            lines = state.libraryLines,
+                            rowFocus = showFocus,
+                            cardStyle = posterStyle,
+                            horizontalRowSpec = horizontalRowSpec,
+                            endInset = metrics.hInset,
+                            cardSpacing = metrics.cardSpacing,
+                            onItemClick = { item ->
+                                val nav = images.navImages(item)
+                                onItem(item, nav.bgUrl, nav.ambUrl)
+                            },
+                            onItemFocused = { lastSection = PersonSection.Shows }
+                        )
+                    } else {
+                        PersonSeerrMediaRow(
+                            title = ShowsRowTitle,
+                            items = showCredits,
+                            seerrBaseUrl = state.seerrBaseUrl,
+                            cacheImages = state.seerrCacheImages,
+                            cardStyle = posterStyle,
+                            rowFocus = showSeerrRowFocus,
+                            focusIndex = seerrFocusIndex(
+                                showCredits,
+                                focusedShowSeerrKey,
+                                focusedShowSeerrIndex
+                            ),
+                            onIndexChange = { index, item ->
+                                focusedShowSeerrIndex = index
+                                focusedShowSeerrKey = "${item.mediaType}-${item.tmdbId}"
+                                lastSection = PersonSection.Shows
+                            },
+                            onItemClick = ::openSeerrItem,
+                            horizontalRowSpec = horizontalRowSpec,
+                            endInset = metrics.hInset,
+                            cardSpacing = metrics.cardSpacing
+                        )
+                    }
                 }
             }
 
             if (hasKnownFor) {
                 item(key = "known-for") {
-                    val focusIndex = focusedKnownForKey
-                        ?.let { key ->
-                            state.knownFor.indexOfFirst {
-                                "${it.mediaType}-${it.tmdbId}" == key
-                            }.takeIf { it >= 0 }
-                        }
-                        ?: focusedKnownForIndex.coerceIn(0, state.knownFor.lastIndex)
+                    val focusIndex =
+                        seerrFocusIndex(state.knownFor, focusedKnownForKey, focusedKnownForIndex)
                     PersonSeerrMediaRow(
                         title = KnownForRowTitle,
                         items = state.knownFor,
@@ -429,6 +463,65 @@ fun PersonScreen(
                 text = overview,
                 onDismiss = { showSummaryDialog = false },
                 maxTextHeight = 420.dp
+            )
+        }
+    }
+}
+
+private fun seerrFocusIndex(
+    items: List<SeerrCatalogItem>,
+    focusedKey: String?,
+    focusedIndex: Int
+): Int = focusedKey
+    ?.let { key -> items.indexOfFirst { "${it.mediaType}-${it.tmdbId}" == key }.takeIf { it >= 0 } }
+    ?: focusedIndex.coerceIn(0, items.lastIndex.coerceAtLeast(0))
+
+@Composable
+private fun PersonLibraryRow(
+    title: String,
+    items: List<BaseItemDto>,
+    lines: Map<UUID, PersonCreditLines>,
+    rowFocus: RowFocusState,
+    cardStyle: BrowseCardStyle,
+    horizontalRowSpec: androidx.compose.foundation.gestures.BringIntoViewSpec,
+    endInset: androidx.compose.ui.unit.Dp,
+    cardSpacing: androidx.compose.ui.unit.Dp,
+    onItemClick: (BaseItemDto) -> Unit,
+    onItemFocused: () -> Unit
+) {
+    DetailMediaRow(
+        title = title,
+        items = items,
+        endInset = endInset,
+        cardSpacing = cardSpacing,
+        horizontalRowSpec = horizontalRowSpec,
+        rowFocus = rowFocus.rowModifier(),
+        modifier = Modifier.padding(bottom = 16.dp),
+        titleFontWeight = FontWeight.Bold,
+        key = { _, item -> item.id }
+    ) { index, item ->
+        val itemLines = lines[item.id]
+        Box(
+            Modifier.gridCellSlot(cardStyle, metaLine = true),
+            contentAlignment = Alignment.TopCenter
+        ) {
+            MediaGridCard(
+                item = item,
+                style = cardStyle,
+                focusRequester = rowFocus.requesterAt(index),
+                upFocus = null,
+                subtitleOverride = itemLines?.role.orEmpty(),
+                metaLine = itemLines?.detail.orEmpty(),
+                onClick = { onItemClick(item) },
+                onFocused = {
+                    rowFocus.onItemFocused(index)
+                    onItemFocused()
+                },
+                modifier = Modifier
+                    .padding(top = cardStyle.topInset)
+                    .focusProperties {
+                        if (index == 0) left = FocusRequester.Cancel
+                    }
             )
         }
     }

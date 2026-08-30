@@ -52,7 +52,8 @@ class PersonViewModel @AssistedInject constructor(
         val loading: Boolean = true,
         val person: BaseItemDto? = null,
         val seerrPerson: SeerrPersonDetails? = null,
-        val libraryItems: List<BaseItemDto> = emptyList(),
+        val libraryMovies: List<BaseItemDto> = emptyList(),
+        val libraryShows: List<BaseItemDto> = emptyList(),
         val libraryLines: Map<UUID, PersonCreditLines> = emptyMap(),
         val libraryCredits: List<SeerrCatalogItem> = emptyList(),
         val knownFor: List<SeerrCatalogItem> = emptyList(),
@@ -120,12 +121,13 @@ class PersonViewModel @AssistedInject constructor(
                     emptyList()
                 }
             }
-            val movies = moviesDeferred.await()
-            val series = seriesDeferred.await()
-            val libraryItems = sortedJellyfinByReleaseDesc(movies + series)
+            val movies = sortedJellyfinByReleaseDesc(moviesDeferred.await())
+            val series = sortedJellyfinByReleaseDesc(seriesDeferred.await())
+            val libraryItems = movies + series
             _state.update {
                 it.copy(
-                    libraryItems = libraryItems,
+                    libraryMovies = movies,
+                    libraryShows = series,
                     libraryLines = personCreditLines(uuid, libraryItems, emptyList())
                 )
             }
