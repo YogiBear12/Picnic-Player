@@ -1,5 +1,7 @@
 package app.picnic.player.data.media
 
+import java.time.LocalDateTime
+import java.time.ZoneId
 import java.util.UUID
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
@@ -9,6 +11,8 @@ import org.junit.Test
 
 class HomeContentTest {
 
+    private fun day(dayOfMonth: Int): LocalDateTime = LocalDateTime.of(2026, 8, dayOfMonth, 20, 0)
+
     private fun item(
         id: UUID = UUID.randomUUID(),
         seriesId: UUID? = null,
@@ -16,25 +20,56 @@ class HomeContentTest {
         kind: BaseItemKind = BaseItemKind.EPISODE
     ) = BaseItemDto(id = id, type = kind, seriesId = seriesId, name = name)
 
-    private fun episode(seriesId: UUID, season: Int, number: Int) = BaseItemDto(
-        id = UUID.randomUUID(),
-        type = BaseItemKind.EPISODE,
-        seriesId = seriesId,
-        parentIndexNumber = season,
-        indexNumber = number
-    )
+    private fun episode(
+        seriesId: UUID,
+        season: Int,
+        number: Int,
+        playedAt: LocalDateTime? = null
+    ): BaseItemDto {
+        val id = UUID.randomUUID()
+        return BaseItemDto(
+            id = id,
+            type = BaseItemKind.EPISODE,
+            seriesId = seriesId,
+            parentIndexNumber = season,
+            indexNumber = number,
+            userData = UserItemDataDto(
+                playbackPositionTicks = 1200L,
+                playCount = 1,
+                isFavorite = false,
+                played = false,
+                lastPlayedDate = playedAt,
+                key = "test",
+                itemId = id
+            )
+        )
+    }
+
+    private fun millisOf(playedAt: LocalDateTime): Long = playedAt.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
 
     @Test
-    fun resume_keepsEarliestEpisodePerSeries() {
+    fun resume_ordersSeriesEpisodesByRecencyAsEachIsWatched() {
         val series = UUID.randomUUID()
-        val later = episode(series, season = 1, number = 10)
-        val earlier = episode(series, season = 1, number = 8)
-        val out = HomeContent.combineContinueWatching(listOf(later, earlier), emptyList())
-        assertEquals(listOf(earlier.id), out.map { it.id })
+        val oldest = episode(series, 1, 5, day(1))
+        val middle = episode(series, 1, 8, day(2))
+        val newest = episode(series, 1, 10, day(3))
+
+        assertEquals(listOf(newest), HomeContent.preferredPerSeries(listOf(oldest, middle, newest)))
+        assertEquals(listOf(middle), HomeContent.preferredPerSeries(listOf(oldest, middle)))
+        assertEquals(listOf(oldest), HomeContent.preferredPerSeries(listOf(oldest)))
     }
 
     @Test
-    fun resume_earliestSeasonBeatsLaterSeason() {
+    fun resume_keepsMostRecentlyPlayedEpisodePerSeries() {
+        val series = UUID.randomUUID()
+        val watchedToday = episode(series, season = 1, number = 10, playedAt = day(3))
+        val watchedLastWeek = episode(series, season = 1, number = 8, playedAt = day(1))
+        val out = HomeContent.combineContinueWatching(listOf(watchedToday, watchedLastWeek), emptyList())
+        assertEquals(listOf(watchedToday.id), out.map { it.id })
+    }
+
+    @Test
+    fun resume_earliestEpisodeWinsWhenNeverPlayed() {
         val series = UUID.randomUUID()
         val seasonTwo = episode(series, season = 2, number = 1)
         val seasonOne = episode(series, season = 1, number = 12)
@@ -43,13 +78,22 @@ class HomeContentTest {
     }
 
     @Test
-    fun resume_keepsRowSlotOfMostRecentEpisode() {
+    fun resume_playedEpisodeBeatsNeverPlayedEpisode() {
+        val series = UUID.randomUUID()
+        val neverPlayed = episode(series, season = 1, number = 2)
+        val played = episode(series, season = 1, number = 9, playedAt = day(1))
+        val out = HomeContent.combineContinueWatching(listOf(neverPlayed, played), emptyList())
+        assertEquals(listOf(played.id), out.map { it.id })
+    }
+
+    @Test
+    fun resume_keepsRowSlotOfFirstEpisodeOfSeries() {
         val series = UUID.randomUUID()
         val movie = item(kind = BaseItemKind.MOVIE)
-        val later = episode(series, season = 1, number = 10)
-        val earlier = episode(series, season = 1, number = 8)
-        val out = HomeContent.combineContinueWatching(listOf(later, movie, earlier), emptyList())
-        assertEquals(listOf(earlier.id, movie.id), out.map { it.id })
+        val older = episode(series, season = 1, number = 10, playedAt = day(1))
+        val newer = episode(series, season = 1, number = 8, playedAt = day(3))
+        val out = HomeContent.combineContinueWatching(listOf(older, movie, newer), emptyList())
+        assertEquals(listOf(newer.id, movie.id), out.map { it.id })
     }
 
     @Test
@@ -60,48 +104,51 @@ class HomeContentTest {
         assertEquals(listOf(a.id, b.id), out.map { it.id })
     }
 
-    private fun resumed(ticks: Long, id: UUID = UUID.randomUUID()) = BaseItemDto(
-        id = id,
-        type = BaseItemKind.EPISODE,
-        userData = UserItemDataDto(
-            playbackPositionTicks = ticks,
-            playCount = 0,
-            isFavorite = false,
-            played = false,
-            key = "test",
-            itemId = id
-        )
-    )
-
     @Test
-    fun hiddenItem_atSamePosition_isFiltered() {
-        val hiddenItem = resumed(ticks = 1200L)
-        val other = resumed(ticks = 900L)
+    fun hiddenSeries_dropsEveryEpisodePlayedBeforeRemoval() {
+        val series = UUID.randomUUID()
+        val removedAt = day(3)
+        val shown = episode(series, season = 1, number = 10, playedAt = removedAt)
+        val older = episode(series, season = 1, number = 8, playedAt = day(1))
         val out = HomeContent.withoutHidden(
-            listOf(hiddenItem, other),
-            mapOf(hiddenItem.id.toString() to 1200L)
-        )
-        assertEquals(listOf(other.id), out.map { it.id })
-    }
-
-    @Test
-    fun hiddenItem_returnsAfterPositionChanges() {
-        val watchedAgain = resumed(ticks = 5000L)
-        val out = HomeContent.withoutHidden(
-            listOf(watchedAgain),
-            mapOf(watchedAgain.id.toString() to 1200L)
-        )
-        assertEquals(listOf(watchedAgain.id), out.map { it.id })
-    }
-
-    @Test
-    fun hiddenNextUpItem_withNoProgress_isFiltered() {
-        val nextUpEpisode = item()
-        val out = HomeContent.withoutHidden(
-            listOf(nextUpEpisode),
-            mapOf(nextUpEpisode.id.toString() to 0L)
+            listOf(shown, older),
+            mapOf(series.toString() to millisOf(removedAt))
         )
         assertEquals(emptyList<UUID>(), out.map { it.id })
+    }
+
+    @Test
+    fun hiddenSeries_returnsAfterAnyLaterPlay() {
+        val series = UUID.randomUUID()
+        val removedAt = day(3)
+        val playedAgain = episode(series, season = 1, number = 8, playedAt = day(5))
+        val out = HomeContent.withoutHidden(
+            listOf(playedAgain),
+            mapOf(series.toString() to millisOf(removedAt))
+        )
+        assertEquals(listOf(playedAgain.id), out.map { it.id })
+    }
+
+    @Test
+    fun hiddenSeries_keepsNextUpEpisodeHidden() {
+        val series = UUID.randomUUID()
+        val neverPlayed = item(seriesId = series)
+        val out = HomeContent.withoutHidden(
+            listOf(neverPlayed),
+            mapOf(series.toString() to millisOf(day(3)))
+        )
+        assertEquals(emptyList<UUID>(), out.map { it.id })
+    }
+
+    @Test
+    fun hiddenMovie_isKeyedByItsOwnId() {
+        val movie = item(kind = BaseItemKind.MOVIE)
+        val other = item(kind = BaseItemKind.MOVIE)
+        val out = HomeContent.withoutHidden(
+            listOf(movie, other),
+            mapOf(movie.id.toString() to millisOf(day(3)))
+        )
+        assertEquals(listOf(other.id), out.map { it.id })
     }
 
     @Test

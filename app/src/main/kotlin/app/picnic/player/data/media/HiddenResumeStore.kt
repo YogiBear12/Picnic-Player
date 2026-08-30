@@ -5,7 +5,6 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import app.picnic.player.data.auth.UserScope
-import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.Flow
@@ -26,11 +25,20 @@ class HiddenResumeStore @Inject constructor(
 
     suspend fun snapshot(): Map<String, Long> = hidden.first()
 
-    suspend fun hide(itemId: UUID, positionTicks: Long) {
+    suspend fun hide(entryKey: String, lastPlayedMillis: Long) {
         dataStore.edit { prefs ->
             val key = scopedKey(prefs) ?: return@edit
-            val updated = prefs[key]?.let(::decode).orEmpty() + (itemId.toString() to positionTicks)
+            val updated = prefs[key]?.let(::decode).orEmpty() + (entryKey to lastPlayedMillis)
             prefs[key] = json.encodeToString(updated)
+        }
+    }
+
+    suspend fun unhide(entryKey: String) {
+        dataStore.edit { prefs ->
+            val key = scopedKey(prefs) ?: return@edit
+            val current = prefs[key]?.let(::decode).orEmpty()
+            if (entryKey !in current) return@edit
+            prefs[key] = json.encodeToString(current - entryKey)
         }
     }
 

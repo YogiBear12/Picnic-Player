@@ -9,7 +9,8 @@ import org.jellyfin.sdk.api.client.extensions.userLibraryApi
 @Singleton
 class UserDataRepository @Inject constructor(
     private val source: SessionApi,
-    private val changeBus: LibraryChangeBus
+    private val changeBus: LibraryChangeBus,
+    private val hiddenResumeStore: HiddenResumeStore
 ) {
     private suspend fun api() = source.client()
 
@@ -26,7 +27,10 @@ class UserDataRepository @Inject constructor(
             } else {
                 api().playStateApi.markUnplayedItem(itemId).content
             }
-            ).also { notifyItemChanged(itemId, seriesId) }
+            ).also {
+            if (played) hiddenResumeStore.unhide((seriesId ?: itemId).toString())
+            notifyItemChanged(itemId, seriesId)
+        }
     }
 
     suspend fun setFavorite(

@@ -1,6 +1,7 @@
 package app.picnic.player.data.media
 
 import androidx.compose.runtime.Immutable
+import java.time.ZoneId
 import java.util.UUID
 import kotlinx.serialization.Serializable
 import org.jellyfin.sdk.model.api.BaseItemDto
@@ -14,15 +15,21 @@ data class HomeRow(
 )
 
 object HomeContent {
+    fun lastPlayedMillis(item: BaseItemDto): Long? = item.userData?.lastPlayedDate
+        ?.atZone(ZoneId.systemDefault())
+        ?.toInstant()
+        ?.toEpochMilli()
+
     fun withoutHidden(items: List<BaseItemDto>, hidden: Map<String, Long>): List<BaseItemDto> {
         if (hidden.isEmpty()) return items
         return items.filter { item ->
-            hidden[item.id.toString()] != (item.userData?.playbackPositionTicks ?: 0L)
+            val hiddenAt = hidden[item.seedId.toString()] ?: return@filter true
+            (lastPlayedMillis(item) ?: 0L) > hiddenAt
         }
     }
 
-    fun earliestPerSeries(resume: List<BaseItemDto>): List<BaseItemDto> {
-        val slotOfSeries = LinkedHashMap<UUID, Int>()
+    fun preferredPerSeries(resume: List<BaseItemDto>): List<BaseItemDto> {
+        val slotOfSeries = HashMap<UUID, Int>()
         val out = ArrayList<BaseItemDto>(resume.size)
         for (item in resume) {
             val series = item.seriesId
@@ -34,17 +41,16 @@ object HomeContent {
             if (slot == null) {
                 slotOfSeries[series] = out.size
                 out += item
-            } else if (episodeOrder.compare(item, out[slot]) < 0) {
+            } else if (resumePriority.compare(item, out[slot]) < 0) {
                 out[slot] = item
             }
         }
         return out
     }
 
-    private val episodeOrder = compareBy<BaseItemDto>(
-        { it.parentIndexNumber ?: Int.MAX_VALUE },
-        { it.indexNumber ?: Int.MAX_VALUE }
-    )
+    private val resumePriority = compareByDescending<BaseItemDto> { lastPlayedMillis(it) ?: Long.MIN_VALUE }
+        .thenBy { it.parentIndexNumber ?: Int.MAX_VALUE }
+        .thenBy { it.indexNumber ?: Int.MAX_VALUE }
 
     fun combineContinueWatching(
         resume: List<BaseItemDto>,
@@ -53,7 +59,7 @@ object HomeContent {
         val out = ArrayList<BaseItemDto>(resume.size + nextUp.size)
         val seenItems = HashSet<UUID>()
         val seenSeries = HashSet<UUID>()
-        for (item in earliestPerSeries(resume)) {
+        for (item in preferredPerSeries(resume)) {
             if (seenItems.add(item.id)) {
                 item.seriesId?.let(seenSeries::add)
                 out += item

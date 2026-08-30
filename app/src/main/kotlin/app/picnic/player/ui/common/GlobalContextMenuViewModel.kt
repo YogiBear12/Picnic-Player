@@ -4,8 +4,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.picnic.player.data.auth.AuthRepository
 import app.picnic.player.data.media.HiddenResumeStore
+import app.picnic.player.data.media.HomeContent
 import app.picnic.player.data.media.MediaRepository
 import app.picnic.player.data.media.UserDataRepository
+import app.picnic.player.data.media.seedId
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.util.UUID
 import javax.inject.Inject
@@ -40,7 +42,10 @@ class GlobalContextMenuViewModel @Inject constructor(
 
     fun hideFromContinueWatching(item: BaseItemDto) {
         viewModelScope.launch {
-            hiddenResumeStore.hide(item.id, item.userData?.playbackPositionTicks ?: 0L)
+            hiddenResumeStore.hide(
+                item.seedId.toString(),
+                HomeContent.lastPlayedMillis(item) ?: 0L
+            )
         }
     }
 
