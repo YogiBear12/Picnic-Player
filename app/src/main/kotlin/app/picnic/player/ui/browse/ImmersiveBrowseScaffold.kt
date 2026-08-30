@@ -93,7 +93,7 @@ internal fun ImmersiveBrowseScaffold(
         }
         val slot = lastFocusedSlot.coerceIn(0, focusedRowItems.lastIndex)
         onBrowseItemFocused(restoreRow, focusedRowItems[slot])
-        focus.rowCardFocus.getOrNull(restoreRow)?.requestFocusWhenAttached()
+        focus.rowCardFocus.getOrNull(restoreRow)?.requestFocusWhenAttached(maxFrames = 20)
     }
 
     val spaceAbovePx = with(androidx.compose.ui.platform.LocalDensity.current) {

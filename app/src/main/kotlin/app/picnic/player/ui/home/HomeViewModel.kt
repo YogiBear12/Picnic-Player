@@ -276,8 +276,7 @@ class HomeViewModel @Inject constructor(
         _state.update { current ->
             current.copy(
                 rows = rows,
-                focusedItemId = current.focusedItemId?.takeIf { it in visibleIds }
-                    ?: rows.getOrNull(current.focusedRowIndex)?.items?.firstOrNull()?.id,
+                focusedRowIndex = current.focusedRowIndex.coerceIn(0, maxOf(rows.lastIndex, 0)),
                 rowFocusedItemIds = current.rowFocusedItemIds.filterValues { it in visibleIds },
                 error = if (rows.isEmpty()) "Nothing to watch yet." else null
             )
