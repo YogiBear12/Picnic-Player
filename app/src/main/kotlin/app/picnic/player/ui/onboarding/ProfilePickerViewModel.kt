@@ -41,7 +41,7 @@ class ProfilePickerViewModel @AssistedInject constructor(
     data class UiState(
         val serverName: String = "",
         val profiles: List<Profile> = emptyList(),
-        val localDataPending: Boolean = true,
+        val loading: Boolean = true,
         val goReady: Boolean = false,
         val goLogin: Boolean = false
     )
@@ -53,14 +53,18 @@ class ProfilePickerViewModel @AssistedInject constructor(
 
     init {
         viewModelScope.launch {
-            if (_state.value.localDataPending) {
+            runCatching {
                 authRepository.warmLocalCache()
                 authRepository.peekProfilePickerLocal(serverId)?.let { local ->
                     server = local.server
                     publishProfiles(local)
                 }
             }
-            refreshPublicUsers()
+            if (_state.value.profiles.isNotEmpty()) {
+                _state.update { it.copy(loading = false) }
+            }
+            runCatching { refreshPublicUsers() }
+            _state.update { it.copy(loading = false) }
         }
     }
 
@@ -69,18 +73,14 @@ class ProfilePickerViewModel @AssistedInject constructor(
         server = local.server
         return UiState(
             serverName = local.server.name,
-            profiles = mergeProfiles(local, authRepository::peekHasStoredToken),
-            localDataPending = false
+            profiles = mergeProfiles(local, authRepository::peekHasStoredToken)
         )
     }
 
     private suspend fun refreshPublicUsers() {
         val server = server
             ?: authRepository.onboardedServers().firstOrNull { it.id == serverId }
-            ?: run {
-                _state.update { it.copy(localDataPending = false) }
-                return
-            }
+            ?: return
         this.server = server
         authRepository.setActiveServer(serverId)
 
@@ -116,8 +116,7 @@ class ProfilePickerViewModel @AssistedInject constructor(
         _state.update {
             it.copy(
                 serverName = local.server.name,
-                profiles = mergeProfiles(local, authRepository::peekHasStoredToken),
-                localDataPending = false
+                profiles = mergeProfiles(local, authRepository::peekHasStoredToken)
             )
         }
     }

@@ -12,11 +12,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-/**
- * Return-user Server Picker. Lists onboarded servers in saved order;
- * supports edit-mode reorder/forget. Forgetting the last server returns to the
- * onboarding wizard (Welcome / server entry).
- */
 @HiltViewModel
 class ServerPickerViewModel @Inject constructor(
     private val authRepository: AuthRepository
@@ -32,7 +27,10 @@ class ServerPickerViewModel @Inject constructor(
     val state: StateFlow<UiState> = _state.asStateFlow()
 
     init {
-        viewModelScope.launch { load() }
+        viewModelScope.launch {
+            runCatching { load() }
+            _state.update { it.copy(loading = false) }
+        }
     }
 
     private suspend fun load() {

@@ -33,8 +33,6 @@ fun ProfilePickerScreen(
 ) {
     app.picnic.player.ui.ambient.PublishBackdrop(null)
     val state by viewModel.state.collectAsStateWithLifecycle()
-    // Consume the one-shot nav flags after acting, so returning here (Back from
-    // Login) does not immediately re-fire and bounce the user forward again.
     LaunchedEffect(state.goReady) {
         if (state.goReady) {
             onProfileReady()
@@ -48,6 +46,7 @@ fun ProfilePickerScreen(
         }
     }
     ExitOnBack()
+    if (state.loading) return
 
     var rowEditing by remember { mutableStateOf(false) }
     PickerScaffold(
@@ -85,16 +84,12 @@ fun ProfilePickerScreen(
                     errorText = it.authError
                 )
             },
-            addTile = if (!state.localDataPending) {
-                PickerEntry(
-                    id = ADD_TILE_ID,
-                    label = "Add user",
-                    icon = Icons.Rounded.Add,
-                    editable = false
-                )
-            } else {
-                null
-            },
+            addTile = PickerEntry(
+                id = ADD_TILE_ID,
+                label = "Add user",
+                icon = Icons.Rounded.Add,
+                editable = false
+            ),
             onActivate = { id -> if (id == ADD_TILE_ID) viewModel.addUser() else viewModel.activate(id) },
             onReorder = viewModel::reorder,
             onForget = viewModel::forget,

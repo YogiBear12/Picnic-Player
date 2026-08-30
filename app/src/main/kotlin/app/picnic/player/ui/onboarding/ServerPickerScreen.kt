@@ -16,32 +16,25 @@ import androidx.tv.material3.Text
 import app.picnic.player.ui.common.ExitOnBack
 import app.picnic.player.ui.theme.PicnicColors
 
-/**
- * Return-user Server Picker. A row of onboarded server tiles plus
- * "Add server"; no footer. Selecting a server opens its Profile Picker.
- */
 @Composable
 fun ServerPickerScreen(
     onServerSelected: (String) -> Unit,
     onAddServer: () -> Unit,
     onNoServersLeft: () -> Unit,
-    /** A server that just failed to load, flagged with an error on its tile; null on a normal visit. */
     unreachableServerId: String? = null,
     errorText: String? = null,
     viewModel: ServerPickerViewModel = hiltViewModel()
 ) {
-    // Onboarding shows the plain ocean wash — drop any backdrop left by a media screen.
     app.picnic.player.ui.ambient.PublishBackdrop(null)
     val state by viewModel.state.collectAsStateWithLifecycle()
-    // Forgetting the last server replaces this screen with server entry.
     LaunchedEffect(state.goAddServer) {
         if (state.goAddServer) {
             onNoServersLeft()
             viewModel.consumeNav()
         }
     }
-    // Entry point: Back always exits the app.
     ExitOnBack()
+    if (state.loading) return
 
     PickerScaffold(
         title = "Select server",
@@ -64,7 +57,6 @@ fun ServerPickerScreen(
                     id = it.id,
                     label = it.name,
                     fallbackInitial = it.name.firstOrNull()?.toString(),
-                    // Only the server that failed carries the error visual.
                     errorText = errorText?.takeIf { _ -> it.id == unreachableServerId }
                 )
             },
