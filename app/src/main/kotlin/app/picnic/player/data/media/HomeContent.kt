@@ -21,6 +21,31 @@ object HomeContent {
         }
     }
 
+    fun earliestPerSeries(resume: List<BaseItemDto>): List<BaseItemDto> {
+        val slotOfSeries = LinkedHashMap<UUID, Int>()
+        val out = ArrayList<BaseItemDto>(resume.size)
+        for (item in resume) {
+            val series = item.seriesId
+            if (series == null) {
+                out += item
+                continue
+            }
+            val slot = slotOfSeries[series]
+            if (slot == null) {
+                slotOfSeries[series] = out.size
+                out += item
+            } else if (episodeOrder.compare(item, out[slot]) < 0) {
+                out[slot] = item
+            }
+        }
+        return out
+    }
+
+    private val episodeOrder = compareBy<BaseItemDto>(
+        { it.parentIndexNumber ?: Int.MAX_VALUE },
+        { it.indexNumber ?: Int.MAX_VALUE }
+    )
+
     fun combineContinueWatching(
         resume: List<BaseItemDto>,
         nextUp: List<BaseItemDto>
@@ -28,7 +53,7 @@ object HomeContent {
         val out = ArrayList<BaseItemDto>(resume.size + nextUp.size)
         val seenItems = HashSet<UUID>()
         val seenSeries = HashSet<UUID>()
-        for (item in resume) {
+        for (item in earliestPerSeries(resume)) {
             if (seenItems.add(item.id)) {
                 item.seriesId?.let(seenSeries::add)
                 out += item
@@ -49,10 +74,11 @@ object HomeContent {
         resume: List<BaseItemDto>,
         nextUp: List<BaseItemDto>,
         latestByLibrary: List<Pair<BaseItemDto, List<BaseItemDto>>>,
-        pinnedLibraryIds: List<UUID>? = null
+        pinnedLibraryIds: List<UUID>? = null,
+        hidden: Map<String, Long> = emptyMap()
     ): List<HomeRow> {
         val rows = ArrayList<HomeRow>()
-        val continueWatching = combineContinueWatching(resume, nextUp)
+        val continueWatching = withoutHidden(combineContinueWatching(resume, nextUp), hidden)
         if (continueWatching.isNotEmpty()) {
             rows += HomeRow("Continue watching", continueWatching, continueWatching = true)
         }

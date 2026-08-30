@@ -83,8 +83,8 @@ class HomeContentLoader @Inject constructor(
                 }
             }
             val hidden = hiddenResumeStore.snapshot()
-            val resume = HomeContent.withoutHidden(resumeDeferred.await(), hidden)
-            val nextUp = HomeContent.withoutHidden(nextUpDeferred.await(), hidden)
+            val resume = resumeDeferred.await()
+            val nextUp = nextUpDeferred.await()
             val latest = latestDeferred.awaitAll()
 
             val discoverAvailable = seerrRepository.state.value.linkState == SeerrLinkState.Linked
@@ -96,7 +96,7 @@ class HomeContentLoader @Inject constructor(
             val layout = navLayoutStore.resolve(session.server.id, session.userId, availableIds)
             navRail.publish(session, libraries, discoverAvailable, playlistsAvailable, layout)
             val pinnedIds = navRail.pinnedLibraries().map { it.id }
-            val rows = HomeContent.buildHomeRows(resume, nextUp, latest, pinnedIds)
+            val rows = HomeContent.buildHomeRows(resume, nextUp, latest, pinnedIds, hidden)
             HomeResult(
                 session = session,
                 rows = rows,

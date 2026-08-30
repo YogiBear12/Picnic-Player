@@ -16,6 +16,50 @@ class HomeContentTest {
         kind: BaseItemKind = BaseItemKind.EPISODE
     ) = BaseItemDto(id = id, type = kind, seriesId = seriesId, name = name)
 
+    private fun episode(seriesId: UUID, season: Int, number: Int) = BaseItemDto(
+        id = UUID.randomUUID(),
+        type = BaseItemKind.EPISODE,
+        seriesId = seriesId,
+        parentIndexNumber = season,
+        indexNumber = number
+    )
+
+    @Test
+    fun resume_keepsEarliestEpisodePerSeries() {
+        val series = UUID.randomUUID()
+        val later = episode(series, season = 1, number = 10)
+        val earlier = episode(series, season = 1, number = 8)
+        val out = HomeContent.combineContinueWatching(listOf(later, earlier), emptyList())
+        assertEquals(listOf(earlier.id), out.map { it.id })
+    }
+
+    @Test
+    fun resume_earliestSeasonBeatsLaterSeason() {
+        val series = UUID.randomUUID()
+        val seasonTwo = episode(series, season = 2, number = 1)
+        val seasonOne = episode(series, season = 1, number = 12)
+        val out = HomeContent.combineContinueWatching(listOf(seasonTwo, seasonOne), emptyList())
+        assertEquals(listOf(seasonOne.id), out.map { it.id })
+    }
+
+    @Test
+    fun resume_keepsRowSlotOfMostRecentEpisode() {
+        val series = UUID.randomUUID()
+        val movie = item(kind = BaseItemKind.MOVIE)
+        val later = episode(series, season = 1, number = 10)
+        val earlier = episode(series, season = 1, number = 8)
+        val out = HomeContent.combineContinueWatching(listOf(later, movie, earlier), emptyList())
+        assertEquals(listOf(earlier.id, movie.id), out.map { it.id })
+    }
+
+    @Test
+    fun resume_moviesAreNeverCollapsed() {
+        val a = item(kind = BaseItemKind.MOVIE)
+        val b = item(kind = BaseItemKind.MOVIE)
+        val out = HomeContent.combineContinueWatching(listOf(a, b), emptyList())
+        assertEquals(listOf(a.id, b.id), out.map { it.id })
+    }
+
     private fun resumed(ticks: Long, id: UUID = UUID.randomUUID()) = BaseItemDto(
         id = id,
         type = BaseItemKind.EPISODE,

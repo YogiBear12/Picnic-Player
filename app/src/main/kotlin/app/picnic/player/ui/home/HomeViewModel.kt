@@ -271,12 +271,7 @@ class HomeViewModel @Inject constructor(
         if (latestByLibrary.isEmpty() && lastResume.isEmpty() && lastNextUp.isEmpty()) return
         val pinnedIds = navRail.pinnedLibraries().map { it.id }
         val hidden = hiddenResumeStore.snapshot()
-        val rows = HomeContent.buildHomeRows(
-            HomeContent.withoutHidden(lastResume, hidden),
-            HomeContent.withoutHidden(lastNextUp, hidden),
-            latestByLibrary,
-            pinnedIds
-        )
+        val rows = HomeContent.buildHomeRows(lastResume, lastNextUp, latestByLibrary, pinnedIds, hidden)
         val visibleIds = rows.flatMap { row -> row.items.map { it.id } }.toSet()
         _state.update { current ->
             current.copy(
