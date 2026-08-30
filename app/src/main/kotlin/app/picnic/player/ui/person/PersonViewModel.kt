@@ -7,12 +7,14 @@ import app.picnic.player.data.auth.UserSession
 import app.picnic.player.data.media.MediaRepository
 import app.picnic.player.data.seerr.SeerrCatalogItem
 import app.picnic.player.data.seerr.SeerrLinkState
+import app.picnic.player.data.seerr.SeerrMediaType
 import app.picnic.player.data.seerr.SeerrPersonDetails
 import app.picnic.player.data.seerr.SeerrRepository
 import app.picnic.player.data.seerr.libraryLinkedPersonCredits
 import app.picnic.player.data.seerr.sortedByReleaseDateDesc
 import app.picnic.player.data.seerr.tmdbIdFromProviderIds
 import app.picnic.player.data.seerr.toCatalogItem
+import app.picnic.player.text.countLabel
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
@@ -51,6 +53,7 @@ class PersonViewModel @AssistedInject constructor(
         val person: BaseItemDto? = null,
         val seerrPerson: SeerrPersonDetails? = null,
         val libraryItems: List<BaseItemDto> = emptyList(),
+        val libraryLines: Map<UUID, PersonCreditLines> = emptyMap(),
         val libraryCredits: List<SeerrCatalogItem> = emptyList(),
         val knownFor: List<SeerrCatalogItem> = emptyList(),
         val session: UserSession? = null,
@@ -120,18 +123,25 @@ class PersonViewModel @AssistedInject constructor(
             val movies = moviesDeferred.await()
             val series = seriesDeferred.await()
             val libraryItems = sortedJellyfinByReleaseDesc(movies + series)
-            _state.update { it.copy(libraryItems = libraryItems) }
+            _state.update {
+                it.copy(
+                    libraryItems = libraryItems,
+                    libraryLines = personCreditLines(uuid, libraryItems, emptyList())
+                )
+            }
 
             val hybridTmdb = tmdbId
                 ?: tmdbIdFromProviderIds(person.providerIds)
             if (seerrLinked && hybridTmdb != null) {
                 val credits = runCatching { seerrRepository.personCredits(hybridTmdb) }
                     .getOrDefault(emptyList())
+                val knownFor = credits
+                    .sortedByReleaseDateDesc { it.releaseDate }
+                    .map { c -> c.toCatalogItem() }
                 _state.update {
                     it.copy(
-                        knownFor = credits
-                            .sortedByReleaseDateDesc { it.releaseDate }
-                            .map { c -> c.toCatalogItem() }
+                        knownFor = knownFor,
+                        libraryLines = personCreditLines(uuid, libraryItems, knownFor)
                     )
                 }
             }
@@ -174,6 +184,32 @@ class PersonViewModel @AssistedInject constructor(
                 )
             }
         }
+    }
+}
+
+data class PersonCreditLines(val role: String?, val detail: String?)
+
+internal fun personCreditLines(
+    personId: UUID,
+    items: List<BaseItemDto>,
+    credits: List<SeerrCatalogItem>
+): Map<UUID, PersonCreditLines> {
+    val creditsByKey = credits.associateBy { it.mediaType to it.tmdbId }
+    return items.associate { item ->
+        val mediaType = if (item.type == BaseItemKind.SERIES) SeerrMediaType.TV else SeerrMediaType.MOVIE
+        val credit = tmdbIdFromProviderIds(item.providerIds)?.let { creditsByKey[mediaType to it] }
+        val role = item.people
+            ?.firstOrNull { it.id == personId }
+            ?.role
+            ?.takeIf { it.isNotBlank() }
+            ?: credit?.creditRole?.takeIf { it.isNotBlank() }
+        val detail = when (item.type) {
+            BaseItemKind.SERIES ->
+                credit?.episodeCount?.takeIf { it > 0 }?.let { countLabel(it, "episode") }
+                    ?: item.childCount?.takeIf { it > 0 }?.let { countLabel(it, "season") }
+            else -> item.productionYear?.toString()
+        }
+        item.id to PersonCreditLines(role, detail)
     }
 }
 

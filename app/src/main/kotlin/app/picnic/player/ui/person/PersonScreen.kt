@@ -330,8 +330,9 @@ fun PersonScreen(
                         modifier = Modifier.padding(bottom = 16.dp),
                         titleFontWeight = FontWeight.Bold
                     ) { index, item ->
+                        val lines = state.libraryLines[item.id]
                         Box(
-                            Modifier.gridCellSlot(posterStyle),
+                            Modifier.gridCellSlot(posterStyle, metaLine = true),
                             contentAlignment = Alignment.TopCenter
                         ) {
                             MediaGridCard(
@@ -339,6 +340,8 @@ fun PersonScreen(
                                 style = posterStyle,
                                 focusRequester = libraryFocus.requesterAt(index),
                                 upFocus = null,
+                                subtitleOverride = lines?.role.orEmpty(),
+                                metaLine = lines?.detail.orEmpty(),
                                 onClick = {
                                     val nav = images.navImages(item)
                                     onItem(item, nav.bgUrl, nav.ambUrl)

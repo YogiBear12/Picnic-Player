@@ -284,7 +284,7 @@ class MediaRepository @Inject constructor(
             userId = session().userUuid,
             personIds = listOf(personId),
             includeItemTypes = types,
-            fields = CONTINUE_FIELDS,
+            fields = PERSON_ITEM_FIELDS,
             enableImageTypes = IMAGE_TYPES,
             sortBy = listOf(ItemSortBy.PREMIERE_DATE, ItemSortBy.PRODUCTION_YEAR, ItemSortBy.SORT_NAME),
             sortOrder = listOf(SortOrder.DESCENDING, SortOrder.DESCENDING, SortOrder.ASCENDING),

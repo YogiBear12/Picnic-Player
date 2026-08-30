@@ -37,9 +37,12 @@ private val GridLabelGapFocused = 14.dp
 
 private val GridLabelReserve = 38.dp
 
+internal val MetaLineReserve = 14.dp
+
 internal fun gridCellHeight(style: BrowseCardStyle): Dp = style.height + GridLabelGap + GridLabelReserve
 
-internal fun Modifier.gridCellSlot(style: BrowseCardStyle): Modifier = width(style.width).height(style.topInset + gridCellHeight(style))
+internal fun Modifier.gridCellSlot(style: BrowseCardStyle, metaLine: Boolean = false): Modifier = width(style.width)
+    .height(style.topInset + gridCellHeight(style) + if (metaLine) MetaLineReserve else 0.dp)
 
 @Composable
 internal fun MediaGridCard(
@@ -54,7 +57,8 @@ internal fun MediaGridCard(
     leftFocus: FocusRequester? = null,
     overrideImageUrl: String? = null,
     titleOverride: String? = null,
-    subtitleOverride: String? = null
+    subtitleOverride: String? = null,
+    metaLine: String? = null
 ) {
     var focused by remember { mutableStateOf(false) }
     val labelGap by animateDpAsState(
@@ -67,7 +71,7 @@ internal fun MediaGridCard(
     Column(
         modifier = modifier
             .requiredWidth(style.width)
-            .height(gridCellHeight(style))
+            .height(gridCellHeight(style) + if (metaLine != null) MetaLineReserve else 0.dp)
             .onFocusChanged { focused = it.hasFocus }
     ) {
         BrowsePosterCard(
@@ -93,18 +97,22 @@ internal fun MediaGridCard(
                 .fillMaxWidth()
                 .then(if (focused) Modifier.basicMarquee() else Modifier)
         )
-        subtitle?.let {
-            Text(
-                text = it,
-                style = MaterialTheme.typography.labelSmall,
-                color = Color.White.copy(alpha = 0.55f),
-                maxLines = 1,
-                softWrap = false,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.fillMaxWidth()
-            )
-        }
+        subtitle?.let { GridCardLabel(it) }
+        metaLine?.let { GridCardLabel(it) }
     }
+}
+
+@Composable
+private fun GridCardLabel(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelSmall,
+        color = Color.White.copy(alpha = 0.55f),
+        maxLines = 1,
+        softWrap = false,
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier.fillMaxWidth()
+    )
 }
 
 private fun gridTitle(item: BaseItemDto): String = when (item.type) {

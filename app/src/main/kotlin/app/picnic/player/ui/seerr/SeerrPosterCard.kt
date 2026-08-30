@@ -49,12 +49,11 @@ import app.picnic.player.ui.common.ArtworkImage
 import app.picnic.player.ui.common.ArtworkPlaceholder
 import app.picnic.player.ui.common.LocalSeerrCardMenu
 import app.picnic.player.ui.common.PosterPlaceholderLabel
+import app.picnic.player.ui.grid.MetaLineReserve
 import app.picnic.player.ui.grid.gridCellHeight
 
 private val LabelGap = 6.dp
 private val LabelGapFocused = 14.dp
-
-private val PersonCreditLabelExtra = 14.dp
 
 @Composable
 internal fun SeerrMediaCard(
@@ -114,7 +113,7 @@ internal fun SeerrLabeledCard(
     } else {
         null
     }
-    val labelExtra = if (personMetaline) PersonCreditLabelExtra else 0.dp
+    val labelExtra = if (personMetaline) MetaLineReserve else 0.dp
 
     Column(
         modifier = modifier
@@ -260,4 +259,4 @@ internal fun seerrLabeledSlotHeight(
     style: BrowseCardStyle,
     personCreditMetaline: Boolean = false
 ): Dp = style.topInset + gridCellHeight(style) +
-    if (personCreditMetaline) PersonCreditLabelExtra else 0.dp
+    if (personCreditMetaline) MetaLineReserve else 0.dp
