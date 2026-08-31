@@ -63,19 +63,12 @@ internal fun MediaGridCard(
     metaLine: String? = null,
     showStatus: Boolean = true
 ) {
-    var focused by remember { mutableStateOf(false) }
-    val labelGap by animateDpAsState(
-        if (focused) GridLabelGapFocused else GridLabelGap,
-        label = "gridLabelGap"
-    )
-    val title = titleOverride ?: gridTitle(item)
-    val subtitle = subtitleOverride ?: gridSubtitle(item)
-
-    Column(
+    MediaCardCell(
+        style = style,
+        title = titleOverride ?: gridTitle(item),
+        subtitle = subtitleOverride ?: gridSubtitle(item),
+        metaLine = metaLine,
         modifier = modifier
-            .requiredWidth(style.width)
-            .height(gridCellHeight(style) + if (metaLine != null) MetaLineReserve else 0.dp)
-            .onFocusChanged { focused = it.hasFocus }
     ) {
         BrowsePosterCard(
             item = item,
@@ -91,6 +84,31 @@ internal fun MediaGridCard(
             overrideImageUrl = overrideImageUrl,
             showStatus = showStatus
         )
+    }
+}
+
+@Composable
+internal fun MediaCardCell(
+    style: BrowseCardStyle,
+    title: String,
+    subtitle: String?,
+    modifier: Modifier = Modifier,
+    metaLine: String? = null,
+    poster: @Composable () -> Unit
+) {
+    var focused by remember { mutableStateOf(false) }
+    val labelGap by animateDpAsState(
+        if (focused) GridLabelGapFocused else GridLabelGap,
+        label = "gridLabelGap"
+    )
+
+    Column(
+        modifier = modifier
+            .requiredWidth(style.width)
+            .height(gridCellHeight(style) + if (metaLine != null) MetaLineReserve else 0.dp)
+            .onFocusChanged { focused = it.hasFocus }
+    ) {
+        poster()
         Spacer(Modifier.height(labelGap))
         Text(
             text = title,

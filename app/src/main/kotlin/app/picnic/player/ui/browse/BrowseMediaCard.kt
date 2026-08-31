@@ -56,6 +56,9 @@ import app.picnic.player.ui.common.PosterPlaceholderLabel
 import app.picnic.player.ui.common.watchProgress
 import org.jellyfin.sdk.model.api.BaseItemDto
 
+private val CardCornerRadius = 12.dp
+private const val CardFocusedScale = 1.1f
+
 @Composable
 internal fun BrowsePosterCard(
     item: BaseItemDto,
@@ -82,12 +85,126 @@ internal fun BrowsePosterCard(
     val imageUrl = overrideImageUrl ?: cardArtworkUrl(images, item, style.landscape, widthPx)
     val showOverlay = style.landscape && overrideImageUrl == null && thumbUrl == null
     val progress = item.watchProgress()
-    val shape = RoundedCornerShape(12.dp)
     val accentUrl = overrideImageUrl ?: cardArtworkUrl(images, item, style.landscape, AccentSourceWidth)
     val accentBlurHash = if (overrideImageUrl == null) cardArtworkBlurHash(item, style.landscape) else null
+
+    PosterCardFrame(
+        style = style,
+        accentUrl = accentUrl,
+        accentBlurHash = accentBlurHash,
+        focusRequester = focusRequester,
+        upFocus = upFocus,
+        downFocus = downFocus,
+        leftFocus = leftFocus,
+        rightFocus = rightFocus,
+        onClick = onClick,
+        onLongClick = onLongClick,
+        onFocused = onFocused,
+        modifier = modifier
+    ) {
+        var artworkFailed by remember(imageUrl) { mutableStateOf(false) }
+        ArtworkPlaceholder()
+        if (imageUrl == null) {
+            androidx.compose.runtime.LaunchedEffect(item.id) {
+                android.util.Log.w(
+                    ArtworkLogTag,
+                    "no image URL resolved: item='${item.name}' type=${item.type} id=${item.id} " +
+                        "landscape=${style.landscape} imageTags=${item.imageTags?.keys} " +
+                        "seriesId=${item.seriesId} seriesPrimaryTag=${item.seriesPrimaryImageTag}"
+                )
+            }
+        } else {
+            ArtworkImage(
+                url = imageUrl,
+                contentDescription = item.name,
+                label = "item='${item.name}' type=${item.type}",
+                onSettled = { failed -> artworkFailed = failed },
+                modifier = Modifier.fillMaxSize()
+            )
+        }
+
+        if (imageUrl == null || artworkFailed) {
+            PosterPlaceholderLabel(item.name)
+        }
+
+        if (showOverlay) {
+            val logoUrl = images.logo(item, fillWidth = 220)
+            Box(
+                Modifier
+                    .align(Alignment.BottomStart)
+                    .fillMaxWidth()
+                    .background(
+                        Brush.verticalGradient(
+                            0f to Color.Transparent,
+                            1f to Color.Black.copy(alpha = 0.85f)
+                        )
+                    )
+                    .padding(start = 8.dp, end = 8.dp, top = 20.dp, bottom = 8.dp)
+            ) {
+                if (logoUrl != null) {
+                    ArtworkImage(
+                        url = logoUrl,
+                        contentDescription = item.seriesName ?: item.name,
+                        contentScale = ContentScale.Fit,
+                        alignment = Alignment.BottomStart,
+                        label = "logo item='${item.name}'",
+                        modifier = Modifier.height(style.height * 0.35f)
+                    )
+                } else {
+                    Text(
+                        text = item.seriesName ?: item.name.orEmpty(),
+                        color = Color.White,
+                        fontWeight = FontWeight.SemiBold,
+                        style = MaterialTheme.typography.labelMedium,
+                        maxLines = 2
+                    )
+                }
+            }
+        }
+
+        if (showStatus && progress > 0f) {
+            Box(
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(start = 8.dp, end = 8.dp, bottom = 6.dp)
+                    .fillMaxWidth()
+                    .height(4.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(Color.Black.copy(alpha = 0.50f))
+            ) {
+                Box(
+                    Modifier
+                        .fillMaxWidth(progress.coerceIn(0f, 1f))
+                        .fillMaxHeight()
+                        .background(Color.White)
+                )
+            }
+        }
+
+        if (showStatus) CardBadge(item, progress)
+    }
+}
+
+@Composable
+internal fun PosterCardFrame(
+    style: BrowseCardStyle,
+    accentUrl: String?,
+    accentBlurHash: String?,
+    focusRequester: FocusRequester?,
+    upFocus: (() -> FocusRequester)?,
+    downFocus: (() -> FocusRequester)?,
+    leftFocus: FocusRequester?,
+    rightFocus: FocusRequester?,
+    onClick: () -> Unit,
+    onLongClick: (() -> Unit)?,
+    onFocused: () -> Unit,
+    modifier: Modifier = Modifier,
+    content: @Composable BoxScope.() -> Unit
+) {
     val focusAccent = rememberCardFocusAccent(accentUrl, accentBlurHash)
     var focused by remember { mutableStateOf(false) }
     val focusedGlow = rememberCardFocusGlow(focusAccent.glowColor, focused)
+    val shape = RoundedCornerShape(CardCornerRadius)
 
     var cardModifier = modifier
         .width(style.width)
@@ -112,7 +229,7 @@ internal fun BrowsePosterCard(
             containerColor = Color.Transparent,
             focusedContainerColor = Color.Transparent
         ),
-        scale = CardDefaults.scale(focusedScale = 1.1f),
+        scale = CardDefaults.scale(focusedScale = CardFocusedScale),
         border = CardDefaults.border(
             border = Border(BorderStroke(0.dp, Color.Transparent), shape = shape),
             focusedBorder = Border(
@@ -121,91 +238,9 @@ internal fun BrowsePosterCard(
             )
         ),
         glow = CardDefaults.glow(focusedGlow = focusedGlow),
-        modifier = cardModifier
-    ) {
-        Box(Modifier.fillMaxSize()) {
-            var artworkFailed by remember(imageUrl) { mutableStateOf(false) }
-            ArtworkPlaceholder()
-            if (imageUrl == null) {
-                androidx.compose.runtime.LaunchedEffect(item.id) {
-                    android.util.Log.w(
-                        ArtworkLogTag,
-                        "no image URL resolved: item='${item.name}' type=${item.type} id=${item.id} " +
-                            "landscape=${style.landscape} imageTags=${item.imageTags?.keys} " +
-                            "seriesId=${item.seriesId} seriesPrimaryTag=${item.seriesPrimaryImageTag}"
-                    )
-                }
-            } else {
-                ArtworkImage(
-                    url = imageUrl,
-                    contentDescription = item.name,
-                    label = "item='${item.name}' type=${item.type}",
-                    onSettled = { failed -> artworkFailed = failed },
-                    modifier = Modifier.fillMaxSize()
-                )
-            }
-
-            if (imageUrl == null || artworkFailed) {
-                PosterPlaceholderLabel(item.name)
-            }
-
-            if (showOverlay) {
-                val logoUrl = images.logo(item, fillWidth = 220)
-                Box(
-                    Modifier
-                        .align(Alignment.BottomStart)
-                        .fillMaxWidth()
-                        .background(
-                            Brush.verticalGradient(
-                                0f to Color.Transparent,
-                                1f to Color.Black.copy(alpha = 0.85f)
-                            )
-                        )
-                        .padding(start = 8.dp, end = 8.dp, top = 20.dp, bottom = 8.dp)
-                ) {
-                    if (logoUrl != null) {
-                        ArtworkImage(
-                            url = logoUrl,
-                            contentDescription = item.seriesName ?: item.name,
-                            contentScale = ContentScale.Fit,
-                            alignment = Alignment.BottomStart,
-                            label = "logo item='${item.name}'",
-                            modifier = Modifier.height(style.height * 0.35f)
-                        )
-                    } else {
-                        Text(
-                            text = item.seriesName ?: item.name.orEmpty(),
-                            color = Color.White,
-                            fontWeight = FontWeight.SemiBold,
-                            style = MaterialTheme.typography.labelMedium,
-                            maxLines = 2
-                        )
-                    }
-                }
-            }
-
-            if (showStatus && progress > 0f) {
-                Box(
-                    Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(start = 8.dp, end = 8.dp, bottom = 6.dp)
-                        .fillMaxWidth()
-                        .height(4.dp)
-                        .clip(RoundedCornerShape(2.dp))
-                        .background(Color.Black.copy(alpha = 0.50f))
-                ) {
-                    Box(
-                        Modifier
-                            .fillMaxWidth(progress.coerceIn(0f, 1f))
-                            .fillMaxHeight()
-                            .background(Color.White)
-                    )
-                }
-            }
-
-            if (showStatus) CardBadge(item, progress)
-        }
-    }
+        modifier = cardModifier,
+        content = { Box(Modifier.fillMaxSize(), content = content) }
+    )
 }
 
 private const val AccentSourceWidth = 48
