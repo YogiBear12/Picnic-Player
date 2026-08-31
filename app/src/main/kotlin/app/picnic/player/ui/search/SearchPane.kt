@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -22,9 +21,8 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -48,6 +46,7 @@ import app.picnic.player.ui.common.CircularPersonCard
 import app.picnic.player.ui.common.LocalContextMenuHandler
 import app.picnic.player.ui.common.LocalImageUrls
 import app.picnic.player.ui.common.rememberRowFocusRequesters
+import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.genre.GenreBrowseGrid
 import app.picnic.player.ui.grid.MediaGridCard
 import app.picnic.player.ui.grid.gridCellSlot
@@ -75,9 +74,7 @@ internal fun SearchPane(
     val rowCardFocus = rememberRowFocusRequesters(state.results.size)
     val discoverCardFocus = rememberRowFocusRequesters(state.discoverResults.size)
     val genreGridState = rememberLazyGridState()
-    val resultListState = rememberLazyListState()
-
-    LaunchedEffect(state.query) { resultListState.scrollToItem(0) }
+    val resultListState = key(state.query) { rememberLazyListState() }
 
     val entryFocus = {
         when {
@@ -102,7 +99,7 @@ internal fun SearchPane(
         state.discoverResults.size
     ) {
         if (!seedContentFocus || state.loading) return@LaunchedEffect
-        runCatching { entryFocus().requestFocus() }
+        entryFocus().requestFocusWhenAttached(maxFrames = 30)
         onContentFocusSeeded()
     }
 
@@ -214,6 +211,7 @@ private fun ResultRowsSection(
             val focusIndex = state.rowFocusedItemIds[rowIndex]
                 ?.let { id -> row.items.indexOfFirst { it.id == id }.takeIf { it >= 0 } }
                 ?: 0
+            val rowState = key(state.query) { rememberLazyListState() }
             Column {
                 Text(
                     text = row.title,
@@ -224,7 +222,7 @@ private fun ResultRowsSection(
                     modifier = Modifier.padding(start = horizontalInset, bottom = 2.dp)
                 )
                 LazyRow(
-                    state = remember(state.query, row.title) { LazyListState() },
+                    state = rowState,
                     contentPadding = PaddingValues(horizontal = horizontalInset),
                     horizontalArrangement = Arrangement.spacedBy(metrics.cardSpacing),
                     modifier = Modifier
@@ -291,6 +289,7 @@ private fun ResultRowsSection(
             val focusIndex = state.discoverRowFocusedIds[rowIndex]
                 ?.let { id -> row.items.indexOfFirst { it.tmdbId == id }.takeIf { it >= 0 } }
                 ?: 0
+            val rowState = key(state.query) { rememberLazyListState() }
             Column {
                 Text(
                     text = row.title,
@@ -301,6 +300,7 @@ private fun ResultRowsSection(
                     modifier = Modifier.padding(start = horizontalInset, bottom = 2.dp)
                 )
                 LazyRow(
+                    state = rowState,
                     contentPadding = PaddingValues(horizontal = horizontalInset),
                     horizontalArrangement = Arrangement.spacedBy(metrics.cardSpacing),
                     modifier = Modifier
