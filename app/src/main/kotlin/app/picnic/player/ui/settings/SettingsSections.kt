@@ -15,11 +15,10 @@ import app.picnic.player.data.settings.SettingKeys
 import app.picnic.player.data.settings.ThemeMusicVolume
 
 enum class SettingsCategory(val label: String) {
-    REQUESTS("Requests"),
+    ACCOUNT("Account"),
     EXPERIENCE("Experience"),
     PLAYBACK("Playback"),
     ADVANCED("Advanced"),
-    ACCOUNT("Account"),
     ABOUT("About")
 }
 
@@ -142,7 +141,7 @@ internal fun sectionsFor(
     onShowSubtitleLanguagePicker: () -> Unit,
     onOpenSubtitleAppearance: () -> Unit
 ): List<SettingSection> = when (category) {
-    SettingsCategory.ACCOUNT, SettingsCategory.REQUESTS, SettingsCategory.ABOUT -> emptyList()
+    SettingsCategory.ACCOUNT, SettingsCategory.ABOUT -> emptyList()
     SettingsCategory.EXPERIENCE -> experienceSections(
         settings,
         imageCacheSize,

@@ -16,7 +16,6 @@ import app.picnic.player.data.media.WatchStatsCache
 import app.picnic.player.data.playback.CulturePickerOption
 import app.picnic.player.data.playback.cultureDisplayName
 import app.picnic.player.data.playback.culturePickerOptions
-import app.picnic.player.data.seerr.SeerrLinkState
 import app.picnic.player.data.settings.PlaybackSettings
 import app.picnic.player.data.settings.SettingKey
 import app.picnic.player.data.settings.SettingsStore
@@ -30,7 +29,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
@@ -137,11 +135,8 @@ class SettingsViewModel @Inject constructor(
         favorites.value
     }
 
-    private val _selectedCategory = MutableStateFlow(SettingsCategory.EXPERIENCE)
+    private val _selectedCategory = MutableStateFlow(SettingsCategory.ACCOUNT)
     val selectedCategory: StateFlow<SettingsCategory> = _selectedCategory
-
-    private val _focusedRequestId = MutableStateFlow<Int?>(null)
-    val focusedRequestId: StateFlow<Int?> = _focusedRequestId
 
     init {
         viewModelScope.launch {
@@ -162,32 +157,9 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             changeBus.changes().debounce(CHANGE_DEBOUNCE_MS).collectLatest { refreshAccount() }
         }
-        viewModelScope.launch {
-            seerrState.collect { state ->
-                if (state.linkState != SeerrLinkState.Linked &&
-                    _selectedCategory.value == SettingsCategory.REQUESTS
-                ) {
-                    _selectedCategory.value = SettingsCategory.EXPERIENCE
-                }
-            }
-        }
-    }
-
-    fun rememberFocusedRequest(id: Int) {
-        _focusedRequestId.value = id
-    }
-
-    fun clearFocusedRequest() {
-        _focusedRequestId.value = null
     }
 
     fun selectCategory(category: SettingsCategory) {
-        if (_focusedRequestId.value != null && category != SettingsCategory.REQUESTS) {
-            return
-        }
-        if (category != SettingsCategory.REQUESTS) {
-            _focusedRequestId.value = null
-        }
         _selectedCategory.value = category
     }
 
@@ -233,7 +205,6 @@ class SettingsViewModel @Inject constructor(
     fun disconnectSeerr() = viewModelScope.launch {
         seerrRepository.disconnect()
         _myRequests.value = emptyList()
-        _focusedRequestId.value = null
     }
 
     suspend fun refreshMyRequests() {

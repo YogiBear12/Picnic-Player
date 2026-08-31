@@ -49,7 +49,6 @@ import app.picnic.player.data.playback.LanguagePickerRow
 import app.picnic.player.data.playback.languagePickerRows
 import app.picnic.player.data.playback.resolveLanguageCode
 import app.picnic.player.data.playback.selectedLanguageRow
-import app.picnic.player.data.seerr.SeerrLinkState
 import app.picnic.player.data.settings.PlaybackSettings
 import app.picnic.player.data.settings.SettingKeys
 import app.picnic.player.ui.common.requestFocusWhenAttached
@@ -67,16 +66,7 @@ fun SettingsScreen(
 ) {
     app.picnic.player.ui.ambient.PublishBackdrop(null)
     val settings by viewModel.settings.collectAsStateWithLifecycle()
-    val seerr by viewModel.seerrState.collectAsStateWithLifecycle()
     val selected by viewModel.selectedCategory.collectAsStateWithLifecycle()
-
-    val visibleCategories = remember(seerr.linkState) {
-        if (seerr.linkState == SeerrLinkState.Linked) {
-            SettingsCategory.entries.toList()
-        } else {
-            SettingsCategory.entries.filterNot { it == SettingsCategory.REQUESTS }
-        }
-    }
 
     val categoryFocusRequesters = remember {
         SettingsCategory.entries.associateWith { FocusRequester() }
@@ -125,9 +115,7 @@ fun SettingsScreen(
     }
 
     LaunchedEffect(Unit) {
-        val restoreRequestRow =
-            selected == SettingsCategory.REQUESTS && viewModel.focusedRequestId.value != null
-        if (!restoreRequestRow && restoreDetailRow == null) {
+        if (restoreDetailRow == null) {
             runCatching { categoryFocusRequesters.getValue(selected).requestFocus() }
         }
     }
@@ -155,7 +143,7 @@ fun SettingsScreen(
             val updateViewModel: UpdateViewModel = hiltViewModel()
             val updateBadge by updateViewModel.updateAvailable.collectAsStateWithLifecycle()
             CategoryRail(
-                categories = visibleCategories,
+                categories = SettingsCategory.entries,
                 selected = selected,
                 onSelect = { category -> if (!holdSelection) viewModel.selectCategory(category) },
                 focusRequesters = categoryFocusRequesters,
@@ -353,15 +341,6 @@ private fun DetailPanel(
     val context = LocalContext.current
 
     when (category) {
-        SettingsCategory.REQUESTS -> {
-            RequestsSettingsPanel(
-                viewModel = viewModel,
-                focus = focus,
-                onOpenSeerrDetail = onOpenSeerrDetail,
-                modifier = modifier
-            )
-            return
-        }
         SettingsCategory.ACCOUNT -> {
             AccountSettingsPanel(
                 viewModel = viewModel,
