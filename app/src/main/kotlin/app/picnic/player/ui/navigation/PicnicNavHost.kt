@@ -288,7 +288,8 @@ fun PicnicNavHost(
                             onSignedOut = { goStartup() },
                             onOpenSeerrDetail = { request ->
                                 resolveSeerrNavKey(request)?.let { navViewModel.push(it) }
-                            }
+                            },
+                            onOpenItem = navViewModel::openItem
                         )
                     }
                     entry<DetailKey> { key ->

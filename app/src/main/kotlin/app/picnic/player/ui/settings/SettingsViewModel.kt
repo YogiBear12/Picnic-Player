@@ -9,6 +9,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.picnic.player.data.auth.AuthRepository
 import app.picnic.player.data.media.MediaRepository
+import app.picnic.player.data.media.WatchStats
+import app.picnic.player.data.media.WatchStatsCache
 import app.picnic.player.data.playback.CulturePickerOption
 import app.picnic.player.data.playback.cultureDisplayName
 import app.picnic.player.data.playback.culturePickerOptions
@@ -26,8 +28,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -46,7 +51,9 @@ class SettingsViewModel @Inject constructor(
     activeUserAvatar: app.picnic.player.data.auth.ActiveUserAvatar,
     private val mediaRepository: MediaRepository,
     private val seerrRepository: app.picnic.player.data.seerr.SeerrRepository,
+    private val watchStatsCache: WatchStatsCache,
     private val pictureInPictureSupport: app.picnic.player.data.device.PictureInPictureSupport,
+    deviceIdentity: app.picnic.player.data.device.DeviceIdentityStore,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
     val settings: StateFlow<PlaybackSettings> =
@@ -87,6 +94,23 @@ class SettingsViewModel @Inject constructor(
 
     val deviceLanguage: String = java.util.Locale.getDefault().language
 
+    val deviceName: String = deviceIdentity.deviceName
+
+    private val _activeUserId = MutableStateFlow<java.util.UUID?>(null)
+
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    val watchStats: StateFlow<WatchStats?> = _activeUserId
+        .filterNotNull()
+        .flatMapLatest { userId ->
+            watchStatsCache.statsFor(userId)
+                .onStart { viewModelScope.launch { watchStatsCache.refresh(userId) } }
+        }
+        .stateIn(viewModelScope, SharingStarted.Lazily, null)
+
+    val favorites: StateFlow<List<org.jellyfin.sdk.model.api.BaseItemDto>> = flow {
+        emit(runCatching { mediaRepository.favoriteItems() }.getOrDefault(emptyList()))
+    }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+
     private val _selectedCategory = MutableStateFlow(SettingsCategory.EXPERIENCE)
     val selectedCategory: StateFlow<SettingsCategory> = _selectedCategory
 
@@ -95,7 +119,9 @@ class SettingsViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            _activeUsername.value = authRepository.activeSession()?.username.orEmpty()
+            val session = authRepository.activeSession()
+            _activeUsername.value = session?.username.orEmpty()
+            _activeUserId.value = session?.userUuid
         }
         viewModelScope.launch {
             authRepository.activeSession() ?: return@launch

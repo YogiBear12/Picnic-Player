@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
@@ -63,6 +62,7 @@ fun SettingsScreen(
     onBack: () -> Unit,
     onSignedOut: () -> Unit,
     onOpenSeerrDetail: ((app.picnic.player.data.seerr.SeerrMediaRequest) -> Unit)? = null,
+    onOpenItem: (org.jellyfin.sdk.model.api.BaseItemDto, String?, String?) -> Unit = { _, _, _ -> },
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
     app.picnic.player.ui.ambient.PublishBackdrop(null)
@@ -180,6 +180,7 @@ fun SettingsScreen(
                     showSubtitleAppearance = true
                 },
                 onOpenSeerrDetail = onOpenSeerrDetail,
+                onOpenItem = onOpenItem,
                 onOpenLicenses = {
                     restoreDetailRow = SubPageRow.LICENSES
                     showLicenses = true
@@ -339,6 +340,7 @@ private fun DetailPanel(
     onShowSubtitleLanguagePicker: () -> Unit,
     onOpenSubtitleAppearance: () -> Unit,
     onOpenSeerrDetail: ((app.picnic.player.data.seerr.SeerrMediaRequest) -> Unit)?,
+    onOpenItem: (org.jellyfin.sdk.model.api.BaseItemDto, String?, String?) -> Unit,
     onOpenLicenses: () -> Unit,
     restoreRow: SubPageRow?,
     onRestored: () -> Unit,
@@ -361,9 +363,10 @@ private fun DetailPanel(
         SettingsCategory.ACCOUNT -> {
             AccountSettingsPanel(
                 viewModel = viewModel,
-                onSignedOut = onSignedOut,
+                onOpenItem = onOpenItem,
+                onOpenSeerrDetail = onOpenSeerrDetail,
                 focus = focus,
-                modifier = modifier.verticalScroll(rememberScrollState())
+                modifier = modifier
             )
             return
         }
