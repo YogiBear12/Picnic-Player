@@ -13,6 +13,7 @@ import androidx.compose.runtime.setValue
 class EpisodeListFocus(
     val list: EpisodeFocus,
     private val restoreEpisode: MutableState<String?>,
+    private val restoreSeason: MutableState<String?>,
     private val firstEntryDone: MutableState<Boolean>,
     private val lastScrolledSeason: MutableState<String?>
 ) {
@@ -26,8 +27,15 @@ class EpisodeListFocus(
         lastScrolledSeason.value = null
     }
 
-    fun onEpisodeOpened(episodeId: String) {
+    fun onRestoreUnavailable() {
+        restoreEpisode.value = null
+    }
+
+    fun restoreLivesIn(seasonId: String?): Boolean = restoreSeason.value.let { it == null || it == seasonId }
+
+    fun onEpisodeOpened(episodeId: String, seasonId: String?) {
         restoreEpisode.value = episodeId
+        restoreSeason.value = seasonId
     }
 
     suspend fun settle(seasonId: String?, restoreIndex: Int?, firstUnwatchedIndex: () -> Int) {
@@ -52,9 +60,16 @@ class EpisodeListFocus(
 }
 
 @Composable
-fun rememberEpisodeListFocus(list: EpisodeFocus, initialRestoreEpisodeId: String?): EpisodeListFocus {
+fun rememberEpisodeListFocus(
+    list: EpisodeFocus,
+    initialRestoreEpisodeId: String?,
+    initialRestoreSeasonId: String?
+): EpisodeListFocus {
     val restoreEpisode = rememberSaveable { mutableStateOf(initialRestoreEpisodeId) }
+    val restoreSeason = rememberSaveable { mutableStateOf(initialRestoreSeasonId) }
     val firstEntryDone = rememberSaveable { mutableStateOf(false) }
     val lastScrolledSeason = rememberSaveable { mutableStateOf<String?>(null) }
-    return remember(list) { EpisodeListFocus(list, restoreEpisode, firstEntryDone, lastScrolledSeason) }
+    return remember(list) {
+        EpisodeListFocus(list, restoreEpisode, restoreSeason, firstEntryDone, lastScrolledSeason)
+    }
 }

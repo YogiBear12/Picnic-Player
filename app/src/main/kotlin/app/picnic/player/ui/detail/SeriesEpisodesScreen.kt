@@ -137,7 +137,7 @@ fun SeriesEpisodesScreen(
     val selectedSeasonFr = seasonRail.requesterFor(selectedSeasonIndex)
 
     val episodeFocus = rememberEpisodeFocus()
-    val listFocus = rememberEpisodeListFocus(episodeFocus, initialFocusEpisodeId)
+    val listFocus = rememberEpisodeListFocus(episodeFocus, initialFocusEpisodeId, initialSeasonId)
     val episodes = viewModel.episodes.collectAsLazyPagingItems()
 
     var contextMenuEpisode by remember { mutableStateOf<BaseItemDto?>(null) }
@@ -175,15 +175,27 @@ fun SeriesEpisodesScreen(
                 seasonId = selectedSeasonId,
                 itemCount = episodes.itemCount,
                 refreshSettled = episodes.loadState.refresh is LoadState.NotLoading,
+                appendState = episodes.loadState.append,
                 listShowing = episodesFailure == null && !seasonsFailed
             )
         }
             .collect { state ->
                 if (!state.loadComplete || state.itemCount == 0 || !state.refreshSettled) return@collect
                 if (!state.listShowing) return@collect
-                val restoreIndex = listFocus.restoreEpisodeId
+                val restoreId = listFocus.restoreEpisodeId
+                val restoreIndex = restoreId
                     ?.let { id -> episodes.itemSnapshotList.indexOfFirst { it?.id?.toString() == id } }
                     ?.takeIf { it >= 0 }
+                if (restoreId != null && restoreIndex == null) {
+                    val append = state.appendState
+                    val pageable = append is LoadState.NotLoading && !append.endOfPaginationReached
+                    when {
+                        !listFocus.restoreLivesIn(state.seasonId) -> listFocus.onRestoreUnavailable()
+                        pageable -> episodes.loadNextPage()
+                        append is LoadState.Loading -> Unit
+                        else -> listFocus.onRestoreUnavailable()
+                    }
+                }
                 listFocus.settle(
                     seasonId = state.seasonId,
                     restoreIndex = restoreIndex,
@@ -282,7 +294,7 @@ fun SeriesEpisodesScreen(
                                         enterFr = episodeFocus.requesterFor(index),
                                         onFocused = { episodeFocus.onEpisodeFocused(index) },
                                         onPlay = { id, resumeTicks ->
-                                            listFocus.onEpisodeOpened(id)
+                                            listFocus.onEpisodeOpened(id, selectedSeasonId)
                                             onPlay(id, resumeTicks)
                                         },
                                         onLongClick = { contextMenuEpisode = episode }
@@ -308,7 +320,7 @@ fun SeriesEpisodesScreen(
                 onDismiss = { contextMenuEpisode = null },
                 onPlay = { ticks ->
                     contextMenuEpisode = null
-                    listFocus.onEpisodeOpened(ep.id.toString())
+                    listFocus.onEpisodeOpened(ep.id.toString(), selectedSeasonId)
                     onPlay(ep.id.toString(), ticks)
                 },
                 onMarkWatched = { played ->
@@ -321,7 +333,7 @@ fun SeriesEpisodesScreen(
                 },
                 onGoToSeries = onGoToSeries?.let { go ->
                     { targetSeriesId ->
-                        listFocus.onEpisodeOpened(ep.id.toString())
+                        listFocus.onEpisodeOpened(ep.id.toString(), selectedSeasonId)
                         go(targetSeriesId)
                     }
                 }
@@ -348,11 +360,16 @@ fun SeriesEpisodesScreen(
     }
 }
 
+private fun LazyPagingItems<BaseItemDto>.loadNextPage() {
+    get(itemCount - 1)
+}
+
 private data class EpisodeListState(
     val loadComplete: Boolean,
     val seasonId: String?,
     val itemCount: Int,
     val refreshSettled: Boolean,
+    val appendState: LoadState,
     val listShowing: Boolean
 )
 
