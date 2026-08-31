@@ -2,10 +2,11 @@ package app.picnic.player.ui.collection
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import app.picnic.player.data.media.LibraryChange
+import app.picnic.player.data.media.LibraryChangeBatch
 import app.picnic.player.data.media.LibraryChangeBus
 import app.picnic.player.data.media.MediaRepository
 import app.picnic.player.data.media.UserDataRepository
+import app.picnic.player.data.media.batches
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
@@ -50,10 +51,7 @@ class CollectionViewModel @AssistedInject constructor(
     init {
         viewModelScope.launch { load() }
         viewModelScope.launch {
-            changeBus.changes().collect { change ->
-                if (change !is LibraryChange.ItemUpdated) return@collect
-                if (change.itemId == collectionId) refreshItem() else patchRow(change.itemId)
-            }
+            changeBus.batches().collect { batch -> applyBatch(batch) }
         }
     }
 
@@ -101,17 +99,20 @@ class CollectionViewModel @AssistedInject constructor(
         }
     }
 
-    private fun refreshItem() {
-        viewModelScope.launch {
-            val updated = fetchItem(collectionId) ?: return@launch
-            _state.update { it.copy(item = updated) }
-        }
+    private suspend fun refreshItem() {
+        val updated = fetchItem(collectionId) ?: return
+        _state.update { it.copy(item = updated) }
     }
 
-    private suspend fun patchRow(changedId: String) {
-        if (children.none { it.id.toString() == changedId }) return
-        val updated = fetchItem(changedId) ?: return
-        publishChildren(children.map { if (it.id == updated.id) updated else it }, state.value.phase)
+    private suspend fun applyBatch(batch: LibraryChangeBatch) {
+        val rootChanged = batch.contentChanged || collectionId in batch.itemIds
+        if (rootChanged) refreshItem()
+        val shown = children + state.value.queue
+        val changedIds = if (rootChanged) shown.mapTo(mutableSetOf()) { it.id.toString() } else batch.itemIds
+        val fresh = mediaRepository.refreshChanged(shown, changedIds)
+        if (fresh.isEmpty()) return
+        publishChildren(children.map { fresh[it.id] ?: it }, state.value.phase)
+        _state.update { state -> state.copy(queue = state.queue.map { fresh[it.id] ?: it }) }
     }
 
     fun toggleWatched() {
