@@ -26,6 +26,7 @@ import org.jellyfin.sdk.api.client.extensions.userApi
 import org.jellyfin.sdk.api.client.extensions.userLibraryApi
 import org.jellyfin.sdk.api.client.extensions.userViewsApi
 import org.jellyfin.sdk.model.api.BaseItemDto
+import org.jellyfin.sdk.model.api.BaseItemDtoQueryResult
 import org.jellyfin.sdk.model.api.BaseItemKind
 import org.jellyfin.sdk.model.api.CultureDto
 import org.jellyfin.sdk.model.api.ItemFields
@@ -37,6 +38,8 @@ import org.jellyfin.sdk.model.api.UserConfiguration
 import org.jellyfin.sdk.model.api.request.GetSimilarItemsRequest
 
 internal const val MEDIA_GRID_PAGE_SIZE = 100
+
+data class WatchStats(val movies: Int, val shows: Int, val episodes: Int)
 
 private const val LIBRARY_LOG_TAG = "PicnicLibrary"
 
@@ -605,6 +608,90 @@ class MediaRepository @Inject constructor(
         ).content.items.orEmpty()
     }
 
+    suspend fun watchStats(): WatchStats = coroutineScope {
+        val movies = async { watchedCount(BaseItemKind.MOVIE) }
+        val series = mutableSetOf<UUID>()
+        val episodes = collectPages(WATCHED_EPISODE_PAGE_SIZE, ::watchedEpisodePage) { items ->
+            items.forEach { item -> item.seriesId?.let(series::add) }
+        }
+        WatchStats(movies = movies.await(), shows = series.size, episodes = episodes)
+    }
+
+    private suspend fun collectPages(
+        pageSize: Int,
+        fetch: suspend (startIndex: Int) -> BaseItemDtoQueryResult,
+        onPage: (List<BaseItemDto>) -> Unit
+    ): Int {
+        var startIndex = 0
+        var total = 0
+        while (true) {
+            val page = fetch(startIndex)
+            val items = page.items.orEmpty()
+            onPage(items)
+            total = page.totalRecordCount
+            startIndex += items.size
+            if (items.size < pageSize || startIndex >= total) break
+        }
+        return total
+    }
+
+    private suspend fun watchedCount(kind: BaseItemKind): Int = onIo {
+        api().itemsApi.getItems(
+            userId = session().userUuid,
+            includeItemTypes = listOf(kind),
+            recursive = true,
+            isPlayed = true,
+            limit = 0,
+            enableTotalRecordCount = true
+        ).content.totalRecordCount
+    }
+
+    private suspend fun watchedEpisodePage(startIndex: Int): BaseItemDtoQueryResult = onIo {
+        api().itemsApi.getItems(
+            userId = session().userUuid,
+            includeItemTypes = listOf(BaseItemKind.EPISODE),
+            recursive = true,
+            isPlayed = true,
+            sortBy = listOf(ItemSortBy.SORT_NAME),
+            sortOrder = listOf(SortOrder.ASCENDING),
+            startIndex = startIndex,
+            limit = WATCHED_EPISODE_PAGE_SIZE,
+            fields = emptyList(),
+            enableImages = false,
+            enableUserData = false,
+            enableTotalRecordCount = true
+        ).content
+    }
+
+    suspend fun favoriteItems(): List<BaseItemDto> {
+        val favorites = mutableListOf<BaseItemDto>()
+        collectPages(MEDIA_GRID_PAGE_SIZE, ::favoritePage) { favorites += it }
+        return favorites
+    }
+
+    private suspend fun favoritePage(startIndex: Int): BaseItemDtoQueryResult = onIo {
+        api().itemsApi.getItems(
+            userId = session().userUuid,
+            recursive = true,
+            includeItemTypes = listOf(
+                BaseItemKind.MOVIE,
+                BaseItemKind.SERIES,
+                BaseItemKind.SEASON,
+                BaseItemKind.EPISODE,
+                BaseItemKind.BOX_SET,
+                BaseItemKind.PLAYLIST
+            ),
+            isFavorite = true,
+            sortBy = listOf(ItemSortBy.DATE_PLAYED, ItemSortBy.SORT_NAME),
+            sortOrder = listOf(SortOrder.DESCENDING, SortOrder.ASCENDING),
+            startIndex = startIndex,
+            limit = MEDIA_GRID_PAGE_SIZE,
+            fields = LATEST_FIELDS,
+            enableImageTypes = IMAGE_TYPES,
+            enableTotalRecordCount = true
+        ).content
+    }
+
     private companion object {
         const val LATEST_ROW_LIMIT = 25
 
@@ -617,5 +704,7 @@ class MediaRepository @Inject constructor(
         const val BOX_SET_LIMIT = 500
         const val BOX_SET_FETCH_CONCURRENCY = 4
         const val BOX_SET_CACHE_TTL_MS = 5 * 60 * 1000L
+
+        const val WATCHED_EPISODE_PAGE_SIZE = 2000
     }
 }
