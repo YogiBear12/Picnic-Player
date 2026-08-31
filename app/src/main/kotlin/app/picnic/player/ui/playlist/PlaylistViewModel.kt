@@ -7,11 +7,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.picnic.player.data.auth.AuthRepository
 import app.picnic.player.data.auth.UserSession
-import app.picnic.player.data.media.LibraryChange
 import app.picnic.player.data.media.LibraryChangeBus
 import app.picnic.player.data.media.MediaRepository
 import app.picnic.player.data.media.PlaylistRepository
 import app.picnic.player.data.media.UserDataRepository
+import app.picnic.player.data.media.batches
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.util.UUID
 import javax.inject.Inject
@@ -61,10 +61,11 @@ class PlaylistViewModel @Inject constructor(
         if (observing) return
         observing = true
         viewModelScope.launch {
-            changeBus.changes().collect { change ->
+            changeBus.batches().collect { batch ->
                 val session = state.session ?: return@collect
-                val touched = change is LibraryChange.ItemUpdated &&
-                    (change.itemId == id.toString() || state.items.any { it.id.toString() == change.itemId })
+                val touched = batch.contentChanged ||
+                    id.toString() in batch.itemIds ||
+                    state.items.any { it.id.toString() in batch.itemIds }
                 if (touched) refresh(session, id)
             }
         }

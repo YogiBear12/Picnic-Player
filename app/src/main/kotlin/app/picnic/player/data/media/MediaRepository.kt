@@ -6,6 +6,7 @@ import app.picnic.player.data.auth.UserSession
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -337,6 +338,32 @@ class MediaRepository @Inject constructor(
                 fields = listOf(ItemFields.MEDIA_STREAMS)
             ).content.items.orEmpty().firstOrNull()?.mediaStreams.orEmpty()
         }.getOrDefault(emptyList())
+    }
+
+    suspend fun items(itemIds: List<UUID>): List<BaseItemDto> = onIo {
+        if (itemIds.isEmpty()) return@onIo emptyList()
+        try {
+            itemIds.chunked(ITEM_FETCH_CHUNK).flatMap { chunk ->
+                api().itemsApi.getItems(
+                    userId = session().userUuid,
+                    ids = chunk,
+                    fields = LATEST_FIELDS,
+                    enableImageTypes = IMAGE_TYPES
+                ).content.items.orEmpty()
+            }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failure: Exception) {
+            Log.w(LIBRARY_LOG_TAG, "bulk item fetch failed", failure)
+            emptyList()
+        }
+    }
+
+    suspend fun refreshChanged(shown: List<BaseItemDto>, changedIds: Set<String>): Map<UUID, BaseItemDto> {
+        if (changedIds.isEmpty()) return emptyMap()
+        val stale = shown.filter { it.id.toString() in changedIds }.distinctBy { it.id }
+        if (stale.isEmpty()) return emptyMap()
+        return items(stale.map { it.id }).associateBy { it.id }
     }
 
     suspend fun itemStreams(itemIds: List<UUID>): Map<UUID, List<MediaStream>> = onIo {
@@ -706,5 +733,7 @@ class MediaRepository @Inject constructor(
         const val BOX_SET_CACHE_TTL_MS = 5 * 60 * 1000L
 
         const val WATCHED_EPISODE_PAGE_SIZE = 2000
+
+        const val ITEM_FETCH_CHUNK = 100
     }
 }

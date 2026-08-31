@@ -6,9 +6,9 @@ import app.picnic.player.data.auth.AuthRepository
 import app.picnic.player.data.auth.UserSession
 import app.picnic.player.data.jellyfin.isAuthFailure
 import app.picnic.player.data.media.HomeRow
-import app.picnic.player.data.media.LibraryChange
 import app.picnic.player.data.media.LibraryChangeBus
 import app.picnic.player.data.media.MediaRepository
+import app.picnic.player.data.media.batches
 import app.picnic.player.data.media.chooseWatchSeeds
 import app.picnic.player.data.media.planHeroStreamPrefetch
 import app.picnic.player.data.media.seedId
@@ -72,29 +72,15 @@ class ForYouViewModel @Inject constructor(
             focusChangedFlow.debounce(200).collectLatest { prefetchStreamsAhead() }
         }
         viewModelScope.launch {
-            changeBus.changes().collect { change ->
-                if (change is LibraryChange.ItemUpdated) {
-                    patchCard(change.itemId)
-                    change.seriesId?.let { patchCard(it) }
-                }
-            }
+            changeBus.batches().collect { batch -> patchCards(batch.itemIds) }
         }
     }
 
-    private suspend fun patchCard(itemId: String) {
-        val id = runCatching { UUID.fromString(itemId) }.getOrNull() ?: return
-        if (_state.value.rows.none { row -> row.items.any { it.id == id } }) return
-        val fresh = runCatching { mediaRepository.item(id) }.getOrNull() ?: return
+    private suspend fun patchCards(changedIds: Set<String>) {
+        val fresh = mediaRepository.refreshChanged(_state.value.rows.flatMap { it.items }, changedIds)
+        if (fresh.isEmpty()) return
         _state.update { state ->
-            state.copy(
-                rows = state.rows.map { row ->
-                    if (row.items.none { it.id == id }) {
-                        row
-                    } else {
-                        row.copy(items = row.items.map { if (it.id == id) fresh else it })
-                    }
-                }
-            )
+            state.copy(rows = state.rows.map { row -> row.copy(items = row.items.map { fresh[it.id] ?: it }) })
         }
     }
 

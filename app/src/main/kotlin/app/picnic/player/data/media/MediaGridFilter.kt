@@ -18,6 +18,9 @@ data class MediaGridFilter(
     val resolution: ResolutionFilter = ResolutionFilter.ANY,
     val decades: Set<Int> = emptySet()
 ) {
+    val tracksUserStatus: Boolean
+        get() = favoritesOnly || watched != WatchedFilter.ALL
+
     val isActive: Boolean
         get() = contentType != GridContentType.ALL ||
             watched != WatchedFilter.ALL ||

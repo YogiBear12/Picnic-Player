@@ -4,9 +4,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.picnic.player.data.auth.AuthRepository
 import app.picnic.player.data.auth.UserSession
-import app.picnic.player.data.media.LibraryChange
 import app.picnic.player.data.media.LibraryChangeBus
 import app.picnic.player.data.media.MediaRepository
+import app.picnic.player.data.media.batches
 import app.picnic.player.data.seerr.SeerrCatalogItem
 import app.picnic.player.data.seerr.SeerrLinkState
 import app.picnic.player.data.seerr.SeerrRepository
@@ -93,11 +93,7 @@ class SearchViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            changeBus.changes().collect { change ->
-                if (change is LibraryChange.ItemUpdated) {
-                    patchResults(setOfNotNull(change.itemId, change.seriesId))
-                }
-            }
+            changeBus.batches().collect { batch -> patchResults(batch.itemIds) }
         }
         viewModelScope.launch {
             queryFlow.debounce(QUERY_DEBOUNCE_MS).collectLatest { query ->
@@ -157,14 +153,7 @@ class SearchViewModel @Inject constructor(
     }
 
     private suspend fun patchResults(changedIds: Set<String>) {
-        val session = _state.value.session ?: return
-        val affected = _state.value.results
-            .flatMap { it.items }
-            .filter { it.id.toString() in changedIds }
-        if (affected.isEmpty()) return
-        val refreshed = affected
-            .mapNotNull { runCatching { mediaRepository.item(it.id) }.getOrNull() }
-            .associateBy { it.id }
+        val refreshed = mediaRepository.refreshChanged(_state.value.results.flatMap { it.items }, changedIds)
         if (refreshed.isEmpty()) return
         _state.update { state ->
             state.copy(

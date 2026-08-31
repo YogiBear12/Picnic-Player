@@ -4,6 +4,7 @@ import app.picnic.player.data.media.GridSortSpec
 import app.picnic.player.data.media.MEDIA_GRID_PAGE_SIZE
 import app.picnic.player.data.media.MediaGridFilter
 import app.picnic.player.data.media.MediaRepository
+import java.util.UUID
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.jellyfin.sdk.model.api.BaseItemDto
@@ -50,19 +51,21 @@ internal class MediaGridStore(
         return index.coerceIn(0, (totalCount - 1).coerceAtLeast(0))
     }
 
-    suspend fun containsItem(itemId: String): Boolean = mutex.withLock {
-        loadedPages.values.any { page -> page.any { it.id.toString() == itemId } }
+    suspend fun loadedIds(candidates: Set<String>): List<UUID> = mutex.withLock {
+        loadedPages.values.flatten()
+            .filter { it.id.toString() in candidates }
+            .map { it.id }
+            .distinct()
     }
 
-    suspend fun replaceItem(fresh: BaseItemDto): Boolean = mutex.withLock {
-        val target = fresh.id.toString()
+    suspend fun replaceItems(fresh: List<BaseItemDto>): Boolean = mutex.withLock {
+        if (fresh.isEmpty()) return@withLock false
+        val byId = fresh.associateBy { it.id }
         var replaced = false
         for ((page, list) in loadedPages.toMap()) {
-            val idx = list.indexOfFirst { it.id.toString() == target }
-            if (idx >= 0) {
-                loadedPages[page] = list.toMutableList().also { it[idx] = fresh }
-                replaced = true
-            }
+            if (list.none { it.id in byId }) continue
+            loadedPages[page] = list.map { byId[it.id] ?: it }
+            replaced = true
         }
         replaced
     }

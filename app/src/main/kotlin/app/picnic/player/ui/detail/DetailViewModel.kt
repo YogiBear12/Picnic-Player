@@ -4,10 +4,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.picnic.player.data.auth.AuthRepository
 import app.picnic.player.data.auth.UserSession
-import app.picnic.player.data.media.LibraryChange
 import app.picnic.player.data.media.LibraryChangeBus
 import app.picnic.player.data.media.MediaRepository
 import app.picnic.player.data.media.UserDataRepository
+import app.picnic.player.data.media.batches
 import app.picnic.player.data.seerr.SeerrLinkState
 import app.picnic.player.data.seerr.SeerrMediaRequest
 import app.picnic.player.data.seerr.SeerrRepository
@@ -108,29 +108,20 @@ class DetailViewModel @AssistedInject constructor(
         }
 
         viewModelScope.launch {
-            changeBus.changes().collect { change ->
-                if (change !is LibraryChange.ItemUpdated) return@collect
-                if (change.itemId == itemId || change.seriesId == itemId) {
-                    reload()
-                } else {
-                    patchRails(change.itemId)
-                }
+            changeBus.batches().collect { batch ->
+                if (batch.contentChanged || itemId in batch.itemIds) reload() else patchRails(batch.itemIds)
             }
         }
     }
 
-    private suspend fun patchRails(changedId: String) {
-        val session = state.value.session ?: return
+    private suspend fun patchRails(changedIds: Set<String>) {
         val current = state.value
-        val inRails = current.similarItems.any { it.id.toString() == changedId } ||
-            current.collections.any { it.id.toString() == changedId }
-        if (!inRails) return
-        val updated = runCatching { mediaRepository.item(UUID.fromString(changedId)) }
-            .getOrNull() ?: return
+        val fresh = mediaRepository.refreshChanged(current.similarItems + current.collections, changedIds)
+        if (fresh.isEmpty()) return
         _state.update { state ->
             state.copy(
-                similarItems = state.similarItems.map { if (it.id == updated.id) updated else it },
-                collections = state.collections.map { if (it.id == updated.id) updated else it }
+                similarItems = state.similarItems.map { fresh[it.id] ?: it },
+                collections = state.collections.map { fresh[it.id] ?: it }
             )
         }
     }

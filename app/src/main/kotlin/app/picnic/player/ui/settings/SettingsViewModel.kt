@@ -13,6 +13,7 @@ import app.picnic.player.data.media.LibraryChangeBus
 import app.picnic.player.data.media.MediaRepository
 import app.picnic.player.data.media.WatchStats
 import app.picnic.player.data.media.WatchStatsCache
+import app.picnic.player.data.media.batches
 import app.picnic.player.data.playback.CulturePickerOption
 import app.picnic.player.data.playback.cultureDisplayName
 import app.picnic.player.data.playback.culturePickerOptions
@@ -29,9 +30,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
@@ -159,7 +158,7 @@ class SettingsViewModel @Inject constructor(
             _serverSubtitleLanguage.value = config?.subtitleLanguagePreference
         }
         viewModelScope.launch {
-            changeBus.changes().debounce(CHANGE_DEBOUNCE_MS).collectLatest { refreshAccount() }
+            changeBus.batches().collect { refreshAccount() }
         }
         viewModelScope.launch {
             authRepository.activeSession() ?: return@launch
@@ -258,7 +257,6 @@ class SettingsViewModel @Inject constructor(
 
     companion object {
         private const val ACCOUNT_LOG_TAG = "PicnicAccount"
-        private const val CHANGE_DEBOUNCE_MS = 400L
 
         val SKIP_FORWARD_OPTIONS = listOf(10, 15, 30, 45, 60)
         val SKIP_BACKWARD_OPTIONS = listOf(5, 10, 15, 30)

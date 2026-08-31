@@ -4,9 +4,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.picnic.player.data.auth.AuthRepository
 import app.picnic.player.data.auth.UserSession
-import app.picnic.player.data.media.LibraryChange
 import app.picnic.player.data.media.LibraryChangeBus
 import app.picnic.player.data.media.PlaylistRepository
+import app.picnic.player.data.media.batches
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -34,11 +34,7 @@ class PlaylistsPaneViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            changeBus.changes().collect { change ->
-                if (change is LibraryChange.LibraryContentChanged || change is LibraryChange.ItemUpdated) {
-                    refresh()
-                }
-            }
+            changeBus.batches().collect { refresh() }
         }
     }
 

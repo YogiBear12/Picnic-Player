@@ -15,10 +15,10 @@ import androidx.paging.map
 import app.picnic.player.data.auth.AuthRepository
 import app.picnic.player.data.auth.UserSession
 import app.picnic.player.data.jellyfin.JellyfinFactory
-import app.picnic.player.data.media.LibraryChange
 import app.picnic.player.data.media.LibraryChangeBus
 import app.picnic.player.data.media.MediaRepository
 import app.picnic.player.data.media.UserDataRepository
+import app.picnic.player.data.media.batches
 import app.picnic.player.data.paging.EpisodePagingSource
 import app.picnic.player.di.IoDispatcher
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -146,11 +146,9 @@ class SeriesEpisodesViewModel @Inject constructor(
                 .collect { indices -> runCatching { fetchSeasonCounts(indices) } }
         }
         viewModelScope.launch {
-            changeBus.changes().collect { change ->
-                if (change !is LibraryChange.ItemUpdated) return@collect
+            changeBus.batches().collect { batch ->
                 val seriesId = currentSeriesId ?: return@collect
-                val affectsThisSeries = change.seriesId == seriesId || change.itemId == seriesId
-                if (affectsThisSeries) {
+                if (batch.contentChanged || seriesId in batch.itemIds) {
                     _refreshTrigger.value++
                     loadSeasons(seriesId)
                 }

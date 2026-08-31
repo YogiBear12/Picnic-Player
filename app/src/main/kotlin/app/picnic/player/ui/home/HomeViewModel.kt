@@ -14,6 +14,7 @@ import app.picnic.player.data.media.HomeResult
 import app.picnic.player.data.media.HomeRow
 import app.picnic.player.data.media.LibraryChangeBus
 import app.picnic.player.data.media.MediaRepository
+import app.picnic.player.data.media.batches
 import app.picnic.player.data.media.planHeroStreamPrefetch
 import app.picnic.player.data.media.seriesNeedingSeasonCount
 import app.picnic.player.data.nav.NAV_ID_DISCOVER
@@ -107,7 +108,7 @@ class HomeViewModel @Inject constructor(
     init {
         load()
         viewModelScope.launch {
-            changeBus.changes().debounce(400).collectLatest { refresh() }
+            changeBus.batches().collect { refresh() }
         }
         viewModelScope.launch {
             focusChangedFlow.debounce(200).collectLatest { prefetchStreamsAhead() }

@@ -7,13 +7,15 @@ import app.picnic.player.data.auth.UserSession
 import app.picnic.player.data.jellyfin.isAuthFailure
 import app.picnic.player.data.media.GridFilterFacets
 import app.picnic.player.data.media.GridSortSpec
-import app.picnic.player.data.media.LibraryChange
+import app.picnic.player.data.media.LibraryChangeBatch
 import app.picnic.player.data.media.LibraryChangeBus
 import app.picnic.player.data.media.MediaGridFilter
 import app.picnic.player.data.media.MediaRepository
+import app.picnic.player.data.media.batches
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.util.UUID
 import javax.inject.Inject
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
@@ -57,12 +59,7 @@ class LibraryGridViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            changeBus.changes().collect { change ->
-                if (change is LibraryChange.ItemUpdated) {
-                    patchCard(change.itemId)
-                    change.seriesId?.let { patchCard(it) }
-                }
-            }
+            changeBus.batches().collect { batch -> applyBatch(batch) }
         }
     }
 
@@ -94,18 +91,32 @@ class LibraryGridViewModel @Inject constructor(
         load()
     }
 
-    private fun patchCard(itemId: String) {
+    private fun applyBatch(batch: LibraryChangeBatch) {
         if (!storeReady) return
         viewModelScope.launch {
-            if (!store.containsItem(itemId)) return@launch
-            val session = _state.value.session ?: return@launch
-            val fresh = runCatching {
-                mediaRepository.item(UUID.fromString(itemId))
-            }.getOrNull() ?: return@launch
-            if (store.replaceItem(fresh)) {
+            val ids = store.loadedIds(batch.itemIds)
+            if (batch.contentChanged || (ids.isNotEmpty() && _state.value.filter.tracksUserStatus)) {
+                reloadGrid()
+                return@launch
+            }
+            if (ids.isEmpty()) return@launch
+            if (store.replaceItems(mediaRepository.items(ids))) {
                 _state.update { it.copy(revision = it.revision + 1) }
             }
         }
+    }
+
+    private suspend fun reloadGrid() {
+        val current = _state.value
+        lastPagedPage = Int.MIN_VALUE
+        try {
+            store.reset(current.sort, current.filter)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failure: Exception) {
+            return
+        }
+        _state.update { it.copy(totalCount = store.totalCount, revision = it.revision + 1) }
     }
 
     fun retry() {
