@@ -8,6 +8,7 @@ package app.picnic.player.ui.person
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
+import androidx.compose.foundation.gestures.BringIntoViewSpec
 import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -24,6 +25,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -32,6 +34,9 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableIntState
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -50,6 +55,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -76,6 +82,7 @@ import app.picnic.player.ui.common.LocalImageUrls
 import app.picnic.player.ui.common.RowFocusState
 import app.picnic.player.ui.common.ScrollableTextDialog
 import app.picnic.player.ui.common.rememberRowFocusState
+import app.picnic.player.ui.common.rememberRowRevealed
 import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.grid.MediaGridCard
 import app.picnic.player.ui.grid.MetaLineReserve
@@ -101,6 +108,13 @@ private enum class PersonSection {
 private const val MoviesRowTitle = "Movies in your libraries"
 private const val ShowsRowTitle = "Shows in your libraries"
 private const val KnownForRowTitle = "Known for"
+
+private val PersonRowBottomPadding = 16.dp
+
+private const val ROW_HERO = "hero"
+private const val ROW_MOVIES = "movies"
+private const val ROW_SHOWS = "shows"
+private const val ROW_KNOWN_FOR = "known-for"
 
 @Composable
 fun PersonScreen(
@@ -137,20 +151,13 @@ fun PersonScreen(
     var summaryText by remember { mutableStateOf<String?>(null) }
 
     val overviewFocusRequester = remember { FocusRequester() }
-    val movieFocus = rememberRowFocusState()
-    val showFocus = rememberRowFocusState()
-    val movieSeerrRowFocus = remember { FocusRequester() }
-    val showSeerrRowFocus = remember { FocusRequester() }
-    val knownForRowFocus = remember { FocusRequester() }
+    val movieFocus = rememberPersonRowFocus()
+    val showFocus = rememberPersonRowFocus()
+    val knownForFocus = rememberSeerrRowFocus()
 
-    var focusedMovieSeerrIndex by rememberSaveable { mutableIntStateOf(0) }
-    var focusedMovieSeerrKey by rememberSaveable { mutableStateOf<String?>(null) }
-    var focusedShowSeerrIndex by rememberSaveable { mutableIntStateOf(0) }
-    var focusedShowSeerrKey by rememberSaveable { mutableStateOf<String?>(null) }
-    var focusedKnownForIndex by rememberSaveable { mutableIntStateOf(0) }
-    var focusedKnownForKey by rememberSaveable { mutableStateOf<String?>(null) }
     var lastSection by rememberSaveable { mutableStateOf(PersonSection.Overview) }
     var focusRestored by remember { mutableStateOf(false) }
+    val builtRows = remember { mutableSetOf<String>() }
 
     val hasOverview = !state.person?.overview.isNullOrBlank() ||
         !state.seerrPerson?.biography.isNullOrBlank()
@@ -158,31 +165,29 @@ fun PersonScreen(
         (state.libraryMovies.isNotEmpty() || state.libraryShows.isNotEmpty())
     val movieItems = if (libraryFromJellyfin) state.libraryMovies else emptyList()
     val showItems = if (libraryFromJellyfin) state.libraryShows else emptyList()
-    val credits = remember(state.libraryCredits, libraryFromJellyfin) {
+    val (movieCredits, showCredits) = remember(state.libraryCredits, libraryFromJellyfin) {
         if (libraryFromJellyfin) {
             emptyList<SeerrCatalogItem>() to emptyList()
         } else {
             state.libraryCredits.partition { it.mediaType == SeerrMediaType.MOVIE }
         }
     }
-    val movieCredits = credits.first
-    val showCredits = credits.second
     val hasMovies = movieItems.isNotEmpty() || movieCredits.isNotEmpty()
     val hasShows = showItems.isNotEmpty() || showCredits.isNotEmpty()
     val hasKnownFor = state.knownFor.isNotEmpty()
 
     fun sectionLazyIndex(section: PersonSection): Int {
         val keys = buildList {
-            add("hero")
-            if (hasMovies) add("movies")
-            if (hasShows) add("shows")
-            if (hasKnownFor) add("known-for")
+            add(ROW_HERO)
+            if (hasMovies) add(ROW_MOVIES)
+            if (hasShows) add(ROW_SHOWS)
+            if (hasKnownFor) add(ROW_KNOWN_FOR)
         }
         val key = when (section) {
-            PersonSection.Overview -> "hero"
-            PersonSection.Movies -> "movies"
-            PersonSection.Shows -> "shows"
-            PersonSection.KnownFor -> "known-for"
+            PersonSection.Overview -> ROW_HERO
+            PersonSection.Movies -> ROW_MOVIES
+            PersonSection.Shows -> ROW_SHOWS
+            PersonSection.KnownFor -> ROW_KNOWN_FOR
         }
         return keys.indexOf(key)
     }
@@ -194,21 +199,11 @@ fun PersonScreen(
         PersonSection.KnownFor -> hasKnownFor
     }
 
-    fun sectionTarget(section: PersonSection, firstCard: Boolean): FocusRequester? = when (section) {
+    fun sectionTarget(section: PersonSection, firstCard: Boolean): FocusRequester = when (section) {
         PersonSection.Overview -> overviewFocusRequester
-        PersonSection.Movies ->
-            if (movieItems.isNotEmpty()) {
-                movieFocus.requesterAt(if (firstCard) 0 else movieFocus.focusedIndex)
-            } else {
-                movieSeerrRowFocus
-            }
-        PersonSection.Shows ->
-            if (showItems.isNotEmpty()) {
-                showFocus.requesterAt(if (firstCard) 0 else showFocus.focusedIndex)
-            } else {
-                showSeerrRowFocus
-            }
-        PersonSection.KnownFor -> knownForRowFocus
+        PersonSection.Movies -> movieFocus.target(movieItems, firstCard)
+        PersonSection.Shows -> showFocus.target(showItems, firstCard)
+        PersonSection.KnownFor -> knownForFocus.requester
     }
 
     suspend fun restoreFirstAvailableSection() {
@@ -220,7 +215,7 @@ fun PersonScreen(
             else -> return
         }
         lastSection = section
-        sectionTarget(section, firstCard = true)?.requestFocusWhenAttached()
+        sectionTarget(section, firstCard = true).requestFocusWhenAttached()
     }
 
     LaunchedEffect(
@@ -238,23 +233,9 @@ fun PersonScreen(
         }
         when (lastSection) {
             PersonSection.Overview -> Unit
-            PersonSection.Movies ->
-                if (movieItems.isNotEmpty()) {
-                    movieFocus.resolveAgainst(movieItems)
-                } else {
-                    focusedMovieSeerrIndex =
-                        seerrFocusIndex(movieCredits, focusedMovieSeerrKey, focusedMovieSeerrIndex)
-                }
-            PersonSection.Shows ->
-                if (showItems.isNotEmpty()) {
-                    showFocus.resolveAgainst(showItems)
-                } else {
-                    focusedShowSeerrIndex =
-                        seerrFocusIndex(showCredits, focusedShowSeerrKey, focusedShowSeerrIndex)
-                }
-            PersonSection.KnownFor ->
-                focusedKnownForIndex =
-                    seerrFocusIndex(state.knownFor, focusedKnownForKey, focusedKnownForIndex)
+            PersonSection.Movies -> movieFocus.resolveAgainst(movieItems, movieCredits)
+            PersonSection.Shows -> showFocus.resolveAgainst(showItems, showCredits)
+            PersonSection.KnownFor -> knownForFocus.resolveAgainst(state.knownFor)
         }
         focusRestored = true
         val lazyIndex = sectionLazyIndex(lastSection)
@@ -263,7 +244,7 @@ fun PersonScreen(
                 runCatching { listState.scrollToItem(lazyIndex) }
             }
             val target = sectionTarget(lastSection, firstCard = false)
-            if (target?.requestFocusWhenAttached(maxFrames = 30) == true) {
+            if (target.requestFocusWhenAttached(maxFrames = 30)) {
                 return@LaunchedEffect
             }
         }
@@ -298,7 +279,7 @@ fun PersonScreen(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(bottom = metrics.bottomInset)
         ) {
-            item(key = "hero") {
+            item(key = ROW_HERO) {
                 when {
                     state.person != null && session != null -> {
                         PersonHero(
@@ -340,112 +321,71 @@ fun PersonScreen(
             }
 
             if (hasMovies) {
-                item(key = "movies") {
-                    if (movieItems.isNotEmpty()) {
-                        PersonLibraryRow(
-                            title = MoviesRowTitle,
-                            items = movieItems,
-                            lines = state.libraryLines,
-                            rowFocus = movieFocus,
-                            cardStyle = posterStyle,
-                            horizontalRowSpec = horizontalRowSpec,
-                            endInset = metrics.hInset,
-                            cardSpacing = metrics.cardSpacing,
-                            onItemClick = { item ->
-                                val nav = images.navImages(item)
-                                onItem(item, nav.bgUrl, nav.ambUrl)
-                            },
-                            onItemFocused = { lastSection = PersonSection.Movies }
-                        )
-                    } else {
-                        PersonSeerrMediaRow(
-                            title = MoviesRowTitle,
-                            items = movieCredits,
-                            seerrBaseUrl = state.seerrBaseUrl,
-                            cacheImages = state.seerrCacheImages,
-                            cardStyle = posterStyle,
-                            rowFocus = movieSeerrRowFocus,
-                            focusIndex = seerrFocusIndex(
-                                movieCredits,
-                                focusedMovieSeerrKey,
-                                focusedMovieSeerrIndex
-                            ),
-                            onIndexChange = { index, item ->
-                                focusedMovieSeerrIndex = index
-                                focusedMovieSeerrKey = "${item.mediaType}-${item.tmdbId}"
-                                lastSection = PersonSection.Movies
-                            },
-                            onItemClick = ::openSeerrItem,
-                            horizontalRowSpec = horizontalRowSpec,
-                            endInset = metrics.hInset,
-                            cardSpacing = metrics.cardSpacing
-                        )
-                    }
+                item(key = ROW_MOVIES) {
+                    PersonLibraryRow(
+                        title = MoviesRowTitle,
+                        rowKey = ROW_MOVIES,
+                        items = movieItems,
+                        credits = movieCredits,
+                        lines = state.libraryLines,
+                        focus = movieFocus,
+                        listState = listState,
+                        builtRows = builtRows,
+                        seerrBaseUrl = state.seerrBaseUrl,
+                        cacheImages = state.seerrCacheImages,
+                        cardStyle = posterStyle,
+                        horizontalRowSpec = horizontalRowSpec,
+                        endInset = metrics.hInset,
+                        cardSpacing = metrics.cardSpacing,
+                        onItemClick = { item ->
+                            val nav = images.navImages(item)
+                            onItem(item, nav.bgUrl, nav.ambUrl)
+                        },
+                        onSeerrClick = ::openSeerrItem,
+                        onFocused = { lastSection = PersonSection.Movies }
+                    )
                 }
             }
 
             if (hasShows) {
-                item(key = "shows") {
-                    if (showItems.isNotEmpty()) {
-                        PersonLibraryRow(
-                            title = ShowsRowTitle,
-                            items = showItems,
-                            lines = state.libraryLines,
-                            rowFocus = showFocus,
-                            cardStyle = posterStyle,
-                            horizontalRowSpec = horizontalRowSpec,
-                            endInset = metrics.hInset,
-                            cardSpacing = metrics.cardSpacing,
-                            onItemClick = { item ->
-                                val nav = images.navImages(item)
-                                onItem(item, nav.bgUrl, nav.ambUrl)
-                            },
-                            onItemFocused = { lastSection = PersonSection.Shows }
-                        )
-                    } else {
-                        PersonSeerrMediaRow(
-                            title = ShowsRowTitle,
-                            items = showCredits,
-                            seerrBaseUrl = state.seerrBaseUrl,
-                            cacheImages = state.seerrCacheImages,
-                            cardStyle = posterStyle,
-                            rowFocus = showSeerrRowFocus,
-                            focusIndex = seerrFocusIndex(
-                                showCredits,
-                                focusedShowSeerrKey,
-                                focusedShowSeerrIndex
-                            ),
-                            onIndexChange = { index, item ->
-                                focusedShowSeerrIndex = index
-                                focusedShowSeerrKey = "${item.mediaType}-${item.tmdbId}"
-                                lastSection = PersonSection.Shows
-                            },
-                            onItemClick = ::openSeerrItem,
-                            horizontalRowSpec = horizontalRowSpec,
-                            endInset = metrics.hInset,
-                            cardSpacing = metrics.cardSpacing
-                        )
-                    }
+                item(key = ROW_SHOWS) {
+                    PersonLibraryRow(
+                        title = ShowsRowTitle,
+                        rowKey = ROW_SHOWS,
+                        items = showItems,
+                        credits = showCredits,
+                        lines = state.libraryLines,
+                        focus = showFocus,
+                        listState = listState,
+                        builtRows = builtRows,
+                        seerrBaseUrl = state.seerrBaseUrl,
+                        cacheImages = state.seerrCacheImages,
+                        cardStyle = posterStyle,
+                        horizontalRowSpec = horizontalRowSpec,
+                        endInset = metrics.hInset,
+                        cardSpacing = metrics.cardSpacing,
+                        onItemClick = { item ->
+                            val nav = images.navImages(item)
+                            onItem(item, nav.bgUrl, nav.ambUrl)
+                        },
+                        onSeerrClick = ::openSeerrItem,
+                        onFocused = { lastSection = PersonSection.Shows }
+                    )
                 }
             }
 
             if (hasKnownFor) {
-                item(key = "known-for") {
-                    val focusIndex =
-                        seerrFocusIndex(state.knownFor, focusedKnownForKey, focusedKnownForIndex)
+                item(key = ROW_KNOWN_FOR) {
+                    val revealed by rememberRowRevealed(listState, builtRows, ROW_KNOWN_FOR)
                     PersonSeerrMediaRow(
                         title = KnownForRowTitle,
                         items = state.knownFor,
                         seerrBaseUrl = state.seerrBaseUrl,
                         cacheImages = state.seerrCacheImages,
                         cardStyle = posterStyle,
-                        rowFocus = knownForRowFocus,
-                        focusIndex = focusIndex,
-                        onIndexChange = { index, item ->
-                            focusedKnownForIndex = index
-                            focusedKnownForKey = "${item.mediaType}-${item.tmdbId}"
-                            lastSection = PersonSection.KnownFor
-                        },
+                        focus = knownForFocus,
+                        revealed = revealed,
+                        onIndexChange = { lastSection = PersonSection.KnownFor },
                         onItemClick = ::openSeerrItem,
                         horizontalRowSpec = horizontalRowSpec,
                         endInset = metrics.hInset,
@@ -468,27 +408,95 @@ fun PersonScreen(
     }
 }
 
-private fun seerrFocusIndex(
-    items: List<SeerrCatalogItem>,
-    focusedKey: String?,
-    focusedIndex: Int
-): Int = focusedKey
-    ?.let { key -> items.indexOfFirst { "${it.mediaType}-${it.tmdbId}" == key }.takeIf { it >= 0 } }
-    ?: focusedIndex.coerceIn(0, items.lastIndex.coerceAtLeast(0))
+private fun seerrCardKey(item: SeerrCatalogItem): String = "${item.mediaType}-${item.tmdbId}"
+
+@Stable
+private class SeerrRowFocus(
+    val requester: FocusRequester,
+    private val indexState: MutableIntState,
+    private val keyState: MutableState<String?>
+) {
+    fun indexIn(items: List<SeerrCatalogItem>): Int = keyState.value
+        ?.let { saved -> items.indexOfFirst { seerrCardKey(it) == saved }.takeIf { it >= 0 } }
+        ?: indexState.intValue.coerceIn(0, items.lastIndex.coerceAtLeast(0))
+
+    fun onItemFocused(index: Int, item: SeerrCatalogItem) {
+        indexState.intValue = index
+        keyState.value = seerrCardKey(item)
+    }
+
+    fun resolveAgainst(items: List<SeerrCatalogItem>) {
+        indexState.intValue = indexIn(items)
+    }
+}
+
+@Composable
+private fun rememberSeerrRowFocus(): SeerrRowFocus {
+    val requester = remember { FocusRequester() }
+    val index = rememberSaveable { mutableIntStateOf(0) }
+    val key = rememberSaveable { mutableStateOf<String?>(null) }
+    return remember { SeerrRowFocus(requester, index, key) }
+}
+
+@Stable
+private class PersonRowFocus(val jellyfin: RowFocusState, val seerr: SeerrRowFocus) {
+    fun target(items: List<BaseItemDto>, firstCard: Boolean): FocusRequester = if (items.isEmpty()) {
+        seerr.requester
+    } else {
+        jellyfin.requesterAt(if (firstCard) 0 else jellyfin.focusedIndex)
+    }
+
+    fun resolveAgainst(items: List<BaseItemDto>, credits: List<SeerrCatalogItem>) {
+        if (items.isEmpty()) seerr.resolveAgainst(credits) else jellyfin.resolveAgainst(items)
+    }
+}
+
+@Composable
+private fun rememberPersonRowFocus(): PersonRowFocus {
+    val jellyfin = rememberRowFocusState()
+    val seerr = rememberSeerrRowFocus()
+    return remember { PersonRowFocus(jellyfin, seerr) }
+}
 
 @Composable
 private fun PersonLibraryRow(
     title: String,
+    rowKey: String,
     items: List<BaseItemDto>,
+    credits: List<SeerrCatalogItem>,
     lines: Map<UUID, PersonCreditLines>,
-    rowFocus: RowFocusState,
+    focus: PersonRowFocus,
+    listState: LazyListState,
+    builtRows: MutableSet<String>,
+    seerrBaseUrl: String?,
+    cacheImages: Boolean,
     cardStyle: BrowseCardStyle,
-    horizontalRowSpec: androidx.compose.foundation.gestures.BringIntoViewSpec,
-    endInset: androidx.compose.ui.unit.Dp,
-    cardSpacing: androidx.compose.ui.unit.Dp,
+    horizontalRowSpec: BringIntoViewSpec,
+    endInset: Dp,
+    cardSpacing: Dp,
     onItemClick: (BaseItemDto) -> Unit,
-    onItemFocused: () -> Unit
+    onSeerrClick: (SeerrCatalogItem) -> Unit,
+    onFocused: () -> Unit
 ) {
+    val revealed by rememberRowRevealed(listState, builtRows, rowKey)
+    if (items.isEmpty()) {
+        PersonSeerrMediaRow(
+            title = title,
+            items = credits,
+            seerrBaseUrl = seerrBaseUrl,
+            cacheImages = cacheImages,
+            cardStyle = cardStyle,
+            focus = focus.seerr,
+            revealed = revealed,
+            onIndexChange = onFocused,
+            onItemClick = onSeerrClick,
+            horizontalRowSpec = horizontalRowSpec,
+            endInset = endInset,
+            cardSpacing = cardSpacing
+        )
+        return
+    }
+    val rowFocus = focus.jellyfin
     DetailMediaRow(
         title = title,
         items = items,
@@ -496,10 +504,14 @@ private fun PersonLibraryRow(
         cardSpacing = cardSpacing,
         horizontalRowSpec = horizontalRowSpec,
         rowFocus = rowFocus.rowModifier(),
-        modifier = Modifier.padding(bottom = 16.dp),
+        modifier = Modifier.padding(bottom = PersonRowBottomPadding),
         titleFontWeight = FontWeight.Bold,
         key = { _, item -> item.id }
     ) { index, item ->
+        if (!revealed && index != rowFocus.focusedIndex) {
+            Spacer(Modifier.gridCellSlot(cardStyle, metaLine = true))
+            return@DetailMediaRow
+        }
         val itemLines = lines[item.id]
         Box(
             Modifier.gridCellSlot(cardStyle, metaLine = true),
@@ -515,7 +527,7 @@ private fun PersonLibraryRow(
                 onClick = { onItemClick(item) },
                 onFocused = {
                     rowFocus.onItemFocused(index)
-                    onItemFocused()
+                    onFocused()
                 },
                 modifier = Modifier
                     .padding(top = cardStyle.topInset)
@@ -534,26 +546,35 @@ private fun PersonSeerrMediaRow(
     seerrBaseUrl: String?,
     cacheImages: Boolean,
     cardStyle: BrowseCardStyle,
-    rowFocus: FocusRequester,
-    focusIndex: Int,
-    onIndexChange: (Int, SeerrCatalogItem) -> Unit,
+    focus: SeerrRowFocus,
+    revealed: Boolean,
+    onIndexChange: () -> Unit,
     onItemClick: (SeerrCatalogItem) -> Unit,
-    horizontalRowSpec: androidx.compose.foundation.gestures.BringIntoViewSpec,
-    endInset: androidx.compose.ui.unit.Dp,
-    cardSpacing: androidx.compose.ui.unit.Dp,
+    horizontalRowSpec: BringIntoViewSpec,
+    endInset: Dp,
+    cardSpacing: Dp,
     personCreditMetaline: Boolean = false
 ) {
+    val focusIndex = focus.indexIn(items)
     DetailMediaRow(
         title = title,
         items = items,
         endInset = endInset,
         cardSpacing = cardSpacing,
         horizontalRowSpec = horizontalRowSpec,
-        rowFocus = Modifier.focusRestorer(rowFocus).focusGroup(),
-        modifier = Modifier.padding(bottom = 16.dp),
+        rowFocus = Modifier.focusRestorer(focus.requester).focusGroup(),
+        modifier = Modifier.padding(bottom = PersonRowBottomPadding),
         titleFontWeight = FontWeight.Bold,
-        key = { _, item -> "${item.mediaType}-${item.tmdbId}" }
+        key = { _, item -> seerrCardKey(item) }
     ) { index, item ->
+        if (!revealed && index != focusIndex) {
+            Spacer(
+                Modifier
+                    .width(cardStyle.width)
+                    .height(seerrLabeledSlotHeight(cardStyle, personCreditMetaline))
+            )
+            return@DetailMediaRow
+        }
         Box(
             Modifier
                 .width(cardStyle.width)
@@ -565,9 +586,12 @@ private fun PersonSeerrMediaRow(
                 seerrBaseUrl = seerrBaseUrl,
                 cacheImages = cacheImages,
                 style = cardStyle,
-                focusRequester = if (index == focusIndex) rowFocus else null,
+                focusRequester = if (index == focusIndex) focus.requester else null,
                 leftFocus = if (index == 0) FocusRequester.Cancel else null,
-                onFocused = { onIndexChange(index, item) },
+                onFocused = {
+                    focus.onItemFocused(index, item)
+                    onIndexChange()
+                },
                 onClick = { onItemClick(item) },
                 modifier = Modifier.padding(top = cardStyle.topInset)
             )
