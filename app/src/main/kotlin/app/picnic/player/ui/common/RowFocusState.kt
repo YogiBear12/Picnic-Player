@@ -17,12 +17,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.focusRestorer
 
 @Stable
 class RowFocusState internal constructor(
     private val requesters: MutableMap<Int, FocusRequester>,
     indexState: MutableState<Int>,
-    keyState: MutableState<String?>
+    keyState: MutableState<String?>,
+    val rowFocus: FocusRequester,
+    val pinFocus: FocusRequester
 ) {
     var focusedIndex: Int by indexState
         private set
@@ -39,6 +43,24 @@ class RowFocusState internal constructor(
     fun rowModifier(): Modifier = Modifier
         .focusGroup()
         .focusProperties { enter = { requesterAt(focusedIndex) } }
+
+    fun pinnedRowModifier(): Modifier = Modifier
+        .focusRequester(rowFocus)
+        .focusRestorer(pinFocus)
+        .focusGroup()
+
+    fun indexIn(keys: List<String>): Int {
+        if (keys.isEmpty()) return 0
+        val byKey = focusedKey?.let { keys.indexOf(it) }?.takeIf { it >= 0 }
+        return byKey ?: focusedIndex.coerceIn(0, keys.lastIndex)
+    }
+
+    suspend fun restorePinned(keys: List<String>, maxFrames: Int = 20): Boolean {
+        if (keys.isEmpty()) return false
+        val index = indexIn(keys)
+        onItemFocused(index, keys[index])
+        return pinFocus.requestFocusWhenAttached(maxFrames)
+    }
 
     fun <T> resolveAgainst(items: List<T>, keyOf: ((T) -> String)? = null): Boolean {
         if (items.isEmpty()) return false
@@ -61,5 +83,7 @@ fun rememberRowFocusState(): RowFocusState {
     val requesters = remember { mutableMapOf<Int, FocusRequester>() }
     val index = rememberSaveable { mutableStateOf(0) }
     val key = rememberSaveable { mutableStateOf<String?>(null) }
-    return remember { RowFocusState(requesters, index, key) }
+    val rowFocus = remember { FocusRequester() }
+    val pinFocus = remember { FocusRequester() }
+    return remember { RowFocusState(requesters, index, key, rowFocus, pinFocus) }
 }

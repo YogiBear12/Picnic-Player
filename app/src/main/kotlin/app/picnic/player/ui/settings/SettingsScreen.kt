@@ -83,6 +83,7 @@ fun SettingsScreen(
     }
     val detailEnterFr = remember { FocusRequester() }
     var detailHasFocus by remember { mutableStateOf(false) }
+    var holdSelection by remember { mutableStateOf(false) }
     var detailReturnFocus by remember(selected) { mutableStateOf<FocusRequester?>(null) }
     val enterDetail = {
         val stored = detailReturnFocus
@@ -95,7 +96,8 @@ fun SettingsScreen(
             enterFr = detailEnterFr,
             leftFocus = categoryFocusRequesters.getValue(selected),
             onFocusChanged = { detailHasFocus = it },
-            onRowFocused = { detailReturnFocus = it }
+            onRowFocused = { detailReturnFocus = it },
+            onHoldSelection = { holdSelection = it }
         )
     }
 
@@ -155,7 +157,7 @@ fun SettingsScreen(
             CategoryRail(
                 categories = visibleCategories,
                 selected = selected,
-                onSelect = viewModel::selectCategory,
+                onSelect = { category -> if (!holdSelection) viewModel.selectCategory(category) },
                 focusRequesters = categoryFocusRequesters,
                 enterDetail = enterDetail,
                 badgedCategory = if (updateBadge) SettingsCategory.ABOUT else null,
@@ -363,6 +365,7 @@ private fun DetailPanel(
         SettingsCategory.ACCOUNT -> {
             AccountSettingsPanel(
                 viewModel = viewModel,
+                onSignedOut = onSignedOut,
                 onOpenItem = onOpenItem,
                 onOpenSeerrDetail = onOpenSeerrDetail,
                 focus = focus,

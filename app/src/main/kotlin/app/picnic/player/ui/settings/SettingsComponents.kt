@@ -35,7 +35,8 @@ internal data class SettingsPanelFocus(
     val enterFr: FocusRequester,
     val leftFocus: FocusRequester,
     val onFocusChanged: (Boolean) -> Unit,
-    val onRowFocused: (FocusRequester) -> Unit
+    val onRowFocused: (FocusRequester) -> Unit,
+    val onHoldSelection: (Boolean) -> Unit
 )
 
 @Composable
