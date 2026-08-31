@@ -2,36 +2,28 @@
 
 package app.picnic.player.ui.settings
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.BringIntoViewSpec
 import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyListScope
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -40,7 +32,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
@@ -52,26 +43,23 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import app.picnic.player.data.media.WatchStats
 import app.picnic.player.data.seerr.SeerrLinkState
 import app.picnic.player.data.seerr.SeerrMediaRequest
-import app.picnic.player.data.seerr.SeerrRequestDisplay
 import app.picnic.player.ui.browse.BrowseCardStyle
+import app.picnic.player.ui.browse.DetailMediaRow
 import app.picnic.player.ui.browse.episodeCardSubtitle
 import app.picnic.player.ui.common.ActionButton
-import app.picnic.player.ui.common.DialogTextField
 import app.picnic.player.ui.common.LocalContextMenuHandler
 import app.picnic.player.ui.common.LocalImageUrls
+import app.picnic.player.ui.common.RowFocusState
 import app.picnic.player.ui.common.rememberIdentityBrush
+import app.picnic.player.ui.common.rememberRowFocusState
 import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.grid.MediaGridCard
 import app.picnic.player.ui.grid.gridCellSlot
@@ -86,21 +74,28 @@ private val BadgeShape = RoundedCornerShape(10.dp)
 private val BadgeFill = Color.White.copy(alpha = 0.07f)
 private val RowPeekInset = 40.dp
 private val PaneEndInset = 24.dp
-
-private object PinnedColumn : BringIntoViewSpec {
-    override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float = 0f
-}
 private val RowEndInset = 24.dp
 private val RowGap = 20.dp
 private val PanelBottomInset = 36.dp
 
-private const val ROW_FAVORITES = 0
-private const val ROW_REQUESTS = 1
-private const val ROW_ACTIONS = 2
+private object PinnedColumn : BringIntoViewSpec {
+    override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float = 0f
+}
 
-private fun favoriteTitle(item: BaseItemDto): String? = if (item.type == BaseItemKind.EPISODE) item.seriesName else null
+private enum class AccountBlock { FAVORITES, REQUESTS, ACTIONS }
 
-private fun favoriteSubtitle(item: BaseItemDto): String? = when (item.type) {
+private data class AccountCardFocus(
+    val requester: FocusRequester?,
+    val up: () -> FocusRequester,
+    val down: () -> FocusRequester,
+    val left: FocusRequester?,
+    val right: FocusRequester?,
+    val onFocused: () -> Unit
+)
+
+internal fun favoriteTitle(item: BaseItemDto): String? = if (item.type == BaseItemKind.EPISODE) item.seriesName else null
+
+internal fun favoriteSubtitle(item: BaseItemDto): String? = when (item.type) {
     BaseItemKind.BOX_SET -> "Collection"
     BaseItemKind.PLAYLIST -> "Playlist"
     BaseItemKind.EPISODE -> episodeCardSubtitle(item)
@@ -118,6 +113,8 @@ private fun Modifier.outsetRow(start: Dp, end: Dp) = layout { measurable, constr
     layout(placeable.width - extra, placeable.height) { placeable.place(-start.roundToPx(), 0) }
 }
 
+private fun Modifier.blockTop(block: AccountBlock, tops: MutableMap<AccountBlock, Float>) = onGloballyPositioned { tops[block] = it.positionInParent().y }
+
 @Composable
 internal fun AccountSettingsPanel(
     viewModel: SettingsViewModel,
@@ -130,22 +127,23 @@ internal fun AccountSettingsPanel(
     val username by viewModel.activeUsername.collectAsStateWithLifecycle()
     val avatarUrl by viewModel.activeUserImageUrl.collectAsStateWithLifecycle()
     val stats by viewModel.watchStats.collectAsStateWithLifecycle()
-    val favorites by viewModel.favorites.collectAsStateWithLifecycle()
+    val loadedFavorites by viewModel.favorites.collectAsStateWithLifecycle()
     val requests by viewModel.myRequests.collectAsStateWithLifecycle()
     val seerr by viewModel.seerrState.collectAsStateWithLifecycle()
     val connecting by viewModel.seerrConnecting.collectAsStateWithLifecycle()
     val connectError by viewModel.seerrConnectError.collectAsStateWithLifecycle()
     val linked = seerr.linkState == SeerrLinkState.Linked
+    val favorites = loadedFavorites.orEmpty()
     var showConnectDialog by remember { mutableStateOf(false) }
     val seerrButtonFr = remember { FocusRequester() }
     var lastActionFocus by remember { mutableStateOf(seerrButtonFr) }
 
-    val favoritesFocus = rememberAccountRowFocus()
-    val requestsFocus = rememberAccountRowFocus()
+    val favoritesFocus = rememberRowFocusState()
+    val requestsFocus = rememberRowFocusState()
     val favoriteKeys = remember(favorites) { favorites.map { it.id.toString() } }
     val requestKeys = remember(requests) { requests.map { it.request.id.toString() } }
-    var lastRow by rememberSaveable { mutableIntStateOf(ROW_FAVORITES) }
-    val blockTops = remember { mutableStateMapOf<Int, Float>() }
+    var lastBlock by rememberSaveable { mutableStateOf(AccountBlock.FAVORITES) }
+    val blockTops = remember { mutableStateMapOf<AccountBlock, Float>() }
 
     val configuration = LocalConfiguration.current
     val cardStyle = remember(configuration.screenHeightDp) {
@@ -156,7 +154,7 @@ internal fun AccountSettingsPanel(
         (configuration.screenWidthDp * (14f / 960f)).dp
     }
 
-    LaunchedEffect(Unit) { viewModel.refreshAccount() }
+    LaunchedEffect(Unit) { viewModel.onAccountOpened() }
 
     LaunchedEffect(linked) {
         if (linked) viewModel.refreshMyRequests()
@@ -168,34 +166,35 @@ internal fun AccountSettingsPanel(
 
     val showRequests = linked && requests.isNotEmpty()
 
-    val focusedItemVanished = when (lastRow) {
-        ROW_FAVORITES -> favoritesFocus.focusedKey?.let { it !in favoriteKeys } == true
-        ROW_REQUESTS -> requestsFocus.focusedKey?.let { it !in requestKeys } == true
-        else -> false
+    val focusedItemVanished = when (lastBlock) {
+        AccountBlock.FAVORITES -> favoritesFocus.focusedKey?.let { it !in favoriteKeys } == true
+        AccountBlock.REQUESTS -> requestsFocus.focusedKey?.let { it !in requestKeys } == true
+        AccountBlock.ACTIONS -> false
     }
 
     focus.onHoldSelection(focusedItemVanished)
 
     LaunchedEffect(favoriteKeys, requestKeys) {
         try {
-            val favoritesLost = lastRow == ROW_FAVORITES &&
+            val favoritesLost = lastBlock == AccountBlock.FAVORITES &&
                 favoritesFocus.focusedKey != null &&
                 favoriteKeys.isEmpty()
-            val requestsLost = lastRow == ROW_REQUESTS &&
+            val requestsLost = lastBlock == AccountBlock.REQUESTS &&
                 requestsFocus.focusedKey != null &&
                 (!showRequests || requestKeys.isEmpty())
             when {
                 favoritesLost && showRequests -> {
-                    lastRow = ROW_REQUESTS
-                    requestsFocus.restore(requestKeys)
+                    lastBlock = AccountBlock.REQUESTS
+                    requestsFocus.restorePinned(requestKeys)
                 }
                 favoritesLost || requestsLost -> {
-                    lastRow = ROW_ACTIONS
+                    lastBlock = AccountBlock.ACTIONS
                     seerrButtonFr.requestFocusWhenAttached(maxFrames = 20)
                 }
-                lastRow == ROW_REQUESTS && showRequests -> requestsFocus.restore(requestKeys)
-                lastRow == ROW_FAVORITES && favoritesFocus.focusedKey != null ->
-                    favoritesFocus.restore(favoriteKeys)
+                lastBlock == AccountBlock.REQUESTS && showRequests -> requestsFocus.restorePinned(requestKeys)
+                lastBlock == AccountBlock.FAVORITES && favoritesFocus.focusedKey != null ->
+                    favoritesFocus.restorePinned(favoriteKeys)
+                else -> Unit
             }
         } finally {
             focus.onHoldSelection(false)
@@ -210,12 +209,22 @@ internal fun AccountSettingsPanel(
     val scrollState = rememberScrollState()
 
     val firstBlockTop = blockTops.values.minOrNull() ?: 0f
-    val scrollTarget = ((blockTops[lastRow] ?: firstBlockTop) - firstBlockTop)
+    val scrollTarget = ((blockTops[lastBlock] ?: firstBlockTop) - firstBlockTop)
         .roundToInt()
         .coerceIn(0, scrollState.maxValue)
 
     LaunchedEffect(scrollTarget) {
         if (scrollState.value != scrollTarget) scrollState.animateScrollTo(scrollTarget)
+    }
+
+    val images = LocalImageUrls.current
+    val contextMenu = LocalContextMenuHandler.current
+
+    if (loadedFavorites == null) {
+        Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(color = PicnicColors.Accent)
+        }
+        return
     }
 
     CompositionLocalProvider(LocalBringIntoViewSpec provides PinnedColumn) {
@@ -242,54 +251,90 @@ internal fun AccountSettingsPanel(
             }
 
             if (favorites.isNotEmpty()) {
-                FavoritesRow(
-                    favorites = favorites,
-                    rowFocus = favoritesFocus,
+                AccountRow(
+                    title = "Your favorites",
+                    items = favorites,
                     keys = favoriteKeys,
+                    rowState = favoritesFocus,
                     style = cardStyle,
                     cardSpacing = cardSpacing,
+                    horizontalRowSpec = horizontalRowSpec,
                     enterFr = focus.enterFr,
                     leftFocus = focus.leftFocus,
+                    upFocus = null,
                     downFocus = if (showRequests) {
-                        { requestsFocus.cardFocus }
+                        { requestsFocus.pinFocus }
                     } else {
                         { lastActionFocus }
                     },
                     onRowFocused = { requester ->
-                        lastRow = ROW_FAVORITES
+                        lastBlock = AccountBlock.FAVORITES
                         focus.onRowFocused(requester)
                     },
-                    onOpenItem = onOpenItem,
-                    horizontalRowSpec = horizontalRowSpec,
-                    modifier = Modifier.blockTop(ROW_FAVORITES, blockTops)
-                )
+                    itemKey = { it.id },
+                    modifier = Modifier.blockTop(AccountBlock.FAVORITES, blockTops)
+                ) { item, cardFocus, cardModifier ->
+                    MediaGridCard(
+                        item = item,
+                        style = cardStyle,
+                        titleOverride = favoriteTitle(item),
+                        subtitleOverride = favoriteSubtitle(item),
+                        showStatus = false,
+                        focusRequester = cardFocus.requester,
+                        upFocus = cardFocus.up,
+                        downFocus = cardFocus.down,
+                        leftFocus = cardFocus.left,
+                        rightFocus = cardFocus.right,
+                        onClick = {
+                            val nav = images.navImages(item)
+                            onOpenItem(item, nav.bgUrl, nav.ambUrl)
+                        },
+                        onLongClick = { contextMenu.show(item) },
+                        onFocused = cardFocus.onFocused,
+                        modifier = cardModifier
+                    )
+                }
             }
 
             if (showRequests) {
-                RequestsRow(
-                    requests = requests,
-                    rowFocus = requestsFocus,
+                AccountRow(
+                    title = "Your requests",
+                    items = requests,
                     keys = requestKeys,
+                    rowState = requestsFocus,
                     style = cardStyle,
                     cardSpacing = cardSpacing,
+                    horizontalRowSpec = horizontalRowSpec,
                     enterFr = if (favorites.isEmpty()) focus.enterFr else null,
                     leftFocus = focus.leftFocus,
                     upFocus = if (favorites.isNotEmpty()) {
-                        { favoritesFocus.cardFocus }
+                        { favoritesFocus.pinFocus }
                     } else {
                         null
                     },
                     downFocus = { lastActionFocus },
-                    seerrBaseUrl = seerr.serverUrl,
-                    cacheImages = seerr.cacheImages,
                     onRowFocused = { requester ->
-                        lastRow = ROW_REQUESTS
+                        lastBlock = AccountBlock.REQUESTS
                         focus.onRowFocused(requester)
                     },
-                    onOpenSeerrDetail = onOpenSeerrDetail,
-                    horizontalRowSpec = horizontalRowSpec,
-                    modifier = Modifier.blockTop(ROW_REQUESTS, blockTops)
-                )
+                    itemKey = { it.request.id },
+                    modifier = Modifier.blockTop(AccountBlock.REQUESTS, blockTops)
+                ) { row, cardFocus, cardModifier ->
+                    AccountRequestCard(
+                        row = row,
+                        seerrBaseUrl = seerr.serverUrl,
+                        cacheImages = seerr.cacheImages,
+                        style = cardStyle,
+                        focusRequester = cardFocus.requester,
+                        upFocus = cardFocus.up,
+                        downFocus = cardFocus.down,
+                        leftFocus = cardFocus.left,
+                        rightFocus = cardFocus.right,
+                        onClick = { onOpenSeerrDetail?.invoke(row.request) },
+                        onFocused = cardFocus.onFocused,
+                        modifier = cardModifier
+                    )
+                }
             }
 
             AccountActionsRow(
@@ -299,21 +344,21 @@ internal fun AccountSettingsPanel(
                 leftFocus = focus.leftFocus,
                 upFocus = when {
                     showRequests -> {
-                        { requestsFocus.cardFocus }
+                        { requestsFocus.pinFocus }
                     }
                     favorites.isNotEmpty() -> {
-                        { favoritesFocus.cardFocus }
+                        { favoritesFocus.pinFocus }
                     }
                     else -> null
                 },
                 onFocused = { requester ->
-                    lastRow = ROW_ACTIONS
+                    lastBlock = AccountBlock.ACTIONS
                     lastActionFocus = requester
                     focus.onRowFocused(requester)
                 },
                 onSeerr = { if (linked) viewModel.disconnectSeerr() else showConnectDialog = true },
                 onSignOut = { viewModel.signOut(onSignedOut) },
-                modifier = Modifier.blockTop(ROW_ACTIONS, blockTops)
+                modifier = Modifier.blockTop(AccountBlock.ACTIONS, blockTops)
             )
             Spacer(Modifier.height(PanelBottomInset))
         }
@@ -330,7 +375,60 @@ internal fun AccountSettingsPanel(
     }
 }
 
-private fun Modifier.blockTop(id: Int, tops: MutableMap<Int, Float>) = onGloballyPositioned { tops[id] = it.positionInParent().y }
+@Composable
+private fun <T> AccountRow(
+    title: String,
+    items: List<T>,
+    keys: List<String>,
+    rowState: RowFocusState,
+    style: BrowseCardStyle,
+    cardSpacing: Dp,
+    horizontalRowSpec: BringIntoViewSpec,
+    enterFr: FocusRequester?,
+    leftFocus: FocusRequester,
+    upFocus: (() -> FocusRequester)?,
+    downFocus: () -> FocusRequester,
+    onRowFocused: (FocusRequester) -> Unit,
+    itemKey: (T) -> Any,
+    modifier: Modifier = Modifier,
+    card: @Composable (item: T, focus: AccountCardFocus, modifier: Modifier) -> Unit
+) {
+    val focusIndex = rowState.indexIn(keys)
+    DetailMediaRow(
+        title = title,
+        items = items,
+        endInset = RowEndInset,
+        cardSpacing = cardSpacing,
+        horizontalRowSpec = horizontalRowSpec,
+        rowFocus = rowState.pinnedRowModifier().outsetRow(start = RowPeekInset, end = PaneEndInset),
+        modifier = modifier,
+        startInset = RowPeekInset,
+        headingInset = 0.dp,
+        titleStyle = MaterialTheme.typography.titleSmall,
+        titleFontWeight = FontWeight.SemiBold,
+        key = { _, item -> itemKey(item) }
+    ) { index, item ->
+        Box(Modifier.gridCellSlot(style), contentAlignment = Alignment.TopCenter) {
+            card(
+                item,
+                AccountCardFocus(
+                    requester = if (index == focusIndex) rowState.pinFocus else null,
+                    up = upFocus ?: { FocusRequester.Cancel },
+                    down = downFocus,
+                    left = if (index == 0) leftFocus else null,
+                    right = if (index == items.lastIndex) FocusRequester.Cancel else null,
+                    onFocused = {
+                        rowState.onItemFocused(index, keys[index])
+                        onRowFocused(rowState.pinFocus)
+                    }
+                ),
+                Modifier
+                    .padding(top = style.topInset)
+                    .then(if (index == 0 && enterFr != null) Modifier.focusRequester(enterFr) else Modifier)
+            )
+        }
+    }
+}
 
 @Composable
 private fun AccountActionsRow(
@@ -412,137 +510,6 @@ private fun WatchCountBadge(count: Int?, label: String) {
 }
 
 @Composable
-private fun AccountRowHeading(title: String) {
-    Text(
-        title,
-        style = MaterialTheme.typography.titleSmall,
-        fontWeight = FontWeight.SemiBold,
-        color = PicnicColors.OnDark
-    )
-}
-
-@Composable
-private fun AccountCardRow(
-    rowFocus: AccountRowFocus,
-    cardSpacing: Dp,
-    horizontalRowSpec: BringIntoViewSpec,
-    content: LazyListScope.() -> Unit
-) {
-    CompositionLocalProvider(LocalBringIntoViewSpec provides horizontalRowSpec) {
-        LazyRow(
-            horizontalArrangement = Arrangement.spacedBy(cardSpacing),
-            contentPadding = PaddingValues(start = RowPeekInset, end = RowEndInset),
-            modifier = rowFocus.rowModifier().outsetRow(start = RowPeekInset, end = PaneEndInset),
-            content = content
-        )
-    }
-}
-
-@Composable
-private fun FavoritesRow(
-    favorites: List<BaseItemDto>,
-    rowFocus: AccountRowFocus,
-    keys: List<String>,
-    style: BrowseCardStyle,
-    cardSpacing: Dp,
-    enterFr: FocusRequester,
-    leftFocus: FocusRequester,
-    downFocus: () -> FocusRequester,
-    onRowFocused: (FocusRequester) -> Unit,
-    onOpenItem: (BaseItemDto, String?, String?) -> Unit,
-    horizontalRowSpec: BringIntoViewSpec,
-    modifier: Modifier = Modifier
-) {
-    val images = LocalImageUrls.current
-    val contextMenu = LocalContextMenuHandler.current
-    val focusIndex = rowFocus.focusIndex(keys)
-
-    Column(verticalArrangement = Arrangement.spacedBy(2.dp), modifier = modifier) {
-        AccountRowHeading("Your favorites")
-        AccountCardRow(rowFocus, cardSpacing, horizontalRowSpec) {
-            itemsIndexed(favorites, key = { _, item -> item.id }) { index, item ->
-                Box(Modifier.gridCellSlot(style), contentAlignment = Alignment.TopCenter) {
-                    MediaGridCard(
-                        item = item,
-                        style = style,
-                        titleOverride = favoriteTitle(item),
-                        subtitleOverride = favoriteSubtitle(item),
-                        showStatus = false,
-                        focusRequester = if (index == focusIndex) rowFocus.cardFocus else null,
-                        upFocus = { FocusRequester.Cancel },
-                        downFocus = downFocus,
-                        leftFocus = if (index == 0) leftFocus else null,
-                        rightFocus = if (index == favorites.lastIndex) FocusRequester.Cancel else null,
-                        onClick = {
-                            val nav = images.navImages(item)
-                            onOpenItem(item, nav.bgUrl, nav.ambUrl)
-                        },
-                        onLongClick = { contextMenu.show(item) },
-                        onFocused = {
-                            rowFocus.onItemFocused(index, keys[index])
-                            onRowFocused(rowFocus.cardFocus)
-                        },
-                        modifier = Modifier
-                            .padding(top = style.topInset)
-                            .then(if (index == 0) Modifier.focusRequester(enterFr) else Modifier)
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun RequestsRow(
-    requests: List<SeerrRequestDisplay>,
-    rowFocus: AccountRowFocus,
-    keys: List<String>,
-    style: BrowseCardStyle,
-    cardSpacing: Dp,
-    enterFr: FocusRequester?,
-    leftFocus: FocusRequester,
-    upFocus: (() -> FocusRequester)?,
-    downFocus: () -> FocusRequester,
-    seerrBaseUrl: String?,
-    cacheImages: Boolean,
-    onRowFocused: (FocusRequester) -> Unit,
-    onOpenSeerrDetail: ((SeerrMediaRequest) -> Unit)?,
-    horizontalRowSpec: BringIntoViewSpec,
-    modifier: Modifier = Modifier
-) {
-    val focusIndex = rowFocus.focusIndex(keys)
-
-    Column(verticalArrangement = Arrangement.spacedBy(2.dp), modifier = modifier) {
-        AccountRowHeading("Your requests")
-        AccountCardRow(rowFocus, cardSpacing, horizontalRowSpec) {
-            itemsIndexed(requests, key = { _, row -> row.request.id }) { index, row ->
-                Box(Modifier.gridCellSlot(style), contentAlignment = Alignment.TopCenter) {
-                    AccountRequestCard(
-                        row = row,
-                        seerrBaseUrl = seerrBaseUrl,
-                        cacheImages = cacheImages,
-                        style = style,
-                        focusRequester = if (index == focusIndex) rowFocus.cardFocus else null,
-                        upFocus = upFocus ?: { FocusRequester.Cancel },
-                        downFocus = downFocus,
-                        leftFocus = if (index == 0) leftFocus else null,
-                        rightFocus = if (index == requests.lastIndex) FocusRequester.Cancel else null,
-                        onClick = { onOpenSeerrDetail?.invoke(row.request) },
-                        onFocused = {
-                            rowFocus.onItemFocused(index, keys[index])
-                            onRowFocused(rowFocus.cardFocus)
-                        },
-                        modifier = Modifier
-                            .padding(top = style.topInset)
-                            .then(if (index == 0 && enterFr != null) Modifier.focusRequester(enterFr) else Modifier)
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
 private fun ProfileAvatar(name: String, imageUrl: String?) {
     var avatarFailed by remember(imageUrl) { mutableStateOf(false) }
     Box(
@@ -569,74 +536,5 @@ private fun ProfileAvatar(name: String, imageUrl: String?) {
                 modifier = Modifier.fillMaxSize()
             )
         }
-    }
-}
-
-private val DialogGlassFill = Color(0xEA181E24)
-
-@Composable
-private fun SeerrConnectDialog(
-    initialUrl: String,
-    connecting: Boolean,
-    error: String?,
-    onConnect: (url: String, password: String) -> Unit,
-    onDismiss: () -> Unit
-) {
-    BackHandler { onDismiss() }
-    var url by remember(initialUrl) { mutableStateOf(initialUrl) }
-    var password by remember { mutableStateOf("") }
-    val urlFieldFr = remember { FocusRequester() }
-
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
-    ) {
-        Box(Modifier.fillMaxSize().imePadding(), contentAlignment = Alignment.Center) {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-                modifier = Modifier
-                    .width(440.dp)
-                    .shadow(8.dp, RoundedCornerShape(20.dp))
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(DialogGlassFill)
-                    .padding(28.dp)
-            ) {
-                Text(
-                    "Connect to Seerr",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color.White
-                )
-                DialogTextField(
-                    value = url,
-                    onValueChange = { url = it },
-                    placeholder = "https://requests.example.com",
-                    label = "Seerr URL",
-                    keyboardType = KeyboardType.Uri,
-                    imeAction = ImeAction.Next,
-                    modifier = Modifier.focusRequester(urlFieldFr)
-                )
-                DialogTextField(
-                    value = password,
-                    onValueChange = { password = it },
-                    placeholder = "Password",
-                    label = "Jellyfin password",
-                    password = true
-                )
-                if (error != null) {
-                    Text(error, color = PicnicColors.Error, style = MaterialTheme.typography.bodyMedium)
-                }
-                ActionButton(
-                    label = "Connect",
-                    onActivate = { onConnect(url, password) },
-                    enabled = url.isNotBlank() && password.isNotBlank(),
-                    busy = connecting,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        }
-    }
-    LaunchedEffect(Unit) {
-        urlFieldFr.requestFocusWhenAttached(maxFrames = 20)
     }
 }

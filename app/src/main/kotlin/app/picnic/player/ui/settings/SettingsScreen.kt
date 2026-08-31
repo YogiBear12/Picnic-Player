@@ -53,6 +53,7 @@ import app.picnic.player.data.settings.PlaybackSettings
 import app.picnic.player.data.settings.SettingKeys
 import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.theme.PicnicColors
+import org.jellyfin.sdk.model.api.BaseItemDto
 
 private enum class LanguagePickerKind { AUDIO, SUBTITLE }
 
@@ -61,7 +62,7 @@ fun SettingsScreen(
     onBack: () -> Unit,
     onSignedOut: () -> Unit,
     onOpenSeerrDetail: ((app.picnic.player.data.seerr.SeerrMediaRequest) -> Unit)? = null,
-    onOpenItem: (org.jellyfin.sdk.model.api.BaseItemDto, String?, String?) -> Unit = { _, _, _ -> },
+    onOpenItem: (BaseItemDto, String?, String?) -> Unit,
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
     app.picnic.player.ui.ambient.PublishBackdrop(null)
@@ -330,7 +331,7 @@ private fun DetailPanel(
     onShowSubtitleLanguagePicker: () -> Unit,
     onOpenSubtitleAppearance: () -> Unit,
     onOpenSeerrDetail: ((app.picnic.player.data.seerr.SeerrMediaRequest) -> Unit)?,
-    onOpenItem: (org.jellyfin.sdk.model.api.BaseItemDto, String?, String?) -> Unit,
+    onOpenItem: (BaseItemDto, String?, String?) -> Unit,
     onOpenLicenses: () -> Unit,
     restoreRow: SubPageRow?,
     onRestored: () -> Unit,

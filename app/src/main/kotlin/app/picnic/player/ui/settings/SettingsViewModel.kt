@@ -59,7 +59,6 @@ class SettingsViewModel @Inject constructor(
     private val watchStatsCache: WatchStatsCache,
     private val changeBus: LibraryChangeBus,
     private val pictureInPictureSupport: app.picnic.player.data.device.PictureInPictureSupport,
-    deviceIdentity: app.picnic.player.data.device.DeviceIdentityStore,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
     val settings: StateFlow<PlaybackSettings> =
@@ -100,11 +99,16 @@ class SettingsViewModel @Inject constructor(
 
     val deviceLanguage: String = java.util.Locale.getDefault().language
 
-    val deviceName: String = deviceIdentity.deviceName
-
     private val _activeUserId = MutableStateFlow<java.util.UUID?>(null)
 
     private val accountRefresh = MutableStateFlow(0)
+    private var accountOpened = false
+    private var lastFavorites: List<org.jellyfin.sdk.model.api.BaseItemDto> = emptyList()
+
+    fun onAccountOpened() {
+        if (accountOpened) refreshAccount()
+        accountOpened = true
+    }
 
     fun refreshAccount() {
         accountRefresh.value++
@@ -119,12 +123,12 @@ class SettingsViewModel @Inject constructor(
             watchStatsCache.statsFor(userId)
                 .onStart { viewModelScope.launch { watchStatsCache.refresh(userId) } }
         }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(SUBSCRIBE_GRACE_MS), null)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
-    val favorites: StateFlow<List<org.jellyfin.sdk.model.api.BaseItemDto>> = accountRefresh
+    val favorites: StateFlow<List<org.jellyfin.sdk.model.api.BaseItemDto>?> = accountRefresh
         .mapLatest { loadFavorites() }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(SUBSCRIBE_GRACE_MS), emptyList())
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     private suspend fun loadFavorites(): List<org.jellyfin.sdk.model.api.BaseItemDto> = try {
         mediaRepository.favoriteItems()
@@ -132,8 +136,8 @@ class SettingsViewModel @Inject constructor(
         throw cancelled
     } catch (failure: Exception) {
         Log.w(ACCOUNT_LOG_TAG, "favorites load failed", failure)
-        favorites.value
-    }
+        lastFavorites
+    }.also { lastFavorites = it }
 
     private val _selectedCategory = MutableStateFlow(SettingsCategory.ACCOUNT)
     val selectedCategory: StateFlow<SettingsCategory> = _selectedCategory
@@ -156,6 +160,14 @@ class SettingsViewModel @Inject constructor(
         }
         viewModelScope.launch {
             changeBus.changes().debounce(CHANGE_DEBOUNCE_MS).collectLatest { refreshAccount() }
+        }
+        viewModelScope.launch {
+            authRepository.activeSession() ?: return@launch
+            if (seerrRepository.state.value.linkState ==
+                app.picnic.player.data.seerr.SeerrLinkState.Linked
+            ) {
+                refreshMyRequests()
+            }
         }
     }
 
@@ -215,13 +227,6 @@ class SettingsViewModel @Inject constructor(
         }.getOrDefault(_myRequests.value)
     }
 
-    fun canCancelRequest(request: app.picnic.player.data.seerr.SeerrMediaRequest): Boolean = seerrRepository.canCancel(seerrState.value.user, request)
-
-    fun cancelRequest(request: app.picnic.player.data.seerr.SeerrMediaRequest) = viewModelScope.launch {
-        runCatching { seerrRepository.cancelRequest(request.id) }
-        refreshMyRequests()
-    }
-
     private val _imageCacheSize = MutableStateFlow(context.imageLoader.diskCache?.size ?: 0L)
     val imageCacheSize: StateFlow<Long> = _imageCacheSize
 
@@ -253,7 +258,6 @@ class SettingsViewModel @Inject constructor(
 
     companion object {
         private const val ACCOUNT_LOG_TAG = "PicnicAccount"
-        private const val SUBSCRIBE_GRACE_MS = 5_000L
         private const val CHANGE_DEBOUNCE_MS = 400L
 
         val SKIP_FORWARD_OPTIONS = listOf(10, 15, 30, 45, 60)
