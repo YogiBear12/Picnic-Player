@@ -67,7 +67,9 @@ internal fun BrowsePosterCard(
     onFocused: () -> Unit,
     modifier: Modifier = Modifier,
     leftFocus: FocusRequester? = null,
-    overrideImageUrl: String? = null
+    downFocus: (() -> FocusRequester)? = null,
+    overrideImageUrl: String? = null,
+    showStatus: Boolean = true
 ) {
     val images = LocalImageUrls.current
     val widthPx = with(LocalDensity.current) { style.width.roundToPx() }
@@ -78,7 +80,7 @@ internal fun BrowsePosterCard(
     }
     val imageUrl = overrideImageUrl ?: cardArtworkUrl(images, item, style.landscape, widthPx)
     val showOverlay = style.landscape && overrideImageUrl == null && thumbUrl == null
-    val progress = item.watchProgress()
+    val progress = if (showStatus) item.watchProgress() else 0f
     val shape = RoundedCornerShape(12.dp)
     val accentUrl = overrideImageUrl ?: cardArtworkUrl(images, item, style.landscape, AccentSourceWidth)
     val accentBlurHash = if (overrideImageUrl == null) cardArtworkBlurHash(item, style.landscape) else null
@@ -96,6 +98,7 @@ internal fun BrowsePosterCard(
     if (focusRequester != null) cardModifier = cardModifier.focusRequester(focusRequester)
     if (upFocus != null) cardModifier = cardModifier.focusProperties { up = upFocus() }
     if (leftFocus != null) cardModifier = cardModifier.focusProperties { left = leftFocus }
+    if (downFocus != null) cardModifier = cardModifier.focusProperties { down = downFocus() }
 
     Card(
         onClick = onClick,
@@ -196,7 +199,7 @@ internal fun BrowsePosterCard(
                 }
             }
 
-            CardBadge(item, progress)
+            if (showStatus) CardBadge(item, progress)
         }
     }
 }

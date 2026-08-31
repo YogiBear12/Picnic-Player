@@ -55,10 +55,12 @@ internal fun MediaGridCard(
     onFocused: () -> Unit,
     modifier: Modifier = Modifier,
     leftFocus: FocusRequester? = null,
+    downFocus: (() -> FocusRequester)? = null,
     overrideImageUrl: String? = null,
     titleOverride: String? = null,
     subtitleOverride: String? = null,
-    metaLine: String? = null
+    metaLine: String? = null,
+    showStatus: Boolean = true
 ) {
     var focused by remember { mutableStateOf(false) }
     val labelGap by animateDpAsState(
@@ -80,10 +82,12 @@ internal fun MediaGridCard(
             focusRequester = focusRequester,
             upFocus = upFocus,
             leftFocus = leftFocus,
+            downFocus = downFocus,
             onClick = onClick,
             onLongClick = onLongClick,
             onFocused = onFocused,
-            overrideImageUrl = overrideImageUrl
+            overrideImageUrl = overrideImageUrl,
+            showStatus = showStatus
         )
         Spacer(Modifier.height(labelGap))
         Text(
