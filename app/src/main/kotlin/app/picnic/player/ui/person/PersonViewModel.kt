@@ -4,7 +4,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.picnic.player.data.auth.AuthRepository
 import app.picnic.player.data.auth.UserSession
+import app.picnic.player.data.media.LibraryChangeBus
 import app.picnic.player.data.media.MediaRepository
+import app.picnic.player.data.media.batches
 import app.picnic.player.data.seerr.SeerrCatalogItem
 import app.picnic.player.data.seerr.SeerrLinkState
 import app.picnic.player.data.seerr.SeerrMediaType
@@ -35,6 +37,7 @@ class PersonViewModel @AssistedInject constructor(
     private val authRepository: AuthRepository,
     private val mediaRepository: MediaRepository,
     private val seerrRepository: SeerrRepository,
+    private val changeBus: LibraryChangeBus,
     @Assisted("jellyfinPersonId") private val jellyfinPersonId: String?,
     @Assisted("tmdbId") private val tmdbId: Int?
 ) : ViewModel() {
@@ -68,6 +71,23 @@ class PersonViewModel @AssistedInject constructor(
 
     init {
         viewModelScope.launch { load() }
+        viewModelScope.launch {
+            changeBus.batches().collect { batch ->
+                if (batch.contentChanged) load() else patchCredits(batch.itemIds)
+            }
+        }
+    }
+
+    private suspend fun patchCredits(changedIds: Set<String>) {
+        val current = _state.value
+        val fresh = mediaRepository.refreshChanged(current.libraryMovies + current.libraryShows, changedIds)
+        if (fresh.isEmpty()) return
+        _state.update { state ->
+            state.copy(
+                libraryMovies = state.libraryMovies.map { fresh[it.id] ?: it },
+                libraryShows = state.libraryShows.map { fresh[it.id] ?: it }
+            )
+        }
     }
 
     private suspend fun load() {
