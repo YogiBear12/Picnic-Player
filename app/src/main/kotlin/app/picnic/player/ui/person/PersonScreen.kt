@@ -78,6 +78,7 @@ import app.picnic.player.ui.browse.ScrollToTopBringIntoView
 import app.picnic.player.ui.browse.browseLayoutMetrics
 import app.picnic.player.ui.browse.posterCardStyle
 import app.picnic.player.ui.common.ContentCacheWindow
+import app.picnic.player.ui.common.LocalContextMenuHandler
 import app.picnic.player.ui.common.LocalImageUrls
 import app.picnic.player.ui.common.RowFocusState
 import app.picnic.player.ui.common.ScrollableTextDialog
@@ -497,6 +498,7 @@ private fun PersonLibraryRow(
         return
     }
     val rowFocus = focus.jellyfin
+    val contextMenu = LocalContextMenuHandler.current
     DetailMediaRow(
         title = title,
         items = items,
@@ -525,6 +527,7 @@ private fun PersonLibraryRow(
                 subtitleOverride = itemLines?.role.orEmpty(),
                 metaLine = itemLines?.detail.orEmpty(),
                 onClick = { onItemClick(item) },
+                onLongClick = { contextMenu.show(item) },
                 onFocused = {
                     rowFocus.onItemFocused(index)
                     onFocused()
