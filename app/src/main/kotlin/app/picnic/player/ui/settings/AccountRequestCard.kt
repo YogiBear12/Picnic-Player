@@ -87,6 +87,7 @@ internal fun AccountRequestCard(
     upFocus: (() -> FocusRequester)?,
     downFocus: (() -> FocusRequester)?,
     leftFocus: FocusRequester?,
+    rightFocus: FocusRequester? = null,
     onFocused: () -> Unit,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -122,9 +123,12 @@ internal fun AccountRequestCard(
                 if (it.isFocused) onFocused()
             }
         if (focusRequester != null) cardModifier = cardModifier.focusRequester(focusRequester)
-        if (upFocus != null) cardModifier = cardModifier.focusProperties { up = upFocus() }
-        if (downFocus != null) cardModifier = cardModifier.focusProperties { down = downFocus() }
-        if (leftFocus != null) cardModifier = cardModifier.focusProperties { left = leftFocus }
+        cardModifier = cardModifier.focusProperties {
+            upFocus?.let { up = it() }
+            downFocus?.let { down = it() }
+            leftFocus?.let { left = it }
+            rightFocus?.let { right = it }
+        }
 
         Card(
             onClick = onClick,

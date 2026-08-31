@@ -68,6 +68,7 @@ internal fun BrowsePosterCard(
     modifier: Modifier = Modifier,
     leftFocus: FocusRequester? = null,
     downFocus: (() -> FocusRequester)? = null,
+    rightFocus: FocusRequester? = null,
     overrideImageUrl: String? = null,
     showStatus: Boolean = true
 ) {
@@ -80,7 +81,7 @@ internal fun BrowsePosterCard(
     }
     val imageUrl = overrideImageUrl ?: cardArtworkUrl(images, item, style.landscape, widthPx)
     val showOverlay = style.landscape && overrideImageUrl == null && thumbUrl == null
-    val progress = if (showStatus) item.watchProgress() else 0f
+    val progress = item.watchProgress()
     val shape = RoundedCornerShape(12.dp)
     val accentUrl = overrideImageUrl ?: cardArtworkUrl(images, item, style.landscape, AccentSourceWidth)
     val accentBlurHash = if (overrideImageUrl == null) cardArtworkBlurHash(item, style.landscape) else null
@@ -96,9 +97,12 @@ internal fun BrowsePosterCard(
             if (it.isFocused) onFocused()
         }
     if (focusRequester != null) cardModifier = cardModifier.focusRequester(focusRequester)
-    if (upFocus != null) cardModifier = cardModifier.focusProperties { up = upFocus() }
-    if (leftFocus != null) cardModifier = cardModifier.focusProperties { left = leftFocus }
-    if (downFocus != null) cardModifier = cardModifier.focusProperties { down = downFocus() }
+    cardModifier = cardModifier.focusProperties {
+        upFocus?.let { up = it() }
+        downFocus?.let { down = it() }
+        leftFocus?.let { left = it }
+        rightFocus?.let { right = it }
+    }
 
     Card(
         onClick = onClick,
@@ -180,7 +184,7 @@ internal fun BrowsePosterCard(
                 }
             }
 
-            if (progress > 0f) {
+            if (showStatus && progress > 0f) {
                 Box(
                     Modifier
                         .align(Alignment.BottomCenter)
