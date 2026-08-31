@@ -35,6 +35,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -200,6 +201,15 @@ private fun MediaGridBody(
         if (panelOpen) onPanelOpened()
     }
 
+    var contentFocused by remember { mutableStateOf(false) }
+    var focusedWhilePopulated by remember { mutableStateOf(false) }
+    val gridFocused = contentFocused
+    SideEffect { if (totalCount > 0) focusedWhilePopulated = gridFocused }
+    LaunchedEffect(totalCount, refreshing, panelOpen) {
+        if (totalCount > 0 || refreshing || panelOpen || !focusedWhilePopulated) return@LaunchedEffect
+        if (adjustFiltersFocus.requestFocusWhenAttached()) focusedWhilePopulated = false
+    }
+
     var pendingClearSeed by remember { mutableStateOf(false) }
     LaunchedEffect(pendingClearSeed, totalCount, refreshing) {
         if (!pendingClearSeed || refreshing) return@LaunchedEffect
@@ -304,6 +314,7 @@ private fun MediaGridBody(
                         .weight(1f)
                         .fillMaxSize()
                         .focusGroup()
+                        .onFocusChanged { contentFocused = it.hasFocus }
                         .focusProperties {
                             enter = { firstFocus }
                             exit = { direction ->
