@@ -3,11 +3,13 @@ package app.picnic.player.ui.settings
 import android.content.Context
 import android.content.Intent
 import android.graphics.drawable.Drawable
+import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.picnic.player.data.auth.AuthRepository
+import app.picnic.player.data.media.LibraryChangeBus
 import app.picnic.player.data.media.MediaRepository
 import app.picnic.player.data.media.WatchStats
 import app.picnic.player.data.media.WatchStatsCache
@@ -23,15 +25,20 @@ import coil3.imageLoader
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -52,6 +59,7 @@ class SettingsViewModel @Inject constructor(
     private val mediaRepository: MediaRepository,
     private val seerrRepository: app.picnic.player.data.seerr.SeerrRepository,
     private val watchStatsCache: WatchStatsCache,
+    private val changeBus: LibraryChangeBus,
     private val pictureInPictureSupport: app.picnic.player.data.device.PictureInPictureSupport,
     deviceIdentity: app.picnic.player.data.device.DeviceIdentityStore,
     @ApplicationContext private val context: Context
@@ -98,18 +106,36 @@ class SettingsViewModel @Inject constructor(
 
     private val _activeUserId = MutableStateFlow<java.util.UUID?>(null)
 
+    private val accountRefresh = MutableStateFlow(0)
+
+    fun refreshAccount() {
+        accountRefresh.value++
+    }
+
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
-    val watchStats: StateFlow<WatchStats?> = _activeUserId
-        .filterNotNull()
+    val watchStats: StateFlow<WatchStats?> = combine(
+        _activeUserId.filterNotNull(),
+        accountRefresh
+    ) { userId, _ -> userId }
         .flatMapLatest { userId ->
             watchStatsCache.statsFor(userId)
                 .onStart { viewModelScope.launch { watchStatsCache.refresh(userId) } }
         }
-        .stateIn(viewModelScope, SharingStarted.Lazily, null)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(SUBSCRIBE_GRACE_MS), null)
 
-    val favorites: StateFlow<List<org.jellyfin.sdk.model.api.BaseItemDto>> = flow {
-        emit(runCatching { mediaRepository.favoriteItems() }.getOrDefault(emptyList()))
-    }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    val favorites: StateFlow<List<org.jellyfin.sdk.model.api.BaseItemDto>> = accountRefresh
+        .mapLatest { loadFavorites() }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(SUBSCRIBE_GRACE_MS), emptyList())
+
+    private suspend fun loadFavorites(): List<org.jellyfin.sdk.model.api.BaseItemDto> = try {
+        mediaRepository.favoriteItems()
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (failure: Exception) {
+        Log.w(ACCOUNT_LOG_TAG, "favorites load failed", failure)
+        favorites.value
+    }
 
     private val _selectedCategory = MutableStateFlow(SettingsCategory.EXPERIENCE)
     val selectedCategory: StateFlow<SettingsCategory> = _selectedCategory
@@ -132,6 +158,9 @@ class SettingsViewModel @Inject constructor(
             val config = runCatching { mediaRepository.userConfiguration() }.getOrNull()
             _serverAudioLanguage.value = config?.audioLanguagePreference
             _serverSubtitleLanguage.value = config?.subtitleLanguagePreference
+        }
+        viewModelScope.launch {
+            changeBus.changes().debounce(CHANGE_DEBOUNCE_MS).collectLatest { refreshAccount() }
         }
         viewModelScope.launch {
             seerrState.collect { state ->
@@ -252,6 +281,10 @@ class SettingsViewModel @Inject constructor(
     }
 
     companion object {
+        private const val ACCOUNT_LOG_TAG = "PicnicAccount"
+        private const val SUBSCRIBE_GRACE_MS = 5_000L
+        private const val CHANGE_DEBOUNCE_MS = 400L
+
         val SKIP_FORWARD_OPTIONS = listOf(10, 15, 30, 45, 60)
         val SKIP_BACKWARD_OPTIONS = listOf(5, 10, 15, 30)
         val HIDE_CONTROLS_OPTIONS = listOf(2, 3, 5, 10)
