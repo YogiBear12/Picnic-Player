@@ -105,8 +105,8 @@ private enum class PersonSection {
     KnownFor
 }
 
-private const val MoviesRowTitle = "Movies in your libraries"
-private const val ShowsRowTitle = "Shows in your libraries"
+private const val MoviesRowTitle = "Movies"
+private const val ShowsRowTitle = "Shows"
 private const val KnownForRowTitle = "Known for"
 
 private val PersonRowBottomPadding = 16.dp
