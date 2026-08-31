@@ -57,6 +57,8 @@ internal fun recentlyAddedMetadataLine(item: BaseItemDto, seasonCount: Int?): St
 
 internal fun heroGenresLine(item: BaseItemDto): String = item.genres.orEmpty().take(3).joinToString(" • ")
 
+internal fun episodeCardSubtitle(item: BaseItemDto): String = "S${item.parentIndexNumber ?: "?"} E${item.indexNumber ?: "?"} · ${item.name.orEmpty()}"
+
 internal fun episodeMetadataLine(item: BaseItemDto): String {
     val parts = mutableListOf<String>()
     val airDate = item.premiereDate?.format(ShortDateFormat)

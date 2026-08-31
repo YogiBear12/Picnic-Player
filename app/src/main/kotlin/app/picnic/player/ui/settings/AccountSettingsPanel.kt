@@ -66,6 +66,7 @@ import app.picnic.player.data.seerr.SeerrLinkState
 import app.picnic.player.data.seerr.SeerrMediaRequest
 import app.picnic.player.data.seerr.SeerrRequestDisplay
 import app.picnic.player.ui.browse.BrowseCardStyle
+import app.picnic.player.ui.browse.episodeCardSubtitle
 import app.picnic.player.ui.common.ActionButton
 import app.picnic.player.ui.common.DialogTextField
 import app.picnic.player.ui.common.LocalContextMenuHandler
@@ -97,9 +98,12 @@ private const val ROW_FAVORITES = 0
 private const val ROW_REQUESTS = 1
 private const val ROW_ACTIONS = 2
 
+private fun favoriteTitle(item: BaseItemDto): String? = if (item.type == BaseItemKind.EPISODE) item.seriesName else null
+
 private fun favoriteSubtitle(item: BaseItemDto): String? = when (item.type) {
     BaseItemKind.BOX_SET -> "Collection"
     BaseItemKind.PLAYLIST -> "Playlist"
+    BaseItemKind.EPISODE -> episodeCardSubtitle(item)
     else -> null
 }
 
@@ -461,6 +465,7 @@ private fun FavoritesRow(
                     MediaGridCard(
                         item = item,
                         style = style,
+                        titleOverride = favoriteTitle(item),
                         subtitleOverride = favoriteSubtitle(item),
                         showStatus = false,
                         focusRequester = if (index == focusIndex) rowFocus.cardFocus else null,
