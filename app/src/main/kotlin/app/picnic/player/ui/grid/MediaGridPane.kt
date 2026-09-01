@@ -217,20 +217,23 @@ private fun MediaGridBody(
         else -> null
     }
 
+    val emptyStateFallback = if (filter.isActive || pendingClearSeed) adjustFiltersFocus else filterFocus
+
     LaunchedEffect(focusReason, totalCount) {
         when (focusReason) {
             null -> Unit
             GridFocusReason.Seed -> {
-                val target = if (totalCount == 0) adjustFiltersFocus else firstFocus
+                val target = if (totalCount == 0) emptyStateFallback else firstFocus
                 target.requestFocusWhenAttached()
                 onContentFocusSeeded()
             }
             GridFocusReason.FiltersCleared -> {
-                firstFocus.requestFocusWhenAttached()
+                val target = if (totalCount == 0) filterFocus else firstFocus
+                target.requestFocusWhenAttached()
                 pendingClearSeed = false
             }
             GridFocusReason.GridEmptied -> {
-                if (adjustFiltersFocus.requestFocusWhenAttached()) focusedWhilePopulated = false
+                if (emptyStateFallback.requestFocusWhenAttached()) focusedWhilePopulated = false
             }
         }
     }
