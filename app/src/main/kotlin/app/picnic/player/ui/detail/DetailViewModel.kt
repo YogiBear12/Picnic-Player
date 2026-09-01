@@ -27,6 +27,9 @@ import java.util.UUID
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.jellyfin.sdk.model.api.BaseItemDto
@@ -105,6 +108,17 @@ class DetailViewModel @AssistedInject constructor(
                     }
                 }
                 .onFailure { _state.update { it.copy(loading = false, error = "Could not load item") } }
+        }
+
+        viewModelScope.launch {
+            seerrRepository.state
+                .map { it.linkState }
+                .distinctUntilChanged()
+                .drop(1)
+                .collect {
+                    val item = state.value.item ?: return@collect
+                    if (item.type == BaseItemKind.SERIES) loadRequestMoreState(item)
+                }
         }
 
         viewModelScope.launch {
