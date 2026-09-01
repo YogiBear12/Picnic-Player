@@ -31,7 +31,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
@@ -49,25 +48,11 @@ import app.picnic.player.data.seerr.SeerrMediaStatus
 import app.picnic.player.data.seerr.SeerrSeasonAvailability
 import app.picnic.player.data.seerr.SeerrSeasonPickItem
 import app.picnic.player.data.seerr.seasonLibraryBadgeLabel
+import app.picnic.player.ui.common.panelSurface
 import app.picnic.player.ui.common.requestFocusWhenAttached
 
-/** Align season picker chrome with TrackPanel (width, inset, corner, type). */
-private val SeasonDialogGlassFill = Color(0xEA181E24)
-private val SeasonPanelWidth = 360.dp
-private val SeasonPanelCornerRadius = 20.dp
-private val SeasonContentInset = 16.dp
-private val SeasonRowInnerPadding = 14.dp
-private val SeasonRowCornerRadius = 10.dp
-
-/** ~5–7 single-line rows; longer lists scroll (280.dp was too tall on device). */
-private val SeasonListViewportHeight = 200.dp
 private val SeasonAvailableGreen = Color(0xFF6BCB77)
 
-/**
- * TV season picker for Seerr requests: selectable seasons toggle, library/requested
- * seasons stay focusable no-ops with a trailing status badge. Shared by Seerr Detail's
- * Request flow and Jellyfin Series Detail's Request more (Hybrid Details).
- */
 @Composable
 internal fun SeasonRequestDialog(
     seasons: List<SeerrSeasonPickItem>,
@@ -83,7 +68,6 @@ internal fun SeasonRequestDialog(
     val seedFocus = remember { FocusRequester() }
     val lastListFocus = remember { FocusRequester() }
     val confirmFocus = remember { FocusRequester() }
-    // All rows are focusable (including library/requested no-ops) so D-pad walks the full list.
     val seedIndex = if (seasons.isNotEmpty()) 0 else -1
     val lastFocusableIndex = seasons.lastIndex
     val canConfirm = selected.isNotEmpty()
@@ -99,21 +83,17 @@ internal fun SeasonRequestDialog(
     ) {
         Column(
             modifier = Modifier
-                .width(SeasonPanelWidth)
-                .shadow(8.dp, RoundedCornerShape(SeasonPanelCornerRadius))
-                .clip(RoundedCornerShape(SeasonPanelCornerRadius))
-                .background(SeasonDialogGlassFill)
-                .padding(vertical = 20.dp)
+                .panelSurface(SeerrPanelWidth, SeerrPanelCornerRadius)
                 .focusGroup()
         ) {
-            SeasonPickerHeader(title = "Select seasons")
+            SeerrPanelHeader(title = "Select seasons")
             LazyColumn(
                 state = listState,
                 modifier = Modifier
-                    .height(SeasonListViewportHeight)
+                    .height(SeerrListViewportHeight)
                     .fillMaxWidth()
                     .focusGroup(),
-                contentPadding = PaddingValues(horizontal = SeasonContentInset),
+                contentPadding = PaddingValues(horizontal = SeerrContentInset),
                 verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
                 itemsIndexed(seasons, key = { _, item -> item.seasonNumber }) { index, item ->
@@ -150,7 +130,7 @@ internal fun SeasonRequestDialog(
                 },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = SeasonContentInset)
+                    .padding(horizontal = SeerrContentInset)
                     .focusRequester(confirmFocus)
                     .focusProperties {
                         up = upFromConfirm
@@ -159,7 +139,6 @@ internal fun SeasonRequestDialog(
             )
         }
     }
-    // Seed first list item so D-pad starts at the top of the full focusable list.
     LaunchedEffect(seedIndex) {
         if (seedIndex >= 0) {
             listState.scrollToItem(seedIndex)
@@ -171,31 +150,6 @@ internal fun SeasonRequestDialog(
 }
 
 @Composable
-private fun SeasonPickerHeader(title: String) {
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .padding(horizontal = SeasonContentInset)
-    ) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-            color = Color.White,
-            modifier = Modifier.padding(horizontal = SeasonRowInnerPadding)
-        )
-        Spacer(Modifier.height(12.dp))
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .height(1.dp)
-                .background(Color.White.copy(alpha = 0.14f))
-        )
-        Spacer(Modifier.height(12.dp))
-    }
-}
-
-@Composable
 private fun SeasonPickRow(
     item: SeerrSeasonPickItem,
     selected: Boolean,
@@ -203,7 +157,6 @@ private fun SeasonPickRow(
     focusRequester: FocusRequester?,
     downTarget: FocusRequester?
 ) {
-    // Library / requested rows stay focusable for D-pad traversal; click is a no-op.
     val titleAlpha = if (item.selectable) 0.92f else 0.55f
     val rowModifier = Modifier
         .fillMaxWidth()
@@ -221,7 +174,7 @@ private fun SeasonPickRow(
         onClick = onToggle,
         modifier = rowModifier,
         shape = SelectableSurfaceDefaults.shape(
-            shape = RoundedCornerShape(SeasonRowCornerRadius)
+            shape = RoundedCornerShape(SeerrRowCornerRadius)
         ),
         scale = SelectableSurfaceDefaults.scale(focusedScale = 1f),
         colors = SelectableSurfaceDefaults.colors(
@@ -250,7 +203,7 @@ private fun SeasonPickRowContent(
     selected: Boolean
 ) {
     Row(
-        modifier = Modifier.padding(horizontal = SeasonRowInnerPadding, vertical = 9.dp),
+        modifier = Modifier.padding(horizontal = SeerrRowInnerPadding, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
@@ -290,7 +243,6 @@ private fun SeasonPickRowContent(
 
 @Composable
 private fun SeasonSelectionIndicator(selected: Boolean) {
-    // Decorative trailing indicator; the row Surface owns D-pad focus and toggles selection.
     if (selected) {
         Icon(
             imageVector = Icons.Filled.CheckCircle,

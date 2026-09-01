@@ -63,8 +63,7 @@ fun ContextMenuHost(
 @Composable
 fun ContextMenuPanel(
     actions: List<ContextMenuAction>,
-    openedByLongPress: Boolean = true,
-    style: PanelStyle = PanelStyle.DIALOG
+    openedByLongPress: Boolean = true
 ) {
     val guard = rememberLongPressGuard()
     val firstFocus = remember { FocusRequester() }
@@ -73,7 +72,7 @@ fun ContextMenuPanel(
     Column(
         verticalArrangement = Arrangement.spacedBy(2.dp),
         modifier = Modifier
-            .panelSurface(style, width = MenuWidth, dialogCornerRadius = MenuCornerRadius)
+            .panelSurface(width = MenuWidth, corner = MenuCornerRadius)
             .heightIn(max = MenuMaxHeight)
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 24.dp)
