@@ -7,6 +7,7 @@ import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.runtime.Composable
 import app.picnic.player.ui.common.ContextMenuAction
 import app.picnic.player.ui.common.ContextMenuHost
+import app.picnic.player.ui.common.ContextMenuPanel
 
 @Composable
 internal fun NavDestActionsDialog(
@@ -31,5 +32,5 @@ internal fun NavDestActionsDialog(
         }
     )
 
-    ContextMenuHost(actions = actions, onDismiss = onDismiss)
+    ContextMenuHost(onDismiss = onDismiss) { ContextMenuPanel(actions = actions) }
 }

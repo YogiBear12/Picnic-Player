@@ -14,6 +14,14 @@ fun seerrIssueReasons(type: SeerrIssueType, subject: String): List<String> = whe
     SeerrIssueType.OTHER -> emptyList()
 }
 
+fun canCreateSeerrIssue(user: SeerrUser?): Boolean = user != null && SeerrPermission.has(user.permissions, SeerrPermission.CREATE_ISSUES)
+
+fun canViewSeerrIssues(user: SeerrUser?): Boolean = user != null && listOf(
+    SeerrPermission.CREATE_ISSUES,
+    SeerrPermission.VIEW_ISSUES,
+    SeerrPermission.MANAGE_ISSUES
+).any { SeerrPermission.has(user.permissions, it) }
+
 data class SeerrIssueSeason(
     val seasonNumber: Int,
     val episodes: List<Int>

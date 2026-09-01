@@ -58,6 +58,8 @@ import app.picnic.player.ui.person.PersonScreen
 import app.picnic.player.ui.player.PlayerScreen
 import app.picnic.player.ui.playlist.AddToPlaylistDialog
 import app.picnic.player.ui.playlist.PlaylistScreen
+import app.picnic.player.ui.seerr.IssueReportViewModel
+import app.picnic.player.ui.seerr.LocalIssueReporter
 import app.picnic.player.ui.seerr.SeerrCardContextMenu
 import app.picnic.player.ui.settings.SettingsScreen
 import app.picnic.player.ui.startup.StartupScreen
@@ -132,10 +134,13 @@ fun PicnicNavHost(
 
     val imageUrls by imageUrlsViewModel.imageUrls.collectAsStateWithLifecycle()
 
+    val issueReporter: IssueReportViewModel = hiltViewModel()
+
     CompositionLocalProvider(
         LocalContextMenuHandler provides contextMenuHandler,
         LocalSeerrCardMenu provides seerrCardMenu,
         LocalAddToPlaylist provides addToPlaylistHandler,
+        LocalIssueReporter provides issueReporter,
         LocalImageUrls provides imageUrls
     ) {
         Box(Modifier.fillMaxSize()) {

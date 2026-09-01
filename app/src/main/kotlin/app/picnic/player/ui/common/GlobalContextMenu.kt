@@ -13,6 +13,7 @@ import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay
+import androidx.compose.material.icons.filled.ReportProblem
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.runtime.Composable
@@ -26,7 +27,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.tv.material3.MaterialTheme
+import androidx.tv.material3.Surface
+import androidx.tv.material3.SurfaceDefaults
 import androidx.tv.material3.Text
+import app.picnic.player.ui.seerr.ReportIssuePanel
+import app.picnic.player.ui.seerr.rememberIssueReporter
+import app.picnic.player.ui.theme.PicnicColors
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
 
@@ -46,8 +52,8 @@ fun GlobalContextMenuDialog(
     val isFavorite = item.userData?.isFavorite ?: false
     val resumeTicks = item.resumeTicks()
 
-    var showSynopsis by remember { mutableStateOf(false) }
-    var showMediaInfo by remember { mutableStateOf(false) }
+    var panel by remember { mutableStateOf<GlobalMenuPanel?>(null) }
+    val reportTarget = rememberIssueReporter(item)
 
     val actions = buildList {
         if (item.type in PlayableKinds) {
@@ -88,7 +94,7 @@ fun GlobalContextMenuDialog(
         )
 
         if (item.overview?.isNotBlank() == true) {
-            add(ContextMenuAction("View synopsis", Icons.Default.Article) { showSynopsis = true })
+            add(ContextMenuAction("View synopsis", Icons.Default.Article) { panel = GlobalMenuPanel.SYNOPSIS })
         }
 
         if (item.type == BaseItemKind.EPISODE && item.seriesId != null && onGoToSeries != null) {
@@ -128,41 +134,64 @@ fun GlobalContextMenuDialog(
             )
         }
 
+        if (reportTarget != null) {
+            add(ContextMenuAction("Report an issue", Icons.Default.ReportProblem) { panel = GlobalMenuPanel.REPORT })
+        }
+
         if (item.type == BaseItemKind.MOVIE || item.type == BaseItemKind.EPISODE) {
-            add(ContextMenuAction("View media info", Icons.Default.Info) { showMediaInfo = true })
+            add(ContextMenuAction("View media info", Icons.Default.Info) { panel = GlobalMenuPanel.MEDIA_INFO })
         }
     }
 
-    ContextMenuHost(actions = actions, onDismiss = onDismiss)
-
-    if (showSynopsis) {
-        Dialog(
-            onDismissRequest = { showSynopsis = false },
-            properties = DialogProperties(usePlatformDefaultWidth = false)
-        ) {
-            androidx.tv.material3.Surface(
-                shape = MaterialTheme.shapes.medium,
-                colors = androidx.tv.material3.SurfaceDefaults.colors(
-                    containerColor = app.picnic.player.ui.theme.PicnicColors.Surface,
-                    contentColor = Color.White
-                ),
-                modifier = Modifier.width(600.dp).padding(32.dp)
-            ) {
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    modifier = Modifier.padding(24.dp)
-                ) {
-                    Text(
-                        text = item.overview ?: "No synopsis available.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = Color.White.copy(alpha = 0.85f)
-                    )
-                }
+    when (panel) {
+        GlobalMenuPanel.SYNOPSIS -> SynopsisDialog(item.overview) { panel = null }
+        GlobalMenuPanel.MEDIA_INFO -> MediaInfoDialog(item = item, onDismiss = { panel = null })
+        GlobalMenuPanel.REPORT -> if (reportTarget != null) {
+            ContextMenuHost(onDismiss = onDismiss) {
+                ReportIssuePanel(
+                    item = item,
+                    target = reportTarget,
+                    onDone = onDismiss,
+                    onCancel = { panel = null }
+                )
             }
         }
+        null -> ContextMenuHost(onDismiss = onDismiss) { ContextMenuPanel(actions = actions) }
     }
+}
 
-    if (showMediaInfo) {
-        MediaInfoDialog(item = item, onDismiss = { showMediaInfo = false })
+private enum class GlobalMenuPanel {
+    SYNOPSIS,
+    MEDIA_INFO,
+    REPORT
+}
+
+@Composable
+private fun SynopsisDialog(overview: String?, onDismiss: () -> Unit) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            shape = MaterialTheme.shapes.medium,
+            colors = SurfaceDefaults.colors(
+                containerColor = PicnicColors.Surface,
+                contentColor = Color.White
+            ),
+            modifier = Modifier
+                .width(600.dp)
+                .padding(32.dp)
+        ) {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.padding(24.dp)
+            ) {
+                Text(
+                    text = overview ?: "No synopsis available.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.White.copy(alpha = 0.85f)
+                )
+            }
+        }
     }
 }

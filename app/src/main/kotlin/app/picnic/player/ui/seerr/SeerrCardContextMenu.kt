@@ -19,6 +19,7 @@ import app.picnic.player.data.seerr.SeerrMediaType
 import app.picnic.player.data.seerr.jellyfinDetailIdOrNull
 import app.picnic.player.ui.common.ContextMenuAction
 import app.picnic.player.ui.common.ContextMenuHost
+import app.picnic.player.ui.common.ContextMenuPanel
 import app.picnic.player.ui.common.GlobalContextMenuViewModel
 import app.picnic.player.ui.detail.launchRemoteTrailer
 import org.jellyfin.sdk.model.api.BaseItemDto
@@ -122,7 +123,7 @@ fun SeerrCardContextMenu(
         }
     }
 
-    ContextMenuHost(actions = actions, onDismiss = onDismiss)
+    ContextMenuHost(onDismiss = onDismiss) { ContextMenuPanel(actions = actions) }
 }
 
 @Composable
@@ -140,12 +141,13 @@ private fun LibraryItemHandoff(
     }
 
     if (!lookupFailed) return
-    ContextMenuHost(
-        actions = listOf(
-            ContextMenuAction("Couldn't load this title", Icons.Default.Info, enabled = false) {}
-        ),
-        onDismiss = onDismiss
-    )
+    ContextMenuHost(onDismiss = onDismiss) {
+        ContextMenuPanel(
+            actions = listOf(
+                ContextMenuAction("Couldn't load this title", Icons.Default.Info, enabled = false) {}
+            )
+        )
+    }
 }
 
 private val LoadingAction =

@@ -37,6 +37,7 @@ import app.picnic.player.ui.browse.BrowseLayoutMetrics
 import app.picnic.player.ui.browse.posterCardStyle
 import app.picnic.player.ui.common.ContextMenuAction
 import app.picnic.player.ui.common.ContextMenuHost
+import app.picnic.player.ui.common.ContextMenuPanel
 import app.picnic.player.ui.common.rememberKeyedFocusRequesters
 import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.grid.MediaGridCard
@@ -126,30 +127,32 @@ internal fun PlaylistsPane(
     }
 
     menuPlaylist?.let { playlist ->
-        ContextMenuHost(
-            actions = listOf(
-                ContextMenuAction("Delete playlist", Icons.Default.Delete) {
-                    menuPlaylist = null
-                    confirmDelete = playlist
-                }
-            ),
-            onDismiss = { menuPlaylist = null }
-        )
+        ContextMenuHost(onDismiss = { menuPlaylist = null }) {
+            ContextMenuPanel(
+                actions = listOf(
+                    ContextMenuAction("Delete playlist", Icons.Default.Delete) {
+                        menuPlaylist = null
+                        confirmDelete = playlist
+                    }
+                )
+            )
+        }
     }
 
     confirmDelete?.let { playlist ->
-        ContextMenuHost(
-            actions = listOf(
-                ContextMenuAction("Cancel", Icons.Default.Close) { confirmDelete = null },
-                ContextMenuAction("Delete \"${playlist.name.orEmpty()}\"", Icons.Default.Delete) {
-                    confirmDelete = null
-                    refocusSlot = state.playlists.indexOfFirst { it.id == playlist.id }.coerceAtLeast(0)
-                    viewModel.delete(playlist)
-                }
-            ),
-            onDismiss = { confirmDelete = null },
-            openedByLongPress = false
-        )
+        ContextMenuHost(onDismiss = { confirmDelete = null }) {
+            ContextMenuPanel(
+                actions = listOf(
+                    ContextMenuAction("Cancel", Icons.Default.Close) { confirmDelete = null },
+                    ContextMenuAction("Delete \"${playlist.name.orEmpty()}\"", Icons.Default.Delete) {
+                        confirmDelete = null
+                        refocusSlot = state.playlists.indexOfFirst { it.id == playlist.id }.coerceAtLeast(0)
+                        viewModel.delete(playlist)
+                    }
+                ),
+                openedByLongPress = false
+            )
+        }
     }
 }
 

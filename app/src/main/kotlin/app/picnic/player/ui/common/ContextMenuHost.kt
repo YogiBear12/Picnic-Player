@@ -1,6 +1,5 @@
 package app.picnic.player.ui.common
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -39,24 +38,12 @@ private val MenuMaxHeight = 460.dp
 private val MenuCornerRadius = 28.dp
 
 @Composable
-fun ContextMenuHost(
-    actions: List<ContextMenuAction>,
-    onDismiss: () -> Unit,
-    openedByLongPress: Boolean = true,
-    subPanel: (@Composable () -> Unit)? = null,
-    onCloseSubPanel: () -> Unit = {}
-) {
-    BackHandler { if (subPanel != null) onCloseSubPanel() else onDismiss() }
+fun ContextMenuHost(onDismiss: () -> Unit, content: @Composable () -> Unit) {
     Dialog(
         onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
-        if (subPanel != null) {
-            subPanel()
-        } else {
-            ContextMenuPanel(actions = actions, openedByLongPress = openedByLongPress)
-        }
-    }
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+        content = content
+    )
 }
 
 @OptIn(ExperimentalTvMaterial3Api::class)
@@ -106,7 +93,7 @@ fun ContextMenuPanel(
         }
     }
 
-    LaunchedEffect(actions.map { it.label }) {
+    LaunchedEffect(firstEnabled) {
         if (firstEnabled >= 0) firstFocus.requestFocusWhenAttached()
     }
 }
