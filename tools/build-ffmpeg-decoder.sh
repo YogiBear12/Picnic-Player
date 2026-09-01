@@ -1,18 +1,8 @@
 #!/usr/bin/env bash
-#
-# Builds the media3 FFmpeg decoder extension AAR into app/libs, following the build instructions
-# in libraries/decoder_ffmpeg/README.md of the androidx/media checkout it clones.
-#
-# The output is LGPL-2.1-or-later: no --enable-gpl, no --enable-nonfree.
-# Rerun after every media3 bump. See docs/adr/0021-ffmpeg-audio-decoders.md.
-#
-# Usage: tools/build-ffmpeg-decoder.sh /path/to/android/ndk [--clean]
 
 set -euo pipefail
 
 readonly FFMPEG_RELEASE="release/9.0"
-# Every codec DynamicProfileBuilder advertises, plus alac. Raw PCM is absent on purpose: media3
-# plays it without a decoder, which is why AudioRouteSink exempts AUDIO_RAW.
 readonly DECODERS=(aac ac3 eac3 dca flac mp3 opus vorbis truehd alac)
 readonly ARCHITECTURES=(armeabi-v7a arm64-v8a)
 
@@ -85,8 +75,6 @@ else
     https://github.com/FFmpeg/FFmpeg.git "${JNI}/ffmpeg"
 fi
 
-# 'Unknown option "--disable-postproc"' from release/9.0 configure. Dropping the other
-# architectures avoids needing nasm, which only the x86 targets assemble with.
 python3 - "${JNI}/build_ffmpeg.sh" <<'PATCH'
 import re
 import sys
@@ -123,27 +111,20 @@ else
   )
 fi
 
-# CMake is asked for every ABI unless told otherwise, and wants a static library per ABI.
-python3 - "${MODULE}/build.gradle" "${ARCHITECTURES[*]}" <<'PATCH'
-import sys
+readonly BUILDSCRIPT="${MODULE}/build.gradle.kts"
+if ! grep -q abiFilters "${BUILDSCRIPT}"; then
+  filters="$(printf '"%s", ' "${ARCHITECTURES[@]}")"
+  cat >> "${BUILDSCRIPT}" <<EOF
 
-path, architectures = sys.argv[1], sys.argv[2].split()
-buildscript = open(path).read()
-if "abiFilters" in buildscript:
-    sys.exit(0)
-anchor = "android {\n    namespace 'androidx.media3.decoder.ffmpeg'\n"
-if anchor not in buildscript:
-    sys.exit("could not find the android block to patch")
-filters = ", ".join(f"'{architecture}'" for architecture in architectures)
-replacement = anchor + (
-    "\n    defaultConfig {\n"
-    "        ndk {\n"
-    f"            abiFilters {filters}\n"
-    "        }\n"
-    "    }\n"
-)
-open(path, "w").write(buildscript.replace(anchor, replacement, 1))
-PATCH
+android {
+  defaultConfig {
+    ndk {
+      abiFilters += listOf(${filters%, })
+    }
+  }
+}
+EOF
+fi
 
 echo "sdk.dir=${SDK}" > "${CHECKOUT}/local.properties"
 "${CHECKOUT}/gradlew" -p "${CHECKOUT}" :lib-decoder-ffmpeg:assembleRelease
