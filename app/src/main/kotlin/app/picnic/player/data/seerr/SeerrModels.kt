@@ -33,6 +33,10 @@ object SeerrMediaStatus {
     }
 }
 
+object SeerrIssueStatus {
+    const val RESOLVED = 2
+}
+
 object SeerrRequestStatus {
     const val PENDING = 1
     const val APPROVED = 2
@@ -50,7 +54,6 @@ object SeerrRequestStatus {
     }
 }
 
-/** Bitflags that must match the Seerr server enum exactly. */
 object SeerrPermission {
     const val NONE: Long = 0
     const val ADMIN: Long = 2
@@ -132,6 +135,7 @@ data class SeerrUser(
     val email: String? = null,
     val username: String? = null,
     val displayName: String? = null,
+    val avatar: String? = null,
     val permissions: Long = 0
 )
 
@@ -145,12 +149,22 @@ data class SeerrPublicSettings(
 
 @Serializable
 data class SeerrMediaInfo(
+    val id: Int? = null,
+    val tmdbId: Int? = null,
+    val mediaType: String? = null,
     val status: Int? = null,
     val jellyfinMediaId: String? = null,
     val jellyfinMediaId4k: String? = null,
     val seasons: List<SeerrMediaSeason> = emptyList(),
     val requests: List<SeerrMediaRequest> = emptyList()
-)
+) {
+    val resolvedType: SeerrMediaType?
+        get() = when (mediaType?.lowercase()) {
+            "movie" -> SeerrMediaType.MOVIE
+            "tv" -> SeerrMediaType.TV
+            else -> null
+        }
+}
 
 @Serializable
 data class SeerrMediaSeason(
@@ -336,10 +350,51 @@ data class SeerrTvSeason(
 data class SeerrCreateRequestBody(
     val mediaType: String,
     val mediaId: Int,
-    /** TV only. Must be omitted for movies — Seerr rejects `seasons: null`. */
     @EncodeDefault(EncodeDefault.Mode.NEVER)
     val seasons: List<Int>? = null,
     val is4k: Boolean = false
+)
+
+@Serializable
+data class SeerrCreateIssueBody(
+    val issueType: Int,
+    val message: String,
+    val mediaId: Int,
+    val problemSeason: Int = 0,
+    val problemEpisode: Int = 0
+)
+
+@Serializable
+data class SeerrIssue(
+    val id: Int,
+    val issueType: Int? = null,
+    val status: Int? = null,
+    val problemSeason: Int = 0,
+    val problemEpisode: Int = 0,
+    val media: SeerrMediaInfo? = null,
+    val createdBy: SeerrUser? = null,
+    val createdAt: String? = null,
+    val updatedAt: String? = null,
+    val comments: List<SeerrIssueComment> = emptyList()
+)
+
+@Serializable
+data class SeerrIssueComment(
+    val id: Int? = null,
+    val message: String? = null,
+    val user: SeerrUser? = null,
+    val createdAt: String? = null
+)
+
+@Serializable
+data class SeerrIssueCommentBody(
+    val message: String
+)
+
+@Serializable
+data class SeerrIssueListPage(
+    val pageInfo: SeerrPageInfo? = null,
+    val results: List<SeerrIssue> = emptyList()
 )
 
 @Serializable

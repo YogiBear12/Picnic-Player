@@ -20,10 +20,6 @@ class SeerrHttpException(
     message: String
 ) : Exception(message)
 
-/**
- * Hand-rolled OkHttp client for Seerr `/api/v1`. Cookie jar holds `connect.sid`
- * in memory; [SeerrRepository] persists it via [SeerrCredentialStore].
- */
 @Singleton
 class SeerrApiClient @Inject constructor(
     private val json: Json,
@@ -111,6 +107,8 @@ class SeerrApiClient @Inject constructor(
     fun createRequest(body: SeerrCreateRequestBody): SeerrMediaRequest = postRaw("/request", json.encodeToString(body))
 
     fun updateRequest(requestId: Int, body: SeerrUpdateRequestBody): SeerrMediaRequest = putRaw("/request/$requestId", json.encodeToString(body))
+
+    fun createIssue(body: SeerrCreateIssueBody): SeerrIssue = postRaw("/issue", json.encodeToString(body))
 
     fun deleteRequest(requestId: Int) {
         val request = Request.Builder().url(url("/request/$requestId")).delete().build()

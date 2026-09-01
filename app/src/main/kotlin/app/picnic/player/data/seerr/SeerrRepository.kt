@@ -270,20 +270,47 @@ class SeerrRepository @Inject constructor(
         return result
     }
 
+    suspend fun reportIssue(
+        tmdbId: Int,
+        isTv: Boolean,
+        type: SeerrIssueType,
+        message: String,
+        problemSeason: Int = SEERR_ISSUE_ALL,
+        problemEpisode: Int = SEERR_ISSUE_ALL
+    ) {
+        authed {
+            val mediaId = (if (isTv) api.tv(tmdbId).mediaInfo?.id else api.movie(tmdbId).mediaInfo?.id)
+                ?: throw IllegalStateException("Media not known to Seerr")
+            api.createIssue(
+                SeerrCreateIssueBody(
+                    issueType = type.id,
+                    message = message,
+                    mediaId = mediaId,
+                    problemSeason = problemSeason,
+                    problemEpisode = problemEpisode
+                )
+            )
+        }
+        persistCookie()
+    }
+
+    fun canCreateIssue(user: SeerrUser?): Boolean = user != null && SeerrPermission.has(user.permissions, SeerrPermission.CREATE_ISSUES)
+
     suspend fun cancelRequest(requestId: Int) {
         authed { api.deleteRequest(requestId) }
         persistCookie()
     }
 
-    suspend fun myRequests(): List<SeerrMediaRequest> {
-        val result = authed {
-            val user = _state.value.user ?: api.authMe()
-            user to api.listRequests(filter = "all").results.filter { it.requestedBy?.id == user.id }
-        }
-        if (_state.value.user == null) {
-            _state.value = _state.value.copy(user = result.first)
-        }
-        return result.second
+    private fun currentUser(): SeerrUser {
+        _state.value.user?.let { return it }
+        val user = api.authMe()
+        _state.value = _state.value.let { if (it.user == null) it.copy(user = user) else it }
+        return _state.value.user ?: user
+    }
+
+    suspend fun myRequests(): List<SeerrMediaRequest> = authed {
+        val userId = currentUser().id
+        api.listRequests(filter = "all").results.filter { it.requestedBy?.id == userId }
     }
 
     fun requestDisplaysCached(requests: List<SeerrMediaRequest>): List<SeerrRequestDisplay> {
