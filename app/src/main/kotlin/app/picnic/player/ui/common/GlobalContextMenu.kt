@@ -133,7 +133,7 @@ fun GlobalContextMenuDialog(
         }
     }
 
-    ContextMenuDialog(actions = actions, onDismiss = onDismiss)
+    ContextMenuHost(actions = actions, onDismiss = onDismiss)
 
     if (showSynopsis) {
         Dialog(

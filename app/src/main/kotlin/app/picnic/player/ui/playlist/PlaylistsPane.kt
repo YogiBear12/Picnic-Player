@@ -36,7 +36,7 @@ import app.picnic.player.text.countLabel
 import app.picnic.player.ui.browse.BrowseLayoutMetrics
 import app.picnic.player.ui.browse.posterCardStyle
 import app.picnic.player.ui.common.ContextMenuAction
-import app.picnic.player.ui.common.ContextMenuDialog
+import app.picnic.player.ui.common.ContextMenuHost
 import app.picnic.player.ui.common.rememberKeyedFocusRequesters
 import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.grid.MediaGridCard
@@ -126,7 +126,7 @@ internal fun PlaylistsPane(
     }
 
     menuPlaylist?.let { playlist ->
-        ContextMenuDialog(
+        ContextMenuHost(
             actions = listOf(
                 ContextMenuAction("Delete playlist", Icons.Default.Delete) {
                     menuPlaylist = null
@@ -138,7 +138,7 @@ internal fun PlaylistsPane(
     }
 
     confirmDelete?.let { playlist ->
-        ContextMenuDialog(
+        ContextMenuHost(
             actions = listOf(
                 ContextMenuAction("Cancel", Icons.Default.Close) { confirmDelete = null },
                 ContextMenuAction("Delete \"${playlist.name.orEmpty()}\"", Icons.Default.Delete) {

@@ -68,7 +68,7 @@ fun SeasonContextMenu(
         )
     }
 
-    ContextMenuDialog(actions = actions, onDismiss = onDismiss)
+    ContextMenuHost(actions = actions, onDismiss = onDismiss)
 }
 
 @OptIn(ExperimentalTvMaterial3Api::class)
@@ -127,7 +127,7 @@ fun OverflowMenuDialog(
                 }
             )
         }
-        ContextMenuDialog(
+        ContextMenuHost(
             actions = versionItems,
             onDismiss = { showVersions = false },
             openedByLongPress = false
@@ -190,5 +190,5 @@ fun OverflowMenuDialog(
         }
     }
 
-    ContextMenuDialog(actions = mainItems, onDismiss = onDismiss, openedByLongPress = false)
+    ContextMenuHost(actions = mainItems, onDismiss = onDismiss, openedByLongPress = false)
 }
