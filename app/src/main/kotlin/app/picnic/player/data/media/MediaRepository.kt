@@ -329,6 +329,23 @@ class MediaRepository @Inject constructor(
         }.getOrDefault(emptyMap())
     }
 
+    suspend fun episodeNumbersBySeason(seriesId: UUID): Map<Int, List<Int>> = onIo {
+        runCatching {
+            api().tvShowsApi.getEpisodes(
+                seriesId = seriesId,
+                userId = session().userUuid,
+                isMissing = false,
+                fields = emptyList()
+            ).content.items.orEmpty()
+        }.getOrDefault(emptyList())
+            .mapNotNull { episode ->
+                val season = episode.parentIndexNumber ?: return@mapNotNull null
+                val number = episode.indexNumber ?: return@mapNotNull null
+                season to number
+            }
+            .groupBy({ it.first }, { it.second })
+    }
+
     suspend fun seriesLeadStreams(seriesId: UUID): List<MediaStream> = onIo {
         runCatching {
             api().tvShowsApi.getEpisodes(
