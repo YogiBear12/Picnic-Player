@@ -12,6 +12,7 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import org.jellyfin.sdk.api.client.extensions.filterApi
 import org.jellyfin.sdk.api.client.extensions.genresApi
@@ -193,8 +194,8 @@ class MediaRepository @Inject constructor(
                 limit = BOX_SET_LIMIT
             ).content.items.orEmpty()
 
-            kotlinx.coroutines.coroutineScope {
-                val gate = kotlinx.coroutines.sync.Semaphore(BOX_SET_FETCH_CONCURRENCY)
+            coroutineScope {
+                val gate = Semaphore(BOX_SET_FETCH_CONCURRENCY)
                 boxSets.map { boxSet ->
                     async {
                         val ids = runCatching {
@@ -343,13 +344,12 @@ class MediaRepository @Inject constructor(
     suspend fun items(itemIds: List<UUID>): List<BaseItemDto> = onIo {
         if (itemIds.isEmpty()) return@onIo emptyList()
         try {
-            itemIds.chunked(ITEM_FETCH_CHUNK).flatMap { chunk ->
-                api().itemsApi.getItems(
-                    userId = session().userUuid,
-                    ids = chunk,
-                    fields = LATEST_FIELDS,
-                    enableImageTypes = IMAGE_TYPES
-                ).content.items.orEmpty()
+            coroutineScope {
+                val gate = Semaphore(ITEM_FETCH_CONCURRENCY)
+                itemIds.chunked(ITEM_FETCH_CHUNK)
+                    .map { chunk -> async { gate.withPermit { itemPage(chunk) } } }
+                    .awaitAll()
+                    .flatten()
             }
         } catch (cancelled: CancellationException) {
             throw cancelled
@@ -358,6 +358,13 @@ class MediaRepository @Inject constructor(
             emptyList()
         }
     }
+
+    private suspend fun itemPage(ids: List<UUID>): List<BaseItemDto> = api().itemsApi.getItems(
+        userId = session().userUuid,
+        ids = ids,
+        fields = LATEST_FIELDS,
+        enableImageTypes = IMAGE_TYPES
+    ).content.items.orEmpty()
 
     suspend fun refreshChanged(shown: List<BaseItemDto>, changedIds: Set<String>): Map<UUID, BaseItemDto> {
         if (changedIds.isEmpty()) return emptyMap()
@@ -735,5 +742,6 @@ class MediaRepository @Inject constructor(
         const val WATCHED_EPISODE_PAGE_SIZE = 2000
 
         const val ITEM_FETCH_CHUNK = 100
+        const val ITEM_FETCH_CONCURRENCY = 4
     }
 }
