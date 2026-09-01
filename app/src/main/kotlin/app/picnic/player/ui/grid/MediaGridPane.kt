@@ -78,6 +78,8 @@ internal fun letterBucket(name: String?): String? {
     }
 }
 
+private enum class GridFocusReason { Seed, FiltersCleared, GridEmptied }
+
 @Composable
 internal fun MediaGridPane(
     state: LibraryGridViewModel.UiState,
@@ -205,24 +207,32 @@ private fun MediaGridBody(
     var focusedWhilePopulated by remember { mutableStateOf(false) }
     val gridFocused = contentFocused
     SideEffect { if (totalCount > 0) focusedWhilePopulated = gridFocused }
-    LaunchedEffect(totalCount, refreshing, panelOpen) {
-        if (totalCount > 0 || refreshing || panelOpen || !focusedWhilePopulated) return@LaunchedEffect
-        if (adjustFiltersFocus.requestFocusWhenAttached()) focusedWhilePopulated = false
-    }
 
     var pendingClearSeed by remember { mutableStateOf(false) }
-    LaunchedEffect(pendingClearSeed, totalCount, refreshing) {
-        if (!pendingClearSeed || refreshing) return@LaunchedEffect
-        firstFocus.requestFocusWhenAttached()
-        pendingClearSeed = false
+
+    val focusReason = when {
+        seedContentFocus && !(totalCount == 0 && refreshing) -> GridFocusReason.Seed
+        pendingClearSeed && !refreshing -> GridFocusReason.FiltersCleared
+        totalCount == 0 && !refreshing && !panelOpen && focusedWhilePopulated -> GridFocusReason.GridEmptied
+        else -> null
     }
 
-    LaunchedEffect(seedContentFocus, totalCount, refreshing) {
-        if (!seedContentFocus) return@LaunchedEffect
-        if (totalCount == 0 && refreshing) return@LaunchedEffect
-        val target = if (totalCount == 0) adjustFiltersFocus else firstFocus
-        runCatching { target.requestFocus() }
-        onContentFocusSeeded()
+    LaunchedEffect(focusReason, totalCount) {
+        when (focusReason) {
+            null -> Unit
+            GridFocusReason.Seed -> {
+                val target = if (totalCount == 0) adjustFiltersFocus else firstFocus
+                target.requestFocusWhenAttached()
+                onContentFocusSeeded()
+            }
+            GridFocusReason.FiltersCleared -> {
+                firstFocus.requestFocusWhenAttached()
+                pendingClearSeed = false
+            }
+            GridFocusReason.GridEmptied -> {
+                if (adjustFiltersFocus.requestFocusWhenAttached()) focusedWhilePopulated = false
+            }
+        }
     }
 
     var lastQuery by remember {
