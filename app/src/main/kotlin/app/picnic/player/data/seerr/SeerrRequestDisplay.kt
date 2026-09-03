@@ -17,13 +17,10 @@ fun SeerrMediaRequest.mediaPosterOrNull(): String? = media?.posterPath?.takeIf {
 
 fun SeerrMediaRequest.placeholderTitle(): String = "Request #$id"
 
-fun SeerrMediaRequest.resolvedMediaType(): SeerrMediaType? {
-    val raw = (mediaType ?: media?.mediaType)?.lowercase()
-    return when (raw) {
-        "movie" -> SeerrMediaType.MOVIE
-        "tv" -> SeerrMediaType.TV
-        else -> null
-    }
+fun SeerrMediaRequest.resolvedMediaType(): SeerrMediaType? = when ((mediaType ?: media?.mediaType)?.lowercase()) {
+    "movie" -> SeerrMediaType.MOVIE
+    "tv" -> SeerrMediaType.TV
+    else -> null
 }
 
 internal data class SeerrTitleCacheKey(
@@ -63,10 +60,6 @@ internal fun requestDisplaysFromCache(
 
 internal fun SeerrIssue.titleCacheKeyOrNull(): SeerrTitleCacheKey? {
     val tmdbId = media?.tmdbId ?: return null
-    val type = when (media.mediaType?.lowercase()) {
-        "movie" -> SeerrMediaType.MOVIE
-        "tv" -> SeerrMediaType.TV
-        else -> return null
-    }
+    val type = media.resolvedType ?: return null
     return SeerrTitleCacheKey(type, tmdbId)
 }
