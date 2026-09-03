@@ -2,6 +2,7 @@ package app.picnic.player.ui.player
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -118,11 +119,26 @@ class PlayerChromeTest {
 
     @Test
     fun backReturnsSubtitleAdjustToTheSettingsPanel() {
-        chrome.enterSubtitleAdjust()
+        chrome.enterModal(PlayerModal.SUBTITLE_ADJUST)
         assertFalse(chrome.osdVisible)
         assertEquals(BackOutcome.Handled, chrome.onBack())
         assertEquals(Panel.SETTINGS, chrome.panel)
-        assertFalse(chrome.subtitleAdjust)
+        assertNull(chrome.modal)
+        assertTrue(chrome.returningFromSubtitleAdjust)
+    }
+
+    @Test
+    fun backReturnsTheReportPanelToSettingsButFinishingDoesNot() {
+        chrome.enterModal(PlayerModal.REPORT_ISSUE)
+        assertEquals(BackOutcome.Handled, chrome.onBack())
+        assertEquals(Panel.SETTINGS, chrome.panel)
+        assertFalse(chrome.returningFromSubtitleAdjust)
+
+        chrome.closePanel()
+        chrome.enterModal(PlayerModal.REPORT_ISSUE)
+        chrome.closeModal()
+        assertNull(chrome.modal)
+        assertEquals(Panel.NONE, chrome.panel)
     }
 
     @Test

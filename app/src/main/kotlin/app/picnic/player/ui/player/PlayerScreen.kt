@@ -36,6 +36,8 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.zIndex
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
@@ -44,6 +46,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.picnic.player.data.media.ItemQueue
 import app.picnic.player.playback.videoDisplayHints
 import app.picnic.player.ui.ambient.PublishBackdrop
+import app.picnic.player.ui.common.ClearDialogDim
 import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.player.osd.ChaptersPanel
 import app.picnic.player.ui.player.osd.ModernOsd
@@ -51,6 +54,8 @@ import app.picnic.player.ui.player.osd.SkipIndicator
 import app.picnic.player.ui.player.osd.SkipIndicatorState
 import app.picnic.player.ui.player.osd.SkipSegmentButton
 import app.picnic.player.ui.player.osd.StatsForNerdsPanel
+import app.picnic.player.ui.seerr.ReportIssuePanel
+import app.picnic.player.ui.seerr.rememberIssueReporter
 
 private const val SkipPillEntryWindowMs = 2_000L
 
@@ -84,7 +89,7 @@ fun PlayerScreen(
     )
     val osdFocus = remember { PlayerOsdFocus() }
     val subtitleAdjust = rememberSubtitleDelayAdjust(
-        active = chrome.subtitleAdjust,
+        active = chrome.modal == PlayerModal.SUBTITLE_ADJUST,
         delayMs = state.subtitleDelayMs,
         onDelayChange = viewModel::setSubtitleDelayMs
     )
@@ -133,6 +138,9 @@ fun PlayerScreen(
     fun closePanel() {
         chrome.closePanel()
     }
+
+    val nowPlayingItem = state.nowPlayingItem
+    val issueReporter = rememberIssueReporter(nowPlayingItem)
 
     fun exitPlayer() {
         viewModel.endViewing()
@@ -364,18 +372,38 @@ fun PlayerScreen(
             subtitleAppearance = settings.subtitleAppearance,
             focusSubtitleDelay = chrome.returningFromSubtitleAdjust,
             onFocusSubtitleDelayConsumed = chrome::consumeSubtitleAdjustReturn,
-            onAdjustSubtitleDelay = chrome::enterSubtitleAdjust,
+            onAdjustSubtitleDelay = { chrome.enterModal(PlayerModal.SUBTITLE_ADJUST) },
             onEnterPip = pipState::enterPip,
+            onReportIssue = if (issueReporter != null) {
+                { chrome.enterModal(PlayerModal.REPORT_ISSUE) }
+            } else {
+                null
+            },
             onClose = ::closePanel
         )
 
+        if (chrome.modal == PlayerModal.REPORT_ISSUE && issueReporter != null && nowPlayingItem != null) {
+            Dialog(
+                onDismissRequest = chrome::exitModalToSettings,
+                properties = DialogProperties(usePlatformDefaultWidth = false)
+            ) {
+                ClearDialogDim()
+                ReportIssuePanel(
+                    item = nowPlayingItem,
+                    target = issueReporter,
+                    onDone = chrome::closeModal,
+                    onCancel = chrome::exitModalToSettings
+                )
+            }
+        }
+
         PlayerNotice(state.notice, viewModel::clearNotice)
 
-        if (chrome.subtitleAdjust) {
+        if (chrome.modal == PlayerModal.SUBTITLE_ADJUST) {
             SubtitleDelayOverlay(
                 adjust = subtitleAdjust,
                 delayMs = state.subtitleDelayMs,
-                onExit = chrome::exitSubtitleAdjust
+                onExit = chrome::exitModalToSettings
             )
         }
 

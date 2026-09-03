@@ -15,6 +15,8 @@ enum class Panel { NONE, AUDIO, SUBTITLE, CHAPTERS, SETTINGS }
 
 enum class BackOutcome { Handled, ClosedOsd, NextUp, ExitPlayer }
 
+enum class PlayerModal { SUBTITLE_ADJUST, REPORT_ISSUE }
+
 private const val MinOsdHideSeconds = 2L
 private const val QuickSkipBurstMs = 1_000L
 private const val SkipPillVisibleMs = 10_000L
@@ -36,7 +38,7 @@ class PlayerChrome {
     var skipPillDismissed by mutableStateOf(false)
         private set
 
-    var subtitleAdjust by mutableStateOf(false)
+    var modal by mutableStateOf<PlayerModal?>(null)
         private set
 
     var quickSkipMs by mutableStateOf(0L)
@@ -53,7 +55,7 @@ class PlayerChrome {
     private var inPictureInPicture by mutableStateOf(false)
 
     val videoKeysActive: Boolean
-        get() = !osdVisible && panel == Panel.NONE && !nextUpVisible && !subtitleAdjust
+        get() = !osdVisible && panel == Panel.NONE && !nextUpVisible && modal == null
 
     val videoHasFocus: Boolean
         get() = videoKeysActive && !skipPillShowing
@@ -95,19 +97,24 @@ class PlayerChrome {
         lastPanel = Panel.NONE
     }
 
-    fun enterSubtitleAdjust() {
-        subtitleAdjust = true
+    var returningFromSubtitleAdjust by mutableStateOf(false)
+        private set
+
+    fun enterModal(target: PlayerModal) {
+        modal = target
         osdVisible = false
         panel = Panel.NONE
     }
 
-    var returningFromSubtitleAdjust by mutableStateOf(false)
-        private set
-
-    fun exitSubtitleAdjust() {
-        subtitleAdjust = false
+    fun exitModalToSettings() {
+        val closed = modal ?: return
+        modal = null
         panel = Panel.SETTINGS
-        returningFromSubtitleAdjust = true
+        if (closed == PlayerModal.SUBTITLE_ADJUST) returningFromSubtitleAdjust = true
+    }
+
+    fun closeModal() {
+        modal = null
     }
 
     fun consumeSubtitleAdjustReturn() {
@@ -148,8 +155,8 @@ class PlayerChrome {
     }
 
     fun onBack(): BackOutcome = when {
-        subtitleAdjust -> {
-            exitSubtitleAdjust()
+        modal != null -> {
+            exitModalToSettings()
             BackOutcome.Handled
         }
         nextUpVisible -> BackOutcome.NextUp

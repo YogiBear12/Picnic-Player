@@ -705,6 +705,7 @@ class PlayerViewModel @Inject constructor(
         }.orEmpty()
         _state.update {
             it.copy(
+                nowPlayingItem = item,
                 title = item.seriesName ?: item.name.orEmpty(),
                 subtitle = episodeOsdLine(item),
                 backdropUrl = JellyfinImages.backdrop(activeSession, item),

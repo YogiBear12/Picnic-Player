@@ -21,6 +21,7 @@ fun BoxScope.PlayerSettingsSidePanel(
     onFocusSubtitleDelayConsumed: () -> Unit,
     onAdjustSubtitleDelay: () -> Unit,
     onEnterPip: () -> Unit,
+    onReportIssue: (() -> Unit)?,
     onClose: () -> Unit
 ) {
     val actions = remember(viewModel) {
@@ -50,6 +51,7 @@ fun BoxScope.PlayerSettingsSidePanel(
             onFocusSubtitleDelayConsumed = onFocusSubtitleDelayConsumed,
             onAdjustSubtitleDelay = onAdjustSubtitleDelay,
             onEnterPip = onEnterPip,
+            onReportIssue = onReportIssue,
             active = active,
             onClose = onClose
         )

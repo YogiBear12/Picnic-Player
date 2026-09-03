@@ -55,6 +55,7 @@ data class NextUpItem(
 )
 
 data class PlayerUiState(
+    val nowPlayingItem: BaseItemDto? = null,
     val isPlaying: Boolean = false,
     val positionMs: Long = 0,
     val durationMs: Long = 0,

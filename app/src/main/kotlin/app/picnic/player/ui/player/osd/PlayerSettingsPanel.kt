@@ -75,6 +75,7 @@ private enum class RowKey {
     SLEEP,
     PLAYBACK_INFO,
     PIP,
+    REPORT_ISSUE,
     BOOST,
     NIGHT_MODE
 }
@@ -147,6 +148,7 @@ fun PlayerSettingsPanel(
     onFocusSubtitleDelayConsumed: () -> Unit,
     onAdjustSubtitleDelay: () -> Unit,
     onEnterPip: () -> Unit,
+    onReportIssue: (() -> Unit)?,
     active: Boolean,
     onClose: () -> Unit
 ) {
@@ -196,7 +198,8 @@ fun PlayerSettingsPanel(
             onEnterPip = {
                 onEnterPip()
                 back()
-            }
+            },
+            onReportIssue = onReportIssue
         )
         Page.QUALITY -> qualityRows(state.qualityOptions, state.activeQuality) {
             actions.onSelectQuality(it)
@@ -275,7 +278,8 @@ private fun mainRows(
     onNavigate: (Page) -> Unit,
     onAdjustSubtitleDelay: () -> Unit,
     onToggleStatsForNerds: () -> Unit,
-    onEnterPip: () -> Unit
+    onEnterPip: () -> Unit,
+    onReportIssue: (() -> Unit)?
 ): List<PanelRow> = buildList {
     if (qualityOptions.isNotEmpty()) {
         add(PanelRow.Nav(RowKey.QUALITY, "Quality", qualitySummary) { onNavigate(Page.QUALITY) })
@@ -315,6 +319,11 @@ private fun mainRows(
     if (pipSupported) {
         add(
             PanelRow.Nav(RowKey.PIP, "Enter Picture-in-Picture", "", chevron = false, onClick = onEnterPip)
+        )
+    }
+    if (onReportIssue != null) {
+        add(
+            PanelRow.Nav(RowKey.REPORT_ISSUE, "Report an issue", "", chevron = false, onClick = onReportIssue)
         )
     }
 }
