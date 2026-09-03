@@ -51,6 +51,7 @@ import androidx.tv.material3.Text
 import app.picnic.player.data.media.WatchStats
 import app.picnic.player.data.seerr.SeerrLinkState
 import app.picnic.player.data.seerr.SeerrMediaRequest
+import app.picnic.player.data.seerr.canViewSeerrIssues
 import app.picnic.player.ui.browse.BrowseCardStyle
 import app.picnic.player.ui.browse.DetailMediaRow
 import app.picnic.player.ui.browse.episodeCardSubtitle
@@ -67,6 +68,8 @@ import app.picnic.player.ui.theme.PicnicColors
 import coil3.compose.AsyncImage
 import coil3.compose.AsyncImagePainter
 import kotlin.math.roundToInt
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
 
@@ -121,6 +124,9 @@ internal fun AccountSettingsPanel(
     onSignedOut: () -> Unit,
     onOpenItem: (BaseItemDto, String?, String?) -> Unit,
     onOpenSeerrDetail: ((SeerrMediaRequest) -> Unit)?,
+    onOpenIssues: () -> Unit,
+    restoreRow: SubPageRow?,
+    onRestored: () -> Unit,
     focus: SettingsPanelFocus,
     modifier: Modifier = Modifier
 ) {
@@ -129,6 +135,7 @@ internal fun AccountSettingsPanel(
     val stats by viewModel.watchStats.collectAsStateWithLifecycle()
     val loadedFavorites by viewModel.favorites.collectAsStateWithLifecycle()
     val requests by viewModel.myRequests.collectAsStateWithLifecycle()
+    val openIssueCount by viewModel.openIssueCount.collectAsStateWithLifecycle()
     val seerr by viewModel.seerrState.collectAsStateWithLifecycle()
     val connecting by viewModel.seerrConnecting.collectAsStateWithLifecycle()
     val connectError by viewModel.seerrConnectError.collectAsStateWithLifecycle()
@@ -136,6 +143,7 @@ internal fun AccountSettingsPanel(
     val favorites = loadedFavorites.orEmpty()
     var showConnectDialog by remember { mutableStateOf(false) }
     val seerrButtonFr = remember { FocusRequester() }
+    val issuesButtonFr = remember { FocusRequester() }
     var lastActionFocus by remember { mutableStateOf(seerrButtonFr) }
 
     val favoritesFocus = rememberRowFocusState()
@@ -156,11 +164,25 @@ internal fun AccountSettingsPanel(
 
     LaunchedEffect(Unit) { viewModel.onAccountOpened() }
 
+    val canViewIssues = linked && canViewSeerrIssues(seerr.user)
+
+    LaunchedEffect(restoreRow, canViewIssues) {
+        if (restoreRow == SubPageRow.ISSUES && canViewIssues) {
+            lastBlock = AccountBlock.ACTIONS
+            issuesButtonFr.requestFocusWhenAttached(maxFrames = 20)
+            onRestored()
+        }
+    }
+
     LaunchedEffect(linked) {
-        if (linked) viewModel.refreshMyRequests()
-        if (linked && showConnectDialog) {
+        if (!linked) return@LaunchedEffect
+        if (showConnectDialog) {
             showConnectDialog = false
             seerrButtonFr.requestFocusWhenAttached(maxFrames = 20)
+        }
+        coroutineScope {
+            launch { viewModel.refreshMyRequests() }
+            launch { viewModel.refreshIssueCounts() }
         }
     }
 
@@ -339,6 +361,13 @@ internal fun AccountSettingsPanel(
 
             AccountActionsRow(
                 linked = linked,
+                issuesFr = issuesButtonFr,
+                issuesLabel = when {
+                    !canViewIssues -> null
+                    openIssueCount == null -> "Issues"
+                    else -> "Issues · $openIssueCount open"
+                },
+                onIssues = onOpenIssues,
                 seerrButtonFr = seerrButtonFr,
                 enterFr = if (favorites.isEmpty() && !showRequests) focus.enterFr else null,
                 leftFocus = focus.leftFocus,
@@ -433,6 +462,9 @@ private fun <T> AccountRow(
 @Composable
 private fun AccountActionsRow(
     linked: Boolean,
+    issuesFr: FocusRequester,
+    issuesLabel: String?,
+    onIssues: () -> Unit,
     seerrButtonFr: FocusRequester,
     enterFr: FocusRequester?,
     leftFocus: FocusRequester,
@@ -460,13 +492,27 @@ private fun AccountActionsRow(
                 }
                 .onFocusChanged { if (it.isFocused) onFocused(seerrButtonFr) }
         )
+        if (issuesLabel != null) {
+            ActionButton(
+                label = issuesLabel,
+                onActivate = onIssues,
+                focusRequester = issuesFr,
+                modifier = Modifier
+                    .focusProperties {
+                        left = seerrButtonFr
+                        down = FocusRequester.Cancel
+                        up = upFocus?.invoke() ?: FocusRequester.Cancel
+                    }
+                    .onFocusChanged { if (it.isFocused) onFocused(issuesFr) }
+            )
+        }
         ActionButton(
             label = "Sign out of Jellyfin",
             onActivate = onSignOut,
             focusRequester = signOutFr,
             modifier = Modifier
                 .focusProperties {
-                    left = seerrButtonFr
+                    left = if (issuesLabel != null) issuesFr else seerrButtonFr
                     right = FocusRequester.Cancel
                     down = FocusRequester.Cancel
                     up = upFocus?.invoke() ?: FocusRequester.Cancel

@@ -17,6 +17,7 @@ import app.picnic.player.data.media.batches
 import app.picnic.player.data.playback.CulturePickerOption
 import app.picnic.player.data.playback.cultureDisplayName
 import app.picnic.player.data.playback.culturePickerOptions
+import app.picnic.player.data.seerr.isOpen
 import app.picnic.player.data.settings.PlaybackSettings
 import app.picnic.player.data.settings.SettingKey
 import app.picnic.player.data.settings.SettingsStore
@@ -35,12 +36,13 @@ import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-internal enum class SubPageRow { SUBTITLE_APPEARANCE, LICENSES }
+internal enum class SubPageRow { SUBTITLE_APPEARANCE, LICENSES, ISSUES }
 
 data class YouTubeAppInfo(
     val packageName: String,
@@ -75,6 +77,10 @@ class SettingsViewModel @Inject constructor(
     private val _myRequests =
         MutableStateFlow<List<app.picnic.player.data.seerr.SeerrRequestDisplay>>(emptyList())
     val myRequests: StateFlow<List<app.picnic.player.data.seerr.SeerrRequestDisplay>> = _myRequests
+
+    val openIssueCount: StateFlow<Int?> = seerrRepository.issues
+        .map { issues -> issues?.count { it.isOpen } }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     private val _seerrConnecting = MutableStateFlow(false)
     val seerrConnecting: StateFlow<Boolean> = _seerrConnecting
@@ -216,6 +222,10 @@ class SettingsViewModel @Inject constructor(
     fun disconnectSeerr() = viewModelScope.launch {
         seerrRepository.disconnect()
         _myRequests.value = emptyList()
+    }
+
+    suspend fun refreshIssueCounts() {
+        runCatching { seerrRepository.refreshIssues() }
     }
 
     suspend fun refreshMyRequests() {

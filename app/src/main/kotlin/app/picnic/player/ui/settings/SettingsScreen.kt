@@ -103,15 +103,24 @@ fun SettingsScreen(
 
     val detailScrollState = remember(selected) { ScrollState(0) }
 
-    var showLicenses by remember { mutableStateOf(false) }
-    if (showLicenses) {
-        OpenSourceLicensesScreen(onBack = { showLicenses = false })
-        return
+    var subPage by remember { mutableStateOf<SubPageRow?>(null) }
+    val seerrSession by viewModel.seerrState.collectAsStateWithLifecycle()
+
+    fun openSubPage(row: SubPageRow) {
+        restoreDetailRow = row
+        subPage = row
     }
 
-    var showSubtitleAppearance by remember { mutableStateOf(false) }
-    if (showSubtitleAppearance) {
-        SubtitleAppearanceScreen(onBack = { showSubtitleAppearance = false })
+    subPage?.let { page ->
+        when (page) {
+            SubPageRow.LICENSES -> OpenSourceLicensesScreen(onBack = { subPage = null })
+            SubPageRow.SUBTITLE_APPEARANCE -> SubtitleAppearanceScreen(onBack = { subPage = null })
+            SubPageRow.ISSUES -> IssuesScreen(
+                seerrBaseUrl = seerrSession.serverUrl,
+                cacheImages = seerrSession.cacheImages,
+                onBack = { subPage = null }
+            )
+        }
         return
     }
 
@@ -166,16 +175,11 @@ fun SettingsScreen(
                 restoreRow = restoreDetailRow,
                 onRestored = { restoreDetailRow = null },
                 scrollState = detailScrollState,
-                onOpenSubtitleAppearance = {
-                    restoreDetailRow = SubPageRow.SUBTITLE_APPEARANCE
-                    showSubtitleAppearance = true
-                },
+                onOpenSubtitleAppearance = { openSubPage(SubPageRow.SUBTITLE_APPEARANCE) },
                 onOpenSeerrDetail = onOpenSeerrDetail,
                 onOpenItem = onOpenItem,
-                onOpenLicenses = {
-                    restoreDetailRow = SubPageRow.LICENSES
-                    showLicenses = true
-                },
+                onOpenLicenses = { openSubPage(SubPageRow.LICENSES) },
+                onOpenIssues = { openSubPage(SubPageRow.ISSUES) },
                 modifier = Modifier.weight(1f).fillMaxHeight()
             )
         }
@@ -333,6 +337,7 @@ private fun DetailPanel(
     onOpenSeerrDetail: ((app.picnic.player.data.seerr.SeerrMediaRequest) -> Unit)?,
     onOpenItem: (BaseItemDto, String?, String?) -> Unit,
     onOpenLicenses: () -> Unit,
+    onOpenIssues: () -> Unit,
     restoreRow: SubPageRow?,
     onRestored: () -> Unit,
     scrollState: ScrollState,
@@ -348,6 +353,9 @@ private fun DetailPanel(
                 onSignedOut = onSignedOut,
                 onOpenItem = onOpenItem,
                 onOpenSeerrDetail = onOpenSeerrDetail,
+                onOpenIssues = onOpenIssues,
+                restoreRow = restoreRow,
+                onRestored = onRestored,
                 focus = focus,
                 modifier = modifier
             )
