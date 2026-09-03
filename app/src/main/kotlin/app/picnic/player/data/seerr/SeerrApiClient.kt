@@ -110,8 +110,20 @@ class SeerrApiClient @Inject constructor(
 
     fun createIssue(body: SeerrCreateIssueBody): SeerrIssue = postRaw("/issue", json.encodeToString(body))
 
-    fun deleteRequest(requestId: Int) {
-        val request = Request.Builder().url(url("/request/$requestId")).delete().build()
+    fun issues(take: Int, skip: Int): SeerrIssueListPage = get("/issue?take=$take&skip=$skip&filter=all&sort=modified")
+
+    fun addIssueComment(issueId: Int, message: String): SeerrIssue = postRaw("/issue/$issueId/comment", json.encodeToString(SeerrIssueCommentBody(message)))
+
+    fun issue(issueId: Int): SeerrIssue = get("/issue/$issueId")
+
+    fun setIssueStatus(issueId: Int, resolved: Boolean): SeerrIssue = postRaw("/issue/$issueId/${if (resolved) "resolved" else "open"}", "{}")
+
+    fun deleteIssue(issueId: Int) = delete("/issue/$issueId")
+
+    fun deleteRequest(requestId: Int) = delete("/request/$requestId")
+
+    private fun delete(path: String) {
+        val request = Request.Builder().url(url(path)).delete().build()
         client.newCall(request).execute().use { response ->
             if (!response.isSuccessful) {
                 throw SeerrHttpException(

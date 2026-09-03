@@ -60,3 +60,13 @@ internal fun requestDisplaysFromCache(
         yearLabel = yearLabel
     )
 }
+
+internal fun SeerrIssue.titleCacheKeyOrNull(): SeerrTitleCacheKey? {
+    val tmdbId = media?.tmdbId ?: return null
+    val type = when (media.mediaType?.lowercase()) {
+        "movie" -> SeerrMediaType.MOVIE
+        "tv" -> SeerrMediaType.TV
+        else -> return null
+    }
+    return SeerrTitleCacheKey(type, tmdbId)
+}

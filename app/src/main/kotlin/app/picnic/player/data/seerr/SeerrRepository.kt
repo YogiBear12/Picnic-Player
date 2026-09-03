@@ -138,6 +138,7 @@ class SeerrRepository @Inject constructor(
     }
 
     suspend fun disconnect() {
+        _issues.value = null
         val session = authRepository.activeSession() ?: return
         store.disconnectUser(session.server.id, session.userId)
         api.clearCookies()
@@ -294,8 +295,6 @@ class SeerrRepository @Inject constructor(
         persistCookie()
     }
 
-    fun canCreateIssue(user: SeerrUser?): Boolean = user != null && SeerrPermission.has(user.permissions, SeerrPermission.CREATE_ISSUES)
-
     suspend fun cancelRequest(requestId: Int) {
         authed { api.deleteRequest(requestId) }
         persistCookie()
@@ -311,6 +310,72 @@ class SeerrRepository @Inject constructor(
     suspend fun myRequests(): List<SeerrMediaRequest> = authed {
         val userId = currentUser().id
         api.listRequests(filter = "all").results.filter { it.requestedBy?.id == userId }
+    }
+
+    private val _issues = MutableStateFlow<List<SeerrIssue>?>(null)
+    val issues: StateFlow<List<SeerrIssue>?> = _issues.asStateFlow()
+
+    suspend fun refreshIssues(): List<SeerrIssue> = myIssues().also { _issues.value = it }
+
+    suspend fun myIssues(): List<SeerrIssue> = authed {
+        val userId = currentUser().id
+        val mine = mutableListOf<SeerrIssue>()
+        var skip = 0
+        repeat(ISSUE_PAGE_LIMIT) {
+            val page = api.issues(take = ISSUE_PAGE_SIZE, skip = skip)
+            mine += page.results.filter { it.createdBy?.id == userId }
+            skip += ISSUE_PAGE_SIZE
+            val total = page.pageInfo?.results
+            if (page.results.size < ISSUE_PAGE_SIZE || (total != null && skip >= total)) return@authed mine
+        }
+        mine
+    }
+
+    suspend fun issue(issueId: Int): SeerrIssue = authed { api.issue(issueId) }
+
+    suspend fun addIssueComment(issueId: Int, message: String): SeerrIssue {
+        val result = authed { api.addIssueComment(issueId, message) }
+        persistCookie()
+        return result
+    }
+
+    suspend fun setIssueResolved(issueId: Int, resolved: Boolean): SeerrIssue {
+        val result = authed { api.setIssueStatus(issueId, resolved) }
+        persistCookie()
+        return result
+    }
+
+    suspend fun deleteIssue(issueId: Int) {
+        authed { api.deleteIssue(issueId) }
+        persistCookie()
+    }
+
+    private suspend fun warmTitles(keys: List<SeerrTitleCacheKey>) {
+        keys.chunked(TITLE_HYDRATE_CONCURRENCY).forEach { chunk ->
+            coroutineScope {
+                chunk.map { key ->
+                    async {
+                        val cached = runCatching { fetchTitle(key) }.getOrNull() ?: return@async
+                        titleCache[key] = cached
+                    }
+                }.awaitAll()
+            }
+        }
+    }
+
+    suspend fun hydrateIssueDisplays(issues: List<SeerrIssue>): List<SeerrIssueDisplay> {
+        val keys = issues.mapNotNull { it.titleCacheKeyOrNull() }.distinct()
+        val missing = keys.filter { titleCache[it] == null }
+        warmTitles(missing)
+        return issues.map { issue ->
+            val cached = issue.titleCacheKeyOrNull()?.let { titleCache[it] }
+            SeerrIssueDisplay(
+                issue = issue,
+                title = cached?.title ?: "Issue #${issue.id}",
+                posterPath = cached?.posterPath,
+                yearLabel = cached?.releaseDate?.take(4)?.takeIf { it.length == 4 }
+            )
+        }
     }
 
     fun requestDisplaysCached(requests: List<SeerrMediaRequest>): List<SeerrRequestDisplay> {
@@ -333,18 +398,7 @@ class SeerrRepository @Inject constructor(
             if (!needsTitle && !needsYear) return@mapNotNull null
             key
         }.distinct()
-        if (missing.isNotEmpty()) {
-            missing.chunked(TITLE_HYDRATE_CONCURRENCY).forEach { chunk ->
-                coroutineScope {
-                    chunk.map { key ->
-                        async {
-                            val cached = runCatching { fetchTitle(key) }.getOrNull() ?: return@async
-                            titleCache[key] = cached
-                        }
-                    }.awaitAll()
-                }
-            }
-        }
+        warmTitles(missing)
         return requestDisplaysFromCache(requests, titleCache)
     }
 
@@ -380,6 +434,8 @@ class SeerrRepository @Inject constructor(
 
     private companion object {
         const val TITLE_HYDRATE_CONCURRENCY = 4
+        const val ISSUE_PAGE_SIZE = 100
+        const val ISSUE_PAGE_LIMIT = 50
     }
 
     fun canRequest(
