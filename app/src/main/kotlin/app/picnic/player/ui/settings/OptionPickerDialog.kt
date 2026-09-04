@@ -141,6 +141,6 @@ private fun PickerOptionRow(
             maxLines = 1,
             modifier = Modifier.weight(1f)
         )
-        if (option.selected) RowCheck(focused)
+        RowCheck(focused, visible = option.selected)
     }
 }

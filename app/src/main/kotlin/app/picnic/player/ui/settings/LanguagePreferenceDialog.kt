@@ -149,6 +149,6 @@ private fun LanguagePickRow(
             maxLines = 1,
             modifier = Modifier.weight(1f)
         )
-        if (selected) RowCheck(focused)
+        RowCheck(focused, visible = selected)
     }
 }

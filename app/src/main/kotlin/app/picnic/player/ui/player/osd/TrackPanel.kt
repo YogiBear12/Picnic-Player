@@ -160,6 +160,6 @@ private fun TrackRow(
                 )
             }
         }
-        if (selected) RowCheck(focused)
+        RowCheck(focused, visible = selected)
     }
 }

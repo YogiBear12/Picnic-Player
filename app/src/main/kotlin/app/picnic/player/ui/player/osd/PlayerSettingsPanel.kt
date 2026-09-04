@@ -464,7 +464,7 @@ private fun RowScope.SelectContent(row: PanelRow.Select, focused: Boolean) {
             modifier = Modifier.padding(end = 8.dp)
         )
     }
-    if (row.selected) RowCheck(focused)
+    RowCheck(focused, visible = row.selected)
 }
 
 @Composable
