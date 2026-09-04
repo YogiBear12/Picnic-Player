@@ -25,6 +25,8 @@ import app.picnic.player.data.seerr.seasonsForTvRequest
 import app.picnic.player.data.seerr.shouldOpenJellyfinDetail
 import app.picnic.player.data.seerr.toCatalogItem
 import app.picnic.player.data.settings.SettingsStore
+import app.picnic.player.data.socket.ServerMessageBus
+import app.picnic.player.data.socket.ServerNotice
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
@@ -73,6 +75,7 @@ data class SeerrActionRow(
 class SeerrDetailViewModel @AssistedInject constructor(
     private val seerrRepository: SeerrRepository,
     private val settingsStore: SettingsStore,
+    private val serverMessageBus: ServerMessageBus,
     @Assisted private val tmdbId: Int,
     @Assisted private val mediaType: SeerrMediaType
 ) : ViewModel() {
@@ -228,7 +231,7 @@ class SeerrDetailViewModel @AssistedInject constructor(
     fun requestMovie() {
         if (!canRequest() || _state.value.busy) return
         viewModelScope.launch {
-            runAction(failureLabel = "Request failed") {
+            runAction(failureLabel = "Request failed", successNotice = "Request submitted") {
                 seerrRepository.requestMovie(tmdbId)
             }
         }
@@ -240,7 +243,7 @@ class SeerrDetailViewModel @AssistedInject constructor(
             _state.update { it.copy(showSeasonPicker = false) }
             val active = primaryRequest()?.takeIf { seerrRepository.isActiveRequest(it) }
             val payload = seasonsForTvRequest(seasons, active)
-            runAction(failureLabel = "Request failed") {
+            runAction(failureLabel = "Request failed", successNotice = "Request submitted") {
                 seerrRepository.requestTv(tmdbId, payload, active?.id)
             }
         }
@@ -250,13 +253,17 @@ class SeerrDetailViewModel @AssistedInject constructor(
         val id = primaryRequest()?.id ?: return
         if (_state.value.busy) return
         viewModelScope.launch {
-            runAction(failureLabel = "Cancel failed") {
+            runAction(failureLabel = "Cancel failed", successNotice = "Request canceled") {
                 seerrRepository.cancelRequest(id)
             }
         }
     }
 
-    private suspend fun runAction(failureLabel: String, block: suspend () -> Unit) {
+    private suspend fun runAction(
+        failureLabel: String,
+        successNotice: String,
+        block: suspend () -> Unit
+    ) {
         _state.update { it.copy(busy = true, actionError = null) }
         val actionResult = runCatching { block() }
         if (actionResult.isFailure) {
@@ -266,6 +273,7 @@ class SeerrDetailViewModel @AssistedInject constructor(
             }
             return
         }
+        serverMessageBus.emit(ServerNotice(text = successNotice))
         val refreshOk = loadDetail(showLoading = false)
         _state.update {
             it.copy(
