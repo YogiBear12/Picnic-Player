@@ -15,6 +15,7 @@ import app.picnic.player.data.seerr.seerrIssueMessage
 import app.picnic.player.data.seerr.seerrIssueReasons
 import app.picnic.player.ui.common.ContextMenuAction
 import app.picnic.player.ui.common.ContextMenuPanel
+import app.picnic.player.ui.common.rememberContextMenuFocus
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
 
@@ -42,6 +43,8 @@ internal fun ReportIssuePanel(
     var extraText by remember { mutableStateOf("") }
     var season by remember { mutableIntStateOf(if (isEpisode) item.parentIndexNumber ?: SEERR_ISSUE_ALL else SEERR_ISSUE_ALL) }
     var episode by remember { mutableIntStateOf(if (isEpisode) item.indexNumber ?: SEERR_ISSUE_ALL else SEERR_ISSUE_ALL) }
+    val typeFocus = rememberContextMenuFocus()
+    val reasonFocus = rememberContextMenuFocus()
     var seasons by remember { mutableStateOf<List<SeerrIssueSeason>>(emptyList()) }
     var seasonsLoading by remember { mutableStateOf(picksScope) }
 
@@ -81,7 +84,8 @@ internal fun ReportIssuePanel(
                     }
                 )
             },
-            openedByLongPress = false
+            openedByLongPress = false,
+            focus = typeFocus
         )
         ReportStep.REASON -> ContextMenuPanel(
             actions = seerrIssueReasons(type, target.subject).map { preset ->
@@ -94,7 +98,8 @@ internal fun ReportIssuePanel(
                     }
                 )
             },
-            openedByLongPress = false
+            openedByLongPress = false,
+            focus = reasonFocus
         )
         ReportStep.FREE_TEXT -> SeerrTextEntryPanel(
             title = "Describe the issue",
@@ -107,6 +112,8 @@ internal fun ReportIssuePanel(
         ReportStep.SCOPE -> IssueScopePanel(
             seasons = seasons,
             loading = seasonsLoading,
+            selectedSeason = season,
+            selectedEpisode = episode,
             onSelect = { pickedSeason, pickedEpisode ->
                 season = pickedSeason
                 episode = pickedEpisode

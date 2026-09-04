@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ExpandLess
@@ -41,8 +42,11 @@ import app.picnic.player.ui.common.panelSurface
 import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.theme.PicnicColors
 
+private const val SEERR_ISSUE_SEASON_HEADER = -1
+
 private data class IssueScopeRow(
-    val key: String,
+    val season: Int,
+    val episode: Int,
     val label: String,
     val indented: Boolean,
     val trailingIcon: ImageVector?,
@@ -53,15 +57,19 @@ private data class IssueScopeRow(
 internal fun IssueScopePanel(
     seasons: List<SeerrIssueSeason>,
     loading: Boolean,
+    selectedSeason: Int,
+    selectedEpisode: Int,
     onSelect: (season: Int, episode: Int) -> Unit
 ) {
-    var expandedSeason by remember { mutableStateOf<Int?>(null) }
+    var expandedSeason by remember(selectedSeason) { mutableStateOf(selectedSeason.takeIf { it > 0 }) }
     val seedFocus = remember { FocusRequester() }
+    val listState = rememberLazyListState()
 
     val rows = buildList {
         add(
             IssueScopeRow(
-                key = "all",
+                season = SEERR_ISSUE_ALL,
+                episode = SEERR_ISSUE_ALL,
                 label = "All seasons",
                 indented = false,
                 trailingIcon = null,
@@ -72,7 +80,8 @@ internal fun IssueScopePanel(
             val expanded = expandedSeason == season.seasonNumber
             add(
                 IssueScopeRow(
-                    key = "s${season.seasonNumber}",
+                    season = season.seasonNumber,
+                    episode = SEERR_ISSUE_SEASON_HEADER,
                     label = "Season ${season.seasonNumber}",
                     indented = false,
                     trailingIcon = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
@@ -82,7 +91,8 @@ internal fun IssueScopePanel(
             if (!expanded) return@forEach
             add(
                 IssueScopeRow(
-                    key = "s${season.seasonNumber}-all",
+                    season = season.seasonNumber,
+                    episode = SEERR_ISSUE_ALL,
                     label = "All episodes",
                     indented = true,
                     trailingIcon = null,
@@ -92,7 +102,8 @@ internal fun IssueScopePanel(
             season.episodes.forEach { episode ->
                 add(
                     IssueScopeRow(
-                        key = "s${season.seasonNumber}e$episode",
+                        season = season.seasonNumber,
+                        episode = episode,
                         label = "Episode $episode",
                         indented = true,
                         trailingIcon = null,
@@ -102,6 +113,10 @@ internal fun IssueScopePanel(
             }
         }
     }
+
+    val seedRow = rows.firstOrNull {
+        it.season == selectedSeason && it.episode == selectedEpisode
+    } ?: rows.first()
 
     Column(
         modifier = Modifier
@@ -120,6 +135,7 @@ internal fun IssueScopePanel(
             }
         } else {
             LazyColumn(
+                state = listState,
                 modifier = Modifier
                     .height(SeerrListViewportHeight)
                     .fillMaxWidth()
@@ -127,10 +143,10 @@ internal fun IssueScopePanel(
                 contentPadding = PaddingValues(horizontal = SeerrContentInset),
                 verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
-                items(rows, key = { it.key }) { row ->
+                items(rows, key = { it.season to it.episode }) { row ->
                     IssueScopeRowItem(
                         row = row,
-                        focusRequester = if (row.key == "all") seedFocus else null
+                        focusRequester = if (row === seedRow) seedFocus else null
                     )
                 }
             }
@@ -138,7 +154,9 @@ internal fun IssueScopePanel(
     }
 
     LaunchedEffect(loading) {
-        if (!loading) seedFocus.requestFocusWhenAttached(maxFrames = 20)
+        if (loading) return@LaunchedEffect
+        listState.scrollToItem(rows.indexOf(seedRow).coerceAtLeast(0))
+        seedFocus.requestFocusWhenAttached(maxFrames = 20)
     }
 }
 

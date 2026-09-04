@@ -21,6 +21,7 @@ import app.picnic.player.ui.common.ContextMenuAction
 import app.picnic.player.ui.common.ContextMenuHost
 import app.picnic.player.ui.common.ContextMenuPanel
 import app.picnic.player.ui.common.GlobalContextMenuViewModel
+import app.picnic.player.ui.common.rememberContextMenuFocus
 import app.picnic.player.ui.detail.launchRemoteTrailer
 import org.jellyfin.sdk.model.api.BaseItemDto
 
@@ -42,6 +43,7 @@ fun SeerrCardContextMenu(
     )
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val menuFocus = rememberContextMenuFocus()
 
     val actions = if (state.loading) {
         listOf(LoadingAction)
@@ -119,7 +121,7 @@ fun SeerrCardContextMenu(
                 onDismiss = { viewModel.dismissSeasonPicker() }
             )
         } else {
-            ContextMenuPanel(actions = actions)
+            ContextMenuPanel(actions = actions, focus = menuFocus)
         }
     }
 }

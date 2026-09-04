@@ -11,7 +11,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Stable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -33,6 +37,14 @@ data class ContextMenuAction(
     val onClick: () -> Unit
 )
 
+@Stable
+class ContextMenuFocus internal constructor() {
+    internal var lastIndex by mutableIntStateOf(-1)
+}
+
+@Composable
+fun rememberContextMenuFocus(): ContextMenuFocus = remember { ContextMenuFocus() }
+
 private val MenuWidth = 380.dp
 private val MenuMaxHeight = 460.dp
 private val MenuCornerRadius = 28.dp
@@ -50,11 +62,14 @@ fun ContextMenuHost(onDismiss: () -> Unit, content: @Composable () -> Unit) {
 @Composable
 fun ContextMenuPanel(
     actions: List<ContextMenuAction>,
-    openedByLongPress: Boolean = true
+    openedByLongPress: Boolean = true,
+    focus: ContextMenuFocus? = null
 ) {
     val guard = rememberLongPressGuard()
-    val firstFocus = remember { FocusRequester() }
-    val firstEnabled = actions.indexOfFirst { it.enabled }
+    val seedFocus = remember { FocusRequester() }
+    val seedIndex = focus?.lastIndex
+        ?.takeIf { actions.getOrNull(it)?.enabled == true }
+        ?: actions.indexOfFirst { it.enabled }
 
     Column(
         verticalArrangement = Arrangement.spacedBy(2.dp),
@@ -70,7 +85,10 @@ fun ContextMenuPanel(
             ListItem(
                 selected = false,
                 enabled = action.enabled,
-                onClick = action.onClick,
+                onClick = {
+                    focus?.lastIndex = index
+                    action.onClick()
+                },
                 headlineContent = { Text(action.label, color = Color.White) },
                 leadingContent = {
                     Icon(action.icon, contentDescription = null, tint = Color.White.copy(alpha = 0.8f))
@@ -83,8 +101,8 @@ fun ContextMenuPanel(
                 modifier = Modifier
                     .fillMaxWidth()
                     .then(
-                        if (index == firstEnabled) {
-                            Modifier.focusRequester(firstFocus)
+                        if (index == seedIndex) {
+                            Modifier.focusRequester(seedFocus)
                         } else {
                             Modifier
                         }
@@ -93,7 +111,7 @@ fun ContextMenuPanel(
         }
     }
 
-    LaunchedEffect(firstEnabled) {
-        if (firstEnabled >= 0) firstFocus.requestFocusWhenAttached()
+    LaunchedEffect(seedIndex) {
+        if (seedIndex >= 0) seedFocus.requestFocusWhenAttached()
     }
 }

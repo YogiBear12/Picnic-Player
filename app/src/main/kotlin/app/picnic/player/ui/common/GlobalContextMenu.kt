@@ -52,6 +52,7 @@ fun GlobalContextMenuDialog(
     val resumeTicks = item.resumeTicks()
 
     var panel by remember { mutableStateOf<GlobalMenuPanel?>(null) }
+    val menuFocus = rememberContextMenuFocus()
     val reportTarget = rememberIssueReporter(item)
 
     val actions = buildList {
@@ -155,7 +156,7 @@ fun GlobalContextMenuDialog(
                     onCancel = { panel = null }
                 )
             }
-            null -> ContextMenuPanel(actions = actions)
+            null -> ContextMenuPanel(actions = actions, focus = menuFocus)
         }
     }
 }
