@@ -1,7 +1,6 @@
 package app.picnic.player.ui.player
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,7 +20,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -29,8 +27,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -40,8 +38,11 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.MaterialTheme
+import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
+import app.picnic.player.ui.common.flatSurfaceBorder
 import coil3.compose.AsyncImage
 import kotlinx.coroutines.delay
 
@@ -74,9 +75,6 @@ fun NextUpOverlay(
     Box(
         modifier = modifier
             .fillMaxSize()
-            // Intercept Back here, at the overlay root, before the focus system can consume the
-            // first press to move focus off the card. onPreviewKeyEvent dispatches ancestor→focused,
-            // so this fires ahead of the thumbnail's own handling and Back works in a single press.
             .onPreviewKeyEvent { event ->
                 if (event.type == KeyEventType.KeyDown && event.key == Key.Back) {
                     onBack()
@@ -183,59 +181,54 @@ private fun NextUpThumbnail(
     focusRequester: FocusRequester,
     modifier: Modifier = Modifier
 ) {
-    var focused by remember { mutableStateOf(false) }
-    Box(
+    Surface(
+        onClick = onPlayNext,
         modifier = modifier
-            .clip(RoundedCornerShape(8.dp))
-            .background(Color(0xFF111820))
-            .onFocusChanged { focused = it.isFocused }
             .focusRequester(focusRequester)
-            .focusable()
             .onKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
                 when (event.key) {
-                    Key.DirectionCenter, Key.Enter -> {
-                        onPlayNext()
-                        true
-                    }
-                    // Back is handled by the overlay root's onPreviewKeyEvent (single-press).
-                    // Trap all D-pad directions so focus stays in the overlay.
                     Key.DirectionLeft, Key.DirectionRight,
                     Key.DirectionUp, Key.DirectionDown -> true
                     else -> false
                 }
-            }
-            .then(
-                if (focused) {
-                    Modifier.background(Color.White.copy(alpha = 0.15f))
-                } else {
-                    Modifier
-                }
-            ),
-        contentAlignment = Alignment.Center
+            },
+        shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(8.dp)),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
+        colors = ClickableSurfaceDefaults.colors(
+            containerColor = NextUpCardFill,
+            focusedContainerColor = NextUpCardFocusedFill,
+            pressedContainerColor = NextUpCardFocusedFill
+        ),
+        border = flatSurfaceBorder()
     ) {
-        if (!thumbUrl.isNullOrEmpty()) {
-            AsyncImage(
-                model = thumbUrl,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
-            )
-        }
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            if (!thumbUrl.isNullOrEmpty()) {
+                AsyncImage(
+                    model = thumbUrl,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
 
-        Box(
-            modifier = Modifier
-                .size(44.dp)
-                .clip(CircleShape)
-                .background(Color.Black.copy(alpha = 0.6f)),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = Icons.Filled.PlayArrow,
-                contentDescription = "Play next",
-                tint = Color.White,
-                modifier = Modifier.size(28.dp)
-            )
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(CircleShape)
+                    .background(Color.Black.copy(alpha = 0.6f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.PlayArrow,
+                    contentDescription = "Play next",
+                    tint = Color.White,
+                    modifier = Modifier.size(28.dp)
+                )
+            }
         }
     }
 }
+
+private val NextUpCardFill = Color(0xFF111820)
+private val NextUpCardFocusedFill = Color.White.copy(alpha = 0.15f).compositeOver(NextUpCardFill)

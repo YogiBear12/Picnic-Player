@@ -212,8 +212,10 @@ fun PlayerScreen(
                 if (!chrome.videoKeysActive) return@onKeyEvent false
                 when (event.key) {
                     Key.DirectionCenter, Key.Enter, Key.MediaPlayPause -> {
-                        togglePlay()
-                        chrome.reveal()
+                        if (event.nativeKeyEvent.repeatCount == 0) {
+                            togglePlay()
+                            chrome.reveal()
+                        }
                         true
                     }
                     Key.DirectionLeft, Key.MediaRewind -> {

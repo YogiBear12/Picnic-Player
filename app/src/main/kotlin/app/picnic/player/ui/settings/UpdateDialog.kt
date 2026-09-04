@@ -3,7 +3,6 @@ package app.picnic.player.ui.settings
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
-import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -28,11 +27,6 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onKeyEvent
-import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -42,6 +36,7 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import app.picnic.player.BuildConfig
 import app.picnic.player.ui.common.ActionButton
+import app.picnic.player.ui.common.GlassRow
 import app.picnic.player.ui.settings.UpdateViewModel.Phase
 import app.picnic.player.ui.theme.PicnicColors
 
@@ -177,40 +172,27 @@ private fun NotesPreview(
     onOpen: () -> Unit
 ) {
     var focused by remember { mutableStateOf(false) }
-    Column(
+    GlassRow(
+        onClick = onOpen,
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(
-                if (focused) Color.White.copy(alpha = 0.14f) else Color.White.copy(alpha = 0.04f)
-            )
-            .onKeyEvent { event ->
-                if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
-                when (event.key) {
-                    Key.DirectionCenter, Key.Enter -> {
-                        onOpen()
-                        true
-                    }
-                    else -> false
-                }
-            }
             .onFocusChanged { focused = it.isFocused }
-            .focusable()
-            .padding(12.dp)
     ) {
-        Text(
-            notes,
-            style = MaterialTheme.typography.bodySmall,
-            color = PicnicColors.OnDarkMuted,
-            maxLines = 8,
-            overflow = TextOverflow.Ellipsis
-        )
-        Spacer(Modifier.height(6.dp))
-        Text(
-            "Select to read full notes",
-            style = MaterialTheme.typography.labelSmall,
-            color = if (focused) PicnicColors.Cyan else PicnicColors.OnDarkMuted
-        )
+        Column(modifier = Modifier.padding(12.dp)) {
+            Text(
+                notes,
+                style = MaterialTheme.typography.bodySmall,
+                color = PicnicColors.OnDarkMuted,
+                maxLines = 8,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "Select to read full notes",
+                style = MaterialTheme.typography.labelSmall,
+                color = if (focused) PicnicColors.Cyan else PicnicColors.OnDarkMuted
+            )
+        }
     }
 }
 

@@ -34,7 +34,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -47,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import app.picnic.player.R
+import app.picnic.player.ui.common.GlassRow
 import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.theme.PicnicColors
 import com.mikepenz.aboutlibraries.Libs
@@ -155,47 +155,38 @@ private fun LicenseListRow(
     blockDown: Boolean,
     onActivate: () -> Unit
 ) {
-    var focused by remember { mutableStateOf(false) }
     val version = library.artifactVersion?.let { " $it" }.orEmpty()
     val licenseLabel = library.licenses.firstOrNull()?.let { it.spdxId ?: it.name }.orEmpty()
 
-    androidx.compose.foundation.layout.Row(
+    GlassRow(
+        onClick = onActivate,
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(
-                if (focused) Color.White.copy(alpha = 0.14f) else Color.White.copy(alpha = 0.04f)
-            )
             .then(if (rowFocus != null) Modifier.focusRequester(rowFocus) else Modifier)
             .focusProperties {
                 right = FocusRequester.Cancel
                 if (blockUp) up = FocusRequester.Cancel
                 if (blockDown) down = FocusRequester.Cancel
             }
-            .onKeyEvent { event ->
-                if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
-                when (event.key) {
-                    Key.DirectionCenter, Key.Enter -> {
-                        onActivate()
-                        true
-                    }
-                    else -> false
-                }
-            }
-            .onFocusChanged { focused = it.isFocused }
-            .focusable()
-            .padding(horizontal = 20.dp, vertical = 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-        verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
-            "${library.name}$version",
-            style = MaterialTheme.typography.titleMedium,
-            color = PicnicColors.OnDark,
-            modifier = Modifier.weight(1f)
-        )
-        if (licenseLabel.isNotEmpty()) {
-            Text(licenseLabel, style = MaterialTheme.typography.titleMedium, color = PicnicColors.Cyan)
+        androidx.compose.foundation.layout.Row(
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "${library.name}$version",
+                style = MaterialTheme.typography.titleMedium,
+                color = PicnicColors.OnDark,
+                modifier = Modifier.weight(1f)
+            )
+            if (licenseLabel.isNotEmpty()) {
+                Text(
+                    licenseLabel,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = PicnicColors.Cyan
+                )
+            }
         }
     }
 }

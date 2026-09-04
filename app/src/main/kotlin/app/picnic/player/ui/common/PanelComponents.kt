@@ -1,7 +1,6 @@
 package app.picnic.player.ui.common
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,7 +24,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
@@ -40,8 +38,10 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
+import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import app.picnic.player.ui.theme.PicnicColors
 
@@ -116,11 +116,11 @@ internal fun rowPrimaryColor(focused: Boolean): Color = if (focused) Color.Black
 internal fun rowTrailingColor(focused: Boolean): Color = if (focused) Color.Black.copy(alpha = 0.72f) else Color.White.copy(alpha = 0.55f)
 
 @Composable
-internal fun RowScope.RowCheck(focused: Boolean) {
+internal fun RowScope.RowCheck(focused: Boolean, visible: Boolean = true) {
     Icon(
         Icons.Filled.Check,
-        contentDescription = "Selected",
-        tint = rowTrailingColor(focused)
+        contentDescription = if (visible) "Selected" else null,
+        tint = if (visible) rowTrailingColor(focused) else Color.Transparent
     )
 }
 
@@ -150,13 +150,11 @@ internal fun PicnicListRow(
     content: @Composable RowScope.(focused: Boolean) -> Unit
 ) {
     var focused by remember { mutableStateOf(false) }
-    val chrome = modifier
-        .fillMaxWidth()
-        .clip(RoundedCornerShape(metrics.cornerRadius))
-        .background(if (focused) Color.White else Color.Transparent)
-        .padding(horizontal = metrics.innerPadding, vertical = metrics.verticalPadding)
-    Row(
-        modifier = (if (focusRequester != null) chrome.focusRequester(focusRequester) else chrome)
+    val base = if (focusRequester != null) modifier.focusRequester(focusRequester) else modifier
+    Surface(
+        onClick = { onActivate?.invoke() },
+        modifier = base
+            .fillMaxWidth()
             .onFocusChanged { focused = it.isFocused }
             .focusProperties {
                 if (keys.blockLeft || onStep != null) left = FocusRequester.Cancel
@@ -164,7 +162,6 @@ internal fun PicnicListRow(
                 if (keys.blockUp) up = FocusRequester.Cancel
                 if (keys.blockDown) down = FocusRequester.Cancel
             }
-            .focusable()
             .onKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
                 when (event.key) {
@@ -183,10 +180,6 @@ internal fun PicnicListRow(
                             false
                         }
                     }
-                    Key.DirectionCenter, Key.Enter -> {
-                        onActivate?.invoke()
-                        onActivate != null
-                    }
                     Key.Back -> {
                         onClose?.invoke()
                         onClose != null
@@ -194,9 +187,24 @@ internal fun PicnicListRow(
                     else -> false
                 }
             },
-        horizontalArrangement = horizontalArrangement,
-        verticalAlignment = Alignment.CenterVertically
+        shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(metrics.cornerRadius)),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
+        colors = ClickableSurfaceDefaults.colors(
+            containerColor = Color.Transparent,
+            focusedContainerColor = Color.White,
+            pressedContainerColor = Color.White
+        ),
+        border = flatSurfaceBorder()
     ) {
-        content(focused)
+        Row(
+            modifier = Modifier.padding(
+                horizontal = metrics.innerPadding,
+                vertical = metrics.verticalPadding
+            ),
+            horizontalArrangement = horizontalArrangement,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            content(focused)
+        }
     }
 }

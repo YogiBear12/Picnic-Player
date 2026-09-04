@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
@@ -23,6 +25,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
@@ -49,17 +52,15 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.MaterialTheme
+import androidx.tv.material3.Surface
 import app.picnic.player.data.playback.TrickplayFrame
+import app.picnic.player.ui.common.flatSurfaceBorder
 import app.picnic.player.ui.common.formatClock
 import app.picnic.player.ui.player.PlayerUiState
 import app.picnic.player.ui.player.TrickplayPreview
 
-/**
- * Minimalist, timeline-centric OSD. Trickplay previews are
- * rendered by [app.picnic.player.ui.player.PlayerScreen] so this column never
- * changes height while scrubbing.
- */
 @Composable
 fun ModernOsd(
     state: PlayerUiState,
@@ -92,15 +93,11 @@ fun ModernOsd(
     var scrubbing by remember { mutableStateOf(false) }
     var scrubTarget by remember { mutableLongStateOf(0L) }
     val density = LocalDensity.current
-    // Focus seeding is owned by PlayerScreen (it decides scrubber vs the button that opened
-    // a just-closed panel), so the OSD no longer self-grabs the scrubber on enable.
 
     val duration = state.durationMs.coerceAtLeast(0)
     val shown = if (scrubbing) scrubTarget else state.positionMs
     val fraction = if (duration > 0) (shown.toFloat() / duration) else 0f
 
-    // Publish scrub state so PlayerScreen can pause/resume playback and hold the OSD open
-    // while an active scrub is in progress.
     LaunchedEffect(scrubbing) { onScrubbingChange(scrubbing) }
 
     LaunchedEffect(scrubbing, scrubTarget, duration) {
@@ -121,7 +118,6 @@ fun ModernOsd(
             scrubbing = true
             scrubTarget = state.positionMs
         }
-        // Honour the user's configured skip seconds (asymmetric fwd/back).
         val magnitude = (if (direction > 0) skipForwardSeconds else skipBackwardSeconds) * 1000L
         scrubTarget = (scrubTarget + direction * magnitude).coerceIn(0, duration)
     }
@@ -237,19 +233,18 @@ fun ModernOsd(
                                 true
                             }
                             Key.DirectionCenter, Key.Enter -> {
-                                if (scrubbing) {
-                                    onSeek(scrubTarget)
-                                    scrubbing = false
-                                    onScrubPreviewChange(null)
-                                } else {
-                                    onPlayPause()
+                                if (event.nativeKeyEvent.repeatCount == 0) {
+                                    if (scrubbing) {
+                                        onSeek(scrubTarget)
+                                        scrubbing = false
+                                        onScrubPreviewChange(null)
+                                    } else {
+                                        onPlayPause()
+                                    }
                                 }
                                 true
                             }
                             Key.DirectionUp -> {
-                                // Locked while actively scrubbing: can't escape to the OSD buttons
-                                // (which would strand the trickplay preview on screen). Commit or
-                                // cancel first.
                                 if (!scrubbing) audioFocusRequester.requestFocus()
                                 true
                             }
@@ -258,9 +253,6 @@ fun ModernOsd(
                                 true
                             }
                             Key.Back -> {
-                                // Dead branch in practice: Back is routed to the screen's
-                                // BackHandler (enableOnBackInvokedCallback bypasses focused nodes),
-                                // which owns scrub-cancel + play-state restore. Kept for parity.
                                 onDismiss()
                                 true
                             }
@@ -273,7 +265,6 @@ fun ModernOsd(
         Spacer(Modifier.height(6.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(formatClock(shown), color = Color.White, style = MaterialTheme.typography.labelLarge)
-            // Total runtime (not time remaining, no "ends at" clock).
             Text(
                 formatClock(duration),
                 color = Color.White.copy(alpha = 0.6f),
@@ -324,33 +315,31 @@ private fun ScrubberBar(
 }
 
 @Composable
-private fun OsdIconButton(
-    icon: @Composable () -> Unit,
+private fun OsdButton(
+    modifier: Modifier,
     focusRequester: FocusRequester,
     focusEnabled: Boolean,
     onClick: () -> Unit,
     onDown: () -> Unit,
     onBack: () -> Unit,
-    onInteract: () -> Unit
+    onInteract: () -> Unit,
+    content: @Composable (focused: Boolean) -> Unit
 ) {
     var focused by remember { mutableStateOf(false) }
-    Box(
-        modifier = Modifier
-            .size(40.dp)
-            .clip(CircleShape)
-            .background(if (focused) Color.White else Color.White.copy(alpha = 0.16f))
+    Surface(
+        onClick = {
+            onInteract()
+            onClick()
+        },
+        enabled = focusEnabled,
+        modifier = modifier
             .focusRequester(focusRequester)
             .onFocusChanged { focused = it.isFocused }
             .focusProperties { canFocus = focusEnabled }
-            .focusable(focusEnabled)
             .onKeyEvent { event ->
                 if (!focusEnabled || event.type != KeyEventType.KeyDown) return@onKeyEvent false
                 onInteract()
                 when (event.key) {
-                    Key.DirectionCenter, Key.Enter -> {
-                        onClick()
-                        true
-                    }
                     Key.DirectionDown -> {
                         onDown()
                         true
@@ -362,12 +351,45 @@ private fun OsdIconButton(
                     else -> false
                 }
             },
-        contentAlignment = Alignment.Center
+        shape = ClickableSurfaceDefaults.shape(shape = CircleShape),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
+        colors = ClickableSurfaceDefaults.colors(
+            containerColor = Color.White.copy(alpha = 0.16f),
+            focusedContainerColor = Color.White,
+            pressedContainerColor = Color.White,
+            disabledContainerColor = Color.White.copy(alpha = 0.16f)
+        ),
+        border = flatSurfaceBorder()
     ) {
-        androidx.compose.runtime.CompositionLocalProvider(
-            androidx.compose.material3.LocalContentColor provides
-                if (focused) Color.Black else Color.White
-        ) { icon() }
+        content(focused)
+    }
+}
+
+@Composable
+private fun OsdIconButton(
+    icon: @Composable () -> Unit,
+    focusRequester: FocusRequester,
+    focusEnabled: Boolean,
+    onClick: () -> Unit,
+    onDown: () -> Unit,
+    onBack: () -> Unit,
+    onInteract: () -> Unit
+) {
+    OsdButton(
+        modifier = Modifier.size(40.dp),
+        focusRequester = focusRequester,
+        focusEnabled = focusEnabled,
+        onClick = onClick,
+        onDown = onDown,
+        onBack = onBack,
+        onInteract = onInteract
+    ) { focused ->
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CompositionLocalProvider(
+                androidx.compose.material3.LocalContentColor provides
+                    if (focused) Color.Black else Color.White
+            ) { icon() }
+        }
     }
 }
 
@@ -381,42 +403,24 @@ private fun OsdTextButton(
     onBack: () -> Unit,
     onInteract: () -> Unit
 ) {
-    var focused by remember { mutableStateOf(false) }
-    Box(
-        modifier = Modifier
-            .height(40.dp)
-            .clip(CircleShape)
-            .background(if (focused) Color.White else Color.White.copy(alpha = 0.16f))
-            .focusRequester(focusRequester)
-            .onFocusChanged { focused = it.isFocused }
-            .focusProperties { canFocus = focusEnabled }
-            .focusable(focusEnabled)
-            .onKeyEvent { event ->
-                if (!focusEnabled || event.type != KeyEventType.KeyDown) return@onKeyEvent false
-                onInteract()
-                when (event.key) {
-                    Key.DirectionCenter, Key.Enter -> {
-                        onClick()
-                        true
-                    }
-                    Key.DirectionDown -> {
-                        onDown()
-                        true
-                    }
-                    Key.Back -> {
-                        onBack()
-                        true
-                    }
-                    else -> false
-                }
-            }
-            .padding(horizontal = 16.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = text,
-            style = MaterialTheme.typography.labelLarge,
-            color = if (focused) Color.Black else Color.White
-        )
+    OsdButton(
+        modifier = Modifier.height(40.dp),
+        focusRequester = focusRequester,
+        focusEnabled = focusEnabled,
+        onClick = onClick,
+        onDown = onDown,
+        onBack = onBack,
+        onInteract = onInteract
+    ) { focused ->
+        Box(
+            modifier = Modifier.fillMaxHeight().padding(horizontal = 16.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = text,
+                style = MaterialTheme.typography.labelLarge,
+                color = if (focused) Color.Black else Color.White
+            )
+        }
     }
 }

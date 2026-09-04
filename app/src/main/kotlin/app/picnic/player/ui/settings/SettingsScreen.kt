@@ -2,8 +2,6 @@ package app.picnic.player.ui.settings
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ScrollState
-import androidx.compose.foundation.background
-import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
@@ -26,7 +24,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
@@ -44,6 +41,8 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.MaterialTheme
+import androidx.tv.material3.SelectableSurfaceDefaults
+import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import app.picnic.player.data.playback.LanguagePickerRow
 import app.picnic.player.data.playback.languagePickerRows
@@ -51,6 +50,7 @@ import app.picnic.player.data.playback.resolveLanguageCode
 import app.picnic.player.data.playback.selectedLanguageRow
 import app.picnic.player.data.settings.PlaybackSettings
 import app.picnic.player.data.settings.SettingKeys
+import app.picnic.player.ui.common.GlassRow
 import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.theme.PicnicColors
 import org.jellyfin.sdk.model.api.BaseItemDto
@@ -264,6 +264,9 @@ private fun CategoryRail(
     }
 }
 
+private val FocusedRailFill = Color.White.copy(alpha = 0.16f)
+private val SelectedRailFill = Color.White.copy(alpha = 0.06f)
+
 @Composable
 private fun CategoryRailItem(
     label: String,
@@ -277,47 +280,52 @@ private fun CategoryRailItem(
 ) {
     var focused by remember { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
-    val background = when {
-        focused -> Color.White.copy(alpha = 0.16f)
-        selected -> Color.White.copy(alpha = 0.06f)
-        else -> Color.Transparent
-    }
-    Row(
+    val enter = { if (!enterDetail()) focusManager.moveFocus(FocusDirection.Right) }
+    Surface(
+        selected = selected,
+        onClick = { enter() },
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(background)
             .focusRequester(focusRequester)
             .focusProperties {
                 if (isFirst) up = FocusRequester.Cancel
                 if (isLast) down = FocusRequester.Cancel
             }
             .onKeyEvent { event ->
-                if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
-                when (event.key) {
-                    Key.DirectionCenter, Key.Enter, Key.DirectionRight -> {
-                        if (!enterDetail()) focusManager.moveFocus(FocusDirection.Right)
-                        true
-                    }
-                    else -> false
+                if (event.type != KeyEventType.KeyDown || event.key != Key.DirectionRight) {
+                    return@onKeyEvent false
                 }
+                enter()
+                true
             }
             .onFocusChanged {
                 focused = it.isFocused
                 if (it.isFocused) onFocused()
-            }
-            .focusable()
-            .padding(horizontal = 24.dp, vertical = 16.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            label,
-            style = MaterialTheme.typography.titleMedium,
-            color = if (focused || selected) PicnicColors.OnDark else PicnicColors.OnDarkMuted
+            },
+        shape = SelectableSurfaceDefaults.shape(shape = RoundedCornerShape(12.dp)),
+        scale = SelectableSurfaceDefaults.scale(focusedScale = 1f),
+        colors = SelectableSurfaceDefaults.colors(
+            containerColor = Color.Transparent,
+            focusedContainerColor = FocusedRailFill,
+            pressedContainerColor = FocusedRailFill,
+            selectedContainerColor = SelectedRailFill,
+            focusedSelectedContainerColor = FocusedRailFill,
+            pressedSelectedContainerColor = FocusedRailFill
         )
-        if (badge) {
-            Spacer(Modifier.width(8.dp))
-            app.picnic.player.ui.browse.UpdateBadgeDot()
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                label,
+                style = MaterialTheme.typography.titleMedium,
+                color = if (focused || selected) PicnicColors.OnDark else PicnicColors.OnDarkMuted
+            )
+            if (badge) {
+                Spacer(Modifier.width(8.dp))
+                app.picnic.player.ui.browse.UpdateBadgeDot()
+            }
         }
     }
 }
@@ -459,16 +467,12 @@ private fun SettingRow(
     onFocused: (FocusRequester) -> Unit,
     onActivate: () -> Unit
 ) {
-    var focused by remember { mutableStateOf(false) }
     val rowFocus = remember { FocusRequester() }
-    Row(
+    GlassRow(
+        onClick = { if (enabled) onActivate() },
         modifier = Modifier
             .widthIn(max = 720.dp)
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(
-                if (focused) Color.White.copy(alpha = 0.14f) else Color.White.copy(alpha = 0.04f)
-            )
             .focusRequester(rowFocus)
             .then(
                 if (enterOrRestoreFr != null) {
@@ -483,47 +487,36 @@ private fun SettingRow(
                 if (blockUp) up = FocusRequester.Cancel
                 if (blockDown) down = FocusRequester.Cancel
             }
-            .padding(horizontal = 20.dp, vertical = 16.dp)
-            .onKeyEvent { event ->
-                if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
-                when (event.key) {
-                    Key.DirectionCenter, Key.Enter -> {
-                        if (enabled) onActivate()
-                        true
-                    }
-                    else -> false
+            .onFocusChanged { if (it.isFocused) onFocused(rowFocus) }
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    label,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = if (enabled) PicnicColors.OnDark else PicnicColors.OnDarkMuted
+                )
+                if (description != null) {
+                    Text(
+                        description,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = PicnicColors.OnDarkMuted
+                    )
                 }
             }
-            .onFocusChanged {
-                focused = it.isFocused
-                if (it.isFocused) onFocused(rowFocus)
-            }
-            .focusable(),
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
-                label,
+                value,
                 style = MaterialTheme.typography.titleMedium,
-                color = if (enabled) PicnicColors.OnDark else PicnicColors.OnDarkMuted
+                color = when {
+                    !enabled -> PicnicColors.OnDarkMuted
+                    value.isEmpty() -> PicnicColors.OnDarkMuted
+                    else -> PicnicColors.Cyan
+                }
             )
-            if (description != null) {
-                Text(
-                    description,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = PicnicColors.OnDarkMuted
-                )
-            }
         }
-        Text(
-            value,
-            style = MaterialTheme.typography.titleMedium,
-            color = when {
-                !enabled -> PicnicColors.OnDarkMuted
-                value.isEmpty() -> PicnicColors.OnDarkMuted
-                else -> PicnicColors.Cyan
-            }
-        )
     }
 }

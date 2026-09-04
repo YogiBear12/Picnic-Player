@@ -143,10 +143,17 @@ fun BoxScope.SubtitleDelayOverlay(
             .focusRequester(adjust.focusRequester)
             .focusable()
             .onKeyEvent { event ->
+                val isSelect = event.key == Key.DirectionCenter || event.key == Key.Enter
                 when {
                     event.type == KeyEventType.KeyUp &&
                         (event.key == Key.DirectionLeft || event.key == Key.DirectionRight) -> {
                         adjust.release()
+                        true
+                    }
+                    (event.type == KeyEventType.KeyUp && isSelect) ||
+                        (event.type == KeyEventType.KeyDown && event.key == Key.Back) -> {
+                        adjust.release()
+                        onExit()
                         true
                     }
                     event.type != KeyEventType.KeyDown -> false
@@ -158,11 +165,7 @@ fun BoxScope.SubtitleDelayOverlay(
                         adjust.holdLater()
                         true
                     }
-                    event.key == Key.Back || event.key == Key.DirectionCenter || event.key == Key.Enter -> {
-                        adjust.release()
-                        onExit()
-                        true
-                    }
+                    isSelect -> true
                     else -> false
                 }
             }
