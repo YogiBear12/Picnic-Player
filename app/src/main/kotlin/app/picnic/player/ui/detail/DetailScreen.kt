@@ -42,12 +42,12 @@ import app.picnic.player.ui.common.LocalImageUrls
 import app.picnic.player.ui.common.OverflowMenuDialog
 import app.picnic.player.ui.common.PageRow
 import app.picnic.player.ui.common.PlayFromStartLabel
+import app.picnic.player.ui.common.RequestMoreSeasons
 import app.picnic.player.ui.common.ScrollableTextDialog
 import app.picnic.player.ui.common.playTarget
 import app.picnic.player.ui.common.rememberRowPageFocus
 import app.picnic.player.ui.common.resumeTicks
 import app.picnic.player.ui.navigation.PersonKey
-import app.picnic.player.ui.seerr.SeasonRequestDialog
 import app.picnic.player.ui.theme.PicnicColors
 import java.util.UUID
 import org.jellyfin.sdk.model.api.BaseItemDto
@@ -307,17 +307,15 @@ private fun DetailContent(
                     )
                 }
             },
-            showRequestMore = requestMoreVisible,
-            requestMoreBusy = state.requestMoreBusy,
-            onRequestMore = { viewModel.showSeasonPicker() }
-        )
-    }
-
-    if (state.showSeasonPicker) {
-        SeasonRequestDialog(
-            seasons = state.requestMoreSeasons,
-            onConfirm = viewModel::requestMoreSeasons,
-            onDismiss = viewModel::dismissSeasonPicker
+            requestMore = if (requestMoreVisible) {
+                RequestMoreSeasons(
+                    busy = state.requestMoreBusy,
+                    seasons = state.requestMoreSeasons,
+                    onConfirm = viewModel::requestMoreSeasons
+                )
+            } else {
+                null
+            }
         )
     }
 }

@@ -1,5 +1,6 @@
 package app.picnic.player.ui.common
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
@@ -24,8 +25,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.SurfaceDefaults
@@ -143,11 +142,12 @@ fun GlobalContextMenuDialog(
         }
     }
 
-    when (panel) {
-        GlobalMenuPanel.SYNOPSIS -> SynopsisDialog(item.overview) { panel = null }
-        GlobalMenuPanel.MEDIA_INFO -> MediaInfoDialog(item = item, onDismiss = { panel = null })
-        GlobalMenuPanel.REPORT -> if (reportTarget != null) {
-            ContextMenuHost(onDismiss = onDismiss) {
+    ContextMenuHost(onDismiss = onDismiss) {
+        BackHandler(enabled = panel != null) { panel = null }
+        when (panel) {
+            GlobalMenuPanel.SYNOPSIS -> SynopsisPanel(item.overview)
+            GlobalMenuPanel.MEDIA_INFO -> MediaInfoPanel(item = item)
+            GlobalMenuPanel.REPORT -> if (reportTarget != null) {
                 ReportIssuePanel(
                     item = item,
                     target = reportTarget,
@@ -155,8 +155,8 @@ fun GlobalContextMenuDialog(
                     onCancel = { panel = null }
                 )
             }
+            null -> ContextMenuPanel(actions = actions)
         }
-        null -> ContextMenuHost(onDismiss = onDismiss) { ContextMenuPanel(actions = actions) }
     }
 }
 
@@ -167,31 +167,26 @@ private enum class GlobalMenuPanel {
 }
 
 @Composable
-private fun SynopsisDialog(overview: String?, onDismiss: () -> Unit) {
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
+private fun SynopsisPanel(overview: String?) {
+    Surface(
+        shape = MaterialTheme.shapes.medium,
+        colors = SurfaceDefaults.colors(
+            containerColor = PicnicColors.Surface,
+            contentColor = Color.White
+        ),
+        modifier = Modifier
+            .width(600.dp)
+            .padding(32.dp)
     ) {
-        Surface(
-            shape = MaterialTheme.shapes.medium,
-            colors = SurfaceDefaults.colors(
-                containerColor = PicnicColors.Surface,
-                contentColor = Color.White
-            ),
-            modifier = Modifier
-                .width(600.dp)
-                .padding(32.dp)
+        Column(
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.padding(24.dp)
         ) {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.padding(24.dp)
-            ) {
-                Text(
-                    text = overview ?: "No synopsis available.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Color.White.copy(alpha = 0.85f)
-                )
-            }
+            Text(
+                text = overview ?: "No synopsis available.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color.White.copy(alpha = 0.85f)
+            )
         }
     }
 }

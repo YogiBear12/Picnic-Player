@@ -19,7 +19,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.tv.material3.ExperimentalTvMaterial3Api
+import app.picnic.player.data.seerr.SeerrSeasonPickItem
 import app.picnic.player.ui.seerr.ReportIssuePanel
+import app.picnic.player.ui.seerr.SeasonRequestPanel
 import app.picnic.player.ui.seerr.rememberIssueReporter
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
@@ -104,11 +106,11 @@ fun OverflowMenuDialog(
     onDismiss: () -> Unit,
     onToggleFavorite: (Boolean) -> Unit,
     extraActions: List<ContextMenuAction> = emptyList(),
-    showRequestMore: Boolean = false,
-    requestMoreBusy: Boolean = false,
-    onRequestMore: () -> Unit = {}
+    requestMore: RequestMoreSeasons? = null
 ) {
     var panel by remember { mutableStateOf<OverflowPanel?>(null) }
+    val menuFocus = rememberContextMenuFocus()
+    val versionFocus = rememberContextMenuFocus()
     val reportTarget = rememberIssueReporter(item)
     val mediaSources = item.mediaSources.orEmpty()
     val hasVersions = mediaSources.size > 1
@@ -128,16 +130,13 @@ fun OverflowMenuDialog(
 
     val mainItems = buildList {
         addAll(extraActions)
-        if (showRequestMore) {
+        if (requestMore != null) {
             add(
                 ContextMenuAction(
-                    label = if (requestMoreBusy) "Requesting…" else "Request more",
+                    label = if (requestMore.busy) "Requesting…" else "Request more",
                     icon = Icons.Default.Add,
-                    enabled = !requestMoreBusy,
-                    onClick = {
-                        onDismiss()
-                        if (!requestMoreBusy) onRequestMore()
-                    }
+                    enabled = !requestMore.busy,
+                    onClick = { panel = OverflowPanel.REQUEST_MORE }
                 )
             )
         }
@@ -190,10 +189,11 @@ fun OverflowMenuDialog(
         }
     }
 
-    when (panel) {
-        OverflowPanel.MEDIA_INFO -> MediaInfoDialog(item = item, onDismiss = { panel = null })
-        OverflowPanel.REPORT -> if (reportTarget != null) {
-            ContextMenuHost(onDismiss = onDismiss) {
+    ContextMenuHost(onDismiss = onDismiss) {
+        BackHandler(enabled = panel != null) { panel = null }
+        when (panel) {
+            OverflowPanel.MEDIA_INFO -> MediaInfoPanel(item = item)
+            OverflowPanel.REPORT -> if (reportTarget != null) {
                 ReportIssuePanel(
                     item = item,
                     target = reportTarget,
@@ -201,18 +201,31 @@ fun OverflowMenuDialog(
                     onCancel = { panel = null }
                 )
             }
-        }
-        OverflowPanel.VERSIONS -> ContextMenuHost(onDismiss = onDismiss) {
-            BackHandler { panel = null }
-            ContextMenuPanel(actions = versionItems, openedByLongPress = false)
-        }
-        null -> ContextMenuHost(onDismiss = onDismiss) {
-            ContextMenuPanel(actions = mainItems, openedByLongPress = false)
+            OverflowPanel.REQUEST_MORE -> if (requestMore != null) {
+                SeasonRequestPanel(
+                    seasons = requestMore.seasons,
+                    onConfirm = {
+                        requestMore.onConfirm(it)
+                        onDismiss()
+                    },
+                    onDismiss = { panel = null }
+                )
+            }
+            OverflowPanel.VERSIONS ->
+                ContextMenuPanel(actions = versionItems, openedByLongPress = false, focus = versionFocus)
+            null -> ContextMenuPanel(actions = mainItems, openedByLongPress = false, focus = menuFocus)
         }
     }
 }
 
+data class RequestMoreSeasons(
+    val busy: Boolean,
+    val seasons: List<SeerrSeasonPickItem>,
+    val onConfirm: (List<Int>) -> Unit
+)
+
 private enum class OverflowPanel {
+    REQUEST_MORE,
     VERSIONS,
     MEDIA_INFO,
     REPORT

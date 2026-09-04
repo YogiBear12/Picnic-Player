@@ -59,6 +59,20 @@ internal fun SeasonRequestDialog(
     onConfirm: (List<Int>) -> Unit,
     onDismiss: () -> Unit
 ) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        SeasonRequestPanel(seasons = seasons, onConfirm = onConfirm, onDismiss = onDismiss)
+    }
+}
+
+@Composable
+internal fun SeasonRequestPanel(
+    seasons: List<SeerrSeasonPickItem>,
+    onConfirm: (List<Int>) -> Unit,
+    onDismiss: () -> Unit
+) {
     BackHandler { onDismiss() }
     val selectableNumbers = remember(seasons) {
         seasons.filter { it.selectable }.map { it.seasonNumber }.toSet()
@@ -77,67 +91,62 @@ internal fun SeasonRequestDialog(
         else -> lastListFocus
     }
 
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
+    Column(
+        modifier = Modifier
+            .panelSurface(SeerrPanelWidth, SeerrPanelCornerRadius)
+            .focusGroup()
     ) {
-        Column(
+        SeerrPanelHeader(title = "Select seasons")
+        LazyColumn(
+            state = listState,
             modifier = Modifier
-                .panelSurface(SeerrPanelWidth, SeerrPanelCornerRadius)
-                .focusGroup()
+                .height(SeerrListViewportHeight)
+                .fillMaxWidth()
+                .focusGroup(),
+            contentPadding = PaddingValues(horizontal = SeerrContentInset),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
-            SeerrPanelHeader(title = "Select seasons")
-            LazyColumn(
-                state = listState,
-                modifier = Modifier
-                    .height(SeerrListViewportHeight)
-                    .fillMaxWidth()
-                    .focusGroup(),
-                contentPadding = PaddingValues(horizontal = SeerrContentInset),
-                verticalArrangement = Arrangement.spacedBy(2.dp)
-            ) {
-                itemsIndexed(seasons, key = { _, item -> item.seasonNumber }) { index, item ->
-                    val attachedFocus = when {
-                        index == seedIndex -> seedFocus
-                        index == lastFocusableIndex -> lastListFocus
+            itemsIndexed(seasons, key = { _, item -> item.seasonNumber }) { index, item ->
+                val attachedFocus = when {
+                    index == seedIndex -> seedFocus
+                    index == lastFocusableIndex -> lastListFocus
+                    else -> null
+                }
+                SeasonPickRow(
+                    item = item,
+                    selected = item.seasonNumber in selected,
+                    onToggle = {
+                        if (!item.selectable) return@SeasonPickRow
+                        selected = if (item.seasonNumber in selected) {
+                            selected - item.seasonNumber
+                        } else {
+                            selected + item.seasonNumber
+                        }
+                    },
+                    focusRequester = attachedFocus,
+                    downTarget = when {
+                        index == lastFocusableIndex && canConfirm -> confirmFocus
                         else -> null
                     }
-                    SeasonPickRow(
-                        item = item,
-                        selected = item.seasonNumber in selected,
-                        onToggle = {
-                            if (!item.selectable) return@SeasonPickRow
-                            selected = if (item.seasonNumber in selected) {
-                                selected - item.seasonNumber
-                            } else {
-                                selected + item.seasonNumber
-                            }
-                        },
-                        focusRequester = attachedFocus,
-                        downTarget = when {
-                            index == lastFocusableIndex && canConfirm -> confirmFocus
-                            else -> null
-                        }
-                    )
-                }
+                )
             }
-            Spacer(Modifier.height(12.dp))
-            SeerrActionButton(
-                title = "Request",
-                onClick = {
-                    if (!canConfirm) return@SeerrActionButton
-                    onConfirm(selected.sorted())
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = SeerrContentInset)
-                    .focusRequester(confirmFocus)
-                    .focusProperties {
-                        up = upFromConfirm
-                        canFocus = canConfirm
-                    }
-            )
         }
+        Spacer(Modifier.height(12.dp))
+        SeerrActionButton(
+            title = "Request",
+            onClick = {
+                if (!canConfirm) return@SeerrActionButton
+                onConfirm(selected.sorted())
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = SeerrContentInset)
+                .focusRequester(confirmFocus)
+                .focusProperties {
+                    up = upFromConfirm
+                    canFocus = canConfirm
+                }
+        )
     }
     LaunchedEffect(seedIndex) {
         if (seedIndex >= 0) {

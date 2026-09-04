@@ -43,21 +43,6 @@ fun SeerrCardContextMenu(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
-    if (state.showSeasonPicker) {
-        SeasonRequestDialog(
-            seasons = viewModel.seasonPickItems(),
-            onConfirm = { seasons ->
-                viewModel.requestSeasons(seasons)
-                onDismiss()
-            },
-            onDismiss = {
-                viewModel.dismissSeasonPicker()
-                onDismiss()
-            }
-        )
-        return
-    }
-
     val actions = if (state.loading) {
         listOf(LoadingAction)
     } else {
@@ -123,7 +108,20 @@ fun SeerrCardContextMenu(
         }
     }
 
-    ContextMenuHost(onDismiss = onDismiss) { ContextMenuPanel(actions = actions) }
+    ContextMenuHost(onDismiss = onDismiss) {
+        if (state.showSeasonPicker) {
+            SeasonRequestPanel(
+                seasons = viewModel.seasonPickItems(),
+                onConfirm = { seasons ->
+                    viewModel.requestSeasons(seasons)
+                    onDismiss()
+                },
+                onDismiss = { viewModel.dismissSeasonPicker() }
+            )
+        } else {
+            ContextMenuPanel(actions = actions)
+        }
+    }
 }
 
 @Composable

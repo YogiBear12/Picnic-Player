@@ -59,8 +59,7 @@ internal fun PlaylistsPane(
     val session = state.session
     val style = remember(metrics) { posterCardStyle(sy = metrics.sy) }
     val cardFocus = rememberKeyedFocusRequesters()
-    var menuPlaylist by remember { mutableStateOf<BaseItemDto?>(null) }
-    var confirmDelete by remember { mutableStateOf<BaseItemDto?>(null) }
+    var menu by remember { mutableStateOf<PlaylistMenu?>(null) }
     var refocusSlot by remember { mutableStateOf<Int?>(null) }
 
     LaunchedEffect(seedContentFocus, state.playlists.isEmpty()) {
@@ -115,7 +114,7 @@ internal fun PlaylistsPane(
                             focusRequester = cardFocus[item.id.toString()],
                             upFocus = null,
                             onClick = { onPlaylist(item) },
-                            onLongClick = { menuPlaylist = item },
+                            onLongClick = { menu = PlaylistMenu(item) },
                             onFocused = {},
                             subtitleOverride = playlistCountLabel(item),
                             modifier = Modifier.padding(top = style.topInset)
@@ -126,34 +125,37 @@ internal fun PlaylistsPane(
         }
     }
 
-    menuPlaylist?.let { playlist ->
-        ContextMenuHost(onDismiss = { menuPlaylist = null }) {
-            ContextMenuPanel(
-                actions = listOf(
-                    ContextMenuAction("Delete playlist", Icons.Default.Delete) {
-                        menuPlaylist = null
-                        confirmDelete = playlist
-                    }
+    menu?.let { open ->
+        val playlist = open.playlist
+        ContextMenuHost(onDismiss = { menu = null }) {
+            if (open.confirmingDelete) {
+                ContextMenuPanel(
+                    actions = listOf(
+                        ContextMenuAction("Cancel", Icons.Default.Close) { menu = null },
+                        ContextMenuAction("Delete \"${playlist.name.orEmpty()}\"", Icons.Default.Delete) {
+                            menu = null
+                            refocusSlot = state.playlists.indexOfFirst { it.id == playlist.id }.coerceAtLeast(0)
+                            viewModel.delete(playlist)
+                        }
+                    ),
+                    openedByLongPress = false
                 )
-            )
-        }
-    }
-
-    confirmDelete?.let { playlist ->
-        ContextMenuHost(onDismiss = { confirmDelete = null }) {
-            ContextMenuPanel(
-                actions = listOf(
-                    ContextMenuAction("Cancel", Icons.Default.Close) { confirmDelete = null },
-                    ContextMenuAction("Delete \"${playlist.name.orEmpty()}\"", Icons.Default.Delete) {
-                        confirmDelete = null
-                        refocusSlot = state.playlists.indexOfFirst { it.id == playlist.id }.coerceAtLeast(0)
-                        viewModel.delete(playlist)
-                    }
-                ),
-                openedByLongPress = false
-            )
+            } else {
+                ContextMenuPanel(
+                    actions = listOf(
+                        ContextMenuAction("Delete playlist", Icons.Default.Delete) {
+                            menu = PlaylistMenu(playlist, confirmingDelete = true)
+                        }
+                    )
+                )
+            }
         }
     }
 }
+
+private data class PlaylistMenu(
+    val playlist: BaseItemDto,
+    val confirmingDelete: Boolean = false
+)
 
 private fun playlistCountLabel(item: BaseItemDto): String? = item.childCount?.let { countLabel(it, "item") }

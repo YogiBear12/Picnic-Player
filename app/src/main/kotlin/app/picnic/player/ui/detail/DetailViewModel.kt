@@ -67,7 +67,6 @@ class DetailViewModel @AssistedInject constructor(
         val requestMoreActiveRequest: SeerrMediaRequest? = null,
         val requestMoreCanRequest: Boolean = false,
         val requestMoreError: String? = null,
-        val showSeasonPicker: Boolean = false,
         val requestMoreBusy: Boolean = false
     )
 
@@ -202,21 +201,12 @@ class DetailViewModel @AssistedInject constructor(
         }
     }
 
-    fun showSeasonPicker() {
-        if (state.value.requestMoreSeasons.isEmpty()) return
-        _state.update { it.copy(showSeasonPicker = true) }
-    }
-
-    fun dismissSeasonPicker() {
-        _state.update { it.copy(showSeasonPicker = false) }
-    }
-
     fun requestMoreSeasons(seasons: List<Int>) {
         val s = state.value
         val tmdbId = s.requestMoreTmdbId ?: return
         if (!s.canRequestMore || seasons.isEmpty() || s.requestMoreBusy) return
         viewModelScope.launch {
-            _state.update { it.copy(showSeasonPicker = false, requestMoreBusy = true) }
+            _state.update { it.copy(requestMoreBusy = true) }
             runCatching {
                 val active = s.requestMoreActiveRequest
                 val payload = seasonsForTvRequest(seasons, active)

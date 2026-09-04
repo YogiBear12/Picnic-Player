@@ -37,8 +37,6 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
@@ -57,59 +55,53 @@ import org.jellyfin.sdk.model.api.MediaStreamType
 private val ContextMenuGlassFill = PicnicColors.GlassFill
 
 @Composable
-fun MediaInfoDialog(
+fun MediaInfoPanel(
     item: BaseItemDto,
-    onDismiss: () -> Unit,
     viewModel: MediaInfoViewModel = hiltViewModel(key = "mediainfo-${item.id}")
 ) {
     LaunchedEffect(item.id) { viewModel.load(item.id) }
     val state by viewModel.state.collectAsState()
 
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
+    Surface(
+        shape = MaterialTheme.shapes.medium,
+        colors = SurfaceDefaults.colors(
+            containerColor = ContextMenuGlassFill,
+            contentColor = Color.White
+        ),
+        modifier = Modifier.width(540.dp).heightIn(max = 640.dp).padding(24.dp)
     ) {
-        Surface(
-            shape = MaterialTheme.shapes.medium,
-            colors = SurfaceDefaults.colors(
-                containerColor = ContextMenuGlassFill,
-                contentColor = Color.White
-            ),
-            modifier = Modifier.width(540.dp).heightIn(max = 640.dp).padding(24.dp)
-        ) {
-            Column(modifier = Modifier.padding(28.dp)) {
+        Column(modifier = Modifier.padding(28.dp)) {
+            Text(
+                text = "Media info",
+                style = MaterialTheme.typography.headlineSmall,
+                color = Color.White
+            )
+            item.name?.takeIf { it.isNotBlank() }?.let {
                 Text(
-                    text = "Media info",
-                    style = MaterialTheme.typography.headlineSmall,
-                    color = Color.White
+                    text = it,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.White.copy(alpha = 0.6f)
                 )
-                item.name?.takeIf { it.isNotBlank() }?.let {
+            }
+            Spacer(Modifier.height(20.dp))
+
+            when (val s = state) {
+                is MediaInfoViewModel.State.Loading ->
                     Text(
-                        text = it,
+                        text = "Loading…",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = Color.White.copy(alpha = 0.6f)
+                        color = Color.White.copy(alpha = 0.7f)
                     )
-                }
-                Spacer(Modifier.height(20.dp))
 
-                when (val s = state) {
-                    is MediaInfoViewModel.State.Loading ->
-                        Text(
-                            text = "Loading…",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = Color.White.copy(alpha = 0.7f)
-                        )
+                is MediaInfoViewModel.State.Error ->
+                    Text(
+                        text = "Media info unavailable for this item.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color.White.copy(alpha = 0.7f)
+                    )
 
-                    is MediaInfoViewModel.State.Error ->
-                        Text(
-                            text = "Media info unavailable for this item.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = Color.White.copy(alpha = 0.7f)
-                        )
-
-                    is MediaInfoViewModel.State.Loaded ->
-                        MediaInfoContent(sources = s.sources, chapters = s.chapters)
-                }
+                is MediaInfoViewModel.State.Loaded ->
+                    MediaInfoContent(sources = s.sources, chapters = s.chapters)
             }
         }
     }
@@ -254,8 +246,6 @@ private fun SectionCard(
     }
 }
 
-// Rows are focusable purely so D-pad traversal can walk (and thus scroll) through a section taller
-// than the dialog — inside a Dialog window focus is contained, so there is no risk of it escaping.
 @Composable
 private fun PropertyRow(label: String, value: String) {
     var focused by remember { mutableStateOf(false) }
