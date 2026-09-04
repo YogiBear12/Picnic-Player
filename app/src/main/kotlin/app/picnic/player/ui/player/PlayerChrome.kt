@@ -61,10 +61,15 @@ class PlayerChrome {
         get() = videoKeysActive && !skipPillShowing
 
     val skipPillShowing: Boolean
-        get() = segmentActive && !skipPillDismissed && !osdVisible && panel == Panel.NONE && !nextUpVisible
+        get() = segmentActive &&
+            !skipPillDismissed &&
+            !osdVisible &&
+            panel == Panel.NONE &&
+            !nextUpVisible &&
+            modal == null
 
     val skipInOsd: Boolean
-        get() = segmentActive && (skipPillDismissed || osdVisible || panel != Panel.NONE)
+        get() = segmentActive && (skipPillDismissed || osdVisible || panel != Panel.NONE || modal != null)
 
     fun reveal() {
         if (inPictureInPicture) return

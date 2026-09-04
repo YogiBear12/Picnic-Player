@@ -113,6 +113,20 @@ class PlayerChromeTest {
     }
 
     @Test
+    fun anOpenModalHidesTheSkipPill() {
+        chrome.onSegmentChanged(segmentActive = true, enteredAtStart = true)
+        assertTrue(chrome.skipPillShowing)
+
+        chrome.enterModal(PlayerModal.REPORT_ISSUE)
+        assertFalse(chrome.skipPillShowing)
+        assertTrue(chrome.skipInOsd)
+
+        chrome.closeModal()
+        assertTrue(chrome.skipPillShowing)
+        assertFalse(chrome.skipInOsd)
+    }
+
+    @Test
     fun backLeavesWhenNothingIsOpen() {
         assertEquals(BackOutcome.ExitPlayer, chrome.onBack())
     }
