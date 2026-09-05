@@ -42,7 +42,6 @@ import app.picnic.player.ui.common.ContextMenuHandler
 import app.picnic.player.ui.common.GlobalContextMenuDialog
 import app.picnic.player.ui.common.GlobalContextMenuViewModel
 import app.picnic.player.ui.common.ImageUrlsViewModel
-import app.picnic.player.ui.common.LocalAddToPlaylist
 import app.picnic.player.ui.common.LocalContextMenuHandler
 import app.picnic.player.ui.common.LocalImageUrls
 import app.picnic.player.ui.common.LocalSeerrCardMenu
@@ -56,7 +55,6 @@ import app.picnic.player.ui.onboarding.ServerEntryScreen
 import app.picnic.player.ui.onboarding.ServerPickerScreen
 import app.picnic.player.ui.person.PersonScreen
 import app.picnic.player.ui.player.PlayerScreen
-import app.picnic.player.ui.playlist.AddToPlaylistDialog
 import app.picnic.player.ui.playlist.PlaylistScreen
 import app.picnic.player.ui.seerr.IssueReportViewModel
 import app.picnic.player.ui.seerr.LocalIssueReporter
@@ -116,7 +114,6 @@ fun PicnicNavHost(
     var contextMenuItem by remember { mutableStateOf<BaseItemDto?>(null) }
     var contextMenuFromContinueWatching by remember { mutableStateOf(false) }
     var seerrMenuItem by remember { mutableStateOf<SeerrCatalogItem?>(null) }
-    var addToPlaylistItem by remember { mutableStateOf<BaseItemDto?>(null) }
     val contextMenuViewModel: GlobalContextMenuViewModel = hiltViewModel()
 
     val contextMenuHandler = remember {
@@ -130,8 +127,6 @@ fun PicnicNavHost(
 
     val seerrCardMenu: (SeerrCatalogItem) -> Unit = { item -> seerrMenuItem = item }
 
-    val addToPlaylistHandler: (BaseItemDto) -> Unit = { item -> addToPlaylistItem = item }
-
     val imageUrls by imageUrlsViewModel.imageUrls.collectAsStateWithLifecycle()
 
     val issueReporter: IssueReportViewModel = hiltViewModel()
@@ -139,7 +134,6 @@ fun PicnicNavHost(
     CompositionLocalProvider(
         LocalContextMenuHandler provides contextMenuHandler,
         LocalSeerrCardMenu provides seerrCardMenu,
-        LocalAddToPlaylist provides addToPlaylistHandler,
         LocalIssueReporter provides issueReporter,
         LocalImageUrls provides imageUrls
     ) {
@@ -391,7 +385,6 @@ fun PicnicNavHost(
                                 )
                             },
                             onGoToSeries = { seriesId -> navViewModel.push(DetailKey(seriesId)) },
-                            onAddToPlaylist = { item -> addToPlaylistItem = item },
                             onBack = { navViewModel.pop() }
                         )
                     }
@@ -439,10 +432,6 @@ fun PicnicNavHost(
                     } else {
                         null
                     },
-                    onAddToPlaylist = {
-                        contextMenuItem = null
-                        addToPlaylistItem = item
-                    },
                     extraActions = if (contextMenuFromContinueWatching) {
                         listOf(
                             ContextMenuAction("Remove from Continue watching", Icons.Default.Close) {
@@ -453,10 +442,6 @@ fun PicnicNavHost(
                         emptyList()
                     }
                 )
-            }
-
-            addToPlaylistItem?.let { item ->
-                AddToPlaylistDialog(item = item, onDismiss = { addToPlaylistItem = null })
             }
         }
     }

@@ -15,7 +15,3 @@ val LocalContextMenuHandler = staticCompositionLocalOf<ContextMenuHandler> {
 val LocalSeerrCardMenu = staticCompositionLocalOf<(SeerrCatalogItem) -> Unit> {
     error("No Seerr card menu handler provided")
 }
-
-val LocalAddToPlaylist = staticCompositionLocalOf<(BaseItemDto) -> Unit> {
-    error("No AddToPlaylist handler provided")
-}

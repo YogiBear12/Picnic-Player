@@ -29,6 +29,7 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.SurfaceDefaults
 import androidx.tv.material3.Text
+import app.picnic.player.ui.playlist.AddToPlaylistPanel
 import app.picnic.player.ui.seerr.ReportIssuePanel
 import app.picnic.player.ui.seerr.rememberIssueReporter
 import app.picnic.player.ui.theme.PicnicColors
@@ -43,7 +44,6 @@ fun GlobalContextMenuDialog(
     onMarkWatched: (Boolean) -> Unit,
     onToggleFavorite: (Boolean) -> Unit,
     onGoToSeries: ((String) -> Unit)?,
-    onAddToPlaylist: (() -> Unit)? = null,
     extraActions: List<ContextMenuAction> = emptyList(),
     showResumePosition: Boolean = true
 ) {
@@ -116,14 +116,11 @@ fun GlobalContextMenuDialog(
             }
         )
 
-        if (onAddToPlaylist != null) {
-            add(
-                ContextMenuAction("Add to playlist", Icons.AutoMirrored.Filled.PlaylistAdd) {
-                    onAddToPlaylist()
-                    onDismiss()
-                }
-            )
-        }
+        add(
+            ContextMenuAction("Add to playlist", Icons.AutoMirrored.Filled.PlaylistAdd) {
+                panel = GlobalMenuPanel.PLAYLIST
+            }
+        )
 
         extraActions.forEach { extra ->
             add(
@@ -147,6 +144,7 @@ fun GlobalContextMenuDialog(
         BackHandler(enabled = panel != null) { panel = null }
         when (panel) {
             GlobalMenuPanel.SYNOPSIS -> SynopsisPanel(item.overview)
+            GlobalMenuPanel.PLAYLIST -> AddToPlaylistPanel(item = item, onDone = onDismiss)
             GlobalMenuPanel.MEDIA_INFO -> MediaInfoPanel(item = item)
             GlobalMenuPanel.REPORT -> if (reportTarget != null) {
                 ReportIssuePanel(
@@ -163,6 +161,7 @@ fun GlobalContextMenuDialog(
 
 private enum class GlobalMenuPanel {
     SYNOPSIS,
+    PLAYLIST,
     MEDIA_INFO,
     REPORT
 }

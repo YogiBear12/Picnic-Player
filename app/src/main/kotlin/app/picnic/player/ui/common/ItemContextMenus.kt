@@ -20,6 +20,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import app.picnic.player.data.seerr.SeerrSeasonPickItem
+import app.picnic.player.ui.playlist.AddToPlaylistPanel
 import app.picnic.player.ui.seerr.ReportIssuePanel
 import app.picnic.player.ui.seerr.SeasonRequestPanel
 import app.picnic.player.ui.seerr.rememberIssueReporter
@@ -37,7 +38,8 @@ fun SeasonContextMenu(
 ) {
     val played = season.userData?.played ?: false
     val isFavorite = season.userData?.isFavorite ?: false
-    val addToPlaylist = LocalAddToPlaylist.current
+    var showPlaylistPicker by remember { mutableStateOf(false) }
+    val menuFocus = rememberContextMenuFocus()
 
     val actions = buildList {
         add(
@@ -68,13 +70,19 @@ fun SeasonContextMenu(
         )
         add(
             ContextMenuAction("Add to playlist", Icons.AutoMirrored.Filled.PlaylistAdd) {
-                addToPlaylist(season)
-                onDismiss()
+                showPlaylistPicker = true
             }
         )
     }
 
-    ContextMenuHost(onDismiss = onDismiss) { ContextMenuPanel(actions = actions) }
+    ContextMenuHost(onDismiss = onDismiss) {
+        BackHandler(enabled = showPlaylistPicker) { showPlaylistPicker = false }
+        if (showPlaylistPicker) {
+            AddToPlaylistPanel(item = season, onDone = onDismiss)
+        } else {
+            ContextMenuPanel(actions = actions, focus = menuFocus)
+        }
+    }
 }
 
 @OptIn(ExperimentalTvMaterial3Api::class)
@@ -87,15 +95,13 @@ fun EpisodeContextMenu(
     onToggleFavorite: (Boolean) -> Unit,
     onGoToSeries: ((String) -> Unit)? = null
 ) {
-    val addToPlaylist = LocalAddToPlaylist.current
     GlobalContextMenuDialog(
         item = episode,
         onDismiss = onDismiss,
         onPlay = { _, startTicks -> onPlay(startTicks) },
         onMarkWatched = onMarkWatched,
         onToggleFavorite = onToggleFavorite,
-        onGoToSeries = onGoToSeries,
-        onAddToPlaylist = { addToPlaylist(episode) }
+        onGoToSeries = onGoToSeries
     )
 }
 
@@ -115,7 +121,6 @@ fun OverflowMenuDialog(
     val mediaSources = item.mediaSources.orEmpty()
     val hasVersions = mediaSources.size > 1
     val isFavorite = item.userData?.isFavorite ?: false
-    val addToPlaylist = LocalAddToPlaylist.current
 
     val versionItems = mediaSources.mapIndexed { index, source ->
         ContextMenuAction(
@@ -163,10 +168,7 @@ fun OverflowMenuDialog(
             ContextMenuAction(
                 label = "Add to playlist",
                 icon = Icons.AutoMirrored.Filled.PlaylistAdd,
-                onClick = {
-                    addToPlaylist(item)
-                    onDismiss()
-                }
+                onClick = { panel = OverflowPanel.PLAYLIST }
             )
         )
         if (reportTarget != null) {
@@ -193,6 +195,7 @@ fun OverflowMenuDialog(
         BackHandler(enabled = panel != null) { panel = null }
         when (panel) {
             OverflowPanel.MEDIA_INFO -> MediaInfoPanel(item = item)
+            OverflowPanel.PLAYLIST -> AddToPlaylistPanel(item = item, onDone = onDismiss)
             OverflowPanel.REPORT -> if (reportTarget != null) {
                 ReportIssuePanel(
                     item = item,
@@ -226,6 +229,7 @@ data class RequestMoreSeasons(
 
 private enum class OverflowPanel {
     REQUEST_MORE,
+    PLAYLIST,
     VERSIONS,
     MEDIA_INFO,
     REPORT

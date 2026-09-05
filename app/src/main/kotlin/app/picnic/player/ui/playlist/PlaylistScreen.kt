@@ -116,7 +116,6 @@ fun PlaylistScreen(
     onPlay: (itemId: String, startTicks: Long?, queuePosition: Int) -> Unit,
     onShuffle: (itemId: String, queueSeed: Long) -> Unit,
     onGoToSeries: (String) -> Unit,
-    onAddToPlaylist: (BaseItemDto) -> Unit,
     onBack: () -> Unit,
     viewModel: PlaylistViewModel = hiltViewModel()
 ) {
@@ -143,7 +142,6 @@ fun PlaylistScreen(
                 onPlay = onPlay,
                 onShuffle = onShuffle,
                 onGoToSeries = onGoToSeries,
-                onAddToPlaylist = onAddToPlaylist,
                 onBack = onBack
             )
         }
@@ -177,7 +175,6 @@ private fun PlaylistContent(
     onPlay: (String, Long?, Int) -> Unit,
     onShuffle: (String, Long) -> Unit,
     onGoToSeries: (String) -> Unit,
-    onAddToPlaylist: (BaseItemDto) -> Unit,
     onBack: () -> Unit
 ) {
     var focusedKey by rememberSaveable { mutableStateOf<String?>(null) }
@@ -374,10 +371,6 @@ private fun PlaylistContent(
                 }
             } else {
                 null
-            },
-            onAddToPlaylist = {
-                contextMenuItem = null
-                onAddToPlaylist(item)
             },
             extraActions = buildList {
                 add(
