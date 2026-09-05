@@ -2,6 +2,7 @@
 
 package app.picnic.player.ui.playlist
 
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -21,6 +22,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
@@ -61,6 +63,7 @@ fun AddToPlaylistPanel(
             .heightIn(max = PanelMaxHeight)
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 24.dp)
+            .focusGroup()
     ) {
         Text(
             "Add to playlist",
@@ -103,7 +106,10 @@ fun AddToPlaylistPanel(
                 leadingContent = { Icon(Icons.Default.Add, contentDescription = null, tint = Color.White.copy(alpha = 0.8f)) },
                 headlineContent = { Text("New playlist…", color = Color.White) },
                 colors = playlistPickerColors(),
-                modifier = Modifier.fillMaxWidth().focusRequester(firstFocus)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .focusProperties { canFocus = !state.loading }
+                    .focusRequester(firstFocus)
             )
             state.playlists.forEach { playlist ->
                 ListItem(
