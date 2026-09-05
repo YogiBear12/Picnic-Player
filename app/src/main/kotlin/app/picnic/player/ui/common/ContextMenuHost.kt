@@ -53,7 +53,7 @@ private val MenuCornerRadius = 28.dp
 fun ContextMenuHost(onDismiss: () -> Unit, content: @Composable () -> Unit) {
     Dialog(
         onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false),
+        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
         content = content
     )
 }

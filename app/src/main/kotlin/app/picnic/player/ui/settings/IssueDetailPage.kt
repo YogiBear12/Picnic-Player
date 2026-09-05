@@ -209,7 +209,7 @@ internal fun IssueDetailPage(
         BackHandler { composing = false }
         Dialog(
             onDismissRequest = { composing = false },
-            properties = DialogProperties(usePlatformDefaultWidth = false)
+            properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
         ) {
             SeerrTextEntryPanel(
                 title = "Add a comment",
