@@ -20,7 +20,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
@@ -243,13 +242,6 @@ internal fun AccountSettingsPanel(
 
     val images = LocalImageUrls.current
     val contextMenu = LocalContextMenuHandler.current
-
-    if (loadedFavorites == null) {
-        Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator(color = PicnicColors.Accent)
-        }
-        return
-    }
 
     CompositionLocalProvider(LocalBringIntoViewSpec provides PinnedColumn) {
         BoxWithConstraints(modifier) {
