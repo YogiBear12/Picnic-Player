@@ -21,6 +21,8 @@ import androidx.tv.material3.Text
 import app.picnic.player.ui.common.GlassRow
 import app.picnic.player.ui.theme.PicnicColors
 
+internal val SettingsTopInset = 59.dp
+
 internal val SettingsBottomInset = 27.dp
 
 internal data class SettingsPanelFocus(

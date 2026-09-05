@@ -251,7 +251,7 @@ internal fun AccountSettingsPanel(
         Column(
             modifier = modifier
                 .verticalScroll(scrollState)
-                .padding(bottom = SettingsBottomInset)
+                .padding(top = SettingsTopInset, bottom = SettingsBottomInset)
                 .onFocusChanged { focus.onFocusChanged(it.hasFocus) },
             verticalArrangement = Arrangement.spacedBy(RowGap)
         ) {

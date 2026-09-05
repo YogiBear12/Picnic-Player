@@ -138,18 +138,23 @@ fun SettingsScreen(
         }
     }
 
-    Column(
+    Row(
         modifier = Modifier
             .fillMaxSize()
-            .padding(start = 64.dp, end = 64.dp, top = 32.dp)
+            .padding(start = 64.dp, end = 64.dp)
     ) {
-        Text(
-            "Settings",
-            style = MaterialTheme.typography.headlineMedium,
-            color = PicnicColors.OnDark
-        )
-        Spacer(Modifier.height(32.dp))
-        Row(Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxHeight()
+                .width(IntrinsicSize.Max)
+                .padding(top = 24.dp)
+        ) {
+            Text(
+                "Settings",
+                style = MaterialTheme.typography.headlineMedium,
+                color = PicnicColors.OnDark
+            )
+            Spacer(Modifier.height(20.dp))
             val updateViewModel: UpdateViewModel = hiltViewModel()
             val updateBadge by updateViewModel.updateAvailable.collectAsStateWithLifecycle()
             CategoryRail(
@@ -159,30 +164,30 @@ fun SettingsScreen(
                 focusRequesters = categoryFocusRequesters,
                 enterDetail = enterDetail,
                 badgedCategory = if (updateBadge) SettingsCategory.ABOUT else null,
-                modifier = Modifier.fillMaxHeight().width(IntrinsicSize.Max)
-            )
-            Spacer(Modifier.width(48.dp))
-            DetailPanel(
-                category = selected,
-                settings = settings,
-                viewModel = viewModel,
-                onSignedOut = onSignedOut,
-                focus = panelFocus,
-                youtubeApps = youtubeApps,
-                showPicker = { activePicker = it },
-                onShowAudioLanguagePicker = { languagePickerKind = LanguagePickerKind.AUDIO },
-                onShowSubtitleLanguagePicker = { languagePickerKind = LanguagePickerKind.SUBTITLE },
-                restoreRow = restoreDetailRow,
-                onRestored = { restoreDetailRow = null },
-                scrollState = detailScrollState,
-                onOpenSubtitleAppearance = { openSubPage(SubPageRow.SUBTITLE_APPEARANCE) },
-                onOpenSeerrDetail = onOpenSeerrDetail,
-                onOpenItem = onOpenItem,
-                onOpenLicenses = { openSubPage(SubPageRow.LICENSES) },
-                onOpenIssues = { openSubPage(SubPageRow.ISSUES) },
-                modifier = Modifier.weight(1f).fillMaxHeight()
+                modifier = Modifier.fillMaxWidth()
             )
         }
+        Spacer(Modifier.width(48.dp))
+        DetailPanel(
+            category = selected,
+            settings = settings,
+            viewModel = viewModel,
+            onSignedOut = onSignedOut,
+            focus = panelFocus,
+            youtubeApps = youtubeApps,
+            showPicker = { activePicker = it },
+            onShowAudioLanguagePicker = { languagePickerKind = LanguagePickerKind.AUDIO },
+            onShowSubtitleLanguagePicker = { languagePickerKind = LanguagePickerKind.SUBTITLE },
+            restoreRow = restoreDetailRow,
+            onRestored = { restoreDetailRow = null },
+            scrollState = detailScrollState,
+            onOpenSubtitleAppearance = { openSubPage(SubPageRow.SUBTITLE_APPEARANCE) },
+            onOpenSeerrDetail = onOpenSeerrDetail,
+            onOpenItem = onOpenItem,
+            onOpenLicenses = { openSubPage(SubPageRow.LICENSES) },
+            onOpenIssues = { openSubPage(SubPageRow.ISSUES) },
+            modifier = Modifier.weight(1f).fillMaxHeight()
+        )
     }
 
     languagePickerKind?.let { kind ->
@@ -375,7 +380,9 @@ private fun DetailPanel(
                 onOpenLicenses = onOpenLicenses,
                 restoreRow = restoreRow,
                 onRestored = onRestored,
-                modifier = modifier.verticalScroll(scrollState).padding(bottom = SettingsBottomInset)
+                modifier = modifier
+                    .verticalScroll(scrollState)
+                    .padding(top = SettingsTopInset, bottom = SettingsBottomInset)
             )
             return
         }
@@ -411,7 +418,7 @@ private fun DetailPanel(
     Column(
         modifier = modifier
             .verticalScroll(scrollState)
-            .padding(bottom = SettingsBottomInset)
+            .padding(top = SettingsTopInset, bottom = SettingsBottomInset)
             .onFocusChanged { focus.onFocusChanged(it.hasFocus) },
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
