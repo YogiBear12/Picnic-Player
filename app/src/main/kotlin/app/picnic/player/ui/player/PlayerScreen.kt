@@ -36,8 +36,6 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.zIndex
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
@@ -46,7 +44,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.picnic.player.data.media.ItemQueue
 import app.picnic.player.playback.videoDisplayHints
 import app.picnic.player.ui.ambient.PublishBackdrop
-import app.picnic.player.ui.common.ClearDialogDim
+import app.picnic.player.ui.common.SilentNavigationSounds
 import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.player.osd.ChaptersPanel
 import app.picnic.player.ui.player.osd.ModernOsd
@@ -78,6 +76,7 @@ fun PlayerScreen(
     val view = LocalView.current
     SideEffect { view.keepScreenOn = state.isPlaying }
     DisposableEffect(Unit) { onDispose { view.keepScreenOn = false } }
+    SilentNavigationSounds()
 
     val pulse = rememberPlayerPulse()
     val scrub = rememberPlayerScrub(viewModel.player)
@@ -385,11 +384,7 @@ fun PlayerScreen(
         )
 
         if (chrome.modal == PlayerModal.REPORT_ISSUE && issueReporter != null && nowPlayingItem != null) {
-            Dialog(
-                onDismissRequest = chrome::exitModalToSettings,
-                properties = DialogProperties(usePlatformDefaultWidth = false)
-            ) {
-                ClearDialogDim()
+            PlayerDialog(onDismissRequest = chrome::exitModalToSettings) {
                 ReportIssuePanel(
                     item = nowPlayingItem,
                     target = issueReporter,
