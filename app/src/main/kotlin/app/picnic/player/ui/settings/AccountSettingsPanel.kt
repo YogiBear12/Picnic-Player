@@ -2,6 +2,17 @@
 
 package app.picnic.player.ui.settings
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.BringIntoViewSpec
 import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
@@ -38,6 +49,7 @@ import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -76,11 +88,12 @@ import org.jellyfin.sdk.model.api.BaseItemKind
 
 private val BadgeShape = RoundedCornerShape(10.dp)
 private val BadgeFill = Color.White.copy(alpha = 0.07f)
+private val SkeletonFill = Color.White.copy(alpha = 0.14f)
 private val RowPeekInset = 40.dp
-private val PaneEndInset = 0.dp
-private val RowEndInset = 64.dp
 private val RowGap = 20.dp
 private val RowToRowGap = 12.dp
+private const val FavoritesTitle = "Your favorites"
+private const val RequestsTitle = "Your requests"
 
 private object PinnedColumn : BringIntoViewSpec {
     override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float = 0f
@@ -106,8 +119,8 @@ internal fun favoriteSubtitle(item: BaseItemDto): String? = when (item.type) {
     else -> null
 }
 
-private fun Modifier.outsetRow(start: Dp, end: Dp) = layout { measurable, constraints ->
-    val extra = start.roundToPx() + end.roundToPx()
+private fun Modifier.outsetRow(start: Dp) = layout { measurable, constraints ->
+    val extra = start.roundToPx()
     val placeable = measurable.measure(
         constraints.copy(
             minWidth = constraints.minWidth + extra,
@@ -135,13 +148,16 @@ internal fun AccountSettingsPanel(
     val avatarUrl by viewModel.activeUserImageUrl.collectAsStateWithLifecycle()
     val stats by viewModel.watchStats.collectAsStateWithLifecycle()
     val loadedFavorites by viewModel.favorites.collectAsStateWithLifecycle()
-    val requests by viewModel.myRequests.collectAsStateWithLifecycle()
+    val loadedRequests by viewModel.myRequests.collectAsStateWithLifecycle()
     val openIssueCount by viewModel.openIssueCount.collectAsStateWithLifecycle()
     val seerr by viewModel.seerrState.collectAsStateWithLifecycle()
     val connecting by viewModel.seerrConnecting.collectAsStateWithLifecycle()
     val connectError by viewModel.seerrConnectError.collectAsStateWithLifecycle()
     val linked = seerr.linkState == SeerrLinkState.Linked
+    val favoritesLoading by viewModel.favoritesLoading.collectAsStateWithLifecycle()
+    val requestsLoading by viewModel.requestsLoading.collectAsStateWithLifecycle()
     val favorites = loadedFavorites.orEmpty()
+    val requests = loadedRequests.orEmpty()
     var showConnectDialog by remember { mutableStateOf(false) }
     val seerrButtonFr = remember { FocusRequester() }
     val issuesButtonFr = remember { FocusRequester() }
@@ -188,6 +204,7 @@ internal fun AccountSettingsPanel(
     }
 
     val showRequests = linked && requests.isNotEmpty()
+    val requestsGap = if (favorites.isEmpty() && !favoritesLoading) RowGap else RowToRowGap
 
     val focusedItemVanished = when (lastBlock) {
         AccountBlock.FAVORITES -> favoritesFocus.focusedKey?.let { it !in favoriteKeys } == true
@@ -273,10 +290,19 @@ internal fun AccountSettingsPanel(
                             }
                         }
 
+                        AccountRowSkeleton(
+                            title = FavoritesTitle,
+                            visible = favoritesLoading,
+                            exit = if (favorites.isEmpty()) CollapseSkeleton else ExitTransition.None,
+                            topGap = RowGap,
+                            style = cardStyle,
+                            cardSpacing = cardSpacing
+                        )
+
                         if (favorites.isNotEmpty()) {
                             Spacer(Modifier.height(RowGap))
                             AccountRow(
-                                title = "Your favorites",
+                                title = FavoritesTitle,
                                 items = favorites,
                                 keys = favoriteKeys,
                                 rowState = favoritesFocus,
@@ -320,10 +346,19 @@ internal fun AccountSettingsPanel(
                             }
                         }
 
+                        AccountRowSkeleton(
+                            title = RequestsTitle,
+                            visible = requestsLoading,
+                            exit = if (requests.isEmpty()) CollapseSkeleton else ExitTransition.None,
+                            topGap = requestsGap,
+                            style = cardStyle,
+                            cardSpacing = cardSpacing
+                        )
+
                         if (showRequests) {
-                            Spacer(Modifier.height(if (favorites.isEmpty()) RowGap else RowToRowGap))
+                            Spacer(Modifier.height(requestsGap))
                             AccountRow(
-                                title = "Your requests",
+                                title = RequestsTitle,
                                 items = requests,
                                 keys = requestKeys,
                                 rowState = requestsFocus,
@@ -411,6 +446,70 @@ internal fun AccountSettingsPanel(
     }
 }
 
+private val CollapseSkeleton = fadeOut() + shrinkVertically()
+
+@Composable
+private fun AccountRowSkeleton(
+    title: String,
+    visible: Boolean,
+    exit: ExitTransition,
+    topGap: Dp,
+    style: BrowseCardStyle,
+    cardSpacing: Dp
+) {
+    AnimatedVisibility(visible = visible, enter = EnterTransition.None, exit = exit) {
+        val pulse = rememberInfiniteTransition(label = "skeleton")
+        val alpha = pulse.animateFloat(
+            initialValue = 0.35f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 900, easing = LinearEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "skeletonAlpha"
+        )
+        Column {
+            Spacer(Modifier.height(topGap))
+            Text(
+                title,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = Color.White,
+                modifier = Modifier.padding(bottom = 2.dp)
+            )
+            BoxWithConstraints {
+                val slot = style.width + cardSpacing
+                val cards = if (slot > 0.dp) (maxWidth / slot).toInt() + 1 else 1
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(cardSpacing),
+                    modifier = Modifier.graphicsLayer { this.alpha = alpha.value }
+                ) {
+                    repeat(cards) {
+                        Column(
+                            Modifier.gridCellSlot(style).padding(top = style.topInset),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            SkeletonBar(width = style.width, height = style.height, corner = 6.dp)
+                            SkeletonBar(width = style.width * 0.8f, height = 10.dp, corner = 3.dp)
+                            SkeletonBar(width = style.width * 0.45f, height = 10.dp, corner = 3.dp)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SkeletonBar(width: Dp, height: Dp, corner: Dp) {
+    Box(
+        Modifier
+            .size(width = width, height = height)
+            .clip(RoundedCornerShape(corner))
+            .background(SkeletonFill)
+    )
+}
+
 @Composable
 private fun <T> AccountRow(
     title: String,
@@ -433,10 +532,10 @@ private fun <T> AccountRow(
     DetailMediaRow(
         title = title,
         items = items,
-        endInset = RowEndInset,
+        endInset = SettingsSideInset,
         cardSpacing = cardSpacing,
         horizontalRowSpec = horizontalRowSpec,
-        rowFocus = rowState.pinnedRowModifier().outsetRow(start = RowPeekInset, end = PaneEndInset),
+        rowFocus = rowState.pinnedRowModifier().outsetRow(start = RowPeekInset),
         modifier = modifier,
         startInset = RowPeekInset,
         headingInset = 0.dp,

@@ -15,15 +15,34 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import app.picnic.player.ui.common.GlassRow
 import app.picnic.player.ui.theme.PicnicColors
 
-internal val SettingsTopInset = 59.dp
+@Composable
+private fun settingsScaleY(design: Float): Dp = (LocalConfiguration.current.screenHeightDp * (design / 540f)).dp
 
-internal val SettingsBottomInset = 27.dp
+@Composable
+private fun settingsScaleX(design: Float): Dp = (LocalConfiguration.current.screenWidthDp * (design / 960f)).dp
+
+internal val SettingsTopInset: Dp
+    @Composable get() = settingsScaleY(59f)
+
+internal val SettingsBottomInset: Dp
+    @Composable get() = settingsScaleY(27f)
+
+internal val SettingsSideInset: Dp
+    @Composable get() = settingsScaleX(64f)
+
+internal val SettingsSubPageTopInset: Dp
+    @Composable get() = settingsScaleY(32f)
+
+internal val AboutCenterOffset: Dp
+    @Composable get() = settingsScaleY(46f)
 
 internal data class SettingsPanelFocus(
     val enterFr: FocusRequester,

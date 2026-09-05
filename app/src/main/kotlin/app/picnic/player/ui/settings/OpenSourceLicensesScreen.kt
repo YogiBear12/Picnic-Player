@@ -83,7 +83,7 @@ internal fun OpenSourceLicensesScreen(onBack: () -> Unit) {
         modifier = Modifier
             .fillMaxSize()
             .background(PageBackground)
-            .padding(start = 64.dp, end = 64.dp, top = 32.dp)
+            .padding(start = SettingsSideInset, end = SettingsSideInset, top = SettingsSubPageTopInset)
     ) {
         val sel = selected
         val libs = libraries

@@ -89,7 +89,7 @@ internal fun IssuesScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(start = 64.dp, end = 64.dp, top = 32.dp)
+            .padding(start = SettingsSideInset, end = SettingsSideInset, top = SettingsSubPageTopInset)
     ) {
         when {
             selected != null -> IssueDetailPage(

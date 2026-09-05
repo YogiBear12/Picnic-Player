@@ -17,6 +17,8 @@ import app.picnic.player.data.media.batches
 import app.picnic.player.data.playback.CulturePickerOption
 import app.picnic.player.data.playback.cultureDisplayName
 import app.picnic.player.data.playback.culturePickerOptions
+import app.picnic.player.data.seerr.SeerrLinkState
+import app.picnic.player.data.seerr.SeerrRequestDisplay
 import app.picnic.player.data.seerr.isOpen
 import app.picnic.player.data.settings.PlaybackSettings
 import app.picnic.player.data.settings.SettingKey
@@ -74,9 +76,12 @@ class SettingsViewModel @Inject constructor(
             app.picnic.player.data.seerr.SeerrSessionState()
         )
 
-    private val _myRequests =
-        MutableStateFlow<List<app.picnic.player.data.seerr.SeerrRequestDisplay>>(emptyList())
-    val myRequests: StateFlow<List<app.picnic.player.data.seerr.SeerrRequestDisplay>> = _myRequests
+    private val _myRequests = MutableStateFlow<List<SeerrRequestDisplay>?>(null)
+    val myRequests: StateFlow<List<SeerrRequestDisplay>?> = _myRequests
+
+    val requestsLoading: StateFlow<Boolean> = combine(seerrState, _myRequests) { seerr, requests ->
+        seerr.linkState == SeerrLinkState.Linked && requests == null
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     val openIssueCount: StateFlow<Int?> = seerrRepository.issues
         .map { issues -> issues?.count { it.isOpen } }
@@ -135,6 +140,10 @@ class SettingsViewModel @Inject constructor(
         .mapLatest { loadFavorites() }
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
+    val favoritesLoading: StateFlow<Boolean> = favorites
+        .map { it == null }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
+
     private suspend fun loadFavorites(): List<org.jellyfin.sdk.model.api.BaseItemDto> = try {
         mediaRepository.favoriteItems()
     } catch (cancelled: CancellationException) {
@@ -168,9 +177,7 @@ class SettingsViewModel @Inject constructor(
         }
         viewModelScope.launch {
             authRepository.activeSession() ?: return@launch
-            if (seerrRepository.state.value.linkState ==
-                app.picnic.player.data.seerr.SeerrLinkState.Linked
-            ) {
+            if (seerrRepository.state.value.linkState == SeerrLinkState.Linked) {
                 refreshMyRequests()
             }
         }
@@ -233,7 +240,7 @@ class SettingsViewModel @Inject constructor(
         _myRequests.value = seerrRepository.requestDisplaysCached(requests)
         _myRequests.value = runCatching {
             seerrRepository.hydrateRequestDisplays(requests)
-        }.getOrDefault(_myRequests.value)
+        }.getOrDefault(_myRequests.value.orEmpty())
     }
 
     private val _imageCacheSize = MutableStateFlow(context.imageLoader.diskCache?.size ?: 0L)
