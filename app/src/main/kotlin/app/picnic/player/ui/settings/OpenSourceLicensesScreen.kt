@@ -7,6 +7,7 @@ import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -82,7 +83,7 @@ internal fun OpenSourceLicensesScreen(onBack: () -> Unit) {
         modifier = Modifier
             .fillMaxSize()
             .background(PageBackground)
-            .padding(horizontal = 64.dp, vertical = 48.dp)
+            .padding(start = 64.dp, end = 64.dp, top = 32.dp)
     ) {
         val sel = selected
         val libs = libraries
@@ -125,6 +126,7 @@ private fun LicenseListPage(
         Spacer(Modifier.height(24.dp))
         LazyColumn(
             state = listState,
+            contentPadding = PaddingValues(bottom = SettingsBottomInset),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             itemsIndexed(libraries, key = { _, lib -> lib.uniqueId }) { index, library ->

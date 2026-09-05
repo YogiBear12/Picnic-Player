@@ -7,6 +7,7 @@ import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -88,7 +89,7 @@ internal fun IssuesScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 64.dp, vertical = 48.dp)
+            .padding(start = 64.dp, end = 64.dp, top = 32.dp)
     ) {
         when {
             selected != null -> IssueDetailPage(
@@ -214,6 +215,7 @@ private fun IssueListPage(
             )
             else -> LazyColumn(
                 state = listState,
+                contentPadding = PaddingValues(bottom = SettingsBottomInset),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 itemsIndexed(issues, key = { _, row -> row.issue.id }) { index, row ->

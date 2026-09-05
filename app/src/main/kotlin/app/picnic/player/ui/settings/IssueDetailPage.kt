@@ -88,7 +88,7 @@ internal fun IssueDetailPage(
 
     Row(
         horizontalArrangement = Arrangement.spacedBy(48.dp),
-        modifier = Modifier.fillMaxSize()
+        modifier = Modifier.fillMaxSize().padding(bottom = SettingsBottomInset)
     ) {
         Column(
             verticalArrangement = Arrangement.spacedBy(20.dp),

@@ -141,7 +141,7 @@ fun SettingsScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 64.dp, vertical = 48.dp)
+            .padding(start = 64.dp, end = 64.dp, top = 32.dp)
     ) {
         Text(
             "Settings",
@@ -375,7 +375,7 @@ private fun DetailPanel(
                 onOpenLicenses = onOpenLicenses,
                 restoreRow = restoreRow,
                 onRestored = onRestored,
-                modifier = modifier.verticalScroll(scrollState)
+                modifier = modifier.verticalScroll(scrollState).padding(bottom = SettingsBottomInset)
             )
             return
         }
@@ -411,6 +411,7 @@ private fun DetailPanel(
     Column(
         modifier = modifier
             .verticalScroll(scrollState)
+            .padding(bottom = SettingsBottomInset)
             .onFocusChanged { focus.onFocusChanged(it.hasFocus) },
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {

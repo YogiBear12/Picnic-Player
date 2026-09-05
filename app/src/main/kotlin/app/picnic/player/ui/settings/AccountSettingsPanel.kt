@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -79,7 +78,6 @@ private val RowPeekInset = 40.dp
 private val PaneEndInset = 24.dp
 private val RowEndInset = 24.dp
 private val RowGap = 20.dp
-private val PanelBottomInset = 36.dp
 
 private object PinnedColumn : BringIntoViewSpec {
     override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float = 0f
@@ -253,6 +251,7 @@ internal fun AccountSettingsPanel(
         Column(
             modifier = modifier
                 .verticalScroll(scrollState)
+                .padding(bottom = SettingsBottomInset)
                 .onFocusChanged { focus.onFocusChanged(it.hasFocus) },
             verticalArrangement = Arrangement.spacedBy(RowGap)
         ) {
@@ -389,7 +388,6 @@ internal fun AccountSettingsPanel(
                 onSignOut = { viewModel.signOut(onSignedOut) },
                 modifier = Modifier.blockTop(AccountBlock.ACTIONS, blockTops)
             )
-            Spacer(Modifier.height(PanelBottomInset))
         }
     }
 
