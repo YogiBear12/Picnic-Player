@@ -11,10 +11,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
@@ -144,30 +144,20 @@ fun SettingsScreen(
             .fillMaxSize()
             .padding(start = 64.dp)
     ) {
-        Column(
+        val updateViewModel: UpdateViewModel = hiltViewModel()
+        val updateBadge by updateViewModel.updateAvailable.collectAsStateWithLifecycle()
+        CategoryRail(
+            categories = SettingsCategory.entries,
+            selected = selected,
+            onSelect = { category -> if (!holdSelection) viewModel.selectCategory(category) },
+            focusRequesters = categoryFocusRequesters,
+            enterDetail = enterDetail,
+            badgedCategory = if (updateBadge) SettingsCategory.ABOUT else null,
             modifier = Modifier
                 .fillMaxHeight()
                 .width(IntrinsicSize.Max)
-                .padding(top = 24.dp)
-        ) {
-            Text(
-                "Settings",
-                style = MaterialTheme.typography.headlineMedium,
-                color = PicnicColors.OnDark
-            )
-            Spacer(Modifier.height(20.dp))
-            val updateViewModel: UpdateViewModel = hiltViewModel()
-            val updateBadge by updateViewModel.updateAvailable.collectAsStateWithLifecycle()
-            CategoryRail(
-                categories = SettingsCategory.entries,
-                selected = selected,
-                onSelect = { category -> if (!holdSelection) viewModel.selectCategory(category) },
-                focusRequesters = categoryFocusRequesters,
-                enterDetail = enterDetail,
-                badgedCategory = if (updateBadge) SettingsCategory.ABOUT else null,
-                modifier = Modifier.fillMaxWidth()
-            )
-        }
+                .wrapContentHeight(Alignment.CenterVertically)
+        )
         Spacer(Modifier.width(48.dp))
         DetailPanel(
             category = selected,

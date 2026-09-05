@@ -201,7 +201,7 @@ private fun experienceSections(
     onOpenSubtitleAppearance: () -> Unit
 ): List<SettingSection> = listOf(
     SettingSection(
-        null,
+        "Experience",
         buildList {
             add(
                 viewModel.toggleItem(
@@ -445,7 +445,7 @@ private fun advancedSections(
     onOpenSubtitleAppearance: () -> Unit
 ): List<SettingSection> = listOf(
     SettingSection(
-        null,
+        "Advanced",
         buildList {
             if (pictureInPictureSupported) {
                 add(
