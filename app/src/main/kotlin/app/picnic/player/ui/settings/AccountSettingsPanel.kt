@@ -7,10 +7,13 @@ import androidx.compose.foundation.gestures.BringIntoViewSpec
 import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -75,9 +78,10 @@ import org.jellyfin.sdk.model.api.BaseItemKind
 private val BadgeShape = RoundedCornerShape(10.dp)
 private val BadgeFill = Color.White.copy(alpha = 0.07f)
 private val RowPeekInset = 40.dp
-private val PaneEndInset = 24.dp
-private val RowEndInset = 24.dp
+private val PaneEndInset = 0.dp
+private val RowEndInset = 64.dp
 private val RowGap = 20.dp
+private val RowToRowGap = 12.dp
 
 private object PinnedColumn : BringIntoViewSpec {
     override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float = 0f
@@ -248,146 +252,159 @@ internal fun AccountSettingsPanel(
     }
 
     CompositionLocalProvider(LocalBringIntoViewSpec provides PinnedColumn) {
-        Column(
-            modifier = modifier
-                .verticalScroll(scrollState)
-                .padding(top = SettingsTopInset, bottom = SettingsBottomInset)
-                .onFocusChanged { focus.onFocusChanged(it.hasFocus) },
-            verticalArrangement = Arrangement.spacedBy(RowGap)
-        ) {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(20.dp),
-                verticalAlignment = Alignment.CenterVertically
+        BoxWithConstraints(modifier) {
+            val contentMinHeight = maxHeight - SettingsTopInset - SettingsBottomInset
+            Column(
+                modifier = Modifier
+                    .verticalScroll(scrollState)
+                    .padding(top = SettingsTopInset, bottom = SettingsBottomInset)
+                    .onFocusChanged { focus.onFocusChanged(it.hasFocus) }
             ) {
-                ProfileAvatar(name = username, imageUrl = avatarUrl)
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(
-                        username,
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.SemiBold,
-                        color = PicnicColors.OnDark
-                    )
-                    WatchCountBadges(stats = stats)
-                }
-            }
+                Column(
+                    modifier = Modifier.heightIn(min = contentMinHeight),
+                    verticalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(20.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            ProfileAvatar(name = username, imageUrl = avatarUrl)
+                            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Text(
+                                    username,
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = PicnicColors.OnDark
+                                )
+                                WatchCountBadges(stats = stats)
+                            }
+                        }
 
-            if (favorites.isNotEmpty()) {
-                AccountRow(
-                    title = "Your favorites",
-                    items = favorites,
-                    keys = favoriteKeys,
-                    rowState = favoritesFocus,
-                    style = cardStyle,
-                    cardSpacing = cardSpacing,
-                    horizontalRowSpec = horizontalRowSpec,
-                    enterFr = focus.enterFr,
-                    leftFocus = focus.leftFocus,
-                    upFocus = null,
-                    downFocus = if (showRequests) {
-                        { requestsFocus.pinFocus }
-                    } else {
-                        { lastActionFocus }
-                    },
-                    onRowFocused = { requester ->
-                        lastBlock = AccountBlock.FAVORITES
-                        focus.onRowFocused(requester)
-                    },
-                    itemKey = { it.id },
-                    modifier = Modifier.blockTop(AccountBlock.FAVORITES, blockTops)
-                ) { item, cardFocus, cardModifier ->
-                    MediaGridCard(
-                        item = item,
-                        style = cardStyle,
-                        titleOverride = favoriteTitle(item),
-                        subtitleOverride = favoriteSubtitle(item),
-                        showStatus = false,
-                        focusRequester = cardFocus.requester,
-                        upFocus = cardFocus.up,
-                        downFocus = cardFocus.down,
-                        leftFocus = cardFocus.left,
-                        rightFocus = cardFocus.right,
-                        onClick = {
-                            val nav = images.navImages(item)
-                            onOpenItem(item, nav.bgUrl, nav.ambUrl)
+                        if (favorites.isNotEmpty()) {
+                            Spacer(Modifier.height(RowGap))
+                            AccountRow(
+                                title = "Your favorites",
+                                items = favorites,
+                                keys = favoriteKeys,
+                                rowState = favoritesFocus,
+                                style = cardStyle,
+                                cardSpacing = cardSpacing,
+                                horizontalRowSpec = horizontalRowSpec,
+                                enterFr = focus.enterFr,
+                                leftFocus = focus.leftFocus,
+                                upFocus = null,
+                                downFocus = if (showRequests) {
+                                    { requestsFocus.pinFocus }
+                                } else {
+                                    { lastActionFocus }
+                                },
+                                onRowFocused = { requester ->
+                                    lastBlock = AccountBlock.FAVORITES
+                                    focus.onRowFocused(requester)
+                                },
+                                itemKey = { it.id },
+                                modifier = Modifier.blockTop(AccountBlock.FAVORITES, blockTops)
+                            ) { item, cardFocus, cardModifier ->
+                                MediaGridCard(
+                                    item = item,
+                                    style = cardStyle,
+                                    titleOverride = favoriteTitle(item),
+                                    subtitleOverride = favoriteSubtitle(item),
+                                    showStatus = false,
+                                    focusRequester = cardFocus.requester,
+                                    upFocus = cardFocus.up,
+                                    downFocus = cardFocus.down,
+                                    leftFocus = cardFocus.left,
+                                    rightFocus = cardFocus.right,
+                                    onClick = {
+                                        val nav = images.navImages(item)
+                                        onOpenItem(item, nav.bgUrl, nav.ambUrl)
+                                    },
+                                    onLongClick = { contextMenu.show(item) },
+                                    onFocused = cardFocus.onFocused,
+                                    modifier = cardModifier
+                                )
+                            }
+                        }
+
+                        if (showRequests) {
+                            Spacer(Modifier.height(if (favorites.isEmpty()) RowGap else RowToRowGap))
+                            AccountRow(
+                                title = "Your requests",
+                                items = requests,
+                                keys = requestKeys,
+                                rowState = requestsFocus,
+                                style = cardStyle,
+                                cardSpacing = cardSpacing,
+                                horizontalRowSpec = horizontalRowSpec,
+                                enterFr = if (favorites.isEmpty()) focus.enterFr else null,
+                                leftFocus = focus.leftFocus,
+                                upFocus = if (favorites.isNotEmpty()) {
+                                    { favoritesFocus.pinFocus }
+                                } else {
+                                    null
+                                },
+                                downFocus = { lastActionFocus },
+                                onRowFocused = { requester ->
+                                    lastBlock = AccountBlock.REQUESTS
+                                    focus.onRowFocused(requester)
+                                },
+                                itemKey = { it.request.id },
+                                modifier = Modifier.blockTop(AccountBlock.REQUESTS, blockTops)
+                            ) { row, cardFocus, cardModifier ->
+                                AccountRequestCard(
+                                    row = row,
+                                    seerrBaseUrl = seerr.serverUrl,
+                                    cacheImages = seerr.cacheImages,
+                                    style = cardStyle,
+                                    focusRequester = cardFocus.requester,
+                                    upFocus = cardFocus.up,
+                                    downFocus = cardFocus.down,
+                                    leftFocus = cardFocus.left,
+                                    rightFocus = cardFocus.right,
+                                    onClick = { onOpenSeerrDetail?.invoke(row.request) },
+                                    onFocused = cardFocus.onFocused,
+                                    modifier = cardModifier
+                                )
+                            }
+                        }
+                    }
+
+                    AccountActionsRow(
+                        linked = linked,
+                        issuesFr = issuesButtonFr,
+                        issuesLabel = when {
+                            !canViewIssues -> null
+                            openIssueCount == null -> "Issues"
+                            else -> "Issues · $openIssueCount open"
                         },
-                        onLongClick = { contextMenu.show(item) },
-                        onFocused = cardFocus.onFocused,
-                        modifier = cardModifier
+                        onIssues = onOpenIssues,
+                        seerrButtonFr = seerrButtonFr,
+                        enterFr = if (favorites.isEmpty() && !showRequests) focus.enterFr else null,
+                        leftFocus = focus.leftFocus,
+                        upFocus = when {
+                            showRequests -> {
+                                { requestsFocus.pinFocus }
+                            }
+                            favorites.isNotEmpty() -> {
+                                { favoritesFocus.pinFocus }
+                            }
+                            else -> null
+                        },
+                        onFocused = { requester ->
+                            lastBlock = AccountBlock.ACTIONS
+                            lastActionFocus = requester
+                            focus.onRowFocused(requester)
+                        },
+                        onSeerr = { if (linked) viewModel.disconnectSeerr() else showConnectDialog = true },
+                        onSignOut = { viewModel.signOut(onSignedOut) },
+                        modifier = Modifier
+                            .blockTop(AccountBlock.ACTIONS, blockTops)
+                            .padding(top = RowGap)
                     )
                 }
             }
-
-            if (showRequests) {
-                AccountRow(
-                    title = "Your requests",
-                    items = requests,
-                    keys = requestKeys,
-                    rowState = requestsFocus,
-                    style = cardStyle,
-                    cardSpacing = cardSpacing,
-                    horizontalRowSpec = horizontalRowSpec,
-                    enterFr = if (favorites.isEmpty()) focus.enterFr else null,
-                    leftFocus = focus.leftFocus,
-                    upFocus = if (favorites.isNotEmpty()) {
-                        { favoritesFocus.pinFocus }
-                    } else {
-                        null
-                    },
-                    downFocus = { lastActionFocus },
-                    onRowFocused = { requester ->
-                        lastBlock = AccountBlock.REQUESTS
-                        focus.onRowFocused(requester)
-                    },
-                    itemKey = { it.request.id },
-                    modifier = Modifier.blockTop(AccountBlock.REQUESTS, blockTops)
-                ) { row, cardFocus, cardModifier ->
-                    AccountRequestCard(
-                        row = row,
-                        seerrBaseUrl = seerr.serverUrl,
-                        cacheImages = seerr.cacheImages,
-                        style = cardStyle,
-                        focusRequester = cardFocus.requester,
-                        upFocus = cardFocus.up,
-                        downFocus = cardFocus.down,
-                        leftFocus = cardFocus.left,
-                        rightFocus = cardFocus.right,
-                        onClick = { onOpenSeerrDetail?.invoke(row.request) },
-                        onFocused = cardFocus.onFocused,
-                        modifier = cardModifier
-                    )
-                }
-            }
-
-            AccountActionsRow(
-                linked = linked,
-                issuesFr = issuesButtonFr,
-                issuesLabel = when {
-                    !canViewIssues -> null
-                    openIssueCount == null -> "Issues"
-                    else -> "Issues · $openIssueCount open"
-                },
-                onIssues = onOpenIssues,
-                seerrButtonFr = seerrButtonFr,
-                enterFr = if (favorites.isEmpty() && !showRequests) focus.enterFr else null,
-                leftFocus = focus.leftFocus,
-                upFocus = when {
-                    showRequests -> {
-                        { requestsFocus.pinFocus }
-                    }
-                    favorites.isNotEmpty() -> {
-                        { favoritesFocus.pinFocus }
-                    }
-                    else -> null
-                },
-                onFocused = { requester ->
-                    lastBlock = AccountBlock.ACTIONS
-                    lastActionFocus = requester
-                    focus.onRowFocused(requester)
-                },
-                onSeerr = { if (linked) viewModel.disconnectSeerr() else showConnectDialog = true },
-                onSignOut = { viewModel.signOut(onSignedOut) },
-                modifier = Modifier.blockTop(AccountBlock.ACTIONS, blockTops)
-            )
         }
     }
 

@@ -142,7 +142,7 @@ fun SettingsScreen(
     Row(
         modifier = Modifier
             .fillMaxSize()
-            .padding(start = 64.dp, end = 64.dp)
+            .padding(start = 64.dp)
     ) {
         Column(
             modifier = Modifier
@@ -376,7 +376,10 @@ private fun DetailPanel(
             return
         }
         SettingsCategory.ABOUT -> {
-            Box(modifier.fillMaxHeight().padding(top = 46.dp), contentAlignment = Alignment.Center) {
+            Box(
+                modifier.fillMaxHeight().padding(top = 46.dp, end = 64.dp),
+                contentAlignment = Alignment.Center
+            ) {
                 AboutSettingsPanel(
                     focus = focus,
                     onOpenLicenses = onOpenLicenses,
@@ -419,7 +422,7 @@ private fun DetailPanel(
     Column(
         modifier = modifier
             .verticalScroll(scrollState)
-            .padding(top = SettingsTopInset, bottom = SettingsBottomInset)
+            .padding(top = SettingsTopInset, bottom = SettingsBottomInset, end = 64.dp)
             .onFocusChanged { focus.onFocusChanged(it.hasFocus) },
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
