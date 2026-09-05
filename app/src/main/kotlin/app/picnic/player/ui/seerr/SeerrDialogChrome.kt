@@ -14,8 +14,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import app.picnic.player.ui.common.PanelWidth
 
-internal val SeerrPanelWidth = 360.dp
+internal val SeerrPanelWidth = PanelWidth.Picker
 internal val SeerrPanelCornerRadius = 20.dp
 internal val SeerrContentInset = 16.dp
 internal val SeerrRowInnerPadding = 14.dp

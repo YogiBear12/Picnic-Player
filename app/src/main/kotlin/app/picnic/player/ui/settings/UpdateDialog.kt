@@ -1,7 +1,6 @@
 package app.picnic.player.ui.settings
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -10,7 +9,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.runtime.Composable
@@ -21,28 +19,24 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import app.picnic.player.BuildConfig
 import app.picnic.player.ui.common.ActionButton
+import app.picnic.player.ui.common.DialogCornerRadius
 import app.picnic.player.ui.common.GlassRow
+import app.picnic.player.ui.common.PanelWidth
+import app.picnic.player.ui.common.PicnicDialog
+import app.picnic.player.ui.common.panelSurface
 import app.picnic.player.ui.settings.UpdateViewModel.Phase
 import app.picnic.player.ui.theme.PicnicColors
 
-private val DialogGlassFill = Color(0xEA181E24)
-private val PanelWidth = 420.dp
-private val PanelCornerRadius = 20.dp
 private val ContentInset = 24.dp
 
 @Composable
@@ -58,17 +52,11 @@ internal fun UpdateDialog(
         if (!showNotes) runCatching { primaryFocus.requestFocus() }
     }
 
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
+    PicnicDialog(onDismiss = onDismiss) {
         Column(
             modifier = Modifier
-                .width(PanelWidth)
-                .shadow(8.dp, RoundedCornerShape(PanelCornerRadius))
-                .clip(RoundedCornerShape(PanelCornerRadius))
-                .background(DialogGlassFill)
-                .padding(ContentInset)
+                .panelSurface(width = PanelWidth.Form, corner = DialogCornerRadius)
+                .padding(horizontal = ContentInset)
                 .focusGroup()
         ) {
             when (phase) {

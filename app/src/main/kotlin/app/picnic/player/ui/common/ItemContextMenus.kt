@@ -38,7 +38,7 @@ fun SeasonContextMenu(
 ) {
     val played = season.userData?.played ?: false
     val isFavorite = season.userData?.isFavorite ?: false
-    var showPlaylistPicker by remember { mutableStateOf(false) }
+    var panel by remember { mutableStateOf<SeasonPanel?>(null) }
     val menuFocus = rememberContextMenuFocus()
 
     val actions = buildList {
@@ -70,17 +70,16 @@ fun SeasonContextMenu(
         )
         add(
             ContextMenuAction("Add to playlist", Icons.AutoMirrored.Filled.PlaylistAdd) {
-                showPlaylistPicker = true
+                panel = SeasonPanel.PLAYLIST
             }
         )
     }
 
     ContextMenuHost(onDismiss = onDismiss) {
-        BackHandler(enabled = showPlaylistPicker) { showPlaylistPicker = false }
-        if (showPlaylistPicker) {
-            AddToPlaylistPanel(item = season, onDone = onDismiss)
-        } else {
-            ContextMenuPanel(actions = actions, focus = menuFocus)
+        BackHandler(enabled = panel != null) { panel = null }
+        when (panel) {
+            SeasonPanel.PLAYLIST -> AddToPlaylistPanel(item = season, onDone = onDismiss)
+            null -> ContextMenuPanel(actions = actions, focus = menuFocus)
         }
     }
 }
@@ -226,6 +225,10 @@ data class RequestMoreSeasons(
     val seasons: List<SeerrSeasonPickItem>,
     val onConfirm: (List<Int>) -> Unit
 )
+
+private enum class SeasonPanel {
+    PLAYLIST
+}
 
 private enum class OverflowPanel {
     REQUEST_MORE,

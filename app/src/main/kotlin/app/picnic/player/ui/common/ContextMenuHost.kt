@@ -22,13 +22,13 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Icon
 import androidx.tv.material3.ListItem
 import androidx.tv.material3.ListItemDefaults
 import androidx.tv.material3.Text
+import app.picnic.player.ui.common.PanelWidth
+import app.picnic.player.ui.common.PicnicDialog
 
 data class ContextMenuAction(
     val label: String,
@@ -45,17 +45,12 @@ class ContextMenuFocus internal constructor() {
 @Composable
 fun rememberContextMenuFocus(): ContextMenuFocus = remember { ContextMenuFocus() }
 
-private val MenuWidth = 380.dp
 private val MenuMaxHeight = 460.dp
 private val MenuCornerRadius = 28.dp
 
 @Composable
 fun ContextMenuHost(onDismiss: () -> Unit, content: @Composable () -> Unit) {
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
-        content = content
-    )
+    PicnicDialog(onDismiss = onDismiss, content = content)
 }
 
 @OptIn(ExperimentalTvMaterial3Api::class)
@@ -74,7 +69,7 @@ fun ContextMenuPanel(
     Column(
         verticalArrangement = Arrangement.spacedBy(2.dp),
         modifier = Modifier
-            .panelSurface(width = MenuWidth, corner = MenuCornerRadius)
+            .panelSurface(width = PanelWidth.Panel, corner = MenuCornerRadius)
             .heightIn(max = MenuMaxHeight)
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 24.dp)

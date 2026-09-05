@@ -79,6 +79,7 @@ import app.picnic.player.ui.common.CenteredMessage
 import app.picnic.player.ui.common.PanelHeader
 import app.picnic.player.ui.common.PanelRowKeys
 import app.picnic.player.ui.common.PanelRowMetrics
+import app.picnic.player.ui.common.PanelWidth
 import app.picnic.player.ui.common.PicnicListRow
 import app.picnic.player.ui.common.rowPrimaryColor
 import app.picnic.player.ui.common.rowTrailingColor
@@ -92,7 +93,6 @@ private val PanelCornerRadius = 20.dp
 private val PanelEdgeInset = 24.dp
 private val ContentInset = 12.dp
 private val GridRowMetrics = PanelRowMetrics(innerPadding = 12.dp, cornerRadius = 8.dp)
-private val PanelWidth = 300.dp
 private const val PanelAnimMs = 200
 
 internal enum class GridFilterSection(val label: String, val icon: ImageVector) {
@@ -229,7 +229,7 @@ internal fun GridFilterPanel(
             ) {
                 Column(
                     Modifier
-                        .width(PanelWidth)
+                        .width(PanelWidth.Rail)
                         .fillMaxHeight()
                         .padding(top = PanelEdgeInset, bottom = PanelEdgeInset, end = PanelEdgeInset)
                         .clip(RoundedCornerShape(PanelCornerRadius))

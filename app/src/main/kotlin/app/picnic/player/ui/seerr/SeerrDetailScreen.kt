@@ -66,6 +66,7 @@ import app.picnic.player.ui.browse.browseLayoutMetrics
 import app.picnic.player.ui.browse.posterCardStyle
 import app.picnic.player.ui.common.CircularPersonCard
 import app.picnic.player.ui.common.ContentCacheWindow
+import app.picnic.player.ui.common.PanelWidth
 import app.picnic.player.ui.common.ScrollableTextDialog
 import app.picnic.player.ui.common.rememberRowFocusState
 import app.picnic.player.ui.common.requestFocusWhenAttached
@@ -473,7 +474,7 @@ private fun SeerrDetailContent(
         ScrollableTextDialog(
             text = actionRow.infoMessage.orEmpty(),
             onDismiss = { showInfoDialog = false },
-            width = 420.dp,
+            width = PanelWidth.Form,
             textAlign = TextAlign.Center
         )
     }

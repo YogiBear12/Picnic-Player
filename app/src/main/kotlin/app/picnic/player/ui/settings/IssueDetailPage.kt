@@ -37,8 +37,6 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import app.picnic.player.data.seerr.SeerrIssueComment
@@ -53,6 +51,7 @@ import app.picnic.player.data.seerr.seerrIssueTypeSentence
 import app.picnic.player.data.seerr.seerrRelativeTime
 import app.picnic.player.ui.common.ActionButton
 import app.picnic.player.ui.common.ArtworkImage
+import app.picnic.player.ui.common.PicnicDialog
 import app.picnic.player.ui.common.ScrollableTextDialog
 import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.seerr.SeerrTextEntryPanel
@@ -207,10 +206,7 @@ internal fun IssueDetailPage(
 
     if (composing) {
         BackHandler { composing = false }
-        Dialog(
-            onDismissRequest = { composing = false },
-            properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
-        ) {
+        PicnicDialog(onDismiss = { composing = false }) {
             SeerrTextEntryPanel(
                 title = "Add a comment",
                 placeholder = "Write a comment",

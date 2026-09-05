@@ -47,6 +47,7 @@ import app.picnic.player.playback.SleepTimerState
 import app.picnic.player.ui.common.PanelContentInset
 import app.picnic.player.ui.common.PanelHeader
 import app.picnic.player.ui.common.PanelRowKeys
+import app.picnic.player.ui.common.PanelWidth
 import app.picnic.player.ui.common.PicnicListRow
 import app.picnic.player.ui.common.RowCheck
 import app.picnic.player.ui.common.RowChevron
@@ -55,7 +56,7 @@ import app.picnic.player.ui.common.rowPrimaryColor
 import app.picnic.player.ui.player.PlayerUiState
 import app.picnic.player.ui.settings.subtitleAppearanceRows
 
-internal val PlayerSettingsPanelWidth = 380.dp
+internal val PlayerSettingsPanelWidth = PanelWidth.Panel
 
 private val PanelGlassFill = Color(0xC0181E24)
 private val PanelCornerRadius = 20.dp

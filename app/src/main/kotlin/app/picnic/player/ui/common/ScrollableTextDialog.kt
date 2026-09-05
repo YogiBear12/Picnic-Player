@@ -2,10 +2,10 @@ package app.picnic.player.ui.common
 
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.animateScrollBy
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
@@ -15,7 +15,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -25,11 +24,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import androidx.tv.material3.MaterialTheme
-import androidx.tv.material3.Surface
-import androidx.tv.material3.SurfaceDefaults
 import androidx.tv.material3.Text
 import app.picnic.player.ui.theme.PicnicColors
 import kotlinx.coroutines.launch
@@ -47,7 +42,7 @@ private val ScrollStep = 96.dp
 fun ScrollableTextDialog(
     text: String,
     onDismiss: () -> Unit,
-    width: Dp = 600.dp,
+    width: Dp = PanelWidth.Reading,
     textAlign: TextAlign? = null,
     maxTextHeight: Dp? = null
 ) {
@@ -56,26 +51,16 @@ fun ScrollableTextDialog(
     val scrollFocus = remember { FocusRequester() }
     val stepPx = with(LocalDensity.current) { ScrollStep.toPx() }
 
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
-        Surface(
-            shape = MaterialTheme.shapes.medium,
-            colors = SurfaceDefaults.colors(
-                containerColor = PicnicColors.Surface,
-                contentColor = Color.White
-            ),
-            modifier = Modifier.width(width).padding(32.dp)
-        ) {
+    PicnicDialog(onDismiss = onDismiss) {
+        Box(modifier = Modifier.panelSurface(width = width, corner = DialogCornerRadius)) {
             Text(
                 text = text,
-                color = Color.White.copy(alpha = 0.85f),
+                color = PicnicColors.OnDarkMuted,
                 style = MaterialTheme.typography.bodyMedium,
                 textAlign = textAlign,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(24.dp)
+                    .padding(horizontal = PanelContentInset + PanelRowInnerPadding)
                     .then(if (maxTextHeight != null) Modifier.heightIn(max = maxTextHeight) else Modifier)
                     .verticalScroll(scrollState)
                     .focusRequester(scrollFocus)

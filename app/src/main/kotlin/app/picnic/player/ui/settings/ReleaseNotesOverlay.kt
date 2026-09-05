@@ -38,10 +38,9 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import app.picnic.player.ui.common.PicnicDialog
 import app.picnic.player.ui.theme.PicnicColors
 import kotlinx.coroutines.launch
 
@@ -57,10 +56,7 @@ internal fun ReleaseNotesOverlay(
     val scope = rememberCoroutineScope()
     val scrollFr = remember { FocusRequester() }
 
-    Dialog(
-        onDismissRequest = onBack,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
+    PicnicDialog(onDismiss = onBack) {
         BackHandler(onBack = onBack)
         Column(
             Modifier

@@ -34,13 +34,14 @@ import androidx.tv.material3.Text
 import app.picnic.player.ui.common.PanelContentInset
 import app.picnic.player.ui.common.PanelHeader
 import app.picnic.player.ui.common.PanelRowKeys
+import app.picnic.player.ui.common.PanelWidth
 import app.picnic.player.ui.common.PicnicListRow
 import app.picnic.player.ui.common.RowCheck
 import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.common.rowPrimaryColor
 import app.picnic.player.ui.player.TrackOption
 
-internal val TrackPanelWidth = 360.dp
+internal val TrackPanelWidth = PanelWidth.Picker
 
 private val PanelGlassFill = Color(0xC0181E24)
 private val PanelCornerRadius = 20.dp

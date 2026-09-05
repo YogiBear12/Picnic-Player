@@ -14,37 +14,33 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import app.picnic.player.data.playback.LanguagePickerRow
+import app.picnic.player.ui.common.DialogCornerRadius
 import app.picnic.player.ui.common.PanelContentInset
 import app.picnic.player.ui.common.PanelHeader
 import app.picnic.player.ui.common.PanelRowInnerPadding
 import app.picnic.player.ui.common.PanelRowKeys
+import app.picnic.player.ui.common.PanelWidth
+import app.picnic.player.ui.common.PicnicDialog
 import app.picnic.player.ui.common.PicnicListRow
 import app.picnic.player.ui.common.RowCheck
+import app.picnic.player.ui.common.panelSurface
 import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.common.rowPrimaryColor
 
-private val DialogGlassFill = Color(0xEA181E24)
-private val PanelWidth = 360.dp
-private val PanelCornerRadius = 20.dp
 private val ListViewportHeight = 280.dp
 
 @Composable
@@ -64,17 +60,10 @@ internal fun LanguagePreferenceDialog(
     val startIndex = if (selectedIndex <= separatorAfterIndex) 0 else selectedIndex
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = startIndex)
 
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
+    PicnicDialog(onDismiss = onDismiss) {
         Column(
             modifier = Modifier
-                .width(PanelWidth)
-                .shadow(8.dp, RoundedCornerShape(PanelCornerRadius))
-                .clip(RoundedCornerShape(PanelCornerRadius))
-                .background(DialogGlassFill)
-                .padding(vertical = 20.dp)
+                .panelSurface(width = PanelWidth.Picker, corner = DialogCornerRadius)
                 .focusGroup()
         ) {
             PanelHeader(title = title)

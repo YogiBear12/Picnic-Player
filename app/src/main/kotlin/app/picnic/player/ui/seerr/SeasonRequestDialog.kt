@@ -37,8 +37,6 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.SelectableSurfaceDefaults
@@ -48,6 +46,7 @@ import app.picnic.player.data.seerr.SeerrMediaStatus
 import app.picnic.player.data.seerr.SeerrSeasonAvailability
 import app.picnic.player.data.seerr.SeerrSeasonPickItem
 import app.picnic.player.data.seerr.seasonLibraryBadgeLabel
+import app.picnic.player.ui.common.PicnicDialog
 import app.picnic.player.ui.common.panelSurface
 import app.picnic.player.ui.common.requestFocusWhenAttached
 
@@ -59,10 +58,7 @@ internal fun SeasonRequestDialog(
     onConfirm: (List<Int>) -> Unit,
     onDismiss: () -> Unit
 ) {
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
+    PicnicDialog(onDismiss = onDismiss) {
         SeasonRequestPanel(seasons = seasons, onConfirm = onConfirm, onDismiss = onDismiss)
     }
 }

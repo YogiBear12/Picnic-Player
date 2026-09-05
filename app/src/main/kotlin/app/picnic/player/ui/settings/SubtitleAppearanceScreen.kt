@@ -65,6 +65,7 @@ import app.picnic.player.playback.BlackBars
 import app.picnic.player.playback.applyTo
 import app.picnic.player.playback.subtitleBottomPaddingFraction
 import app.picnic.player.ui.common.PanelRowMetrics
+import app.picnic.player.ui.common.PanelWidth
 import app.picnic.player.ui.common.PicnicListRow
 import app.picnic.player.ui.common.rowPrimaryColor
 import app.picnic.player.ui.theme.PicnicColors
@@ -99,7 +100,6 @@ class SubtitleAppearanceViewModel @Inject constructor(
 
 private val PanelGlassFill = Color(0xF2181E24)
 private val PanelCornerRadius = 20.dp
-private val PanelWidth = 380.dp
 private val PanelInsetHorizontal = 12.dp
 private val PanelInsetVertical = 16.dp
 private val RowSpacing = 1.dp
@@ -199,7 +199,7 @@ internal fun SubtitleAppearanceScreen(
 
             Column(
                 modifier = Modifier
-                    .width(PanelWidth)
+                    .width(PanelWidth.Panel)
                     .clip(RoundedCornerShape(PanelCornerRadius))
                     .background(PanelGlassFill)
                     .padding(horizontal = PanelInsetHorizontal, vertical = PanelInsetVertical),

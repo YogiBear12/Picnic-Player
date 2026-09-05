@@ -34,11 +34,11 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import app.picnic.player.ui.common.ActionButton
 import app.picnic.player.ui.common.DialogTextField
+import app.picnic.player.ui.common.PanelWidth
 import app.picnic.player.ui.common.panelSurface
 import app.picnic.player.ui.common.requestFocusWhenAttached
 import org.jellyfin.sdk.model.api.BaseItemDto
 
-private val PanelWidth = 420.dp
 private val PanelMaxHeight = 460.dp
 private val PanelCornerRadius = 28.dp
 
@@ -57,7 +57,7 @@ fun AddToPlaylistPanel(
     Column(
         verticalArrangement = Arrangement.spacedBy(2.dp),
         modifier = Modifier
-            .panelSurface(width = PanelWidth, corner = PanelCornerRadius)
+            .panelSurface(width = PanelWidth.Panel, corner = PanelCornerRadius)
             .heightIn(max = PanelMaxHeight)
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 24.dp)

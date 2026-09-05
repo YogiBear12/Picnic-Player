@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -50,9 +51,7 @@ import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
 import androidx.tv.material3.Border
-import androidx.tv.material3.Button
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Icon
@@ -62,8 +61,14 @@ import androidx.tv.material3.Text
 import app.picnic.player.ui.ambient.CardFocusBorderWidth
 import app.picnic.player.ui.ambient.rememberCardFocusAccent
 import app.picnic.player.ui.ambient.rememberCardFocusGlow
+import app.picnic.player.ui.common.ActionButton
 import app.picnic.player.ui.common.ArtworkImage
+import app.picnic.player.ui.common.DialogCornerRadius
+import app.picnic.player.ui.common.PanelWidth
+import app.picnic.player.ui.common.PicnicDialog
+import app.picnic.player.ui.common.panelSurface
 import app.picnic.player.ui.common.rememberIdentityBrush
+import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.theme.PicnicColors
 
 data class PickerEntry(
@@ -398,6 +403,8 @@ private fun PickerTile(
     }
 }
 
+private val ForgetContentInset = 24.dp
+
 private const val PICKER_AVATAR_KEY_PREFIX = "picker-avatar/"
 
 @Composable
@@ -406,26 +413,35 @@ private fun ForgetConfirmDialog(
     onConfirm: () -> Unit,
     onCancel: () -> Unit
 ) {
-    Dialog(onDismissRequest = onCancel) {
-        androidx.tv.material3.Surface(
-            shape = MaterialTheme.shapes.medium,
-            colors = androidx.tv.material3.SurfaceDefaults.colors(
-                containerColor = PicnicColors.Surface,
-                contentColor = Color.White
-            ),
-            modifier = Modifier.padding(32.dp)
+    val cancelFocus = remember { FocusRequester() }
+
+    PicnicDialog(onDismiss = onCancel) {
+        Column(
+            modifier = Modifier
+                .panelSurface(width = PanelWidth.Form, corner = DialogCornerRadius)
+                .padding(horizontal = ForgetContentInset)
+                .focusGroup(),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Column(
-                modifier = Modifier.padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(24.dp)
-            ) {
-                Text(message, style = MaterialTheme.typography.titleLarge, color = Color.White)
-                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    Button(onClick = onCancel) { Text("Cancel") }
-                    Button(onClick = onConfirm) { Text("Remove") }
-                }
-            }
+            Text(
+                text = message,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = PicnicColors.OnDark
+            )
+            Spacer(Modifier.height(8.dp))
+            ActionButton(
+                label = "Remove",
+                onActivate = onConfirm,
+                modifier = Modifier.fillMaxWidth()
+            )
+            ActionButton(
+                label = "Cancel",
+                onActivate = onCancel,
+                focusRequester = cancelFocus,
+                modifier = Modifier.fillMaxWidth()
+            )
         }
     }
+    LaunchedEffect(Unit) { cancelFocus.requestFocusWhenAttached(maxFrames = 20) }
 }
