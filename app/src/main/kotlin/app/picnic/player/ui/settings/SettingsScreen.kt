@@ -3,6 +3,7 @@ package app.picnic.player.ui.settings
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
@@ -375,15 +376,15 @@ private fun DetailPanel(
             return
         }
         SettingsCategory.ABOUT -> {
-            AboutSettingsPanel(
-                focus = focus,
-                onOpenLicenses = onOpenLicenses,
-                restoreRow = restoreRow,
-                onRestored = onRestored,
-                modifier = modifier
-                    .verticalScroll(scrollState)
-                    .padding(top = SettingsTopInset, bottom = SettingsBottomInset)
-            )
+            Box(modifier.fillMaxHeight().padding(top = 46.dp), contentAlignment = Alignment.Center) {
+                AboutSettingsPanel(
+                    focus = focus,
+                    onOpenLicenses = onOpenLicenses,
+                    restoreRow = restoreRow,
+                    onRestored = onRestored,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
             return
         }
         else -> Unit
