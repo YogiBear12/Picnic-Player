@@ -18,9 +18,9 @@ import app.picnic.player.data.seerr.SeerrCatalogItem
 import app.picnic.player.data.seerr.SeerrMediaType
 import app.picnic.player.data.seerr.jellyfinDetailIdOrNull
 import app.picnic.player.ui.common.ContextMenuAction
-import app.picnic.player.ui.common.ContextMenuHost
 import app.picnic.player.ui.common.ContextMenuPanel
 import app.picnic.player.ui.common.GlobalContextMenuViewModel
+import app.picnic.player.ui.common.PicnicDialog
 import app.picnic.player.ui.common.rememberContextMenuFocus
 import app.picnic.player.ui.detail.launchRemoteTrailer
 import org.jellyfin.sdk.model.api.BaseItemDto
@@ -110,7 +110,7 @@ fun SeerrCardContextMenu(
         }
     }
 
-    ContextMenuHost(onDismiss = onDismiss) {
+    PicnicDialog(onDismiss = onDismiss) {
         if (state.showSeasonPicker) {
             SeasonRequestPanel(
                 seasons = viewModel.seasonPickItems(),
@@ -141,7 +141,7 @@ private fun LibraryItemHandoff(
     }
 
     if (!lookupFailed) return
-    ContextMenuHost(onDismiss = onDismiss) {
+    PicnicDialog(onDismiss = onDismiss) {
         ContextMenuPanel(
             actions = listOf(
                 ContextMenuAction("Couldn't load this title", Icons.Default.Info, enabled = false) {}

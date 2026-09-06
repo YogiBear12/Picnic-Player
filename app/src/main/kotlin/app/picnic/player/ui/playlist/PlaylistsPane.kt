@@ -36,8 +36,8 @@ import app.picnic.player.text.countLabel
 import app.picnic.player.ui.browse.BrowseLayoutMetrics
 import app.picnic.player.ui.browse.posterCardStyle
 import app.picnic.player.ui.common.ContextMenuAction
-import app.picnic.player.ui.common.ContextMenuHost
 import app.picnic.player.ui.common.ContextMenuPanel
+import app.picnic.player.ui.common.PicnicDialog
 import app.picnic.player.ui.common.rememberKeyedFocusRequesters
 import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.grid.MediaGridCard
@@ -127,7 +127,7 @@ internal fun PlaylistsPane(
 
     menu?.let { open ->
         val playlist = open.playlist
-        ContextMenuHost(onDismiss = { menu = null }) {
+        PicnicDialog(onDismiss = { menu = null }) {
             if (open.confirmingDelete) {
                 ContextMenuPanel(
                     actions = listOf(

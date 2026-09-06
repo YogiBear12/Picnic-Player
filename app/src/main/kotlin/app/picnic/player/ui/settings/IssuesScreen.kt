@@ -55,8 +55,8 @@ import app.picnic.player.data.seerr.neighborIssueId
 import app.picnic.player.data.seerr.replies
 import app.picnic.player.data.seerr.reportBody
 import app.picnic.player.ui.common.ContextMenuAction
-import app.picnic.player.ui.common.ContextMenuHost
 import app.picnic.player.ui.common.ContextMenuPanel
+import app.picnic.player.ui.common.PicnicDialog
 import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.theme.PicnicColors
 
@@ -235,7 +235,7 @@ private fun IssueListPage(
     }
 
     menuRow?.let { row ->
-        ContextMenuHost(onDismiss = { menuRow = null }) {
+        PicnicDialog(onDismiss = { menuRow = null }) {
             ContextMenuPanel(
                 actions = listOf(
                     ContextMenuAction(

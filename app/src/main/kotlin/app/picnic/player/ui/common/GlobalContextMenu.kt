@@ -136,7 +136,7 @@ fun GlobalContextMenuDialog(
         }
     }
 
-    ContextMenuHost(onDismiss = onDismiss) {
+    PicnicDialog(onDismiss = onDismiss) {
         BackHandler(enabled = panel != null) { panel = null }
         when (panel) {
             GlobalMenuPanel.SYNOPSIS -> SynopsisPanel(item.overview)

@@ -75,7 +75,7 @@ fun SeasonContextMenu(
         )
     }
 
-    ContextMenuHost(onDismiss = onDismiss) {
+    PicnicDialog(onDismiss = onDismiss) {
         BackHandler(enabled = panel != null) { panel = null }
         when (panel) {
             SeasonPanel.PLAYLIST -> AddToPlaylistPanel(item = season, onDone = onDismiss)
@@ -190,7 +190,7 @@ fun OverflowMenuDialog(
         }
     }
 
-    ContextMenuHost(onDismiss = onDismiss) {
+    PicnicDialog(onDismiss = onDismiss) {
         BackHandler(enabled = panel != null) { panel = null }
         when (panel) {
             OverflowPanel.MEDIA_INFO -> MediaInfoPanel(item = item)
