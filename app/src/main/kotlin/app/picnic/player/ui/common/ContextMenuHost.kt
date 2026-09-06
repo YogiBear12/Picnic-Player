@@ -1,7 +1,10 @@
 package app.picnic.player.ui.common
 
+import android.os.SystemClock
+import android.view.KeyEvent as AndroidKeyEvent
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -21,6 +24,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Icon
@@ -48,19 +52,33 @@ fun rememberContextMenuFocus(): ContextMenuFocus = remember { ContextMenuFocus()
 private val MenuMaxHeight = 460.dp
 private val MenuCornerRadius = 28.dp
 
+private val SelectKeyCodes = setOf(
+    AndroidKeyEvent.KEYCODE_DPAD_CENTER,
+    AndroidKeyEvent.KEYCODE_ENTER,
+    AndroidKeyEvent.KEYCODE_NUMPAD_ENTER
+)
+
 @Composable
 fun ContextMenuHost(onDismiss: () -> Unit, content: @Composable () -> Unit) {
-    PicnicDialog(onDismiss = onDismiss, content = content)
+    PicnicDialog(onDismiss = onDismiss) {
+        val openedAt = remember { SystemClock.uptimeMillis() }
+        Box(
+            Modifier.onPreviewKeyEvent { event ->
+                val native = event.nativeKeyEvent
+                native.keyCode in SelectKeyCodes && native.downTime < openedAt
+            }
+        ) {
+            content()
+        }
+    }
 }
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 fun ContextMenuPanel(
     actions: List<ContextMenuAction>,
-    openedByLongPress: Boolean = true,
     focus: ContextMenuFocus? = null
 ) {
-    val guard = rememberLongPressGuard()
     val seedFocus = remember { FocusRequester() }
     val seedIndex = focus?.lastIndex
         ?.takeIf { actions.getOrNull(it)?.enabled == true }
@@ -74,7 +92,6 @@ fun ContextMenuPanel(
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 24.dp)
             .focusGroup()
-            .then(if (openedByLongPress) Modifier.longPressGuard(guard) else Modifier)
     ) {
         actions.forEachIndexed { index, action ->
             ListItem(

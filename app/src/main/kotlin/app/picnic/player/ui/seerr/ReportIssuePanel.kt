@@ -84,7 +84,6 @@ internal fun ReportIssuePanel(
                     }
                 )
             },
-            openedByLongPress = false,
             focus = typeFocus
         )
         ReportStep.REASON -> ContextMenuPanel(
@@ -98,7 +97,6 @@ internal fun ReportIssuePanel(
                     }
                 )
             },
-            openedByLongPress = false,
             focus = reasonFocus
         )
         ReportStep.FREE_TEXT -> SeerrTextEntryPanel(

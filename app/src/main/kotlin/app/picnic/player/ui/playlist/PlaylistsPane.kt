@@ -137,8 +137,7 @@ internal fun PlaylistsPane(
                             refocusSlot = state.playlists.indexOfFirst { it.id == playlist.id }.coerceAtLeast(0)
                             viewModel.delete(playlist)
                         }
-                    ),
-                    openedByLongPress = false
+                    )
                 )
             } else {
                 ContextMenuPanel(

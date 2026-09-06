@@ -214,8 +214,8 @@ fun OverflowMenuDialog(
                 )
             }
             OverflowPanel.VERSIONS ->
-                ContextMenuPanel(actions = versionItems, openedByLongPress = false, focus = versionFocus)
-            null -> ContextMenuPanel(actions = mainItems, openedByLongPress = false, focus = menuFocus)
+                ContextMenuPanel(actions = versionItems, focus = versionFocus)
+            null -> ContextMenuPanel(actions = mainItems, focus = menuFocus)
         }
     }
 }
