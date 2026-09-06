@@ -3,9 +3,15 @@ package app.picnic.player.ui.common
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRequester
 
 suspend fun FocusRequester.requestFocusWhenAttached(maxFrames: Int = 10): Boolean {
     repeat(maxFrames) {
@@ -14,6 +20,27 @@ suspend fun FocusRequester.requestFocusWhenAttached(maxFrames: Int = 10): Boolea
     }
     return false
 }
+
+@Stable
+class FocusSeed internal constructor() {
+    internal val requester = FocusRequester()
+    internal var ready by mutableStateOf(false)
+}
+
+@Composable
+fun rememberFocusSeed(key: Any?, enabled: Boolean = true): FocusSeed {
+    val seed = remember { FocusSeed() }
+    LaunchedEffect(key, enabled) {
+        seed.ready = false
+        if (!enabled) return@LaunchedEffect
+        withFrameNanos { }
+        seed.ready = true
+        seed.requester.requestFocusWhenAttached()
+    }
+    return seed
+}
+
+fun Modifier.focusSeed(seed: FocusSeed): Modifier = focusProperties { canFocus = seed.ready }.focusRequester(seed.requester)
 
 @Composable
 fun rememberRowFocusRequesters(rowCount: Int): List<FocusRequester> = remember {

@@ -22,7 +22,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
@@ -37,7 +36,9 @@ import androidx.tv.material3.Text
 import app.picnic.player.ui.common.ActionButton
 import app.picnic.player.ui.common.DialogTextField
 import app.picnic.player.ui.common.PanelWidth
+import app.picnic.player.ui.common.focusSeed
 import app.picnic.player.ui.common.panelSurface
+import app.picnic.player.ui.common.rememberFocusSeed
 import app.picnic.player.ui.common.requestFocusWhenAttached
 import org.jellyfin.sdk.model.api.BaseItemDto
 
@@ -96,10 +97,7 @@ fun AddToPlaylistPanel(
                 modifier = Modifier.fillMaxWidth()
             )
         } else {
-            val firstFocus = remember { FocusRequester() }
-            LaunchedEffect(state.loading) {
-                if (!state.loading) firstFocus.requestFocusWhenAttached()
-            }
+            val seed = rememberFocusSeed(state.loading, enabled = !state.loading)
             ListItem(
                 selected = false,
                 onClick = { creating = true },
@@ -108,8 +106,7 @@ fun AddToPlaylistPanel(
                 colors = playlistPickerColors(),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .focusProperties { canFocus = !state.loading }
-                    .focusRequester(firstFocus)
+                    .focusSeed(seed)
             )
             state.playlists.forEach { playlist ->
                 ListItem(

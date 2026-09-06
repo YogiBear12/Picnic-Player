@@ -13,15 +13,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.onPreviewKeyEvent
@@ -79,10 +76,10 @@ fun ContextMenuPanel(
     actions: List<ContextMenuAction>,
     focus: ContextMenuFocus? = null
 ) {
-    val seedFocus = remember { FocusRequester() }
     val seedIndex = focus?.lastIndex
         ?.takeIf { actions.getOrNull(it)?.enabled == true }
         ?: actions.indexOfFirst { it.enabled }
+    val seed = rememberFocusSeed(seedIndex, enabled = seedIndex >= 0)
 
     Column(
         verticalArrangement = Arrangement.spacedBy(2.dp),
@@ -112,18 +109,8 @@ fun ContextMenuPanel(
                 ),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .then(
-                        if (index == seedIndex) {
-                            Modifier.focusRequester(seedFocus)
-                        } else {
-                            Modifier
-                        }
-                    )
+                    .then(if (index == seedIndex) Modifier.focusSeed(seed) else Modifier)
             )
         }
-    }
-
-    LaunchedEffect(seedIndex) {
-        if (seedIndex >= 0) seedFocus.requestFocusWhenAttached()
     }
 }
