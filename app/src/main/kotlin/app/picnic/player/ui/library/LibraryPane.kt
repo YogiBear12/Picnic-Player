@@ -40,8 +40,8 @@ import app.picnic.player.ui.browse.BrowseLayoutMetrics
 import app.picnic.player.ui.browse.ImmersiveBrowseScaffold
 import app.picnic.player.ui.browse.rememberHomeBrowseFocus
 import app.picnic.player.ui.common.LoadFailedState
+import app.picnic.player.ui.common.rememberOneShotFocus
 import app.picnic.player.ui.common.rememberRetrySeed
-import app.picnic.player.ui.common.rememberSeededFocus
 import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.genre.GenreBrowseGrid
 import app.picnic.player.ui.genre.GenreGridColumns
@@ -243,7 +243,7 @@ private fun ForYouTabContent(
     val retrySeed = rememberRetrySeed()
     when {
         state.error != null -> {
-            val retryFocus = rememberSeededFocus(seedContentFocus, onContentFocusSeeded)
+            val retryFocus = rememberOneShotFocus(seedContentFocus, onContentFocusSeeded)
             LoadFailedState(
                 message = state.error,
                 retryFocus = retryFocus,
@@ -303,7 +303,7 @@ private fun GenresTabContent(
     val genreGridState = rememberLazyGridState()
     val retrySeed = rememberRetrySeed()
     val failed = paneState.genresError
-    val retryFocus = rememberSeededFocus(
+    val retryFocus = rememberOneShotFocus(
         seed = seedContentFocus && failed && !paneState.genresLoading,
         onSeeded = onContentFocusSeeded
     )

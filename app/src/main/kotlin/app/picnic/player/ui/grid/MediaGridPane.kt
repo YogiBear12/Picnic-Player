@@ -62,8 +62,8 @@ import app.picnic.player.ui.browse.posterCardStyle
 import app.picnic.player.ui.common.LoadFailedState
 import app.picnic.player.ui.common.LocalContextMenuHandler
 import app.picnic.player.ui.common.LocalImageUrls
+import app.picnic.player.ui.common.rememberOneShotFocus
 import app.picnic.player.ui.common.rememberRetrySeed
-import app.picnic.player.ui.common.rememberSeededFocus
 import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.theme.PicnicColors
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -99,7 +99,7 @@ internal fun MediaGridPane(
     val retrySeed = rememberRetrySeed()
     when {
         state.error != null -> {
-            val retryFocus = rememberSeededFocus(seedContentFocus, onContentFocusSeeded)
+            val retryFocus = rememberOneShotFocus(seedContentFocus, onContentFocusSeeded)
             LoadFailedState(
                 message = state.error,
                 retryFocus = retryFocus,

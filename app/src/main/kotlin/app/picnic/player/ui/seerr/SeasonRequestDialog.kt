@@ -47,7 +47,9 @@ import app.picnic.player.data.seerr.SeerrSeasonAvailability
 import app.picnic.player.data.seerr.SeerrSeasonPickItem
 import app.picnic.player.data.seerr.seasonLibraryBadgeLabel
 import app.picnic.player.ui.common.PicnicDialog
+import app.picnic.player.ui.common.focusSeed
 import app.picnic.player.ui.common.panelSurface
+import app.picnic.player.ui.common.rememberFocusSeed
 import app.picnic.player.ui.common.requestFocusWhenAttached
 
 private val SeasonAvailableGreen = Color(0xFF6BCB77)
@@ -75,15 +77,15 @@ internal fun SeasonRequestPanel(
     }
     var selected by remember(seasons) { mutableStateOf(selectableNumbers) }
     val listState = rememberLazyListState()
-    val seedFocus = remember { FocusRequester() }
     val lastListFocus = remember { FocusRequester() }
     val confirmFocus = remember { FocusRequester() }
     val seedIndex = if (seasons.isNotEmpty()) 0 else -1
+    val seed = rememberFocusSeed(seedIndex, enabled = seedIndex >= 0)
     val lastFocusableIndex = seasons.lastIndex
     val canConfirm = selected.isNotEmpty()
     val upFromConfirm = when {
         lastFocusableIndex < 0 -> FocusRequester.Default
-        seedIndex == lastFocusableIndex -> seedFocus
+        seedIndex == lastFocusableIndex -> seed.requester
         else -> lastListFocus
     }
 
@@ -103,10 +105,10 @@ internal fun SeasonRequestPanel(
             verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
             itemsIndexed(seasons, key = { _, item -> item.seasonNumber }) { index, item ->
-                val attachedFocus = when {
-                    index == seedIndex -> seedFocus
-                    index == lastFocusableIndex -> lastListFocus
-                    else -> null
+                val focusModifier = when {
+                    index == seedIndex -> Modifier.focusSeed(seed)
+                    index == lastFocusableIndex -> Modifier.focusRequester(lastListFocus)
+                    else -> Modifier
                 }
                 SeasonPickRow(
                     item = item,
@@ -119,7 +121,7 @@ internal fun SeasonRequestPanel(
                             selected + item.seasonNumber
                         }
                     },
-                    focusRequester = attachedFocus,
+                    modifier = focusModifier,
                     downTarget = when {
                         index == lastFocusableIndex && canConfirm -> confirmFocus
                         else -> null
@@ -147,7 +149,6 @@ internal fun SeasonRequestPanel(
     LaunchedEffect(seedIndex) {
         if (seedIndex >= 0) {
             listState.scrollToItem(seedIndex)
-            seedFocus.requestFocusWhenAttached(maxFrames = 20)
         } else if (canConfirm) {
             confirmFocus.requestFocusWhenAttached()
         }
@@ -159,13 +160,12 @@ private fun SeasonPickRow(
     item: SeerrSeasonPickItem,
     selected: Boolean,
     onToggle: () -> Unit,
-    focusRequester: FocusRequester?,
+    modifier: Modifier = Modifier,
     downTarget: FocusRequester?
 ) {
     val titleAlpha = if (item.selectable) 0.92f else 0.55f
-    val rowModifier = Modifier
+    val rowModifier = modifier
         .fillMaxWidth()
-        .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
         .then(
             if (downTarget != null) {
                 Modifier.focusProperties { down = downTarget }

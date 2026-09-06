@@ -23,12 +23,12 @@ suspend fun FocusRequester.requestFocusWhenAttached(maxFrames: Int = 10): Boolea
 
 @Stable
 class FocusSeed internal constructor() {
-    internal val requester = FocusRequester()
+    val requester = FocusRequester()
     internal var ready by mutableStateOf(false)
 }
 
 @Composable
-fun rememberFocusSeed(key: Any?, enabled: Boolean = true): FocusSeed {
+fun rememberFocusSeed(key: Any?, enabled: Boolean): FocusSeed {
     val seed = remember { FocusSeed() }
     LaunchedEffect(key, enabled) {
         seed.ready = false
@@ -53,7 +53,7 @@ fun <T> MutableList<T>.growTo(count: Int, create: () -> T): List<T> {
 }
 
 @Composable
-fun rememberSeededFocus(seed: Boolean, onSeeded: () -> Unit): FocusRequester {
+fun rememberOneShotFocus(seed: Boolean, onSeeded: () -> Unit): FocusRequester {
     val requester = remember { FocusRequester() }
     LaunchedEffect(seed) {
         if (!seed) return@LaunchedEffect

@@ -26,8 +26,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
@@ -38,8 +36,9 @@ import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import app.picnic.player.data.seerr.SEERR_ISSUE_ALL
 import app.picnic.player.data.seerr.SeerrIssueSeason
+import app.picnic.player.ui.common.focusSeed
 import app.picnic.player.ui.common.panelSurface
-import app.picnic.player.ui.common.requestFocusWhenAttached
+import app.picnic.player.ui.common.rememberFocusSeed
 import app.picnic.player.ui.theme.PicnicColors
 
 private const val SEERR_ISSUE_SEASON_HEADER = -1
@@ -62,7 +61,6 @@ internal fun IssueScopePanel(
     onSelect: (season: Int, episode: Int) -> Unit
 ) {
     var expandedSeason by remember(selectedSeason) { mutableStateOf(selectedSeason.takeIf { it > 0 }) }
-    val seedFocus = remember { FocusRequester() }
     val listState = rememberLazyListState()
 
     val rows = buildList {
@@ -117,6 +115,7 @@ internal fun IssueScopePanel(
     val seedRow = rows.firstOrNull {
         it.season == selectedSeason && it.episode == selectedEpisode
     } ?: rows.first()
+    val seed = rememberFocusSeed(seedRow, enabled = !loading)
 
     Column(
         modifier = Modifier
@@ -146,7 +145,7 @@ internal fun IssueScopePanel(
                 items(rows, key = { it.season to it.episode }) { row ->
                     IssueScopeRowItem(
                         row = row,
-                        focusRequester = if (row === seedRow) seedFocus else null
+                        modifier = if (row === seedRow) Modifier.focusSeed(seed) else Modifier
                     )
                 }
             }
@@ -156,20 +155,17 @@ internal fun IssueScopePanel(
     LaunchedEffect(loading) {
         if (loading) return@LaunchedEffect
         listState.scrollToItem(rows.indexOf(seedRow).coerceAtLeast(0))
-        seedFocus.requestFocusWhenAttached(maxFrames = 20)
     }
 }
 
 @Composable
 private fun IssueScopeRowItem(
     row: IssueScopeRow,
-    focusRequester: FocusRequester?
+    modifier: Modifier = Modifier
 ) {
     Surface(
         onClick = row.onClick,
-        modifier = Modifier
-            .fillMaxWidth()
-            .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier),
+        modifier = modifier.fillMaxWidth(),
         shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(SeerrRowCornerRadius)),
         scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
         colors = ClickableSurfaceDefaults.colors(
