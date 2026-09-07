@@ -123,9 +123,18 @@ fun PlayerScreen(
         jellyfinHints = jellyfinDisplayHints
     )
 
+    val stillWatching = state.stillWatching && !inPipMode
     val showNextUpOverlay = state.endedAwaitingNext && state.nextUp != null && !inPipMode
 
-    LaunchedEffect(showNextUpOverlay) { chrome.onNextUpVisibleChanged(showNextUpOverlay) }
+    LaunchedEffect(showNextUpOverlay, stillWatching) {
+        chrome.onOverlayChanged(
+            when {
+                stillWatching -> PlayerOverlay.STILL_WATCHING
+                showNextUpOverlay -> PlayerOverlay.NEXT_UP
+                else -> null
+            }
+        )
+    }
     LaunchedEffect(inPipMode) { chrome.onPipModeChanged(inPipMode) }
 
     fun togglePlay() {
@@ -244,6 +253,7 @@ fun PlayerScreen(
             state = state,
             subtitleAppearance = settings.subtitleAppearance,
             showNextUpOverlay = showNextUpOverlay,
+            subtitlesVisible = !stillWatching,
             pipModifier = pipState.sourceRectModifier()
         )
 
@@ -453,9 +463,26 @@ fun PlayerScreen(
                         viewModel.onAutoplayHandoff()
                         onPlayNext(nextUp.id)
                     },
-                    onBack = onNextUpBack
+                    onBack = onNextUpBack,
+                    active = !stillWatching
                 )
             }
+        }
+
+        if (stillWatching) {
+            val queued = state.nextUp.takeIf { showNextUpOverlay && !state.videoStillPlaying }
+            StillWatchingOverlay(
+                title = state.title,
+                onKeepWatching = {
+                    viewModel.clearStillWatching(resume = queued == null)
+                    if (queued != null) {
+                        viewModel.onAutoplayHandoff()
+                        onPlayNext(queued.id)
+                    }
+                },
+                onExit = { exitPlayer() },
+                modifier = Modifier.zIndex(5f)
+            )
         }
     }
 }

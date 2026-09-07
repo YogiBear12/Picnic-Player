@@ -402,7 +402,10 @@ class PlayerViewModel @Inject constructor(
             sessionController.sleep.collect { s -> _state.update { it.copy(sleep = s) } }
         }
         viewModelScope.launch {
-            sessionController.sleepExpired.collect { player.playWhenReady = false }
+            sessionController.sleepExpired.collect {
+                player.playWhenReady = false
+                _state.update { it.copy(stillWatching = true) }
+            }
         }
         viewModelScope.launch {
             playerCommandBus.commands.collect { applyRemoteCommand(it) }
@@ -831,7 +834,8 @@ class PlayerViewModel @Inject constructor(
                 isLoading = decision.isLoading,
                 currentSegment = decision.currentSegment,
                 endedAwaitingNext = decision.endedAwaitingNext,
-                videoStillPlaying = decision.videoStillPlaying
+                videoStillPlaying = decision.videoStillPlaying,
+                stillWatching = it.stillWatching || decision.pauseForSleep
             )
         }
     }
@@ -858,6 +862,11 @@ class PlayerViewModel @Inject constructor(
     }
 
     fun nextItemId(): String? = _state.value.nextUp?.id
+
+    fun clearStillWatching(resume: Boolean) {
+        _state.update { it.copy(stillWatching = false) }
+        if (resume) player.playWhenReady = true
+    }
 
     fun dismissNextUp() {
         _state.update { it.copy(endedAwaitingNext = false, videoStillPlaying = false) }

@@ -15,6 +15,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -40,6 +41,7 @@ fun BoxScope.PlayerStage(
     state: PlayerUiState,
     subtitleAppearance: SubtitleAppearance,
     showNextUpOverlay: Boolean,
+    subtitlesVisible: Boolean,
     pipModifier: Modifier
 ) {
     val playerScale by animateFloatAsState(
@@ -50,7 +52,8 @@ fun BoxScope.PlayerStage(
     val insetFraction = ((1f - playerScale) / (1f - NextUpPlayerScale)).coerceIn(0f, 1f)
     val playerInset = NextUpPlayerInset * insetFraction
 
-    val (bitmapCues, textCues) = state.subtitleCues.partition { it.bitmap != null }
+    val visibleCues = if (subtitlesVisible) state.subtitleCues else emptyList()
+    val (bitmapCues, textCues) = visibleCues.partition { it.bitmap != null }
     val presentationState = rememberPresentationState(viewModel.player)
 
     BoxWithConstraints(
@@ -74,10 +77,12 @@ fun BoxScope.PlayerStage(
         )
         AndroidView(
             factory = { context -> viewModel.assOverlayView(context) },
-            modifier = Modifier.resizeWithContentScale(
-                ContentScale.Fit,
-                presentationState.videoSizeDp
-            )
+            modifier = Modifier
+                .alpha(if (subtitlesVisible) 1f else 0f)
+                .resizeWithContentScale(
+                    ContentScale.Fit,
+                    presentationState.videoSizeDp
+                )
         )
         AndroidView(
             factory = { context -> SubtitleView(context) },

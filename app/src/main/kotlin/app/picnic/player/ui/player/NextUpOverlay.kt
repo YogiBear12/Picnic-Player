@@ -25,8 +25,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.input.key.Key
@@ -42,7 +40,10 @@ import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
+import app.picnic.player.ui.common.FocusSeed
 import app.picnic.player.ui.common.flatSurfaceBorder
+import app.picnic.player.ui.common.focusSeed
+import app.picnic.player.ui.common.rememberFocusSeed
 import coil3.compose.AsyncImage
 import kotlinx.coroutines.delay
 
@@ -54,22 +55,20 @@ fun NextUpOverlay(
     countdownSeconds: Int,
     onPlayNext: () -> Unit,
     onBack: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    active: Boolean = true
 ) {
     var secondsLeft by remember(item) { mutableIntStateOf(countdownSeconds) }
-    val thumbFocus = remember { FocusRequester() }
+    val thumbFocus = rememberFocusSeed(key = item, enabled = active)
 
-    LaunchedEffect(item) {
+    LaunchedEffect(item, active) {
+        if (!active) return@LaunchedEffect
         for (remaining in countdownSeconds downTo 1) {
             secondsLeft = remaining
             delay(1_000)
         }
         secondsLeft = 0
         onPlayNext()
-    }
-
-    LaunchedEffect(Unit) {
-        runCatching { thumbFocus.requestFocus() }
     }
 
     Box(
@@ -87,7 +86,7 @@ fun NextUpOverlay(
         NextUpCard(
             item = item,
             secondsLeft = secondsLeft,
-            thumbFocusRequester = thumbFocus,
+            thumbFocus = thumbFocus,
             onPlayNext = onPlayNext,
             onBack = onBack,
             modifier = Modifier
@@ -101,7 +100,7 @@ fun NextUpOverlay(
 private fun NextUpCard(
     item: NextUpItem,
     secondsLeft: Int,
-    thumbFocusRequester: FocusRequester,
+    thumbFocus: FocusSeed,
     onPlayNext: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
@@ -166,7 +165,7 @@ private fun NextUpCard(
                 thumbUrl = item.thumbUrl,
                 onPlayNext = onPlayNext,
                 onBack = onBack,
-                focusRequester = thumbFocusRequester,
+                focusSeed = thumbFocus,
                 modifier = Modifier.size(width = 160.dp, height = 90.dp)
             )
         }
@@ -178,13 +177,13 @@ private fun NextUpThumbnail(
     thumbUrl: String?,
     onPlayNext: () -> Unit,
     onBack: () -> Unit,
-    focusRequester: FocusRequester,
+    focusSeed: FocusSeed,
     modifier: Modifier = Modifier
 ) {
     Surface(
         onClick = onPlayNext,
         modifier = modifier
-            .focusRequester(focusRequester)
+            .focusSeed(focusSeed)
             .onKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
                 when (event.key) {

@@ -17,6 +17,8 @@ enum class BackOutcome { Handled, ClosedOsd, NextUp, ExitPlayer }
 
 enum class PlayerModal { SUBTITLE_ADJUST, REPORT_ISSUE }
 
+enum class PlayerOverlay { NEXT_UP, STILL_WATCHING }
+
 private const val MinOsdHideSeconds = 2L
 private const val QuickSkipBurstMs = 1_000L
 private const val SkipPillVisibleMs = 10_000L
@@ -50,12 +52,12 @@ class PlayerChrome {
     var quickSkipTick by mutableIntStateOf(0)
         private set
 
-    private var nextUpVisible by mutableStateOf(false)
+    private var overlay by mutableStateOf<PlayerOverlay?>(null)
     private var segmentActive by mutableStateOf(false)
     private var inPictureInPicture by mutableStateOf(false)
 
     val videoKeysActive: Boolean
-        get() = !osdVisible && panel == Panel.NONE && !nextUpVisible && modal == null
+        get() = !osdVisible && panel == Panel.NONE && overlay == null && modal == null
 
     val videoHasFocus: Boolean
         get() = videoKeysActive && !skipPillShowing
@@ -65,7 +67,7 @@ class PlayerChrome {
             !skipPillDismissed &&
             !osdVisible &&
             panel == Panel.NONE &&
-            !nextUpVisible &&
+            overlay == null &&
             modal == null
 
     val skipInOsd: Boolean
@@ -149,9 +151,9 @@ class PlayerChrome {
         quickSkipVisible = false
     }
 
-    fun onNextUpVisibleChanged(visible: Boolean) {
-        nextUpVisible = visible
-        if (visible) clearOverlays()
+    fun onOverlayChanged(next: PlayerOverlay?) {
+        overlay = next
+        if (next != null) clearOverlays()
     }
 
     fun onPipModeChanged(inPip: Boolean) {
@@ -164,7 +166,8 @@ class PlayerChrome {
             exitModalToSettings()
             BackOutcome.Handled
         }
-        nextUpVisible -> BackOutcome.NextUp
+        overlay == PlayerOverlay.STILL_WATCHING -> BackOutcome.ExitPlayer
+        overlay == PlayerOverlay.NEXT_UP -> BackOutcome.NextUp
         panel != Panel.NONE -> {
             closePanel()
             BackOutcome.Handled

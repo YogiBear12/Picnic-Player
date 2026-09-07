@@ -159,10 +159,21 @@ class PlayerChromeTest {
     fun nextUpOwnsBackAndClearsWhatWasOpen() {
         chrome.reveal()
         chrome.openPanel(Panel.CHAPTERS)
-        chrome.onNextUpVisibleChanged(true)
+        chrome.onOverlayChanged(PlayerOverlay.NEXT_UP)
         assertFalse(chrome.osdVisible)
         assertEquals(Panel.NONE, chrome.panel)
         assertEquals(BackOutcome.NextUp, chrome.onBack())
+    }
+
+    @Test
+    fun stillWatchingOwnsBackAndClearsWhatWasOpen() {
+        chrome.reveal()
+        chrome.openPanel(Panel.CHAPTERS)
+        chrome.onOverlayChanged(PlayerOverlay.STILL_WATCHING)
+        assertFalse(chrome.osdVisible)
+        assertEquals(Panel.NONE, chrome.panel)
+        assertFalse(chrome.videoKeysActive)
+        assertEquals(BackOutcome.ExitPlayer, chrome.onBack())
     }
 
     @Test
