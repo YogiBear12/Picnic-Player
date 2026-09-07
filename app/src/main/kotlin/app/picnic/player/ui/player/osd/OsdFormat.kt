@@ -39,21 +39,22 @@ internal fun nightModeLabel(level: NightMode): String = when (level) {
     NightMode.STRONG -> "Strong"
 }
 
-internal fun sleepModeLabel(mode: SleepMode): String = when (mode) {
+internal fun sleepModeLabel(mode: SleepMode, isEpisode: Boolean): String = when (mode) {
     SleepMode.OFF -> "Off"
     SleepMode.MIN_15 -> "15 minutes"
     SleepMode.MIN_30 -> "30 minutes"
     SleepMode.MIN_45 -> "45 minutes"
     SleepMode.MIN_60 -> "60 minutes"
-    SleepMode.END_OF_EPISODE -> "End of episode"
-    SleepMode.END_OF_QUEUE -> "End of queue"
+    SleepMode.MIN_90 -> "90 minutes"
+    SleepMode.MIN_120 -> "120 minutes"
+    SleepMode.END_OF_EPISODE -> if (isEpisode) "End of episode" else "End of movie"
 }
 
-internal fun sleepSummary(state: SleepTimerState): String = when {
+internal fun sleepSummary(state: SleepTimerState, isEpisode: Boolean): String = when {
     state.mode == SleepMode.OFF -> "Off"
-    state.mode.durationMinutes != null && state.remainingMs > 0 ->
-        "${sleepModeLabel(state.mode)} · ${formatClock(state.remainingMs)} left"
-    else -> sleepModeLabel(state.mode)
+    state.mode.durationSeconds != null && state.remainingMs > 0 ->
+        "${sleepModeLabel(state.mode, isEpisode)} · ${formatClock(state.remainingMs)} left"
+    else -> sleepModeLabel(state.mode, isEpisode)
 }
 
 internal data class ServerTranscode(

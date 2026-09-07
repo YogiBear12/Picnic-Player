@@ -15,6 +15,7 @@ import app.picnic.player.ui.browse.ShortDateFormat
 import app.picnic.player.ui.browse.TICKS_PER_MINUTE
 import app.picnic.player.ui.player.osd.TrackSupport
 import org.jellyfin.sdk.model.api.BaseItemDto
+import org.jellyfin.sdk.model.api.BaseItemKind
 import org.jellyfin.sdk.model.api.MediaSourceInfo
 import org.jellyfin.sdk.model.api.TranscodingInfo
 
@@ -81,6 +82,7 @@ data class PlayerUiState(
     val audioBoost: AudioBoost = AudioBoost.OFF,
     val nightMode: NightMode = NightMode.OFF,
     val sleep: SleepTimerState = SleepTimerState(),
+    val stillWatching: Boolean = false,
     val showStatsForNerds: Boolean = false,
     val playMethod: PlayMethodKind? = null,
     val mediaSourceId: String? = null,
@@ -95,6 +97,8 @@ data class PlayerUiState(
     val tracks: List<TrackSupport> = emptyList(),
     val directPlayBlockedBy: List<String> = emptyList()
 ) {
+    val isEpisode: Boolean get() = nowPlayingItem?.type == BaseItemKind.EPISODE
+
     val activeQuality: QualityOption? get() = when {
         playMethod != PlayMethodKind.TRANSCODE -> QualityOption.Original
         streamRung != null -> QualityOption.Transcode(streamRung)

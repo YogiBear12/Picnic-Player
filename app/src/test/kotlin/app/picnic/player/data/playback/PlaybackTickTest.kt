@@ -194,25 +194,21 @@ class PlaybackTickTest {
     }
 
     @Test
-    fun sleepEndOfEpisode_pausesAndSuppressesNext() {
-        val d = playbackTick(input(phase = PlaybackPhase.ENDED, sleepMode = SleepMode.END_OF_EPISODE))
+    fun sleepEndOfEpisode_pausesOverTheQueuedNextUp() {
+        val d = playbackTick(
+            input(phase = PlaybackPhase.ENDED, sleepMode = SleepMode.END_OF_EPISODE, hasNextUp = true)
+        )
         assertTrue(d.pauseForSleep)
-        assertFalse(d.endedAwaitingNext) // sleep suppresses the queue advance
+        assertTrue(d.endedAwaitingNext)
     }
 
     @Test
-    fun sleepEndOfQueue_pausesOnlyWhenNoNextUp() {
-        val withNext = playbackTick(
-            input(phase = PlaybackPhase.ENDED, sleepMode = SleepMode.END_OF_QUEUE, hasNextUp = true)
+    fun sleepEndOfEpisode_leavesNothingQueuedToExitNormally() {
+        val d = playbackTick(
+            input(phase = PlaybackPhase.ENDED, sleepMode = SleepMode.END_OF_EPISODE, hasNextUp = false)
         )
-        assertFalse(withNext.pauseForSleep)
-        assertTrue(withNext.endedAwaitingNext)
-
-        val noNext = playbackTick(
-            input(phase = PlaybackPhase.ENDED, sleepMode = SleepMode.END_OF_QUEUE, hasNextUp = false)
-        )
-        assertTrue(noNext.pauseForSleep)
-        assertFalse(noNext.endedAwaitingNext)
+        assertFalse(d.pauseForSleep)
+        assertTrue(d.endedAwaitingNext)
     }
 
     @Test

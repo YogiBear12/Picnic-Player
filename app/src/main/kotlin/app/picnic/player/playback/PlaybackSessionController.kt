@@ -22,18 +22,15 @@ enum class AudioBoost(val gainMb: Int) { OFF(0), LOW(400), MED(800), HIGH(1300) 
 /** Night-mode compression level. [strength] feeds the DynamicsProcessing config (0/1/2). */
 enum class NightMode(val strength: Int) { OFF(0), LIGHT(1), STRONG(2) }
 
-/**
- * Sleep-timer mode. [durationMinutes] is null for the end-of-X modes, which are resolved at
- * playback-end rather than by wall clock.
- */
-enum class SleepMode(val durationMinutes: Int?) {
+enum class SleepMode(val durationSeconds: Int?) {
     OFF(null),
-    MIN_15(15),
-    MIN_30(30),
-    MIN_45(45),
-    MIN_60(60),
-    END_OF_EPISODE(null),
-    END_OF_QUEUE(null)
+    MIN_15(15 * 60),
+    MIN_30(30 * 60),
+    MIN_45(45 * 60),
+    MIN_60(60 * 60),
+    MIN_90(90 * 60),
+    MIN_120(120 * 60),
+    END_OF_EPISODE(null)
 }
 
 data class SleepTimerState(
@@ -108,10 +105,10 @@ class PlaybackSessionController @Inject constructor(
 
     fun setSleep(mode: SleepMode) {
         tickJob?.cancel()
-        when (val minutes = mode.durationMinutes) {
+        when (val seconds = mode.durationSeconds) {
             null -> _sleep.value = SleepTimerState(mode = mode, endTimeMs = null, remainingMs = 0)
             else -> {
-                val end = System.currentTimeMillis() + minutes * 60_000L
+                val end = System.currentTimeMillis() + seconds * 1_000L
                 _sleep.value = SleepTimerState(mode = mode, endTimeMs = end, remainingMs = end - System.currentTimeMillis())
                 startTick(end)
             }

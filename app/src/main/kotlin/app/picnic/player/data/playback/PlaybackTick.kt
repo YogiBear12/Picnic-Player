@@ -99,12 +99,7 @@ fun playbackTick(input: PlaybackTickInput): PlaybackTickDecision {
         else -> input.prevVideoStillPlaying
     }
 
-    val pauseForSleep = endedNow &&
-        when (input.sleepMode) {
-            SleepMode.END_OF_EPISODE -> true
-            SleepMode.END_OF_QUEUE -> !input.hasNextUp
-            else -> false
-        }
+    val pauseForSleep = endedNow && input.sleepMode == SleepMode.END_OF_EPISODE && input.hasNextUp
 
     return PlaybackTickDecision(
         presentFirstFrame = presentFirstFrame,
@@ -119,8 +114,7 @@ fun playbackTick(input: PlaybackTickInput): PlaybackTickDecision {
         buffering = input.phase == PlaybackPhase.BUFFERING || input.phase == PlaybackPhase.IDLE,
         isLoading = !presentedFirstFrame && !input.hasError,
         currentSegment = nextSegment,
-        endedAwaitingNext = input.prevEndedAwaitingNext ||
-            ((endedNow || outroTriggered) && !pauseForSleep),
+        endedAwaitingNext = input.prevEndedAwaitingNext || endedNow || outroTriggered,
         videoStillPlaying = videoStillNow
     )
 }

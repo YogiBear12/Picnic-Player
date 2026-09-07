@@ -191,6 +191,7 @@ fun PlayerSettingsPanel(
             nightMode = state.nightMode,
             playbackSpeed = state.playbackSpeed,
             sleep = state.sleep,
+            isEpisode = state.isEpisode,
             showStatsForNerds = state.showStatsForNerds,
             pipSupported = pipSupported,
             onNavigate = { page = it },
@@ -210,7 +211,7 @@ fun PlayerSettingsPanel(
             actions.onSpeed(it)
             returnToMain()
         }
-        Page.SLEEP -> sleepRows(state.sleep) {
+        Page.SLEEP -> sleepRows(state.sleep, state.isEpisode, state.nextUp != null) {
             actions.onSleep(it)
             returnToMain()
         }
@@ -274,6 +275,7 @@ private fun mainRows(
     nightMode: NightMode,
     playbackSpeed: Float,
     sleep: SleepTimerState,
+    isEpisode: Boolean,
     showStatsForNerds: Boolean,
     pipSupported: Boolean,
     onNavigate: (Page) -> Unit,
@@ -307,7 +309,7 @@ private fun mainRows(
         ) { onNavigate(Page.AUDIO) }
     )
     add(PanelRow.Nav(RowKey.SPEED, "Playback speed", formatSpeed(playbackSpeed)) { onNavigate(Page.SPEED) })
-    add(PanelRow.Nav(RowKey.SLEEP, "Sleep timer", sleepSummary(sleep)) { onNavigate(Page.SLEEP) })
+    add(PanelRow.Nav(RowKey.SLEEP, "Sleep timer", sleepSummary(sleep, isEpisode)) { onNavigate(Page.SLEEP) })
     add(
         PanelRow.Nav(
             RowKey.PLAYBACK_INFO,
@@ -351,13 +353,20 @@ private fun speedRows(current: Float, onSelect: (Float) -> Unit): List<PanelRow>
     ) { onSelect(speed) }
 }
 
-private fun sleepRows(sleep: SleepTimerState, onSelect: (SleepMode) -> Unit): List<PanelRow> = SleepMode.entries.map { mode ->
-    PanelRow.Select(
-        key = mode,
-        primary = sleepModeLabel(mode),
-        selected = mode == sleep.mode
-    ) { onSelect(mode) }
-}
+private fun sleepRows(
+    sleep: SleepTimerState,
+    isEpisode: Boolean,
+    hasNextUp: Boolean,
+    onSelect: (SleepMode) -> Unit
+): List<PanelRow> = SleepMode.entries
+    .filter { it != SleepMode.END_OF_EPISODE || hasNextUp }
+    .map { mode ->
+        PanelRow.Select(
+            key = mode,
+            primary = sleepModeLabel(mode, isEpisode),
+            selected = mode == sleep.mode
+        ) { onSelect(mode) }
+    }
 
 private fun audioRows(
     audioBoost: AudioBoost,
