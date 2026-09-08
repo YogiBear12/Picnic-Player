@@ -31,9 +31,12 @@ internal data class VideoCodecRule(
 
 private const val EIGHT_BIT = 8
 
-private val avcEightBitProfiles = listOf("baseline", "constrained baseline", "main", "high")
+internal const val AVC_TRANSCODE_TARGET_PROFILE = "high"
+internal const val HEVC_TRANSCODE_TARGET_PROFILE = "main"
+
+private val avcEightBitProfiles = listOf(AVC_TRANSCODE_TARGET_PROFILE, "main", "baseline", "constrained baseline")
 private const val AVC_TEN_BIT_PROFILE = "high 10"
-private val hevcEightBitProfiles = listOf("main")
+private val hevcEightBitProfiles = listOf(HEVC_TRANSCODE_TARGET_PROFILE)
 private const val HEVC_TEN_BIT_PROFILE = "main 10"
 
 internal fun videoCodecRules(support: VideoDecoderSupport): List<VideoCodecRule> = buildList {

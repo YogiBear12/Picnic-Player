@@ -55,9 +55,11 @@ class VideoCodecRulesTest {
         val rule = ruleFor("h264", support(avcHigh10 = true, avcLevel = 51, avcHigh10Level = 42))
 
         assertTrue("high 10" in rule.playableProfiles)
+        assertEquals(AVC_TRANSCODE_TARGET_PROFILE, rule.playableProfiles.first())
+        assertEquals(AVC_TRANSCODE_TARGET_PROFILE, rule.levelLimits.first().profiles.first())
         assertEquals(
             listOf(
-                ProfileLevelLimit(listOf("baseline", "constrained baseline", "main", "high"), 51),
+                ProfileLevelLimit(listOf(AVC_TRANSCODE_TARGET_PROFILE, "main", "baseline", "constrained baseline"), 51),
                 ProfileLevelLimit(listOf("high 10"), 42)
             ),
             rule.levelLimits
