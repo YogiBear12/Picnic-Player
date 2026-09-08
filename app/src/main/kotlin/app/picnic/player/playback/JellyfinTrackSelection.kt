@@ -127,6 +127,9 @@ val List<MediaStream>.externalSubtitleCount: Int
 val List<MediaStream>.embeddedSubtitleCount: Int
     get() = count { it.type == MediaStreamType.SUBTITLE && !it.isExternal }
 
+val List<MediaStream>.videoStream: MediaStream?
+    get() = firstOrNull { it.type == MediaStreamType.VIDEO }
+
 val List<MediaStream>.videoStreamCount: Int
     get() = count { it.type == MediaStreamType.VIDEO }
 

@@ -70,6 +70,7 @@ import app.picnic.player.playback.StreamTarget
 import app.picnic.player.playback.ThemeMusicPlayer
 import app.picnic.player.playback.VideoDynamicRange
 import app.picnic.player.playback.stateName
+import app.picnic.player.playback.withPreferredVideoMimeTypes
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.IOException
@@ -187,6 +188,8 @@ class PlayerViewModel @Inject constructor(
         override fun load(stream: StreamInfo, resumeMs: Long) {
             PlaybackDiagnostics.logStream(stream)
             PlaybackDiagnostics.log("loading at resumeMs=$resumeMs directPlayAllowed=${directPlayVeto.allowsDirectPlay}")
+            player.trackSelectionParameters =
+                player.trackSelectionParameters.withPreferredVideoMimeTypes(stream.mediaStreams)
             player.setMediaItem(mediaItemFor(stream))
             player.prepare()
             pendingSeekMs = resumeMs
