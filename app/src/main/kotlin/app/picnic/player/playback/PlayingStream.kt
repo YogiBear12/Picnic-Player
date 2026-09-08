@@ -34,7 +34,7 @@ fun playingStream(
     val videoDirect = directPlay || transcodingInfo?.isVideoDirect == true
     val audioDirect = directPlay || transcodingInfo?.isAudioDirect == true
 
-    val videoStream = mediaStreams.firstOrNull { it.type == MediaStreamType.VIDEO }
+    val videoStream = mediaStreams.videoStream
     val audioStreams = mediaStreams.filter { it.type == MediaStreamType.AUDIO }
     val audioStream = audioStreams.firstOrNull { it.index == selectedAudioIndex } ?: audioStreams.singleOrNull()
 

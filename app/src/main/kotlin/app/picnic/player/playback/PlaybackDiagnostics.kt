@@ -71,7 +71,7 @@ object PlaybackDiagnostics : AnalyticsListener {
     fun logNegotiation(pass: Int, requestedRung: Any?, source: MediaSourceInfo) {
         if (!enabled) return
         val audioStreams = source.mediaStreams.orEmpty().filter { it.type == MediaStreamType.AUDIO }
-        val video = source.mediaStreams.orEmpty().firstOrNull { it.type == MediaStreamType.VIDEO }
+        val video = source.mediaStreams.orEmpty().videoStream
         val audio = audioStreams.firstOrNull { it.isDefault } ?: audioStreams.firstOrNull()
         log(
             "negotiation pass=$pass requestedRung=$requestedRung " +

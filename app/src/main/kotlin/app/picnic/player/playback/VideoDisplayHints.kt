@@ -1,7 +1,6 @@
 package app.picnic.player.playback
 
 import org.jellyfin.sdk.model.api.MediaStream
-import org.jellyfin.sdk.model.api.MediaStreamType
 
 /**
  * Video dimensions / frame rate used to pick an HDMI display mode.
@@ -20,7 +19,7 @@ data class VideoDisplayHints(
 
 /** First video stream's width / height / real-or-average frame rate from Jellyfin. */
 fun List<MediaStream>.videoDisplayHints(): VideoDisplayHints? {
-    val video = firstOrNull { it.type == MediaStreamType.VIDEO } ?: return null
+    val video = videoStream ?: return null
     return video.videoDisplayHints().takeIf { it.hasAny }
 }
 
