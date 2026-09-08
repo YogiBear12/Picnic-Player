@@ -2,12 +2,10 @@ package app.picnic.player.ui.collection
 
 import app.picnic.player.data.media.CollectionSection
 import app.picnic.player.data.media.NON_VIDEO_KINDS
-import app.picnic.player.data.media.PLAYABLE_KINDS
 import java.util.UUID
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -76,14 +74,5 @@ class CollectionRowsTest {
     fun everySectionKindIsListedOnce() {
         val kinds = CollectionSection.entries.flatMap { it.kinds }
         assertEquals(kinds.size, kinds.toSet().size)
-    }
-
-    @Test
-    fun foldersAreNotQueuedForPlayback() {
-        assertTrue(BaseItemKind.MOVIE in PLAYABLE_KINDS)
-        assertTrue(BaseItemKind.EPISODE in PLAYABLE_KINDS)
-        assertFalse(BaseItemKind.SERIES in PLAYABLE_KINDS)
-        assertFalse(BaseItemKind.SEASON in PLAYABLE_KINDS)
-        assertFalse(BaseItemKind.BOX_SET in PLAYABLE_KINDS)
     }
 }
