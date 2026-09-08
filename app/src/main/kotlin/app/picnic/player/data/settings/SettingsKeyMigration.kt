@@ -12,11 +12,25 @@ import app.picnic.player.data.auth.UserScope
 import kotlinx.serialization.json.Json
 
 internal fun settingsKeyMigration(): DataMigration<Preferences> = object : DataMigration<Preferences> {
-    override suspend fun shouldMigrate(currentData: Preferences): Boolean = currentData[VERSION] != CURRENT_VERSION
+    override suspend fun shouldMigrate(currentData: Preferences): Boolean = (currentData[VERSION] ?: 0) < CURRENT_VERSION
 
     override suspend fun migrate(currentData: Preferences): Preferences {
         val prefs = currentData.toMutablePreferences()
+        stepsToApply(MIGRATION_STEPS, currentData[VERSION] ?: 0)
+            .forEach { step -> step.applyTo(prefs, currentData) }
+        prefs[VERSION] = CURRENT_VERSION
+        return prefs
+    }
 
+    override suspend fun cleanUp() = Unit
+}
+
+internal class MigrationStep(val version: Int, val applyTo: (MutablePreferences, Preferences) -> Unit)
+
+internal fun stepsToApply(steps: List<MigrationStep>, alreadyApplied: Int): List<MigrationStep> = steps.filter { it.version > alreadyApplied }.sortedBy { it.version }
+
+private val MIGRATION_STEPS = listOf(
+    MigrationStep(version = 2) { prefs, currentData ->
         RENAMED_BOOLEANS.forEach { (old, new) ->
             currentData[booleanPreferencesKey(old)]?.let { value ->
                 prefs[booleanPreferencesKey(new)] = value
@@ -42,12 +56,10 @@ internal fun settingsKeyMigration(): DataMigration<Preferences> = object : DataM
         }
 
         prefs -= booleanPreferencesKey(CLICK_TO_PAUSE)
-        prefs[VERSION] = CURRENT_VERSION
-        return prefs
     }
+)
 
-    override suspend fun cleanUp() = Unit
-}
+private val CURRENT_VERSION = MIGRATION_STEPS.maxOf { it.version }
 
 private fun storedSessions(prefs: Preferences): List<StoredSession> {
     val raw = prefs[stringPreferencesKey(STORED_SESSIONS)] ?: return emptyList()
@@ -87,7 +99,6 @@ private data class UserPref(val oldName: String, val newName: String, val isBool
 private val MIGRATION_JSON = Json { ignoreUnknownKeys = true }
 
 private val VERSION = intPreferencesKey("settings.migrationVersion")
-private const val CURRENT_VERSION = 2
 
 private const val CLICK_TO_PAUSE = "playback.clickToPause"
 

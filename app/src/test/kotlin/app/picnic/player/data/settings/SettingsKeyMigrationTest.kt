@@ -158,6 +158,42 @@ class SettingsKeyMigrationTest {
     }
 
     @Test
+    fun `never migrates backwards from a newer build`() = runBlocking {
+        val fromNewerBuild = mutablePreferencesOf(intPreferencesKey("settings.migrationVersion") to 99)
+
+        assertFalse(migration.shouldMigrate(fromNewerBuild))
+    }
+
+    @Test
+    fun `re-entering migrate does not re-run steps this build already applied`() = runBlocking {
+        val migrated = migrate(
+            sessions(profileA),
+            booleanPreferencesKey("playback.subtitleBackground") to true,
+            stringPreferencesKey("playback.subtitleBackgroundShape") to "ROUNDED"
+        )
+        val scope = UserScope("s1", "u1")
+        val folded = migrated[stringPreferencesKey(scope.key("playback.subtitleBackground"))]
+
+        val reRun = migration.migrate(migrated)
+
+        assertEquals(folded, reRun[stringPreferencesKey(scope.key("playback.subtitleBackground"))])
+    }
+
+    @Test
+    fun `only steps above the applied version run, in version order`() {
+        val ran = mutableListOf<Int>()
+        val steps = listOf(
+            MigrationStep(version = 3) { _, _ -> ran += 3 },
+            MigrationStep(version = 1) { _, _ -> ran += 1 },
+            MigrationStep(version = 2) { _, _ -> ran += 2 }
+        )
+
+        stepsToApply(steps, alreadyApplied = 1).forEach { it.applyTo(mutablePreferencesOf(), mutablePreferencesOf()) }
+
+        assertEquals(listOf(2, 3), ran)
+    }
+
+    @Test
     fun `runs once`() = runBlocking {
         assertTrue(migration.shouldMigrate(mutablePreferencesOf()))
         assertFalse(migration.shouldMigrate(migrate()))
