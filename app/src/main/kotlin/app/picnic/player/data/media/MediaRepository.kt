@@ -75,6 +75,7 @@ class MediaRepository @Inject constructor(
     suspend fun resumeItems(limit: Int = LATEST_ROW_LIMIT): List<BaseItemDto> = onIo {
         api().itemsApi.getResumeItems(
             limit = limit,
+            includeItemTypes = PLAYABLE_KINDS,
             fields = CONTINUE_FIELDS,
             enableImageTypes = IMAGE_TYPES
         ).content.items.orEmpty()
