@@ -4,6 +4,9 @@ import app.picnic.player.data.playback.quality.QualityOption
 import app.picnic.player.di.ApplicationScope
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.time.Duration.Companion.minutes
+import kotlin.time.TimeMark
+import kotlin.time.TimeSource
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -52,9 +55,12 @@ data class SleepTimerState(
  * The DSP is applied by [PlaybackEngine]; this class only holds intent + drives the sleep clock.
  */
 @Singleton
-class PlaybackSessionController @Inject constructor(
-    @ApplicationScope private val appScope: CoroutineScope
+class PlaybackSessionController(
+    private val appScope: CoroutineScope,
+    private val timeSource: TimeSource
 ) {
+    @Inject constructor(@ApplicationScope appScope: CoroutineScope) : this(appScope, TimeSource.Monotonic)
+
     private val _audioBoost = MutableStateFlow(AudioBoost.OFF)
     val audioBoost: StateFlow<AudioBoost> = _audioBoost.asStateFlow()
 
@@ -73,6 +79,10 @@ class PlaybackSessionController @Inject constructor(
 
     private var tickJob: Job? = null
     private var handingOff = false
+    private var handoffPending = false
+
+    private var unattendedItems = 0
+    private var lastInteraction: TimeMark = timeSource.markNow()
 
     fun setAudioBoost(level: AudioBoost) {
         _audioBoost.value = level
@@ -88,7 +98,25 @@ class PlaybackSessionController @Inject constructor(
     /** The next player belongs to the same viewing, so its session controls carry over. */
     fun handOffToNextItem() {
         handingOff = true
+        handoffPending = true
     }
+
+    fun playerStarted() {
+        if (handoffPending) handoffPending = false else onInteraction()
+    }
+
+    fun onInteraction() {
+        unattendedItems = 0
+        lastInteraction = timeSource.markNow()
+    }
+
+    fun onItemAutoplayed() {
+        unattendedItems++
+    }
+
+    fun shouldAskStillWatching(protectionEnabled: Boolean): Boolean = protectionEnabled &&
+        unattendedItems >= PASSOUT_ITEMS &&
+        lastInteraction.elapsedNow() >= PASSOUT_ELAPSED
 
     /**
      * A player was torn down. Anything scoped to one viewing is dropped unless the next item is
@@ -137,9 +165,14 @@ class PlaybackSessionController @Inject constructor(
 
     /** Full session teardown: clear audio enhancement and cancel any sleep timer. */
     fun reset() {
+        handoffPending = false
+        onInteraction()
         _audioBoost.value = AudioBoost.OFF
         _nightMode.value = NightMode.OFF
         _qualityOverride.value = null
         cancelSleep()
     }
 }
+
+private const val PASSOUT_ITEMS = 3
+private val PASSOUT_ELAPSED = 90.minutes
