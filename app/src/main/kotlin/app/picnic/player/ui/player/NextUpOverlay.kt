@@ -53,6 +53,7 @@ private val CardBackground = Color(0xC0181E24)
 fun NextUpOverlay(
     item: NextUpItem,
     countdownSeconds: Int,
+    onAutoplay: () -> Unit,
     onPlayNext: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
@@ -68,7 +69,7 @@ fun NextUpOverlay(
             delay(1_000)
         }
         secondsLeft = 0
-        onPlayNext()
+        onAutoplay()
     }
 
     Box(

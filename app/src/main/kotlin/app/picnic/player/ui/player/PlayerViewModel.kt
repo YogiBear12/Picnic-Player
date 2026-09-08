@@ -348,6 +348,7 @@ class PlayerViewModel @Inject constructor(
 
     init {
         themeMusicPlayer.stop()
+        sessionController.playerStarted()
         viewModelScope.launch {
             combine(
                 trickplayCache.current,
@@ -425,6 +426,7 @@ class PlayerViewModel @Inject constructor(
     }
 
     private fun applyRemoteCommand(command: PlayerCommand) {
+        sessionController.onInteraction()
         when (command) {
             PlayerCommand.Stop -> {
                 player.pause()
@@ -436,8 +438,7 @@ class PlayerViewModel @Inject constructor(
             is PlayerCommand.Seek -> seekTo(command.positionMs)
             PlayerCommand.Rewind -> seekBy(-settings.value.skipBackwardSeconds * 1000L)
             PlayerCommand.FastForward -> seekBy(settings.value.skipForwardSeconds * 1000L)
-            PlayerCommand.NextTrack ->
-                nextItemId()?.let { _navEvents.tryEmit(PlayerNavEvent.PlayNext(it)) }
+            PlayerCommand.NextTrack -> playNext()
             PlayerCommand.PreviousTrack -> Unit
             is PlayerCommand.SetAudioIndex -> selectAudio(command.index.toString())
             is PlayerCommand.SetSubtitleIndex -> selectSubtitle(command.index?.toString())
@@ -872,7 +873,23 @@ class PlayerViewModel @Inject constructor(
         _state.update { it.copy(endedAwaitingNext = false, videoStillPlaying = false) }
     }
 
-    fun onAutoplayHandoff() = sessionController.handOffToNextItem()
+    fun onInteraction() = sessionController.onInteraction()
+
+    fun autoplayNext() {
+        sessionController.onItemAutoplayed()
+        if (sessionController.shouldAskStillWatching(settings.value.passoutProtection)) {
+            player.playWhenReady = false
+            _state.update { it.copy(stillWatching = true) }
+        } else {
+            playNext()
+        }
+    }
+
+    fun playNext() {
+        val next = nextItemId() ?: return
+        sessionController.handOffToNextItem()
+        _navEvents.tryEmit(PlayerNavEvent.PlayNext(next))
+    }
 
     fun endPlayback() {
         if (tornDown) return

@@ -32,6 +32,7 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalView
@@ -159,10 +160,7 @@ fun PlayerScreen(
         viewModel.navEvents.collect { event ->
             when (event) {
                 PlayerNavEvent.Exit -> exitPlayer()
-                is PlayerNavEvent.PlayNext -> {
-                    viewModel.onAutoplayHandoff()
-                    onPlayNext(event.itemId)
-                }
+                is PlayerNavEvent.PlayNext -> onPlayNext(event.itemId)
             }
         }
     }
@@ -213,6 +211,10 @@ fun PlayerScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
+            .onPreviewKeyEvent { event ->
+                if (event.type == KeyEventType.KeyDown) viewModel.onInteraction()
+                false
+            }
             .focusRequester(osdFocus.video)
             .focusable(chrome.videoHasFocus)
             .onKeyEvent { event ->
@@ -459,10 +461,8 @@ fun PlayerScreen(
                 NextUpOverlay(
                     item = nextUp,
                     countdownSeconds = nextUpCountdownStart,
-                    onPlayNext = {
-                        viewModel.onAutoplayHandoff()
-                        onPlayNext(nextUp.id)
-                    },
+                    onAutoplay = viewModel::autoplayNext,
+                    onPlayNext = viewModel::playNext,
                     onBack = onNextUpBack,
                     active = !stillWatching
                 )
@@ -475,10 +475,7 @@ fun PlayerScreen(
                 title = state.title,
                 onKeepWatching = {
                     viewModel.clearStillWatching(resume = queued == null)
-                    if (queued != null) {
-                        viewModel.onAutoplayHandoff()
-                        onPlayNext(queued.id)
-                    }
+                    if (queued != null) viewModel.playNext()
                 },
                 onExit = { exitPlayer() },
                 modifier = Modifier.zIndex(5f)
