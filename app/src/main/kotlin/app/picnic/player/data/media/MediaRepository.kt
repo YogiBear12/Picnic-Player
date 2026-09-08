@@ -3,6 +3,7 @@ package app.picnic.player.data.media
 import android.util.Log
 import app.picnic.player.BuildConfig
 import app.picnic.player.data.auth.UserSession
+import app.picnic.player.data.jellyfin.withApiKey
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -409,7 +410,7 @@ class MediaRepository @Inject constructor(
             itemId = theme.id,
             container = listOf("opus", "mp3", "aac", "flac")
         )
-        url + (if ('?' in url) "&" else "?") + "api_key=" + session().accessToken
+        url.withApiKey(session().accessToken)
     }
 
     suspend fun nextEpisode(episodeId: UUID): BaseItemDto? = onIo {

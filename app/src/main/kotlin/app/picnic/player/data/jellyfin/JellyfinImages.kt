@@ -128,12 +128,12 @@ object JellyfinImages {
 
     fun trickplayTile(session: UserSession, itemId: UUID, width: Int, tileIndex: Int): String {
         val base = session.server.baseUrl.trimEnd('/')
-        return "$base/Videos/$itemId/Trickplay/$width/$tileIndex.jpg?api_key=${session.accessToken}"
+        return "$base/Videos/$itemId/Trickplay/$width/$tileIndex.jpg".withApiKey(session.accessToken)
     }
 
     fun chapterImage(session: UserSession, itemId: UUID, index: Int, imageTag: String): String {
         val base = session.server.baseUrl.trimEnd('/')
-        return "$base/Items/$itemId/Images/Chapter/$index?tag=$imageTag&api_key=${session.accessToken}"
+        return "$base/Items/$itemId/Images/Chapter/$index?tag=$imageTag".withApiKey(session.accessToken)
     }
 
     private fun blurHash(item: BaseItemDto, type: ImageType, tag: String?): String? {

@@ -7,6 +7,8 @@ import app.picnic.player.data.auth.AuthRepository
 import app.picnic.player.data.auth.UserSession
 import app.picnic.player.data.device.DeviceIdentityStore
 import app.picnic.player.data.jellyfin.JellyfinFactory
+import app.picnic.player.data.jellyfin.carriesApiKey
+import app.picnic.player.data.jellyfin.withApiKey
 import app.picnic.player.data.media.LibraryChange
 import app.picnic.player.data.media.LibraryChangeBus
 import app.picnic.player.data.playback.profile.DynamicProfileBuilder
@@ -199,8 +201,7 @@ class PlaybackRepository @Inject constructor(
                 append("?static=true&mediaSourceId=").append(sourceId)
                 if (playSessionId != null) append("&playSessionId=").append(playSessionId)
                 source.container?.let { append("&container=").append(it) }
-                append("&api_key=").append(session.accessToken)
-            }
+            }.withApiKey(session.accessToken)
             return streamInfo(url, PlayMethodKind.DIRECT_PLAY, playSessionId, sourceId, source, negotiatedSubtitleStreamIndex = subtitleStreamIndex, session = session, directPlayBlockedBy = directPlayBlockedBy)
         }
         source.transcodingUrl?.let { path ->
@@ -208,7 +209,7 @@ class PlaybackRepository @Inject constructor(
             return streamInfo(url, PlayMethodKind.TRANSCODE, playSessionId, sourceId, source, negotiatedSubtitleStreamIndex = subtitleStreamIndex, subtitlesBurnedIn = subtitlesBurnedIn, rung = rung, session = session, directPlayBlockedBy = directPlayBlockedBy)
         }
         val url =
-            "$base/Videos/$itemId/stream?static=true&mediaSourceId=$sourceId&api_key=${session.accessToken}"
+            "$base/Videos/$itemId/stream?static=true&mediaSourceId=$sourceId".withApiKey(session.accessToken)
         return streamInfo(url, PlayMethodKind.DIRECT_STREAM, playSessionId, sourceId, source, negotiatedSubtitleStreamIndex = subtitleStreamIndex, session = session, directPlayBlockedBy = directPlayBlockedBy)
     }
 
@@ -221,15 +222,13 @@ class PlaybackRepository @Inject constructor(
                 val url = if (path.startsWith("http")) path else base + path
                 ExternalSubtitle(
                     streamIndex = stream.index,
-                    url = if (url.contains("api_key=")) url else appendApiKey(url, session.accessToken),
+                    url = if (url.carriesApiKey()) url else url.withApiKey(session.accessToken),
                     mimeType = subtitleMimeType(stream.codec, path),
                     language = stream.language,
                     title = stream.displayTitle ?: stream.title
                 )
             }
     }
-
-    private fun appendApiKey(url: String, token: String): String = url + (if (url.contains('?')) "&" else "?") + "api_key=" + token
 
     private fun subtitleMimeType(codec: String?, path: String): String {
         val extension = path.substringAfterLast('.', "").substringBefore('?').lowercase()
