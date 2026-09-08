@@ -20,6 +20,7 @@ object SettingKeys {
     val OsdHideSeconds = SettingKey({ it.osdHideSeconds }, SettingsStore::setOsdHideSeconds)
     val NextUpCountdownSeconds = SettingKey({ it.nextUpCountdownSeconds }, SettingsStore::setNextUpCountdownSeconds)
     val DisplayNextUpDuringOutro = SettingKey({ it.displayNextUpDuringOutro }, SettingsStore::setDisplayNextUpDuringOutro)
+    val PassoutProtection = SettingKey({ it.passoutProtection }, SettingsStore::setPassoutProtection)
     val IntroAction = SettingKey({ it.introAction }, SettingsStore::setIntroAction)
     val RecapAction = SettingKey({ it.recapAction }, SettingsStore::setRecapAction)
     val OutroAction = SettingKey({ it.outroAction }, SettingsStore::setOutroAction)

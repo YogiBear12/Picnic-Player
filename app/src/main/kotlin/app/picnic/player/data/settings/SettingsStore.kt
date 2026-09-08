@@ -61,6 +61,7 @@ data class PlaybackSettings(
     val commercialAction: SegmentAction = SegmentAction.SKIP_AUTOMATICALLY,
     val nextUpCountdownSeconds: Int = 5,
     val displayNextUpDuringOutro: Boolean = true,
+    val passoutProtection: Boolean = true,
     val autoLoginLastUser: Boolean = true,
     val pictureInPicture: Boolean = false,
     val matchRefreshRate: Boolean = false,
@@ -102,6 +103,7 @@ class SettingsStore @Inject constructor(
             commercialAction = p[COMMERCIAL_ACTION]?.let { enumOrNull<SegmentAction>(it) } ?: SegmentAction.SKIP_AUTOMATICALLY,
             nextUpCountdownSeconds = (p[NEXT_UP_COUNTDOWN] ?: 5).coerceIn(0, 15),
             displayNextUpDuringOutro = p[DISPLAY_NEXT_UP_DURING_OUTRO] ?: true,
+            passoutProtection = p[PASSOUT_PROTECTION] ?: true,
             autoLoginLastUser = p[AUTO_LOGIN_LAST_USER] ?: true,
             pictureInPicture = p[PICTURE_IN_PICTURE] ?: false,
             matchRefreshRate = p[MATCH_REFRESH_RATE] ?: false,
@@ -151,6 +153,7 @@ class SettingsStore @Inject constructor(
     suspend fun setCommercialAction(value: SegmentAction) = put { it[COMMERCIAL_ACTION] = value.name }
     suspend fun setNextUpCountdownSeconds(value: Int) = put { it[NEXT_UP_COUNTDOWN] = value.coerceIn(0, 15) }
     suspend fun setDisplayNextUpDuringOutro(value: Boolean) = put { it[DISPLAY_NEXT_UP_DURING_OUTRO] = value }
+    suspend fun setPassoutProtection(value: Boolean) = put { it[PASSOUT_PROTECTION] = value }
     suspend fun setAutoLoginLastUser(value: Boolean) = put { it[AUTO_LOGIN_LAST_USER] = value }
     suspend fun setPictureInPicture(value: Boolean) = put { it[PICTURE_IN_PICTURE] = value }
     suspend fun setMatchRefreshRate(value: Boolean) = put { it[MATCH_REFRESH_RATE] = value }
@@ -226,6 +229,7 @@ class SettingsStore @Inject constructor(
         val COMMERCIAL_ACTION = stringPreferencesKey("playback.commercialAction")
         val NEXT_UP_COUNTDOWN = intPreferencesKey("playback.nextUpCountdownSeconds")
         val DISPLAY_NEXT_UP_DURING_OUTRO = booleanPreferencesKey("playback.displayNextUpDuringOutro")
+        val PASSOUT_PROTECTION = booleanPreferencesKey("playback.passoutProtection")
 
         val AUTO_LOGIN_LAST_USER = booleanPreferencesKey("experience.autoLoginLastUser")
         val COLOURED_FOCUS = booleanPreferencesKey("experience.colouredFocus")

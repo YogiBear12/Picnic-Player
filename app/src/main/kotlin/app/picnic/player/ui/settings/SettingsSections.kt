@@ -389,7 +389,8 @@ private fun playbackSections(
                         ) { viewModel.set(SettingKeys.NextUpCountdownSeconds, it) }
                     )
                 }
-            )
+            ),
+            viewModel.toggleItem(settings, "Passout protection", SettingKeys.PassoutProtection)
         )
     ),
     SettingSection(
