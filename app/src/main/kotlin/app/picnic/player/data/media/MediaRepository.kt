@@ -225,6 +225,7 @@ class MediaRepository @Inject constructor(
         val ids = api().itemsApi.getItems(
             userId = session().userUuid,
             parentId = boxSetId,
+            recursive = false,
             enableImages = false,
             enableUserData = false,
             enableTotalRecordCount = false,
@@ -235,7 +236,7 @@ class MediaRepository @Inject constructor(
     }
 
     fun collectionChildren(collectionId: UUID): Flow<List<BaseItemDto>> = pagedItems { startIndex ->
-        childPage(collectionId, startIndex, excludeItemTypes = NON_VIDEO_KINDS)
+        childPage(collectionId, startIndex, excludeItemTypes = NON_VIDEO_KINDS, recursive = false)
     }
 
     fun collectionQueue(collectionId: UUID): Flow<List<BaseItemDto>> = pagedItems { startIndex ->
@@ -259,7 +260,7 @@ class MediaRepository @Inject constructor(
         startIndex: Int,
         includeItemTypes: List<BaseItemKind>? = null,
         excludeItemTypes: List<BaseItemKind>? = null,
-        recursive: Boolean = false
+        recursive: Boolean
     ): MediaGridPage = onIo {
         val response = api().itemsApi.getItems(
             userId = session().userUuid,
