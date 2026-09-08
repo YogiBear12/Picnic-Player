@@ -99,9 +99,12 @@ class PlaybackRepository @Inject constructor(
         val negotiated = first.source.negotiated()
         val burnIn = forceBurn ||
             (burn == SubtitleBurn.WHEN_VIDEO_CONVERTED && negotiated.serverIsConverting)
-        val plan = conversionPlan(negotiated, rung, ceiling)
+        val plan = conversionPlan(negotiated, rung, ceiling, videoEncodeForced = forceBurn)
         val adoptedRung = (plan as? ConversionPlan.Renegotiate)?.rung ?: rung
-        val adopted = if (plan is ConversionPlan.Renegotiate || (burnIn && !forceBurn)) {
+        // A forced burn already asked for the burn in pass 1, so only an Automatic burn that
+        // pass 1 could not have known about needs a second pass of its own.
+        val burnNeedsSecondPass = burnIn && !forceBurn
+        val adopted = if (plan is ConversionPlan.Renegotiate || burnNeedsSecondPass) {
             stopEncoding(session, first.playSessionId)
             negotiate(negotiation, settings, adoptedRung, pass = 2, burnIn = burnIn, forceTranscode = forceBurn)
         } else {

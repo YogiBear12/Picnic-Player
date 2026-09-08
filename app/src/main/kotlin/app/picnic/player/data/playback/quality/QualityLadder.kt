@@ -164,9 +164,10 @@ sealed interface ConversionPlan {
 fun conversionPlan(
     source: NegotiatedSource,
     requested: QualityRung?,
-    ceiling: QualityRung
+    ceiling: QualityRung,
+    videoEncodeForced: Boolean
 ): ConversionPlan {
-    if (!source.serverIsConverting) return ConversionPlan.AsNegotiated
+    if (!source.serverIsConverting && !videoEncodeForced) return ConversionPlan.AsNegotiated
     if (requested != null && requested.fitsWithin(ceiling)) return ConversionPlan.AsNegotiated
     return ConversionPlan.Renegotiate(automaticRung(source.quality, ceiling))
 }
