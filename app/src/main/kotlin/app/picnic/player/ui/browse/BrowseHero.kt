@@ -15,7 +15,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
@@ -29,7 +28,7 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import app.picnic.player.ui.common.LocalImageUrls
-import coil3.compose.AsyncImage
+import app.picnic.player.ui.common.LogoOrFallback
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
 
@@ -100,15 +99,13 @@ internal fun BrowseHero(
             isEpisode || isSeason -> item.seriesName ?: item.name.orEmpty()
             else -> item.name.orEmpty()
         }
-        if (logoUrl != null) {
-            AsyncImage(
-                model = logoUrl,
-                contentDescription = headline,
-                contentScale = ContentScale.Fit,
-                alignment = Alignment.CenterStart,
-                modifier = Modifier.height(logoHeight).fillMaxWidth()
-            )
-        } else {
+        LogoOrFallback(
+            url = logoUrl,
+            contentDescription = headline,
+            alignment = Alignment.CenterStart,
+            label = "hero logo item='${item.name}'",
+            modifier = Modifier.height(logoHeight).fillMaxWidth()
+        ) {
             Box(
                 modifier = Modifier.height(logoHeight).fillMaxWidth(),
                 contentAlignment = Alignment.BottomStart

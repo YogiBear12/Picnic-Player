@@ -31,7 +31,6 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -52,6 +51,7 @@ import app.picnic.player.ui.common.ArtworkLogTag
 import app.picnic.player.ui.common.ArtworkPlaceholder
 import app.picnic.player.ui.common.ImageUrls
 import app.picnic.player.ui.common.LocalImageUrls
+import app.picnic.player.ui.common.LogoOrFallback
 import app.picnic.player.ui.common.PosterPlaceholderLabel
 import app.picnic.player.ui.common.watchProgress
 import org.jellyfin.sdk.model.api.BaseItemDto
@@ -141,16 +141,13 @@ internal fun BrowsePosterCard(
                     )
                     .padding(start = 8.dp, end = 8.dp, top = 20.dp, bottom = 8.dp)
             ) {
-                if (logoUrl != null) {
-                    ArtworkImage(
-                        url = logoUrl,
-                        contentDescription = item.seriesName ?: item.name,
-                        contentScale = ContentScale.Fit,
-                        alignment = Alignment.BottomStart,
-                        label = "logo item='${item.name}'",
-                        modifier = Modifier.height(style.height * 0.35f)
-                    )
-                } else {
+                LogoOrFallback(
+                    url = logoUrl,
+                    contentDescription = item.seriesName ?: item.name,
+                    alignment = Alignment.BottomStart,
+                    label = "logo item='${item.name}'",
+                    modifier = Modifier.height(style.height * 0.35f)
+                ) {
                     Text(
                         text = item.seriesName ?: item.name.orEmpty(),
                         color = Color.White,

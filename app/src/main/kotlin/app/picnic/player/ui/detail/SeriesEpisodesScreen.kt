@@ -43,7 +43,6 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -76,12 +75,12 @@ import app.picnic.player.ui.common.ArtworkPlaceholder
 import app.picnic.player.ui.common.EpisodeContextMenu
 import app.picnic.player.ui.common.LoadFailedState
 import app.picnic.player.ui.common.LocalImageUrls
+import app.picnic.player.ui.common.LogoOrFallback
 import app.picnic.player.ui.common.SeasonContextMenu
 import app.picnic.player.ui.common.isResumable
 import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.common.resumeTicks
 import app.picnic.player.ui.theme.PicnicColors
-import coil3.compose.AsyncImage
 import java.util.UUID
 import kotlinx.coroutines.delay
 import org.jellyfin.sdk.model.api.BaseItemDto
@@ -409,15 +408,12 @@ private fun rememberInitialLoadComplete(
 @Composable
 private fun SeriesLogoOrTitle(seriesItem: BaseItemDto) {
     val logoUrl = LocalImageUrls.current.logo(seriesItem, fillWidth = 400)
-    if (logoUrl != null) {
-        AsyncImage(
-            model = logoUrl,
-            contentDescription = seriesItem.name,
-            contentScale = ContentScale.Fit,
-            alignment = Alignment.Center,
-            modifier = Modifier.fillMaxSize()
-        )
-    } else {
+    LogoOrFallback(
+        url = logoUrl,
+        contentDescription = seriesItem.name,
+        label = "series header logo item='${seriesItem.name}'",
+        modifier = Modifier.fillMaxSize()
+    ) {
         Text(
             text = seriesItem.name ?: "Show",
             style = MaterialTheme.typography.headlineSmall,
