@@ -349,17 +349,20 @@ class MediaRepository @Inject constructor(
             .groupBy({ it.first }, { it.second })
     }
 
-    suspend fun seriesLeadStreams(seriesId: UUID): List<MediaStream> = onIo {
+    suspend fun leadEpisode(seriesId: UUID, seasonId: UUID? = null): BaseItemDto? = onIo {
         runCatching {
             api().tvShowsApi.getEpisodes(
                 seriesId = seriesId,
+                seasonId = seasonId,
                 userId = session().userUuid,
                 isMissing = false,
                 limit = 1,
-                fields = listOf(ItemFields.MEDIA_STREAMS)
-            ).content.items.orEmpty().firstOrNull()?.mediaStreams.orEmpty()
-        }.getOrDefault(emptyList())
+                fields = LEAD_EPISODE_FIELDS
+            ).content.items.orEmpty().firstOrNull()
+        }.getOrNull()
     }
+
+    suspend fun seriesLeadStreams(seriesId: UUID): List<MediaStream> = leadEpisode(seriesId)?.mediaStreams.orEmpty()
 
     suspend fun items(itemIds: List<UUID>): List<BaseItemDto> = onIo {
         if (itemIds.isEmpty()) return@onIo emptyList()

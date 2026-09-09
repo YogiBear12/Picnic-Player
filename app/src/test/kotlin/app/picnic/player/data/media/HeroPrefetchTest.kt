@@ -55,10 +55,47 @@ class HeroPrefetchTest {
     }
 
     @Test
-    fun seasonsCountAsSeries_forWindow() {
-        val s = item(BaseItemKind.SEASON)
+    fun seasons_landInSeasonBucketWithParentSeries() {
+        val seriesId = UUID.randomUUID()
+        val s = BaseItemDto(id = UUID.randomUUID(), type = BaseItemKind.SEASON, seriesId = seriesId)
         val plan = planHeroStreamPrefetch(listOf(row(s)), 0, mapOf(0 to s.id), emptySet())
-        assertEquals(listOf(s.id), plan.seriesIds)
+        assertEquals(listOf(SeasonRef(s.id, seriesId)), plan.seasons)
+        assertTrue(plan.seriesIds.isEmpty())
+        assertTrue(plan.streamIds.isEmpty())
+    }
+
+    @Test
+    fun seasons_replannedWhileTheParentSeriesIsStillMissing() {
+        val seriesId = UUID.randomUUID()
+        val s = BaseItemDto(id = UUID.randomUUID(), type = BaseItemKind.SEASON, seriesId = seriesId)
+        val rows = listOf(row(s))
+
+        val streamsOnly = planHeroStreamPrefetch(rows, 0, mapOf(0 to s.id), setOf(s.id))
+        assertEquals(listOf(SeasonRef(s.id, seriesId)), streamsOnly.seasons)
+
+        val settled = planHeroStreamPrefetch(rows, 0, mapOf(0 to s.id), setOf(s.id), knownSeries = setOf(seriesId))
+        assertTrue(settled.isEmpty)
+    }
+
+    @Test
+    fun seasons_withNoParentSeriesAreSkipped() {
+        val s = BaseItemDto(id = UUID.randomUUID(), type = BaseItemKind.SEASON)
+        val plan = planHeroStreamPrefetch(listOf(row(s)), 0, mapOf(0 to s.id), emptySet())
+        assertTrue(plan.isEmpty)
+    }
+
+    @Test
+    fun seasons_shareTheSeriesWindow() {
+        val seasons = (0 until 10).map {
+            BaseItemDto(id = UUID.randomUUID(), type = BaseItemKind.SEASON, seriesId = UUID.randomUUID())
+        }
+        val plan = planHeroStreamPrefetch(
+            rows = listOf(row(*seasons.toTypedArray())),
+            focusedRowIndex = 0,
+            rowFocusedItemIds = mapOf(0 to seasons[5].id),
+            alreadyFetched = emptySet()
+        )
+        assertEquals(seasons.subList(3, 10).map { it.id }, plan.seasons.map { it.seasonId })
     }
 
     @Test

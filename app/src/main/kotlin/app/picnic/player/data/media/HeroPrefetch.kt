@@ -1,7 +1,14 @@
 package app.picnic.player.data.media
 
 import java.util.UUID
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
+import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
+import org.jellyfin.sdk.model.api.MediaStream
 
 /**
  * Hero-badge stream prefetch plan for a browse screen (Home / For you). Pure:
@@ -17,11 +24,22 @@ import org.jellyfin.sdk.model.api.BaseItemKind
  * HomeViewModel and ForYouViewModel so the window logic lives (and is tested)
  * in one place.
  */
+data class SeasonRef(val seasonId: UUID, val seriesId: UUID)
+
 data class HeroPrefetchPlan(
     val streamIds: List<UUID>,
-    val seriesIds: List<UUID>
+    val seriesIds: List<UUID>,
+    val seasons: List<SeasonRef>
 ) {
-    val isEmpty: Boolean get() = streamIds.isEmpty() && seriesIds.isEmpty()
+    val isEmpty: Boolean get() = streamIds.isEmpty() && seriesIds.isEmpty() && seasons.isEmpty()
+}
+
+data class HeroPrefetchData(
+    val streams: Map<UUID, List<MediaStream>>,
+    val seriesItems: Map<UUID, BaseItemDto>,
+    val seasonLeads: Map<UUID, BaseItemDto>
+) {
+    val isEmpty: Boolean get() = streams.isEmpty() && seriesItems.isEmpty() && seasonLeads.isEmpty()
 }
 
 private const val SERIES_WINDOW_BEHIND = 2
@@ -31,12 +49,14 @@ fun planHeroStreamPrefetch(
     rows: List<HomeRow>,
     focusedRowIndex: Int,
     rowFocusedItemIds: Map<Int, UUID>,
-    alreadyFetched: Set<UUID>
+    alreadyFetched: Set<UUID>,
+    knownSeries: Set<UUID> = emptySet()
 ): HeroPrefetchPlan {
-    if (rows.isEmpty()) return HeroPrefetchPlan(emptyList(), emptyList())
+    if (rows.isEmpty()) return HeroPrefetchPlan(emptyList(), emptyList(), emptyList())
 
     val streamIds = mutableListOf<UUID>()
     val seriesIds = mutableListOf<UUID>()
+    val seasons = mutableListOf<SeasonRef>()
     val lookAheadRows = ((focusedRowIndex - 1)..(focusedRowIndex + 1)).filter { it in rows.indices }
 
     for (rIdx in lookAheadRows) {
@@ -44,18 +64,52 @@ fun planHeroStreamPrefetch(
         val startIdx = row.items.indexOfFirst { it.id == rowFocusedItemIds[rIdx] }.coerceAtLeast(0)
         for (i in row.items.indices) {
             val item = row.items[i]
-            if (item.id in alreadyFetched) continue
-            val isSeries = item.type == BaseItemKind.SERIES || item.type == BaseItemKind.SEASON
-            if (!isSeries) {
-                // Movies/episodes: batched fetch for the entire row.
-                streamIds.add(item.id)
-            } else if (i in (startIdx - SERIES_WINDOW_BEHIND)..(startIdx + SERIES_WINDOW_AHEAD)) {
-                // Series: sliding window to avoid API flooding.
-                seriesIds.add(item.id)
+            val hasStreams = item.id in alreadyFetched
+            val inWindow = i in (startIdx - SERIES_WINDOW_BEHIND)..(startIdx + SERIES_WINDOW_AHEAD)
+            val seriesId = item.seriesId
+            when {
+                item.type == BaseItemKind.SEASON -> {
+                    if (inWindow && seriesId != null && (!hasStreams || seriesId !in knownSeries)) {
+                        seasons.add(SeasonRef(item.id, seriesId))
+                    }
+                }
+                item.type == BaseItemKind.SERIES -> if (inWindow && !hasStreams) seriesIds.add(item.id)
+                !hasStreams -> streamIds.add(item.id)
             }
         }
     }
-    return HeroPrefetchPlan(streamIds, seriesIds)
+    return HeroPrefetchPlan(streamIds, seriesIds, seasons)
+}
+
+suspend fun MediaRepository.fetchHeroPrefetch(
+    plan: HeroPrefetchPlan,
+    knownSeries: Set<UUID>,
+    concurrency: Int
+): HeroPrefetchData = coroutineScope {
+    val gate = Semaphore(concurrency)
+    val missingSeries = plan.seasons.map { it.seriesId }.distinct().filter { it !in knownSeries }
+
+    val batched = async { if (plan.streamIds.isEmpty()) emptyMap() else itemStreams(plan.streamIds) }
+    val seriesItems = async {
+        if (missingSeries.isEmpty()) emptyMap() else items(missingSeries).associateBy { it.id }
+    }
+    val seriesStreams = plan.seriesIds.map { id ->
+        async { id to gate.withPermit { seriesLeadStreams(id) } }
+    }
+    val seasonLeadJobs = plan.seasons.map { season ->
+        async { season.seasonId to gate.withPermit { leadEpisode(season.seriesId, season.seasonId) } }
+    }
+
+    val seasonLeads = seasonLeadJobs.awaitAll().mapNotNull { (id, episode) -> episode?.let { id to it } }.toMap()
+    val streams = buildMap {
+        putAll(batched.await())
+        seriesStreams.awaitAll().forEach { (id, found) -> if (found.isNotEmpty()) put(id, found) }
+        seasonLeads.forEach { (id, episode) ->
+            val found = episode.mediaStreams.orEmpty()
+            if (found.isNotEmpty()) put(id, found)
+        }
+    }
+    HeroPrefetchData(streams, seriesItems.await(), seasonLeads)
 }
 
 /** Series ids on [rows] that still need a season-count fetch (not in [alreadyCounted]). */

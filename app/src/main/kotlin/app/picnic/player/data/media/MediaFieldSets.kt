@@ -19,6 +19,8 @@ internal val PERSON_ITEM_FIELDS = BROWSE_FIELDS +
 
 internal val GRID_FIELDS = BROWSE_FIELDS + ItemFields.SORT_NAME + ItemFields.CHILD_COUNT
 
+internal val LEAD_EPISODE_FIELDS = listOf(ItemFields.MEDIA_STREAMS)
+
 internal val NEXT_EPISODE_FIELDS = listOf(
     ItemFields.OVERVIEW,
     ItemFields.PRIMARY_IMAGE_ASPECT_RATIO

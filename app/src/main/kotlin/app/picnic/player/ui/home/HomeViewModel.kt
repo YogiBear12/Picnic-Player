@@ -15,8 +15,10 @@ import app.picnic.player.data.media.HomeRow
 import app.picnic.player.data.media.LibraryChangeBus
 import app.picnic.player.data.media.MediaRepository
 import app.picnic.player.data.media.batches
+import app.picnic.player.data.media.fetchHeroPrefetch
 import app.picnic.player.data.media.planHeroStreamPrefetch
 import app.picnic.player.data.media.seriesNeedingSeasonCount
+import app.picnic.player.data.media.withSeriesFallback
 import app.picnic.player.data.nav.NAV_ID_DISCOVER
 import app.picnic.player.data.nav.NAV_ID_PLAYLISTS
 import app.picnic.player.data.nav.NavLayoutStore
@@ -80,7 +82,9 @@ class HomeViewModel @Inject constructor(
         val seasonCounts: Map<UUID, Int> = emptyMap(),
         val libraries: List<BrowseDest.Library> = emptyList(),
         val playlistsAvailable: Boolean = false,
-        val heroStreams: Map<UUID, List<MediaStream>> = emptyMap()
+        val heroStreams: Map<UUID, List<MediaStream>> = emptyMap(),
+        val seriesItems: Map<UUID, BaseItemDto> = emptyMap(),
+        val seasonLeads: Map<UUID, BaseItemDto> = emptyMap()
     )
 
     private val _state = MutableStateFlow(UiState())
@@ -155,9 +159,9 @@ class HomeViewModel @Inject constructor(
             rows.asSequence()
                 .flatMap { it.items.asSequence() }
                 .firstOrNull { it.id == id }
-                ?.let { return it }
+                ?.let { return it.withSeriesFallback(state.seriesItems, state.seasonLeads) }
         }
-        return rows.firstOrNull()?.items?.firstOrNull()
+        return rows.firstOrNull()?.items?.firstOrNull()?.withSeriesFallback(state.seriesItems, state.seasonLeads)
     }
 
     fun focusedRow(state: UiState = _state.value): HomeRow? = state.rows.getOrNull(state.focusedRowIndex)
@@ -286,38 +290,25 @@ class HomeViewModel @Inject constructor(
 
     private suspend fun prefetchStreamsAhead() {
         val stateSnapshot = _state.value
-        val session = stateSnapshot.session ?: return
+        if (stateSnapshot.session == null) return
         val plan = planHeroStreamPrefetch(
             rows = stateSnapshot.rows,
             focusedRowIndex = stateSnapshot.focusedRowIndex,
             rowFocusedItemIds = stateSnapshot.rowFocusedItemIds,
-            alreadyFetched = stateSnapshot.heroStreams.keys
+            alreadyFetched = stateSnapshot.heroStreams.keys,
+            knownSeries = stateSnapshot.seriesItems.keys
         )
         if (plan.isEmpty) return
 
-        val newStreams = mutableMapOf<UUID, List<MediaStream>>()
+        val data = mediaRepository.fetchHeroPrefetch(plan, stateSnapshot.seriesItems.keys, SEASON_COUNT_CONCURRENCY)
+        if (data.isEmpty) return
 
-        if (plan.streamIds.isNotEmpty()) {
-            val fetched = mediaRepository.itemStreams(plan.streamIds)
-            newStreams.putAll(fetched)
-        }
-
-        if (plan.seriesIds.isNotEmpty()) {
-            val gate = Semaphore(SEASON_COUNT_CONCURRENCY)
-            coroutineScope {
-                plan.seriesIds.map { seriesId ->
-                    async {
-                        val streams = runCatching { gate.withPermit { mediaRepository.seriesLeadStreams(seriesId) } }.getOrDefault(emptyList())
-                        if (streams.isNotEmpty()) {
-                            newStreams[seriesId] = streams
-                        }
-                    }
-                }.awaitAll()
-            }
-        }
-
-        if (newStreams.isNotEmpty()) {
-            _state.update { it.copy(heroStreams = it.heroStreams + newStreams) }
+        _state.update {
+            it.copy(
+                heroStreams = it.heroStreams + data.streams,
+                seriesItems = it.seriesItems + data.seriesItems,
+                seasonLeads = it.seasonLeads + data.seasonLeads
+            )
         }
     }
 
