@@ -20,7 +20,11 @@ fun recentlyAddedDetail(
             }
         }
     }
-    BaseItemKind.SEASON -> item.indexNumber?.let { "Season $it" } ?: runtime
+    BaseItemKind.SEASON -> when {
+        item.indexNumber != null && item.indexNumber != 0 -> "Season ${item.indexNumber}"
+        !item.name.isNullOrBlank() -> item.name.orEmpty()
+        else -> runtime
+    }
     BaseItemKind.BOX_SET -> {
         val count = item.childCount ?: 0
         if (count > 0) countLabel(count, "item") else runtime
