@@ -70,6 +70,7 @@ fun ColumnScope.SeasonList(
             modifier = Modifier
                 .weight(1f)
                 .focusGroup()
+                .onFocusChanged { rail.hasFocus = it.hasFocus }
                 .focusProperties {
                     enter = { rail.requesterFor(selectedIndex) ?: FocusRequester.Default }
                 },
