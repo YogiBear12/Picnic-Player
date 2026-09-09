@@ -65,6 +65,7 @@ import app.picnic.player.ui.ambient.PublishBackdrop
 import app.picnic.player.ui.ambient.rememberCardFocusGlow
 import app.picnic.player.ui.browse.CardTimeLeftBadge
 import app.picnic.player.ui.browse.CardWatchedBadge
+import app.picnic.player.ui.browse.HeroDetailsRowHeight
 import app.picnic.player.ui.browse.HeroInfoLine
 import app.picnic.player.ui.browse.HeroSpecs
 import app.picnic.player.ui.browse.ShortDateFormat
@@ -84,6 +85,8 @@ import coil3.compose.AsyncImage
 import java.util.UUID
 import kotlinx.coroutines.delay
 import org.jellyfin.sdk.model.api.BaseItemDto
+
+private val SeriesHeaderArtHeight = 80.dp
 
 @Composable
 fun SeriesEpisodesScreen(
@@ -243,8 +246,7 @@ fun SeriesEpisodesScreen(
                         .padding(start = 60.dp, end = 16.dp)
                 ) {
                     Spacer(Modifier.height(76.dp))
-                    val seriesItem = viewModel.seriesItem
-                    if (seriesItem != null) SeriesHeader(seriesItem)
+                    SeriesHeader(viewModel.seriesItem)
 
                     SeasonList(
                         seasons = viewModel.seasons,
@@ -405,7 +407,7 @@ private fun rememberInitialLoadComplete(
 }
 
 @Composable
-private fun SeriesHeader(seriesItem: BaseItemDto) {
+private fun SeriesLogoOrTitle(seriesItem: BaseItemDto) {
     val logoUrl = LocalImageUrls.current.logo(seriesItem, fillWidth = 400)
     if (logoUrl != null) {
         AsyncImage(
@@ -413,42 +415,58 @@ private fun SeriesHeader(seriesItem: BaseItemDto) {
             contentDescription = seriesItem.name,
             contentScale = ContentScale.Fit,
             alignment = Alignment.Center,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(80.dp)
+            modifier = Modifier.fillMaxSize()
         )
     } else {
         Text(
             text = seriesItem.name ?: "Show",
             style = MaterialTheme.typography.headlineSmall,
             color = Color.White,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
             modifier = Modifier.fillMaxWidth(),
             textAlign = TextAlign.Center
         )
     }
+}
+
+@Composable
+private fun SeriesHeader(seriesItem: BaseItemDto?) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(SeriesHeaderArtHeight),
+        contentAlignment = Alignment.Center
+    ) {
+        if (seriesItem != null) SeriesLogoOrTitle(seriesItem)
+    }
 
     Spacer(Modifier.height(16.dp))
 
-    val yearStr = (seriesItem.productionYear ?: seriesItem.premiereDate?.year)?.toString() ?: ""
-    val count = seriesItem.childCount ?: 0
-    val seasonsStr = if (count == 1) "1 Season" else "$count Seasons"
-    val meta = if (yearStr.isNotEmpty()) "$yearStr • $seasonsStr" else seasonsStr
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.Center
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(HeroDetailsRowHeight),
+        contentAlignment = Alignment.Center
     ) {
-        HeroInfoLine(
-            item = seriesItem,
-            meta = meta,
-            specs = HeroSpecs(
-                certificate = null,
-                resolution = null,
-                dynamicRange = null,
-                atmos = false,
-                audio = null,
-                hasSubtitles = false
+        if (seriesItem != null) {
+            val yearStr = (seriesItem.productionYear ?: seriesItem.premiereDate?.year)?.toString() ?: ""
+            val count = seriesItem.childCount ?: 0
+            val seasonsStr = if (count == 1) "1 Season" else "$count Seasons"
+            val meta = if (yearStr.isNotEmpty()) "$yearStr • $seasonsStr" else seasonsStr
+            HeroInfoLine(
+                item = seriesItem,
+                meta = meta,
+                specs = HeroSpecs(
+                    certificate = null,
+                    resolution = null,
+                    dynamicRange = null,
+                    atmos = false,
+                    audio = null,
+                    hasSubtitles = false
+                )
             )
-        )
+        }
     }
 
     Spacer(Modifier.height(8.dp))
