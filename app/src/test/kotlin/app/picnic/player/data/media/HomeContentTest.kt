@@ -152,11 +152,36 @@ class HomeContentTest {
     }
 
     @Test
-    fun resumeFirst_thenNextUp_inOrder() {
+    fun undatedItems_keepTheirIncomingOrder() {
         val r = item(name = "resume")
         val n = item(name = "nextup")
         val out = HomeContent.combineContinueWatching(listOf(r), listOf(n))
         assertEquals(listOf(r.id, n.id), out.map { it.id })
+    }
+
+    @Test
+    fun queuedEpisode_outranksAnOlderResumeItem() {
+        val queued = item(seriesId = UUID.randomUUID())
+        val staleResume = episode(UUID.randomUUID(), season = 1, number = 4, playedAt = day(1))
+        val out = HomeContent.combineContinueWatching(
+            resume = listOf(staleResume),
+            nextUp = listOf(queued),
+            queuedDates = mapOf(queued.id to day(9))
+        )
+        assertEquals(listOf(queued.id, staleResume.id), out.map { it.id })
+    }
+
+    @Test
+    fun continueWatchingRow_ordersWithTheQueuedDates() {
+        val queued = item(seriesId = UUID.randomUUID())
+        val staleResume = episode(UUID.randomUUID(), season = 1, number = 4, playedAt = day(1))
+        val rows = HomeContent.buildHomeRows(
+            resume = listOf(staleResume),
+            nextUp = listOf(queued),
+            latestByLibrary = emptyList(),
+            queuedDates = mapOf(queued.id to day(9))
+        )
+        assertEquals(listOf(queued.id, staleResume.id), rows.first().items.map { it.id })
     }
 
     @Test

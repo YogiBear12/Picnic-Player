@@ -31,6 +31,7 @@ import app.picnic.player.ui.browse.BrowseDest
 import app.picnic.player.ui.browse.NavRailState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import java.time.LocalDateTime
 import java.util.UUID
 import javax.inject.Inject
 import kotlinx.coroutines.FlowPreview
@@ -108,6 +109,7 @@ class HomeViewModel @Inject constructor(
     private var latestByLibrary: List<Pair<BaseItemDto, List<BaseItemDto>>> = emptyList()
     private var lastResume: List<BaseItemDto> = emptyList()
     private var lastNextUp: List<BaseItemDto> = emptyList()
+    private var lastQueuedDates: Map<UUID, LocalDateTime> = emptyMap()
 
     init {
         load()
@@ -250,6 +252,7 @@ class HomeViewModel @Inject constructor(
     private suspend fun applyFresh(result: HomeResult) {
         lastResume = result.resume
         lastNextUp = result.nextUp
+        lastQueuedDates = result.queuedDates
         latestByLibrary = result.latestByLibrary
         val firstItem = result.rows.firstOrNull()?.items?.firstOrNull()
         _state.update { current ->
@@ -276,7 +279,14 @@ class HomeViewModel @Inject constructor(
         if (latestByLibrary.isEmpty() && lastResume.isEmpty() && lastNextUp.isEmpty()) return
         val pinnedIds = navRail.pinnedLibraries().map { it.id }
         val hidden = hiddenResumeStore.snapshot()
-        val rows = HomeContent.buildHomeRows(lastResume, lastNextUp, latestByLibrary, pinnedIds, hidden)
+        val rows = HomeContent.buildHomeRows(
+            lastResume,
+            lastNextUp,
+            latestByLibrary,
+            pinnedIds,
+            hidden,
+            lastQueuedDates
+        )
         val visibleIds = rows.flatMap { row -> row.items.map { it.id } }.toSet()
         _state.update { current ->
             current.copy(

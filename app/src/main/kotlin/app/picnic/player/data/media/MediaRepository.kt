@@ -4,6 +4,7 @@ import android.util.Log
 import app.picnic.player.BuildConfig
 import app.picnic.player.data.auth.UserSession
 import app.picnic.player.data.jellyfin.withApiKey
+import java.time.LocalDateTime
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -48,7 +49,8 @@ private const val LIBRARY_LOG_TAG = "PicnicLibrary"
 
 @Singleton
 class MediaRepository @Inject constructor(
-    private val source: SessionApi
+    private val source: SessionApi,
+    private val queuedDateCache: QueuedDateCache
 ) {
     private suspend fun session(): UserSession = source.session()
 
@@ -88,6 +90,41 @@ class MediaRepository @Inject constructor(
             enableImageTypes = IMAGE_TYPES,
             enableResumable = false
         ).content.items.orEmpty()
+    }
+
+    suspend fun queuedEpisodeDates(episodes: List<BaseItemDto>): Map<UUID, LocalDateTime> = onIo {
+        val queued = episodes.mapNotNull { episode -> episode.seriesId?.let { episode to it } }
+        val known = queued.mapNotNull { (episode, _) ->
+            queuedDateCache.get(episode.id)?.let { episode.id to it }
+        }.toMap()
+        val fetched = coroutineScope {
+            val gate = Semaphore(ITEM_FETCH_CONCURRENCY)
+            queued.filterNot { (episode, _) -> episode.id in known }
+                .map { (episode, seriesId) ->
+                    async {
+                        gate.withPermit {
+                            queuedEpisodeDate(seriesId, episode)?.let { date ->
+                                queuedDateCache.put(episode.id, seriesId, date)
+                                episode.id to date
+                            }
+                        }
+                    }
+                }.awaitAll().filterNotNull().toMap()
+        }
+        known + fetched
+    }
+
+    private suspend fun queuedEpisodeDate(seriesId: UUID, episode: BaseItemDto): LocalDateTime? {
+        val precedingPlay = runCatching {
+            api().tvShowsApi.getEpisodes(
+                seriesId = seriesId,
+                userId = session().userUuid,
+                adjacentTo = episode.id,
+                limit = 1,
+                fields = emptyList()
+            ).content.items.orEmpty().firstOrNull()?.userData?.lastPlayedDate
+        }.getOrNull()
+        return listOfNotNull(precedingPlay, episode.premiereDate).maxOrNull()
     }
 
     private suspend fun resumeEpisodesForSeries(seriesId: UUID): List<BaseItemDto> = onIo {

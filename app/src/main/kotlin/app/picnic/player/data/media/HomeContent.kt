@@ -1,6 +1,7 @@
 package app.picnic.player.data.media
 
 import androidx.compose.runtime.Immutable
+import java.time.LocalDateTime
 import java.time.ZoneId
 import java.util.UUID
 import kotlinx.serialization.Serializable
@@ -54,7 +55,8 @@ object HomeContent {
 
     fun combineContinueWatching(
         resume: List<BaseItemDto>,
-        nextUp: List<BaseItemDto>
+        nextUp: List<BaseItemDto>,
+        queuedDates: Map<UUID, LocalDateTime> = emptyMap()
     ): List<BaseItemDto> {
         val out = ArrayList<BaseItemDto>(resume.size + nextUp.size)
         val seenItems = HashSet<UUID>()
@@ -73,7 +75,7 @@ object HomeContent {
             series?.let(seenSeries::add)
             out += item
         }
-        return out
+        return out.sortedByDescending { queuedDates[it.id] ?: it.userData?.lastPlayedDate }
     }
 
     fun buildHomeRows(
@@ -81,10 +83,12 @@ object HomeContent {
         nextUp: List<BaseItemDto>,
         latestByLibrary: List<Pair<BaseItemDto, List<BaseItemDto>>>,
         pinnedLibraryIds: List<UUID>? = null,
-        hidden: Map<String, Long> = emptyMap()
+        hidden: Map<String, Long> = emptyMap(),
+        queuedDates: Map<UUID, LocalDateTime> = emptyMap()
     ): List<HomeRow> {
         val rows = ArrayList<HomeRow>()
-        val continueWatching = withoutHidden(combineContinueWatching(resume, nextUp), hidden)
+        val continueWatching =
+            withoutHidden(combineContinueWatching(resume, nextUp, queuedDates), hidden)
         if (continueWatching.isNotEmpty()) {
             rows += HomeRow("Continue watching", continueWatching, continueWatching = true)
         }

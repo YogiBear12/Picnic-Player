@@ -9,6 +9,8 @@ import app.picnic.player.data.seerr.SeerrRepository
 import app.picnic.player.di.ApplicationScope
 import app.picnic.player.ui.browse.BrowseDest
 import app.picnic.player.ui.browse.NavRailState
+import java.time.LocalDateTime
+import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
@@ -27,6 +29,7 @@ data class HomeResult(
     val playlistsAvailable: Boolean,
     val resume: List<BaseItemDto>,
     val nextUp: List<BaseItemDto>,
+    val queuedDates: Map<UUID, LocalDateTime>,
     val latestByLibrary: List<Pair<BaseItemDto, List<BaseItemDto>>>
 )
 
@@ -85,6 +88,7 @@ class HomeContentLoader @Inject constructor(
             val hidden = hiddenResumeStore.snapshot()
             val resume = resumeDeferred.await()
             val nextUp = nextUpDeferred.await()
+            val queuedDates = mediaRepository.queuedEpisodeDates(nextUp)
             val latest = latestDeferred.awaitAll()
 
             val discoverAvailable = seerrRepository.state.value.linkState == SeerrLinkState.Linked
@@ -96,7 +100,8 @@ class HomeContentLoader @Inject constructor(
             val layout = navLayoutStore.resolve(session.server.id, session.userId, availableIds)
             navRail.publish(session, libraries, discoverAvailable, playlistsAvailable, layout)
             val pinnedIds = navRail.pinnedLibraries().map { it.id }
-            val rows = HomeContent.buildHomeRows(resume, nextUp, latest, pinnedIds, hidden)
+            val rows =
+                HomeContent.buildHomeRows(resume, nextUp, latest, pinnedIds, hidden, queuedDates)
             HomeResult(
                 session = session,
                 rows = rows,
@@ -104,6 +109,7 @@ class HomeContentLoader @Inject constructor(
                 playlistsAvailable = playlistsAvailable,
                 resume = resume,
                 nextUp = nextUp,
+                queuedDates = queuedDates,
                 latestByLibrary = latest
             )
         }
