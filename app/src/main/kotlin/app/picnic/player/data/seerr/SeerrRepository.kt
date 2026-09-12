@@ -231,6 +231,10 @@ class SeerrRepository @Inject constructor(
         mixPersonCredits(combined.cast, combined.crew)
     }
 
+    suspend fun personCombinedCredits(id: Int): SeerrPersonCombinedCredits = authed {
+        api.personCombinedCredits(id)
+    }
+
     suspend fun enrichCatalogItem(item: SeerrCatalogItem): SeerrCatalogItem = authed {
         when (item.mediaType) {
             SeerrMediaType.MOVIE -> api.movie(item.tmdbId).toCatalogItem()

@@ -83,3 +83,10 @@ data class PersonKey(
     val jellyfinPersonId: String? = null,
     val tmdbId: Int? = null
 ) : NavKey
+
+@Serializable
+data class FilmographyKey(
+    val tmdbId: Int,
+    val personName: String,
+    val knownForDepartment: String? = null
+) : NavKey

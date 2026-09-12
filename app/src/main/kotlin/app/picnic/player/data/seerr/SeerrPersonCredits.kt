@@ -76,7 +76,7 @@ fun SeerrPersonCredit.toCatalogItem(): SeerrCatalogItem = SeerrCatalogItem(
     episodeCount = episodeCount
 )
 
-private fun SeerrPersonCreditCast.toPersonCredit(): SeerrPersonCredit? {
+internal fun SeerrPersonCreditCast.toPersonCredit(): SeerrPersonCredit? {
     val type = mediaType.toPersonCreditMediaType() ?: return null
     return SeerrPersonCredit(
         tmdbId = id,
@@ -93,7 +93,7 @@ private fun SeerrPersonCreditCast.toPersonCredit(): SeerrPersonCredit? {
     )
 }
 
-private fun SeerrPersonCreditCrew.toPersonCredit(): SeerrPersonCredit? {
+internal fun SeerrPersonCreditCrew.toPersonCredit(): SeerrPersonCredit? {
     val type = mediaType.toPersonCreditMediaType() ?: return null
     return SeerrPersonCredit(
         tmdbId = id,

@@ -53,6 +53,7 @@ import app.picnic.player.ui.onboarding.LoginScreen
 import app.picnic.player.ui.onboarding.ProfilePickerScreen
 import app.picnic.player.ui.onboarding.ServerEntryScreen
 import app.picnic.player.ui.onboarding.ServerPickerScreen
+import app.picnic.player.ui.person.FilmographyScreen
 import app.picnic.player.ui.person.PersonScreen
 import app.picnic.player.ui.player.PlayerScreen
 import app.picnic.player.ui.playlist.PlaylistScreen
@@ -396,7 +397,26 @@ fun PicnicNavHost(
                             onSeerrItem = { item, bg, amb ->
                                 navViewModel.push(resolveSeerrNavKey(item, bg, amb))
                             },
+                            onFilmography = { tmdbId, name, knownForDepartment ->
+                                navViewModel.push(
+                                    FilmographyKey(
+                                        tmdbId = tmdbId,
+                                        personName = name,
+                                        knownForDepartment = knownForDepartment
+                                    )
+                                )
+                            },
                             onBack = { navViewModel.pop() }
+                        )
+                    }
+                    entry<FilmographyKey> { key ->
+                        FilmographyScreen(
+                            tmdbId = key.tmdbId,
+                            personName = key.personName,
+                            knownForDepartment = key.knownForDepartment,
+                            onItem = { item, bg, amb ->
+                                navViewModel.push(resolveSeerrNavKey(item, bg, amb))
+                            }
                         )
                     }
                 }

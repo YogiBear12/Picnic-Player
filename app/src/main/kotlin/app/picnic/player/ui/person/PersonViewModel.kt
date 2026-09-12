@@ -62,7 +62,10 @@ class PersonViewModel @AssistedInject constructor(
         val knownFor: List<SeerrCatalogItem> = emptyList(),
         val session: UserSession? = null,
         val seerrBaseUrl: String? = null,
+        val seerrLinked: Boolean = false,
         val seerrCacheImages: Boolean = false,
+        val resolvedTmdbId: Int? = null,
+        val knownForDepartment: String? = null,
         val error: String? = null
     )
 
@@ -100,13 +103,12 @@ class PersonViewModel @AssistedInject constructor(
 
         val seerrState = seerrRepository.state.value
         val seerrLinked = seerrState.linkState == SeerrLinkState.Linked
-        if (seerrLinked) {
-            _state.update {
-                it.copy(
-                    seerrBaseUrl = seerrState.serverUrl,
-                    seerrCacheImages = seerrState.cacheImages
-                )
-            }
+        _state.update {
+            it.copy(
+                seerrLinked = seerrLinked,
+                seerrBaseUrl = if (seerrLinked) seerrState.serverUrl else null,
+                seerrCacheImages = seerrLinked && seerrState.cacheImages
+            )
         }
 
         try {
@@ -154,15 +156,23 @@ class PersonViewModel @AssistedInject constructor(
 
             val hybridTmdb = tmdbId
                 ?: tmdbIdFromProviderIds(person.providerIds)
+            _state.update { it.copy(resolvedTmdbId = hybridTmdb) }
             if (seerrLinked && hybridTmdb != null) {
-                val credits = runCatching { seerrRepository.personCredits(hybridTmdb) }
-                    .getOrDefault(emptyList())
+                val creditsDeferred = async {
+                    runCatching { seerrRepository.personCredits(hybridTmdb) }.getOrDefault(emptyList())
+                }
+                val detailsDeferred = async {
+                    runCatching { seerrRepository.person(hybridTmdb) }.getOrNull()
+                }
+                val credits = creditsDeferred.await()
+                val details = detailsDeferred.await()
                 val knownFor = credits
                     .sortedByReleaseDateDesc { it.releaseDate }
                     .map { c -> c.toCatalogItem() }
                 _state.update {
                     it.copy(
                         knownFor = knownFor,
+                        knownForDepartment = details?.knownForDepartment,
                         libraryLines = personCreditLines(uuid, libraryItems, knownFor)
                     )
                 }
@@ -200,6 +210,8 @@ class PersonViewModel @AssistedInject constructor(
             _state.update {
                 it.copy(
                     seerrPerson = details,
+                    resolvedTmdbId = id,
+                    knownForDepartment = details.knownForDepartment,
                     libraryCredits = libraryLinkedPersonCredits(sorted)
                         .map { c -> c.toCatalogItem() },
                     knownFor = sorted.map { c -> c.toCatalogItem() }

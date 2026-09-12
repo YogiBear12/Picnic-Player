@@ -53,6 +53,7 @@ import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -69,14 +70,17 @@ import app.picnic.player.data.seerr.SeerrCatalogItem
 import app.picnic.player.data.seerr.SeerrImages
 import app.picnic.player.data.seerr.SeerrMediaType
 import app.picnic.player.data.seerr.SeerrPersonDetails
+import app.picnic.player.data.seerr.catalogKey
 import app.picnic.player.ui.ambient.LocalAmbientPrewarmer
 import app.picnic.player.ui.ambient.PublishBackdrop
 import app.picnic.player.ui.browse.BrowseCardStyle
+import app.picnic.player.ui.browse.BrowseHeroSummaryLineHeight
 import app.picnic.player.ui.browse.DetailContentStartInset
 import app.picnic.player.ui.browse.DetailMediaRow
 import app.picnic.player.ui.browse.ScrollToTopBringIntoView
 import app.picnic.player.ui.browse.browseLayoutMetrics
 import app.picnic.player.ui.browse.posterCardStyle
+import app.picnic.player.ui.common.ActionButton
 import app.picnic.player.ui.common.ContentCacheWindow
 import app.picnic.player.ui.common.LocalContextMenuHandler
 import app.picnic.player.ui.common.LocalImageUrls
@@ -94,6 +98,8 @@ import app.picnic.player.ui.theme.PicnicColors
 import coil3.compose.AsyncImage
 import coil3.compose.AsyncImagePainter
 import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.Period
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import java.util.UUID
@@ -111,6 +117,7 @@ private const val ShowsRowTitle = "Shows"
 private const val KnownForRowTitle = "Known for"
 
 private val PersonRowBottomPadding = 16.dp
+private val PersonHeroImageHeight = 232.dp
 
 private const val ROW_HERO = "hero"
 private const val ROW_MOVIES = "movies"
@@ -123,6 +130,7 @@ fun PersonScreen(
     tmdbId: Int?,
     onItem: (item: BaseItemDto, bgUrl: String?, ambUrl: String?) -> Unit,
     onSeerrItem: (SeerrCatalogItem, String?, String?) -> Unit,
+    onFilmography: (tmdbId: Int, name: String, knownForDepartment: String?) -> Unit,
     onBack: () -> Unit,
     viewModel: PersonViewModel = hiltViewModel<PersonViewModel, PersonViewModel.Factory>(
         creationCallback = { factory -> factory.create(jellyfinPersonId, tmdbId) }
@@ -160,8 +168,17 @@ fun PersonScreen(
     var focusRestored by remember { mutableStateOf(false) }
     val builtRows = remember { mutableSetOf<String>() }
 
-    val hasOverview = !state.person?.overview.isNullOrBlank() ||
-        !state.seerrPerson?.biography.isNullOrBlank()
+    val jellyfinPerson = state.person
+    val seerrPerson = state.seerrPerson
+    val heroOverview = if (jellyfinPerson != null && session != null) {
+        jellyfinPerson.overview
+    } else {
+        seerrPerson?.biography
+    }
+    val hasOverview = !heroOverview.isNullOrBlank()
+    val filmographyTmdbId = state.resolvedTmdbId.takeIf { state.seerrLinked }
+    val hasOverviewSection = hasOverview || filmographyTmdbId != null
+    val filmographyButtonFr = remember { FocusRequester() }
     val libraryFromJellyfin = session != null &&
         (state.libraryMovies.isNotEmpty() || state.libraryShows.isNotEmpty())
     val movieItems = if (libraryFromJellyfin) state.libraryMovies else emptyList()
@@ -194,14 +211,14 @@ fun PersonScreen(
     }
 
     fun sectionReady(section: PersonSection): Boolean = when (section) {
-        PersonSection.Overview -> hasOverview
+        PersonSection.Overview -> hasOverviewSection
         PersonSection.Movies -> hasMovies
         PersonSection.Shows -> hasShows
         PersonSection.KnownFor -> hasKnownFor
     }
 
     fun sectionTarget(section: PersonSection, firstCard: Boolean): FocusRequester = when (section) {
-        PersonSection.Overview -> overviewFocusRequester
+        PersonSection.Overview -> if (filmographyTmdbId != null) filmographyButtonFr else overviewFocusRequester
         PersonSection.Movies -> movieFocus.target(movieItems, firstCard)
         PersonSection.Shows -> showFocus.target(showItems, firstCard)
         PersonSection.KnownFor -> knownForFocus.requester
@@ -209,7 +226,7 @@ fun PersonScreen(
 
     suspend fun restoreFirstAvailableSection() {
         val section = when {
-            hasOverview -> PersonSection.Overview
+            hasOverviewSection -> PersonSection.Overview
             hasMovies -> PersonSection.Movies
             hasShows -> PersonSection.Shows
             hasKnownFor -> PersonSection.KnownFor
@@ -224,7 +241,7 @@ fun PersonScreen(
         state.libraryShows,
         state.libraryCredits,
         state.knownFor,
-        hasOverview
+        hasOverviewSection
     ) {
         if (focusRestored) return@LaunchedEffect
         if (!sectionReady(lastSection)) {
@@ -281,43 +298,46 @@ fun PersonScreen(
             contentPadding = PaddingValues(bottom = metrics.bottomInset)
         ) {
             item(key = ROW_HERO) {
-                when {
-                    state.person != null && session != null -> {
-                        PersonHero(
-                            person = state.person!!,
-                            focusRequester = overviewFocusRequester,
-                            onFocused = { lastSection = PersonSection.Overview },
-                            onSummaryClick = {
-                                summaryText = state.person?.overview
-                                showSummaryDialog = true
-                            },
-                            modifier = Modifier.padding(
-                                start = DetailContentStartInset,
-                                end = metrics.hInset,
-                                top = 48.dp,
-                                bottom = 24.dp
-                            )
+                val hero = when {
+                    jellyfinPerson != null && session != null -> PersonHeroContent(
+                        imageUrl = images.primary(jellyfinPerson),
+                        name = jellyfinPerson.name,
+                        meta = jellyfinPersonMeta(jellyfinPerson),
+                        overview = jellyfinPerson.overview
+                    )
+                    seerrPerson != null -> PersonHeroContent(
+                        imageUrl = SeerrImages.profile(
+                            state.seerrBaseUrl,
+                            seerrPerson.profilePath,
+                            state.seerrCacheImages,
+                            "w500"
+                        ),
+                        name = seerrPerson.name,
+                        meta = seerrPersonMeta(seerrPerson),
+                        overview = seerrPerson.biography
+                    )
+                    else -> null
+                }
+                if (hero != null) {
+                    PersonHero(
+                        content = hero,
+                        focusRequester = overviewFocusRequester,
+                        filmographyFocus = filmographyButtonFr,
+                        onFocused = { lastSection = PersonSection.Overview },
+                        onSummaryClick = {
+                            summaryText = hero.overview
+                            showSummaryDialog = true
+                        },
+                        onFilmography = filmographyTmdbId?.let { id ->
+                            { onFilmography(id, hero.name.orEmpty(), state.knownForDepartment) }
+                        },
+                        modifier = Modifier.padding(
+                            start = DetailContentStartInset,
+                            end = metrics.hInset,
+                            top = 48.dp,
+                            bottom = 24.dp
                         )
-                    }
-                    state.seerrPerson != null -> {
-                        SeerrPersonHero(
-                            person = state.seerrPerson!!,
-                            seerrBaseUrl = state.seerrBaseUrl,
-                            cacheImages = state.seerrCacheImages,
-                            focusRequester = overviewFocusRequester,
-                            onFocused = { lastSection = PersonSection.Overview },
-                            onSummaryClick = {
-                                summaryText = state.seerrPerson?.biography
-                                showSummaryDialog = true
-                            },
-                            modifier = Modifier.padding(
-                                start = DetailContentStartInset,
-                                end = metrics.hInset,
-                                top = 48.dp,
-                                bottom = 24.dp
-                            )
-                        )
-                    }
+                    )
                 }
             }
 
@@ -409,8 +429,6 @@ fun PersonScreen(
     }
 }
 
-private fun seerrCardKey(item: SeerrCatalogItem): String = "${item.mediaType}-${item.tmdbId}"
-
 @Stable
 private class SeerrRowFocus(
     val requester: FocusRequester,
@@ -418,12 +436,12 @@ private class SeerrRowFocus(
     private val keyState: MutableState<String?>
 ) {
     fun indexIn(items: List<SeerrCatalogItem>): Int = keyState.value
-        ?.let { saved -> items.indexOfFirst { seerrCardKey(it) == saved }.takeIf { it >= 0 } }
+        ?.let { saved -> items.indexOfFirst { it.catalogKey == saved }.takeIf { it >= 0 } }
         ?: indexState.intValue.coerceIn(0, items.lastIndex.coerceAtLeast(0))
 
     fun onItemFocused(index: Int, item: SeerrCatalogItem) {
         indexState.intValue = index
-        keyState.value = seerrCardKey(item)
+        keyState.value = item.catalogKey
     }
 
     fun resolveAgainst(items: List<SeerrCatalogItem>) {
@@ -568,7 +586,7 @@ private fun PersonSeerrMediaRow(
         rowFocus = Modifier.focusRestorer(focus.requester).focusGroup(),
         modifier = Modifier.padding(bottom = PersonRowBottomPadding),
         titleFontWeight = FontWeight.Bold,
-        key = { _, item -> seerrCardKey(item) }
+        key = { _, item -> item.catalogKey }
     ) { index, item ->
         if (!revealed && index != focusIndex) {
             Spacer(
@@ -604,63 +622,59 @@ private fun PersonSeerrMediaRow(
 
 private val DATE_FMT = DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.ENGLISH)
 
+@Stable
+private class PersonHeroContent(
+    val imageUrl: String?,
+    val name: String?,
+    val meta: List<String>,
+    val overview: String?
+)
+
 @Composable
 private fun PersonHero(
-    person: BaseItemDto,
+    content: PersonHeroContent,
     focusRequester: FocusRequester,
+    filmographyFocus: FocusRequester,
     onFocused: () -> Unit,
     onSummaryClick: () -> Unit,
+    onFilmography: (() -> Unit)?,
     modifier: Modifier = Modifier
 ) {
-    val imageUrl = LocalImageUrls.current.primary(person)
-    var imageFailed by remember(imageUrl) { mutableStateOf(false) }
+    var imageFailed by remember(content.imageUrl) { mutableStateOf(false) }
+    val summary = content.overview?.takeIf { it.isNotBlank() }
 
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .height(232.dp)
+            .height(PersonHeroImageHeight),
+        verticalAlignment = Alignment.Top
     ) {
         PersonHeroImage(
-            imageUrl = imageUrl,
+            imageUrl = content.imageUrl,
             imageFailed = imageFailed,
             onImageFailed = { imageFailed = true },
-            name = person.name
+            name = content.name
         )
 
         Spacer(modifier = Modifier.width(16.dp))
 
         Column(
-            modifier = Modifier.weight(1f),
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight(),
             verticalArrangement = Arrangement.Top
         ) {
             Text(
-                text = person.name.orEmpty(),
+                text = content.name.orEmpty(),
                 color = Color.White,
                 style = MaterialTheme.typography.displayMedium,
                 modifier = Modifier.padding(horizontal = 16.dp)
             )
 
-            val metaParts = mutableListOf<String>()
-            person.premiereDate?.let { birthDate ->
-                val dateStr = runCatching { birthDate.format(DATE_FMT) }.getOrNull()
-                if (dateStr != null) {
-                    val end = person.endDate ?: java.time.LocalDateTime.now()
-                    var age = end.year - birthDate.year
-                    if (end.monthValue < birthDate.monthValue ||
-                        (end.monthValue == birthDate.monthValue && end.dayOfMonth < birthDate.dayOfMonth)
-                    ) {
-                        age--
-                    }
-                    metaParts.add("Born $dateStr (age $age)")
-                }
-            }
-            person.productionLocations?.firstOrNull()?.takeIf { it.isNotBlank() }?.let {
-                metaParts.add(it)
-            }
-            if (metaParts.isNotEmpty()) {
+            if (content.meta.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = metaParts.joinToString("  •  "),
+                    text = content.meta.joinToString("  •  "),
                     color = Color.White.copy(alpha = 0.7f),
                     style = MaterialTheme.typography.titleSmall,
                     modifier = Modifier.padding(horizontal = 16.dp)
@@ -669,75 +683,27 @@ private fun PersonHero(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            person.overview?.let { overview ->
+            if (summary != null) {
                 SummarySurface(
-                    overview = overview,
+                    overview = summary,
                     focusRequester = focusRequester,
+                    downFocus = filmographyFocus.takeIf { onFilmography != null },
                     onFocused = onFocused,
-                    onSummaryClick = onSummaryClick
+                    onSummaryClick = onSummaryClick,
+                    modifier = Modifier.weight(1f)
                 )
             }
-        }
-    }
-}
 
-@Composable
-private fun SeerrPersonHero(
-    person: SeerrPersonDetails,
-    seerrBaseUrl: String?,
-    cacheImages: Boolean,
-    focusRequester: FocusRequester,
-    onFocused: () -> Unit,
-    onSummaryClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val imageUrl = SeerrImages.profile(seerrBaseUrl, person.profilePath, cacheImages, "w500")
-    var imageFailed by remember(imageUrl) { mutableStateOf(false) }
-
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(232.dp)
-    ) {
-        PersonHeroImage(
-            imageUrl = imageUrl,
-            imageFailed = imageFailed,
-            onImageFailed = { imageFailed = true },
-            name = person.name
-        )
-
-        Spacer(modifier = Modifier.width(16.dp))
-
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.Top
-        ) {
-            Text(
-                text = person.name.orEmpty(),
-                color = Color.White,
-                style = MaterialTheme.typography.displayMedium,
-                modifier = Modifier.padding(horizontal = 16.dp)
-            )
-
-            val metaParts = seerrPersonMeta(person)
-            if (metaParts.isNotEmpty()) {
+            if (onFilmography != null) {
                 Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = metaParts.joinToString("  •  "),
-                    color = Color.White.copy(alpha = 0.7f),
-                    style = MaterialTheme.typography.titleSmall,
-                    modifier = Modifier.padding(horizontal = 16.dp)
-                )
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            person.biography?.takeIf { it.isNotBlank() }?.let { overview ->
-                SummarySurface(
-                    overview = overview,
-                    focusRequester = focusRequester,
-                    onFocused = onFocused,
-                    onSummaryClick = onSummaryClick
+                ActionButton(
+                    label = "Filmography",
+                    onActivate = onFilmography,
+                    focusRequester = filmographyFocus,
+                    modifier = Modifier
+                        .padding(horizontal = 16.dp)
+                        .onFocusChanged { if (it.isFocused) onFocused() }
+                        .focusProperties { if (summary != null) up = focusRequester }
                 )
             }
         }
@@ -754,7 +720,7 @@ private fun PersonHeroImage(
     if (imageUrl == null || imageFailed) {
         Box(
             Modifier
-                .fillMaxHeight()
+                .height(PersonHeroImageHeight)
                 .aspectRatio(2f / 3f)
                 .clip(RoundedCornerShape(12.dp))
                 .background(Color.DarkGray),
@@ -774,7 +740,7 @@ private fun PersonHeroImage(
             contentScale = ContentScale.Crop,
             onState = { if (it is AsyncImagePainter.State.Error) onImageFailed() },
             modifier = Modifier
-                .fillMaxHeight()
+                .height(PersonHeroImageHeight)
                 .aspectRatio(2f / 3f)
                 .clip(RoundedCornerShape(12.dp))
         )
@@ -785,8 +751,10 @@ private fun PersonHeroImage(
 private fun SummarySurface(
     overview: String,
     focusRequester: FocusRequester,
+    downFocus: FocusRequester?,
     onFocused: () -> Unit,
-    onSummaryClick: () -> Unit
+    onSummaryClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     Surface(
         onClick = onSummaryClick,
@@ -796,26 +764,38 @@ private fun SummarySurface(
             containerColor = Color.Transparent,
             focusedContainerColor = Color.White.copy(alpha = 0.15f)
         ),
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .focusRequester(focusRequester)
+            .focusProperties { if (downFocus != null) down = downFocus }
             .onFocusChanged { if (it.isFocused) onFocused() }
     ) {
-        Box(modifier = Modifier.padding(16.dp)) {
+        BoxWithConstraints(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+            val lineHeightPx = with(LocalDensity.current) { BrowseHeroSummaryLineHeight.toPx() }
+            val maxLines = (constraints.maxHeight / lineHeightPx).toInt().coerceAtLeast(1)
             Text(
                 text = overview,
                 color = Color.White.copy(alpha = 0.7f),
                 style = MaterialTheme.typography.bodyMedium,
-                lineHeight = app.picnic.player.ui.browse.BrowseHeroSummaryLineHeight,
-                maxLines = 5,
+                lineHeight = BrowseHeroSummaryLineHeight,
+                maxLines = maxLines,
                 overflow = TextOverflow.Ellipsis
             )
         }
     }
 }
 
-internal fun seerrPersonMeta(person: SeerrPersonDetails): List<String> {
-    val metaParts = mutableListOf<String>()
+private fun jellyfinPersonMeta(person: BaseItemDto): List<String> = buildList {
+    val birthDate = person.premiereDate
+    val dateStr = birthDate?.let { runCatching { it.format(DATE_FMT) }.getOrNull() }
+    if (birthDate != null && dateStr != null) {
+        val end = (person.endDate ?: LocalDateTime.now()).toLocalDate()
+        add("Born $dateStr (age ${Period.between(birthDate.toLocalDate(), end).years})")
+    }
+    person.productionLocations?.firstOrNull()?.takeIf { it.isNotBlank() }?.let { add(it) }
+}
+
+private fun seerrPersonMeta(person: SeerrPersonDetails): List<String> = buildList {
     val birthday = person.birthday?.takeIf { it.isNotBlank() }?.let {
         runCatching { LocalDate.parse(it.take(10)) }.getOrNull()
     }
@@ -823,15 +803,9 @@ internal fun seerrPersonMeta(person: SeerrPersonDetails): List<String> {
         val deathday = person.deathday?.takeIf { it.isNotBlank() }?.let {
             runCatching { LocalDate.parse(it.take(10)) }.getOrNull()
         }
-        val end = deathday ?: LocalDate.now()
-        var age = end.year - birthday.year
-        if (end.monthValue < birthday.monthValue ||
-            (end.monthValue == birthday.monthValue && end.dayOfMonth < birthday.dayOfMonth)
-        ) {
-            age--
-        }
+        val age = Period.between(birthday, deathday ?: LocalDate.now()).years
         val dateStr = birthday.format(DATE_FMT)
-        metaParts.add(
+        add(
             if (deathday != null) {
                 "Born $dateStr (died ${deathday.format(DATE_FMT)}, age $age)"
             } else {
@@ -839,6 +813,5 @@ internal fun seerrPersonMeta(person: SeerrPersonDetails): List<String> {
             }
         )
     }
-    person.placeOfBirth?.takeIf { it.isNotBlank() }?.let { metaParts.add(it) }
-    return metaParts
+    person.placeOfBirth?.takeIf { it.isNotBlank() }?.let { add(it) }
 }

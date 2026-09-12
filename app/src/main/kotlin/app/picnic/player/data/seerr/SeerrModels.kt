@@ -442,6 +442,8 @@ data class SeerrCatalogItem(
     val trailerUrl: String? = null
 )
 
+val SeerrCatalogItem.catalogKey: String get() = "$mediaType-$tmdbId"
+
 data class SeerrDiscoverRow(
     val title: String,
     val items: List<SeerrCatalogItem>
