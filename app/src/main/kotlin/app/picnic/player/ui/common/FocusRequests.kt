@@ -1,5 +1,6 @@
 package app.picnic.player.ui.common
 
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
@@ -7,11 +8,18 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
+
+private const val ListFocusAttempts = 15
+private const val ListFocusSettleMs = 120L
 
 suspend fun FocusRequester.requestFocusWhenAttached(maxFrames: Int = 10): Boolean {
     repeat(maxFrames) {
@@ -19,6 +27,26 @@ suspend fun FocusRequester.requestFocusWhenAttached(maxFrames: Int = 10): Boolea
         withFrameNanos { }
     }
     return false
+}
+
+suspend fun FocusRequester.requestFocusWhenVisible(
+    listState: LazyListState,
+    index: Int,
+    hasFocus: () -> Boolean
+): Boolean {
+    listState.scrollToItem(index)
+    repeat(ListFocusAttempts) {
+        if (listState.layoutInfo.visibleItemsInfo.any { it.index == index }) {
+            runCatching { requestFocus() }
+            val held = withTimeoutOrNull(ListFocusSettleMs) {
+                snapshotFlow { hasFocus() }.first { it }
+            } == true
+            if (held) return true
+        } else {
+            delay(ListFocusSettleMs)
+        }
+    }
+    return hasFocus()
 }
 
 @Stable
@@ -65,9 +93,9 @@ fun rememberOneShotFocus(seed: Boolean, onSeeded: () -> Unit): FocusRequester {
 
 @Stable
 class KeyedFocusRequesters {
-    private val requesters = mutableMapOf<String, FocusRequester>()
+    private val requesters = mutableMapOf<Any, FocusRequester>()
 
-    operator fun get(key: String): FocusRequester = requesters.getOrPut(key) { FocusRequester() }
+    operator fun get(key: Any): FocusRequester = requesters.getOrPut(key) { FocusRequester() }
 }
 
 @Composable

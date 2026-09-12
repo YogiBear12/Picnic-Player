@@ -51,6 +51,9 @@ import app.picnic.player.data.seerr.seerrIssueTypeSentence
 import app.picnic.player.data.seerr.seerrRelativeTime
 import app.picnic.player.ui.common.ActionButton
 import app.picnic.player.ui.common.ArtworkImage
+import app.picnic.player.ui.common.GlassRow
+import app.picnic.player.ui.common.GlassRowFocusedFill
+import app.picnic.player.ui.common.GlassRowIdleFill
 import app.picnic.player.ui.common.PicnicDialog
 import app.picnic.player.ui.common.ScrollableTextDialog
 import app.picnic.player.ui.common.requestFocusWhenAttached
@@ -231,7 +234,7 @@ internal fun IssueDetailPage(
 
 @Composable
 private fun ReportCard(message: String, downTarget: FocusRequester, onOpen: () -> Unit) {
-    IssueSurface(
+    GlassRow(
         onClick = onOpen,
         shape = RoundedCornerShape(16.dp),
         modifier = Modifier
@@ -273,9 +276,9 @@ private fun CommentBubble(
         RoundedCornerShape(16.dp, 16.dp, 16.dp, 4.dp)
     }
     val fill = when {
-        focused -> CardFillFocused
+        focused -> GlassRowFocusedFill
         byReporter -> PicnicColors.Cyan.copy(alpha = 0.16f)
-        else -> CardFill
+        else -> GlassRowIdleFill
     }
 
     Row(
@@ -359,7 +362,7 @@ private fun CommentAvatar(comment: SeerrIssueComment, seerrBaseUrl: String?) {
 
 @Composable
 private fun ComposerBox(busy: Boolean, onClick: () -> Unit) {
-    IssueSurface(
+    GlassRow(
         onClick = onClick,
         shape = RoundedCornerShape(999.dp),
         modifier = Modifier

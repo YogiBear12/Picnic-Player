@@ -10,16 +10,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.focus.FocusRequester
+import app.picnic.player.ui.common.requestFocusWhenVisible
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeoutOrNull
-
-private const val FocusAttempts = 15
-private const val FocusSettleMs = 120L
 
 @Stable
 class EpisodeFocus(
@@ -56,17 +50,7 @@ class EpisodeFocus(
 
     suspend fun focusWhenLaidOut(index: Int): Boolean {
         targetIndex = index
-        listState.scrollToItem(index)
-        repeat(FocusAttempts) {
-            if (listState.layoutInfo.visibleItemsInfo.any { it.index == index }) {
-                runCatching { requesterFor(index).requestFocus() }
-                val held = withTimeoutOrNull(FocusSettleMs) { snapshotFlow { hasFocus }.first { it } } == true
-                if (held) return true
-            } else {
-                delay(FocusSettleMs)
-            }
-        }
-        return hasFocus
+        return requesterFor(index).requestFocusWhenVisible(listState, index) { hasFocus }
     }
 
     suspend fun scrollTo(index: Int) {

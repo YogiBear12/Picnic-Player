@@ -3,7 +3,6 @@
 package app.picnic.player.ui.settings
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -43,10 +42,6 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.MaterialTheme
-import androidx.tv.material3.Tab
-import androidx.tv.material3.TabDefaults
-import androidx.tv.material3.TabRow
-import androidx.tv.material3.TabRowDefaults
 import androidx.tv.material3.TabRowScope
 import androidx.tv.material3.Text
 import app.picnic.player.data.seerr.SeerrIssueDisplay
@@ -56,7 +51,11 @@ import app.picnic.player.data.seerr.replies
 import app.picnic.player.data.seerr.reportBody
 import app.picnic.player.ui.common.ContextMenuAction
 import app.picnic.player.ui.common.ContextMenuPanel
+import app.picnic.player.ui.common.CountPill
+import app.picnic.player.ui.common.GlassRow
 import app.picnic.player.ui.common.PicnicDialog
+import app.picnic.player.ui.common.PillTab
+import app.picnic.player.ui.common.PillTabRow
 import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.theme.PicnicColors
 
@@ -168,25 +167,9 @@ private fun IssueListPage(
             color = PicnicColors.OnDark
         )
         Spacer(Modifier.height(20.dp))
-        TabRow(
-            selectedTabIndex = if (showResolved) 1 else 0,
-            containerColor = Color.Transparent,
-            indicator = { positions, hasFocus ->
-                positions.getOrNull(if (showResolved) 1 else 0)?.let { position ->
-                    TabRowDefaults.PillIndicator(
-                        currentTabPosition = position,
-                        doesTabRowHaveFocus = hasFocus,
-                        activeColor = Color.White.copy(alpha = 0.20f),
-                        inactiveColor = Color.White.copy(alpha = 0.10f)
-                    )
-                }
-            },
-            modifier = Modifier
-                .focusGroup()
-                .focusProperties {
-                    up = FocusRequester.Cancel
-                    enter = { activeTabFr }
-                }
+        PillTabRow(
+            selectedIndex = if (showResolved) 1 else 0,
+            activeTabFocus = activeTabFr
         ) {
             IssueTab(
                 label = "Open",
@@ -280,30 +263,13 @@ private fun TabRowScope.IssueTab(
     focusRequester: FocusRequester,
     onSelect: () -> Unit
 ) {
-    Tab(
-        selected = selected,
-        onFocus = onSelect,
-        onClick = onSelect,
-        colors = TabDefaults.pillIndicatorTabColors(
-            contentColor = PicnicColors.OnDarkMuted,
-            selectedContentColor = PicnicColors.OnDark,
-            focusedContentColor = PicnicColors.OnDark,
-            focusedSelectedContentColor = PicnicColors.OnDark
-        ),
-        modifier = Modifier.focusRequester(focusRequester)
-    ) {
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp)
-        ) {
-            Text(
-                label,
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold
-            )
-            CountPill(count = count, accent = accent)
-        }
+    PillTab(selected = selected, focusRequester = focusRequester, onSelect = onSelect) {
+        Text(
+            label,
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold
+        )
+        CountPill(count = count, accent = accent)
     }
 }
 
@@ -320,7 +286,7 @@ private fun IssueListCard(
 ) {
     val message = row.issue.reportBody
 
-    IssueSurface(
+    GlassRow(
         onClick = onActivate,
         onLongClick = onLongPress,
         shape = RoundedCornerShape(16.dp),
