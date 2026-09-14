@@ -145,6 +145,7 @@ internal fun PicnicListRow(
     keys: PanelRowKeys = PanelRowKeys.Default,
     horizontalArrangement: Arrangement.Horizontal = Arrangement.Start,
     onActivate: (() -> Unit)? = null,
+    onLongActivate: (() -> Unit)? = null,
     onStep: ((forward: Boolean) -> Unit)? = null,
     onClose: (() -> Unit)? = null,
     content: @Composable RowScope.(focused: Boolean) -> Unit
@@ -153,6 +154,7 @@ internal fun PicnicListRow(
     val base = if (focusRequester != null) modifier.focusRequester(focusRequester) else modifier
     Surface(
         onClick = { onActivate?.invoke() },
+        onLongClick = onLongActivate,
         modifier = base
             .fillMaxWidth()
             .onFocusChanged { focused = it.isFocused }

@@ -76,6 +76,9 @@ import app.picnic.player.data.media.ResolutionFilter
 import app.picnic.player.data.media.WatchedFilter
 import app.picnic.player.ui.common.ActionButton
 import app.picnic.player.ui.common.CenteredMessage
+import app.picnic.player.ui.common.PanelCornerRadius
+import app.picnic.player.ui.common.PanelEdgeInset
+import app.picnic.player.ui.common.PanelGlassFill
 import app.picnic.player.ui.common.PanelHeader
 import app.picnic.player.ui.common.PanelRowKeys
 import app.picnic.player.ui.common.PanelRowMetrics
@@ -88,9 +91,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 private val PanelDimScrim = Color(0x66000000)
-private val PanelGlassFill = Color(0xF2181E24)
-private val PanelCornerRadius = 20.dp
-private val PanelEdgeInset = 24.dp
 private val ContentInset = 12.dp
 private val GridRowMetrics = PanelRowMetrics(innerPadding = 12.dp, cornerRadius = 8.dp)
 private const val PanelAnimMs = 200

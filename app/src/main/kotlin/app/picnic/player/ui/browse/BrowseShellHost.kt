@@ -83,6 +83,7 @@ fun BrowseShellHost(
     val discoverState by discoverViewModel.state.collectAsStateWithLifecycle()
     val colouredFocus by homeViewModel.colouredFocus.collectAsStateWithLifecycle()
     val capBadgeCount by homeViewModel.capBadgeCount.collectAsStateWithLifecycle()
+    val alternateNavigation by homeViewModel.alternateNavigation.collectAsStateWithLifecycle()
 
     val session = homeState.session
 
@@ -234,11 +235,13 @@ fun BrowseShellHost(
             val updateBadge by updateViewModel.updateAvailable.collectAsStateWithLifecycle()
             val avatarViewModel: app.picnic.player.ui.common.UserAvatarViewModel = hiltViewModel()
             val avatarUrl by avatarViewModel.url.collectAsStateWithLifecycle()
-            BrowseSideNavDrawer(
+            NavShell(
+                alternate = alternateNavigation,
                 session = session,
                 avatarUrl = avatarUrl,
                 destinations = destinations,
                 selectedKey = selectedKey,
+                selectedDest = selected,
                 itemFocusRequesters = railRequesters,
                 contentFocusOnRight = contentFocusOnRight,
                 drawerState = drawerState,
