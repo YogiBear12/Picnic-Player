@@ -167,7 +167,7 @@ private fun SynopsisPanel(overview: String?) {
     Column(
         verticalArrangement = Arrangement.spacedBy(12.dp),
         modifier = Modifier
-            .panelSurface(width = PanelWidth.Reading, corner = DialogCornerRadius)
+            .panelSurface(width = PanelWidth.Reading)
             .padding(horizontal = PanelContentInset + PanelRowInnerPadding)
     ) {
         Text(

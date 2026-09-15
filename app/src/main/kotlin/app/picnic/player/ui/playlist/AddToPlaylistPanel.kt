@@ -43,7 +43,6 @@ import app.picnic.player.ui.common.requestFocusWhenAttached
 import org.jellyfin.sdk.model.api.BaseItemDto
 
 private val PanelMaxHeight = 460.dp
-private val PanelCornerRadius = 28.dp
 
 @Composable
 fun AddToPlaylistPanel(
@@ -60,7 +59,7 @@ fun AddToPlaylistPanel(
     Column(
         verticalArrangement = Arrangement.spacedBy(2.dp),
         modifier = Modifier
-            .panelSurface(width = PanelWidth.Panel, corner = PanelCornerRadius)
+            .panelSurface(width = PanelWidth.Panel)
             .heightIn(max = PanelMaxHeight)
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 24.dp)

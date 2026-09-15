@@ -3,17 +3,13 @@
 package app.picnic.player.ui.player.osd
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -21,9 +17,8 @@ import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.dp
 import app.picnic.player.data.playback.TrickplayFrame
+import app.picnic.player.ui.common.panelGlass
 import app.picnic.player.ui.player.ChapterMark
-
-private val PanelGlassFill = Color(0xC0181E24)
 
 /**
  * Floating chapters card shown on D-pad Down, taking the OSD's place in the bottom slot. The
@@ -43,8 +38,7 @@ fun ChaptersPanel(
         Column(
             Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(18.dp))
-                .background(PanelGlassFill)
+                .panelGlass()
                 .padding(vertical = 8.dp)
                 .focusGroup()
                 // Up/Down escape back to the OSD (the row only navigates horizontally).

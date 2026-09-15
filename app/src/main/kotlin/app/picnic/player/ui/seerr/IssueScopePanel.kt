@@ -36,6 +36,7 @@ import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import app.picnic.player.data.seerr.SEERR_ISSUE_ALL
 import app.picnic.player.data.seerr.SeerrIssueSeason
+import app.picnic.player.ui.common.PanelContentInset
 import app.picnic.player.ui.common.focusSeed
 import app.picnic.player.ui.common.panelSurface
 import app.picnic.player.ui.common.rememberFocusSeed
@@ -119,7 +120,7 @@ internal fun IssueScopePanel(
 
     Column(
         modifier = Modifier
-            .panelSurface(SeerrPanelWidth, SeerrPanelCornerRadius)
+            .panelSurface(SeerrPanelWidth)
             .focusGroup()
     ) {
         SeerrPanelHeader(title = "What is affected?")
@@ -139,7 +140,7 @@ internal fun IssueScopePanel(
                     .height(SeerrListViewportHeight)
                     .fillMaxWidth()
                     .focusGroup(),
-                contentPadding = PaddingValues(horizontal = SeerrContentInset),
+                contentPadding = PaddingValues(horizontal = PanelContentInset),
                 verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
                 items(rows, key = { it.season to it.episode }) { row ->

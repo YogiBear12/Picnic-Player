@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
@@ -31,7 +30,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
@@ -67,6 +65,7 @@ import app.picnic.player.playback.subtitleBottomPaddingFraction
 import app.picnic.player.ui.common.PanelRowMetrics
 import app.picnic.player.ui.common.PanelWidth
 import app.picnic.player.ui.common.PicnicListRow
+import app.picnic.player.ui.common.panelGlass
 import app.picnic.player.ui.common.rowPrimaryColor
 import app.picnic.player.ui.theme.PicnicColors
 import coil3.compose.AsyncImage
@@ -98,8 +97,6 @@ class SubtitleAppearanceViewModel @Inject constructor(
     fun step(setting: SubtitleAppearanceSetting, forward: Boolean) = viewModelScope.launch { editor.step(setting, forward) }
 }
 
-private val PanelGlassFill = Color(0xF2181E24)
-private val PanelCornerRadius = 20.dp
 private val PanelInsetHorizontal = 12.dp
 private val PanelInsetVertical = 16.dp
 private val RowSpacing = 1.dp
@@ -200,8 +197,7 @@ internal fun SubtitleAppearanceScreen(
             Column(
                 modifier = Modifier
                     .width(PanelWidth.Panel)
-                    .clip(RoundedCornerShape(PanelCornerRadius))
-                    .background(PanelGlassFill)
+                    .panelGlass()
                     .padding(horizontal = PanelInsetHorizontal, vertical = PanelInsetVertical),
                 verticalArrangement = Arrangement.spacedBy(RowSpacing)
             ) {

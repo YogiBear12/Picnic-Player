@@ -41,7 +41,6 @@ class ContextMenuFocus internal constructor() {
 fun rememberContextMenuFocus(): ContextMenuFocus = remember { ContextMenuFocus() }
 
 private val MenuMaxHeight = 460.dp
-private val MenuCornerRadius = 28.dp
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
@@ -57,7 +56,7 @@ fun ContextMenuPanel(
     Column(
         verticalArrangement = Arrangement.spacedBy(2.dp),
         modifier = Modifier
-            .panelSurface(width = PanelWidth.Panel, corner = MenuCornerRadius)
+            .panelSurface(width = PanelWidth.Panel)
             .heightIn(max = MenuMaxHeight)
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 24.dp)

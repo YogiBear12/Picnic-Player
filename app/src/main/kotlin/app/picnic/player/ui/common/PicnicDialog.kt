@@ -16,9 +16,11 @@ private val PicnicDialogProperties = DialogProperties(
     decorFitsSystemWindows = false
 )
 
-val DialogCornerRadius = 20.dp
-
 object PanelWidth {
+    val Floating = 224.dp
+
+    val FloatingWide = 320.dp
+
     val Rail = 300.dp
 
     val Picker = 360.dp

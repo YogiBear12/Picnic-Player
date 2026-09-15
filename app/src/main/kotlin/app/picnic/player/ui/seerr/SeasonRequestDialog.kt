@@ -46,6 +46,7 @@ import app.picnic.player.data.seerr.SeerrMediaStatus
 import app.picnic.player.data.seerr.SeerrSeasonAvailability
 import app.picnic.player.data.seerr.SeerrSeasonPickItem
 import app.picnic.player.data.seerr.seasonLibraryBadgeLabel
+import app.picnic.player.ui.common.PanelContentInset
 import app.picnic.player.ui.common.PicnicDialog
 import app.picnic.player.ui.common.focusSeed
 import app.picnic.player.ui.common.panelSurface
@@ -91,7 +92,7 @@ internal fun SeasonRequestPanel(
 
     Column(
         modifier = Modifier
-            .panelSurface(SeerrPanelWidth, SeerrPanelCornerRadius)
+            .panelSurface(SeerrPanelWidth)
             .focusGroup()
     ) {
         SeerrPanelHeader(title = "Select seasons")
@@ -101,7 +102,7 @@ internal fun SeasonRequestPanel(
                 .height(SeerrListViewportHeight)
                 .fillMaxWidth()
                 .focusGroup(),
-            contentPadding = PaddingValues(horizontal = SeerrContentInset),
+            contentPadding = PaddingValues(horizontal = PanelContentInset),
             verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
             itemsIndexed(seasons, key = { _, item -> item.seasonNumber }) { index, item ->
@@ -138,7 +139,7 @@ internal fun SeasonRequestPanel(
             },
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = SeerrContentInset)
+                .padding(horizontal = PanelContentInset)
                 .focusRequester(confirmFocus)
                 .focusProperties {
                     up = upFromConfirm

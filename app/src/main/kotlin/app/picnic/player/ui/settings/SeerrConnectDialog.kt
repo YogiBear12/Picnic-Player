@@ -27,7 +27,6 @@ import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import app.picnic.player.ui.common.ActionButton
-import app.picnic.player.ui.common.DialogCornerRadius
 import app.picnic.player.ui.common.DialogTextField
 import app.picnic.player.ui.common.PanelWidth
 import app.picnic.player.ui.common.PicnicDialog
@@ -55,7 +54,7 @@ internal fun SeerrConnectDialog(
             Column(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 modifier = Modifier
-                    .panelSurface(width = PanelWidth.Form, corner = DialogCornerRadius)
+                    .panelSurface(width = PanelWidth.Form)
                     .padding(horizontal = ContentInset)
             ) {
                 Text(

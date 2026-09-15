@@ -45,14 +45,15 @@ import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import app.picnic.player.ui.theme.PicnicColors
 
-internal val PanelContentInset = 16.dp
+internal val PanelContentInset = 10.dp
 internal val PanelRowInnerPadding = 14.dp
+internal val PanelRowCornerRadius = PanelCornerRadius - PanelContentInset
 
 @Immutable
 internal data class PanelRowMetrics(
     val innerPadding: Dp = PanelRowInnerPadding,
     val verticalPadding: Dp = 9.dp,
-    val cornerRadius: Dp = 10.dp
+    val cornerRadius: Dp = PanelRowCornerRadius
 ) {
     companion object {
         val Default = PanelRowMetrics()
@@ -105,7 +106,7 @@ internal fun PanelHeader(title: String, icon: ImageVector? = null) {
             Modifier
                 .fillMaxWidth()
                 .height(1.dp)
-                .background(Color.White.copy(alpha = 0.14f))
+                .background(PanelDividerColor)
         )
         Spacer(Modifier.height(12.dp))
     }

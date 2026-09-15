@@ -20,7 +20,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
-import app.picnic.player.ui.common.DialogCornerRadius
 import app.picnic.player.ui.common.PanelContentInset
 import app.picnic.player.ui.common.PanelHeader
 import app.picnic.player.ui.common.PanelRowKeys
@@ -54,7 +53,7 @@ internal fun TrailersDialog(
     PicnicDialog(onDismiss = onDismiss) {
         Column(
             modifier = Modifier
-                .panelSurface(width = PanelWidth.Panel, corner = DialogCornerRadius)
+                .panelSurface(width = PanelWidth.Panel)
                 .focusGroup()
         ) {
             PanelHeader("Select trailer")

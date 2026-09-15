@@ -6,7 +6,6 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -22,7 +21,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -40,13 +38,10 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.Key
@@ -65,9 +60,15 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import app.picnic.player.data.auth.UserSession
 import app.picnic.player.data.nav.NavLayout
+import app.picnic.player.ui.common.PanelContentInset
+import app.picnic.player.ui.common.PanelDividerColor
 import app.picnic.player.ui.common.PanelEdgeInset
+import app.picnic.player.ui.common.PanelFadeLength
+import app.picnic.player.ui.common.PanelFloatingHeight
 import app.picnic.player.ui.common.PanelRowMetrics
+import app.picnic.player.ui.common.PanelWidth
 import app.picnic.player.ui.common.PicnicListRow
+import app.picnic.player.ui.common.panelGlass
 import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.common.rowPrimaryColor
 import app.picnic.player.ui.common.verticalFadingEdges
@@ -79,21 +80,7 @@ private val DockSlotSpacing = 18.dp
 private val PanelRowSpacing = 1.dp
 private val PanelIconSize = 18.dp
 private val PanelAvatarSize = 18.dp
-private val NavPanelWidth = 236.dp
-private val NavPanelHeight = 428.dp
-private val NavPanelCorner = 26.dp
-private val NavPanelPadding = 10.dp
-private val NavRowMetrics = PanelRowMetrics(
-    innerPadding = 10.dp,
-    verticalPadding = 7.dp,
-    cornerRadius = NavPanelCorner - NavPanelPadding
-)
-private val NavGlassTop = Color(0xF22A2E33)
-private val NavGlassBottom = Color(0xF2101214)
-private val NavHairlineTop = Color(0x3DFFFFFF)
-private val NavHairlineBottom = Color(0x0FFFFFFF)
-private val NavDividerColor = Color(0x1FFFFFFF)
-private val NavFadeLength = 22.dp
+private val NavRowMetrics = PanelRowMetrics(innerPadding = 10.dp, verticalPadding = 7.dp)
 private const val PanelAnimMs = 220
 
 @Composable
@@ -206,7 +193,7 @@ internal fun BrowseFloatingNav(
     )
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
-        val panelTravel = with(LocalDensity.current) { (NavPanelWidth + PanelEdgeInset).toPx() }
+        val panelTravel = with(LocalDensity.current) { (PanelWidth.Floating + PanelEdgeInset).toPx() }
         Box(
             Modifier
                 .align(Alignment.CenterEnd)
@@ -225,26 +212,18 @@ internal fun BrowseFloatingNav(
                 .graphicsLayer { alpha = 1f - openProgress }
         )
 
-        val panelShape = RoundedCornerShape(NavPanelCorner)
         Column(
             modifier = Modifier
                 .align(Alignment.CenterStart)
                 .padding(PanelEdgeInset)
-                .height(NavPanelHeight.coerceAtMost(maxHeight - PanelEdgeInset * 2))
+                .height(PanelFloatingHeight.coerceAtMost(maxHeight - PanelEdgeInset * 2))
                 .graphicsLayer {
                     translationX = (openProgress - 1f) * panelTravel
                     alpha = openProgress
                 }
-                .width(NavPanelWidth)
-                .shadow(20.dp, panelShape)
-                .clip(panelShape)
-                .background(Brush.verticalGradient(listOf(NavGlassTop, NavGlassBottom)))
-                .border(
-                    width = 1.dp,
-                    brush = Brush.verticalGradient(listOf(NavHairlineTop, NavHairlineBottom)),
-                    shape = panelShape
-                )
-                .padding(NavPanelPadding)
+                .width(PanelWidth.Floating)
+                .panelGlass()
+                .padding(PanelContentInset)
                 .onFocusChanged {
                     panelFocused = it.hasFocus
                     onChromeFocusedChange(it.hasFocus)
@@ -413,7 +392,7 @@ private fun NavPanelDivider() {
             .fillMaxWidth()
             .padding(horizontal = 14.dp, vertical = 5.dp)
             .height(1.dp)
-            .background(NavDividerColor)
+            .background(PanelDividerColor)
     )
 }
 
@@ -428,7 +407,7 @@ private fun PanelScrollColumn(
             .verticalFadingEdges(
                 topFade = scrollState.canScrollBackward,
                 bottomFade = scrollState.canScrollForward,
-                length = NavFadeLength
+                length = PanelFadeLength
             )
             .verticalScroll(scrollState)
             .padding(vertical = PanelRowSpacing),

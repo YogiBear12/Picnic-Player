@@ -14,6 +14,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.unit.dp
 import app.picnic.player.ui.common.DialogTextField
+import app.picnic.player.ui.common.PanelContentInset
 import app.picnic.player.ui.common.panelSurface
 import app.picnic.player.ui.common.requestFocusWhenAttached
 
@@ -33,11 +34,11 @@ internal fun SeerrTextEntryPanel(
 
     Column(
         modifier = Modifier
-            .panelSurface(SeerrPanelWidth, SeerrPanelCornerRadius)
+            .panelSurface(SeerrPanelWidth)
             .focusGroup()
     ) {
         SeerrPanelHeader(title = title)
-        Column(modifier = Modifier.padding(horizontal = SeerrContentInset)) {
+        Column(modifier = Modifier.padding(horizontal = PanelContentInset)) {
             DialogTextField(
                 value = text,
                 onValueChange = onTextChange,

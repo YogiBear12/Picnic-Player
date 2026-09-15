@@ -63,7 +63,7 @@ import app.picnic.player.ui.ambient.rememberCardFocusAccent
 import app.picnic.player.ui.ambient.rememberCardFocusGlow
 import app.picnic.player.ui.common.ActionButton
 import app.picnic.player.ui.common.ArtworkImage
-import app.picnic.player.ui.common.DialogCornerRadius
+import app.picnic.player.ui.common.PanelContentInset
 import app.picnic.player.ui.common.PanelWidth
 import app.picnic.player.ui.common.PicnicDialog
 import app.picnic.player.ui.common.panelSurface
@@ -403,8 +403,6 @@ private fun PickerTile(
     }
 }
 
-private val ForgetContentInset = 24.dp
-
 private const val PICKER_AVATAR_KEY_PREFIX = "picker-avatar/"
 
 @Composable
@@ -418,8 +416,8 @@ private fun ForgetConfirmDialog(
     PicnicDialog(onDismiss = onCancel) {
         Column(
             modifier = Modifier
-                .panelSurface(width = PanelWidth.Form, corner = DialogCornerRadius)
-                .padding(horizontal = ForgetContentInset)
+                .panelSurface(width = PanelWidth.Form)
+                .padding(horizontal = PanelContentInset)
                 .focusGroup(),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {

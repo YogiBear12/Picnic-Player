@@ -52,7 +52,7 @@ fun ScrollableTextDialog(
     val stepPx = with(LocalDensity.current) { ScrollStep.toPx() }
 
     PicnicDialog(onDismiss = onDismiss) {
-        Box(modifier = Modifier.panelSurface(width = width, corner = DialogCornerRadius)) {
+        Box(modifier = Modifier.panelSurface(width = width)) {
             Text(
                 text = text,
                 color = PicnicColors.OnDarkMuted,
