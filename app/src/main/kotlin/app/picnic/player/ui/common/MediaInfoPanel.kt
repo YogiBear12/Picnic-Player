@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -40,19 +39,14 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
-import androidx.tv.material3.Surface
-import androidx.tv.material3.SurfaceDefaults
 import androidx.tv.material3.Text
 import app.picnic.player.data.playback.ticksToMs
-import app.picnic.player.ui.theme.PicnicColors
 import java.util.Locale
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.ChapterInfo
 import org.jellyfin.sdk.model.api.MediaSourceInfo
 import org.jellyfin.sdk.model.api.MediaStream
 import org.jellyfin.sdk.model.api.MediaStreamType
-
-private val ContextMenuGlassFill = PicnicColors.GlassFill
 
 @Composable
 fun MediaInfoPanel(
@@ -62,15 +56,14 @@ fun MediaInfoPanel(
     LaunchedEffect(item.id) { viewModel.load(item.id) }
     val state by viewModel.state.collectAsState()
 
-    Surface(
-        shape = MaterialTheme.shapes.medium,
-        colors = SurfaceDefaults.colors(
-            containerColor = ContextMenuGlassFill,
-            contentColor = Color.White
-        ),
-        modifier = Modifier.width(540.dp).heightIn(max = 640.dp).padding(24.dp)
+    Column(
+        modifier = Modifier
+            .width(PanelWidth.Form)
+            .height(PanelFloatingHeight)
+            .panelGlass()
+            .padding(24.dp)
     ) {
-        Column(modifier = Modifier.padding(28.dp)) {
+        Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
             Text(
                 text = "Media info",
                 style = MaterialTheme.typography.headlineSmall,
@@ -130,7 +123,13 @@ private fun MediaInfoContent(sources: List<MediaSourceInfo>, chapters: List<Chap
         LazyColumn(
             state = listState,
             verticalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalFadingEdges(
+                    topFade = listState.canScrollBackward,
+                    bottomFade = listState.canScrollForward,
+                    length = PanelFadeLength
+                )
         ) {
             itemsIndexed(sections) { index, section ->
                 SectionCard(
@@ -187,7 +186,7 @@ private fun SectionCard(
     blockUp: Boolean,
     blockDown: Boolean
 ) {
-    var expanded by remember(section) { mutableStateOf(section.expanded) }
+    var expanded by remember(section) { mutableStateOf(false) }
     var focused by remember { mutableStateOf(false) }
 
     Column(
@@ -276,8 +275,7 @@ private fun PropertyRow(label: String, value: String) {
 private data class InfoSection(
     val title: String,
     val subtitle: String?,
-    val rows: List<Pair<String, String>>,
-    val expanded: Boolean
+    val rows: List<Pair<String, String>>
 )
 
 private fun buildSections(source: MediaSourceInfo, chapters: List<ChapterInfo>): List<InfoSection> {
@@ -285,7 +283,7 @@ private fun buildSections(source: MediaSourceInfo, chapters: List<ChapterInfo>):
     val sections = mutableListOf<InfoSection>()
 
     fileRows(source).let {
-        if (it.isNotEmpty()) sections += InfoSection("File", null, it, expanded = true)
+        if (it.isNotEmpty()) sections += InfoSection("File information", null, it)
     }
 
     val videos = streams.filter { it.type == MediaStreamType.VIDEO }
@@ -293,19 +291,16 @@ private fun buildSections(source: MediaSourceInfo, chapters: List<ChapterInfo>):
         sections += InfoSection(
             title = if (videos.size > 1) "Video ${i + 1}" else "Video",
             subtitle = s.displayTitle?.takeIf { it.isNotBlank() },
-            rows = videoRows(s),
-            expanded = true
+            rows = videoRows(s)
         )
     }
 
     val audios = streams.filter { it.type == MediaStreamType.AUDIO }
-    val primaryAudio = audios.indexOfFirst { it.isDefault }.takeIf { it >= 0 } ?: 0
     audios.forEachIndexed { i, s ->
         sections += InfoSection(
             title = if (audios.size > 1) "Audio ${i + 1}" else "Audio",
             subtitle = s.displayTitle?.takeIf { it.isNotBlank() },
-            rows = audioRows(s),
-            expanded = i == primaryAudio
+            rows = audioRows(s)
         )
     }
 
@@ -314,8 +309,7 @@ private fun buildSections(source: MediaSourceInfo, chapters: List<ChapterInfo>):
         sections += InfoSection(
             title = if (subtitles.size > 1) "Subtitle ${i + 1}" else "Subtitle",
             subtitle = s.displayTitle?.takeIf { it.isNotBlank() },
-            rows = subtitleRows(s),
-            expanded = false
+            rows = subtitleRows(s)
         )
     }
 
@@ -327,8 +321,7 @@ private fun buildSections(source: MediaSourceInfo, chapters: List<ChapterInfo>):
         sections += InfoSection(
             title = "Chapters",
             subtitle = "${chapters.size} chapters",
-            rows = rows,
-            expanded = false
+            rows = rows
         )
     }
 
