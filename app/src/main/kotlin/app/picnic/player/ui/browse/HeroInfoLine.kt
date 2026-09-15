@@ -2,14 +2,10 @@
 
 package app.picnic.player.ui.browse
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ClosedCaption
 import androidx.compose.material.icons.filled.Star
@@ -17,7 +13,6 @@ import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
@@ -30,6 +25,9 @@ import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import app.picnic.player.R
+import app.picnic.player.ui.common.SpecPill
+import app.picnic.player.ui.common.SpecPillHeight
+import app.picnic.player.ui.common.SpecPillInk
 import app.picnic.player.util.LanguageDisplay
 import java.util.Locale
 import kotlin.math.roundToInt
@@ -42,7 +40,7 @@ import org.jellyfin.sdk.model.api.VideoRangeType
 // ── Rail geometry ────────────────────────────────────────────────────────────
 // Fixed (not screen-scaled) so DetailScreen can reserve the exact same height it
 // renders — the rail grows the hero region *downward*, keeping the logo pinned.
-internal val HeroSpecPillHeight = 20.dp
+internal val HeroSpecPillHeight = SpecPillHeight
 
 /**
  * Fixed height for the details row. Its content varies by type (movies carry a cert pill +
@@ -53,9 +51,6 @@ internal val HeroSpecPillHeight = 20.dp
 internal val HeroDetailsRowHeight = HeroSpecPillHeight
 
 // ── Palette ──────────────────────────────────────────────────────────────────
-private val PillBg = Color.White.copy(alpha = 0.09f)
-private val PillLine = Color.White.copy(alpha = 0.16f)
-private val PillInk = Color.White.copy(alpha = 0.88f)
 private val CertLine = Color.White.copy(alpha = 0.30f)
 private val StarGold = Color(0xFFF0B843)
 
@@ -264,7 +259,7 @@ internal fun HeroBadgeRail(specs: HeroSpecs, modifier: Modifier = Modifier) {
                 Icon(
                     Icons.Filled.VolumeUp,
                     null,
-                    tint = PillInk,
+                    tint = SpecPillInk,
                     modifier = Modifier.size(11.dp)
                 )
             })
@@ -275,7 +270,7 @@ internal fun HeroBadgeRail(specs: HeroSpecs, modifier: Modifier = Modifier) {
                 Icon(
                     Icons.Filled.ClosedCaption,
                     null,
-                    tint = PillInk,
+                    tint = SpecPillInk,
                     modifier = Modifier.size(12.dp)
                 )
             })
@@ -289,38 +284,4 @@ private fun RatingChip(content: @Composable () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(5.dp)
     ) { content() }
-}
-
-@Composable
-private fun SpecPill(
-    text: String?,
-    modifier: Modifier = Modifier,
-    containerColor: Color = PillBg,
-    borderColor: Color = PillLine,
-    contentColor: Color = PillInk,
-    leadingIcon: (@Composable () -> Unit)? = null
-) {
-    Row(
-        modifier = modifier
-            .clip(RoundedCornerShape(6.dp))
-            .background(containerColor)
-            .border(1.dp, borderColor, RoundedCornerShape(6.dp))
-            .height(HeroSpecPillHeight)
-            .padding(horizontal = 7.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp)
-    ) {
-        leadingIcon?.invoke()
-        if (text != null) {
-            Text(
-                text = text.uppercase(Locale.ROOT),
-                color = contentColor,
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 0.4.sp,
-                maxLines = 1,
-                softWrap = false
-            )
-        }
-    }
 }
