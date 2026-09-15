@@ -22,12 +22,6 @@ object LanguageDisplay {
         return titleCase(tag)
     }
 
-    /** Big line for track panel; [title] is the smaller secondary line when present. */
-    fun trackLines(languageLine: String, title: String?): Pair<String, String?> {
-        val trimmedTitle = title?.trim()?.takeIf { it.isNotEmpty() }
-        return languageLine to trimmedTitle
-    }
-
     private fun normalizeTag(raw: String): String {
         val base = raw.replace('_', '-')
         if (base.contains('-') || base.length != 3) return base

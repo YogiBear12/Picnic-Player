@@ -30,6 +30,7 @@ data class TrackOption(
     val label: String?,
     val language: String?,
     val displayLanguage: String,
+    val chips: List<String> = emptyList(),
     val selected: Boolean
 )
 

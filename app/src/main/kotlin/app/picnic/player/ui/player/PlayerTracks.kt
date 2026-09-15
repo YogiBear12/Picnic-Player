@@ -20,6 +20,8 @@ import app.picnic.player.playback.JellyfinTrackSelection
 import app.picnic.player.playback.PlaybackDiagnostics
 import app.picnic.player.playback.SideloadedTrackId
 import app.picnic.player.playback.externalSubtitleCount
+import app.picnic.player.ui.player.osd.TrackLabel
+import app.picnic.player.ui.player.osd.subtitleTrackLabel
 import app.picnic.player.util.LanguageDisplay
 import java.util.Locale
 import kotlinx.coroutines.CoroutineScope
@@ -269,15 +271,27 @@ class PlayerTracks(
     }
 
     private fun MediaStream.toTrackOption(selected: Boolean): TrackOption {
-        val (languageLine, secondary) = LanguageDisplay.trackLines(
-            LanguageDisplay.name(language),
-            displayTitle
-        )
+        val languageLine = LanguageDisplay.name(language)
+        val subtitle = type == MediaStreamType.SUBTITLE
+        val label = if (subtitle) {
+            subtitleTrackLabel(
+                title = title,
+                languageName = languageLine,
+                languageTag = language,
+                isForced = isForced,
+                isHearingImpaired = isHearingImpaired,
+                isExternal = isExternal,
+                codec = codec
+            )
+        } else {
+            TrackLabel(displayTitle?.trim()?.takeIf { it.isNotEmpty() }, emptyList())
+        }
         return TrackOption(
             id = index.toString(),
-            label = secondary,
+            label = label.secondary,
             language = language,
             displayLanguage = languageLine,
+            chips = label.chips,
             selected = selected
         )
     }

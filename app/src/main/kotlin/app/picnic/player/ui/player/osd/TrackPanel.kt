@@ -3,6 +3,7 @@
 package app.picnic.player.ui.player.osd
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -39,6 +40,13 @@ import app.picnic.player.ui.common.PanelRowKeys
 import app.picnic.player.ui.common.PanelWidth
 import app.picnic.player.ui.common.PicnicListRow
 import app.picnic.player.ui.common.RowCheck
+import app.picnic.player.ui.common.SpecPill
+import app.picnic.player.ui.common.SpecPillBg
+import app.picnic.player.ui.common.SpecPillFocusedBg
+import app.picnic.player.ui.common.SpecPillFocusedInk
+import app.picnic.player.ui.common.SpecPillFocusedLine
+import app.picnic.player.ui.common.SpecPillInk
+import app.picnic.player.ui.common.SpecPillLine
 import app.picnic.player.ui.common.panelGlass
 import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.common.rowPrimaryColor
@@ -115,6 +123,7 @@ fun TrackPanel(
                     TrackRow(
                         primary = option.displayLanguage,
                         secondary = option.label,
+                        chips = option.chips,
                         selected = option.selected,
                         onClick = { onSelect(option.id) },
                         onClose = onClose,
@@ -140,6 +149,7 @@ private fun TrackRow(
     primary: String,
     secondary: String?,
     selected: Boolean,
+    chips: List<String> = emptyList(),
     onClick: () -> Unit,
     onClose: () -> Unit,
     focusRequester: FocusRequester?,
@@ -157,17 +167,29 @@ private fun TrackRow(
                 text = primary,
                 color = rowPrimaryColor(focused),
                 style = MaterialTheme.typography.bodyMedium,
-                maxLines = 1
+                maxLines = 1,
+                modifier = if (focused) Modifier.basicMarquee() else Modifier
             )
             if (secondary != null) {
                 Text(
                     text = secondary,
                     color = if (focused) Color.Black.copy(alpha = 0.62f) else Color.White.copy(alpha = 0.58f),
                     style = MaterialTheme.typography.bodySmall,
-                    maxLines = 1
+                    maxLines = 1,
+                    modifier = if (focused) Modifier.basicMarquee() else Modifier
                 )
             }
         }
+        chips.forEach { chip ->
+            SpecPill(
+                text = chip,
+                modifier = Modifier.padding(start = 6.dp),
+                containerColor = if (focused) SpecPillFocusedBg else SpecPillBg,
+                borderColor = if (focused) SpecPillFocusedLine else SpecPillLine,
+                contentColor = if (focused) SpecPillFocusedInk else SpecPillInk
+            )
+        }
+        Spacer(Modifier.width(6.dp))
         RowCheck(focused, visible = selected)
     }
 }
