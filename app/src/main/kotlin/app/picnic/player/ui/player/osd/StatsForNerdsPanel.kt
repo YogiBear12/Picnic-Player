@@ -16,13 +16,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -32,6 +30,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import app.picnic.player.playback.playingStream
+import app.picnic.player.ui.common.panelGlass
 import app.picnic.player.ui.player.PlayerUiState
 import java.util.Locale
 import kotlin.time.Duration.Companion.seconds
@@ -41,9 +40,8 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 
 private val PanelDimScrim = Color.Transparent
-private val PanelGlassFill = Color(0x80181E24)
-private val PanelCornerRadius = 20.dp
 private val PanelEdgeInset = 28.dp
+private val StatsPanelWidth = 440.dp
 private val ContentInset = 16.dp
 private val RowInnerPadding = 14.dp
 
@@ -112,10 +110,9 @@ fun StatsForNerdsPanel(
     ) {
         Column(
             Modifier
-                .width(440.dp)
+                .width(StatsPanelWidth)
                 .padding(top = PanelEdgeInset, bottom = PanelEdgeInset, start = PanelEdgeInset)
-                .clip(RoundedCornerShape(PanelCornerRadius))
-                .background(PanelGlassFill)
+                .panelGlass()
                 .padding(vertical = 20.dp)
         ) {
             Column(

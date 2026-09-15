@@ -3,7 +3,6 @@
 package app.picnic.player.ui.player.osd
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -12,18 +11,19 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
@@ -32,19 +32,18 @@ import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import app.picnic.player.ui.common.PanelContentInset
+import app.picnic.player.ui.common.PanelFadeLength
+import app.picnic.player.ui.common.PanelFloatingHeight
 import app.picnic.player.ui.common.PanelHeader
 import app.picnic.player.ui.common.PanelRowKeys
 import app.picnic.player.ui.common.PanelWidth
 import app.picnic.player.ui.common.PicnicListRow
 import app.picnic.player.ui.common.RowCheck
+import app.picnic.player.ui.common.panelGlass
 import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.common.rowPrimaryColor
+import app.picnic.player.ui.common.verticalFadingEdges
 import app.picnic.player.ui.player.TrackOption
-
-internal val TrackPanelWidth = PanelWidth.Picker
-
-private val PanelGlassFill = Color(0xC0181E24)
-private val PanelCornerRadius = 20.dp
 
 @Composable
 fun TrackPanel(
@@ -75,17 +74,25 @@ fun TrackPanel(
         )
         Column(
             Modifier
-                .width(TrackPanelWidth)
-                .fillMaxHeight()
-                .padding(top = SidePanelEdgeInset, bottom = SidePanelEdgeInset, end = SidePanelEdgeInset)
-                .clip(RoundedCornerShape(PanelCornerRadius))
-                .background(PanelGlassFill)
+                .align(Alignment.CenterVertically)
+                .padding(end = SidePanelEdgeInset)
+                .width(PanelWidth.FloatingWide)
+                .height(PanelFloatingHeight)
+                .panelGlass()
                 .padding(vertical = 20.dp)
                 .focusGroup()
         ) {
             PanelHeader(title = title)
+            val listState = rememberLazyListState()
             LazyColumn(
-                modifier = Modifier.focusGroup(),
+                state = listState,
+                modifier = Modifier
+                    .verticalFadingEdges(
+                        topFade = listState.canScrollBackward,
+                        bottomFade = listState.canScrollForward,
+                        length = PanelFadeLength
+                    )
+                    .focusGroup(),
                 contentPadding = PaddingValues(horizontal = PanelContentInset),
                 verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {

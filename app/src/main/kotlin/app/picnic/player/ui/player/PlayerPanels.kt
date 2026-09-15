@@ -4,9 +4,9 @@ import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.zIndex
+import app.picnic.player.ui.common.PanelWidth
 import app.picnic.player.ui.player.osd.SidePanel
 import app.picnic.player.ui.player.osd.TrackPanel
-import app.picnic.player.ui.player.osd.TrackPanelWidth
 
 @Composable
 fun BoxScope.TrackSidePanel(
@@ -19,7 +19,7 @@ fun BoxScope.TrackSidePanel(
 ) {
     SidePanel(
         visible = visible,
-        width = TrackPanelWidth,
+        width = PanelWidth.FloatingWide,
         modifier = Modifier.zIndex(3f)
     ) { active ->
         TrackPanel(

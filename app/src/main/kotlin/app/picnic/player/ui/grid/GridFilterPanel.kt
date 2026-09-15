@@ -8,6 +8,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
@@ -15,7 +16,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -25,7 +25,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.Sort
@@ -76,23 +75,25 @@ import app.picnic.player.data.media.ResolutionFilter
 import app.picnic.player.data.media.WatchedFilter
 import app.picnic.player.ui.common.ActionButton
 import app.picnic.player.ui.common.CenteredMessage
-import app.picnic.player.ui.common.PanelCornerRadius
+import app.picnic.player.ui.common.PanelContentInset
 import app.picnic.player.ui.common.PanelEdgeInset
-import app.picnic.player.ui.common.PanelGlassFill
+import app.picnic.player.ui.common.PanelFadeLength
+import app.picnic.player.ui.common.PanelFloatingHeight
 import app.picnic.player.ui.common.PanelHeader
 import app.picnic.player.ui.common.PanelRowKeys
 import app.picnic.player.ui.common.PanelRowMetrics
 import app.picnic.player.ui.common.PanelWidth
 import app.picnic.player.ui.common.PicnicListRow
+import app.picnic.player.ui.common.panelGlass
 import app.picnic.player.ui.common.rowPrimaryColor
 import app.picnic.player.ui.common.rowTrailingColor
+import app.picnic.player.ui.common.verticalFadingEdges
 import app.picnic.player.ui.theme.PicnicColors
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 private val PanelDimScrim = Color(0x66000000)
-private val ContentInset = 12.dp
-private val GridRowMetrics = PanelRowMetrics(innerPadding = 12.dp, cornerRadius = 8.dp)
+private val GridRowMetrics = PanelRowMetrics(innerPadding = 12.dp)
 private const val PanelAnimMs = 200
 
 internal enum class GridFilterSection(val label: String, val icon: ImageVector) {
@@ -229,11 +230,10 @@ internal fun GridFilterPanel(
             ) {
                 Column(
                     Modifier
-                        .width(PanelWidth.Rail)
-                        .fillMaxHeight()
-                        .padding(top = PanelEdgeInset, bottom = PanelEdgeInset, end = PanelEdgeInset)
-                        .clip(RoundedCornerShape(PanelCornerRadius))
-                        .background(PanelGlassFill)
+                        .padding(end = PanelEdgeInset)
+                        .width(PanelWidth.Floating)
+                        .height(PanelFloatingHeight)
+                        .panelGlass()
                         .padding(vertical = 16.dp)
                         .onFocusChanged { panelHasFocus = it.hasFocus }
                         .focusProperties { exit = { FocusRequester.Cancel } }
@@ -244,8 +244,15 @@ internal fun GridFilterPanel(
                             PanelHeader("Sort & filter")
                             LazyColumn(
                                 state = topListState,
-                                modifier = Modifier.weight(1f).focusGroup(),
-                                contentPadding = PaddingValues(horizontal = ContentInset),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .verticalFadingEdges(
+                                        topFade = topListState.canScrollBackward,
+                                        bottomFade = topListState.canScrollForward,
+                                        length = PanelFadeLength
+                                    )
+                                    .focusGroup(),
+                                contentPadding = PaddingValues(horizontal = PanelContentInset),
                                 verticalArrangement = Arrangement.spacedBy(2.dp)
                             ) {
                                 sections.forEach { entry ->
@@ -259,13 +266,11 @@ internal fun GridFilterPanel(
                                         )
                                     }
                                 }
-                                item {
-                                    ClearFiltersRow(
-                                        focusRequester = clearRowFocus,
-                                        onClick = onResetAll
-                                    )
-                                }
                             }
+                            ClearFiltersRow(
+                                focusRequester = clearRowFocus,
+                                onClick = onResetAll
+                            )
                         }
                         else -> {
                             PanelHeader(section.label, icon = section.icon)
@@ -291,9 +296,18 @@ internal fun GridFilterPanel(
                                     )
                                 }
                             } else {
+                                val optionListState = rememberLazyListState()
                                 LazyColumn(
-                                    modifier = Modifier.weight(1f).focusGroup(),
-                                    contentPadding = PaddingValues(horizontal = ContentInset),
+                                    state = optionListState,
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .verticalFadingEdges(
+                                            topFade = optionListState.canScrollBackward,
+                                            bottomFade = optionListState.canScrollForward,
+                                            length = PanelFadeLength
+                                        )
+                                        .focusGroup(),
+                                    contentPadding = PaddingValues(horizontal = PanelContentInset),
                                     verticalArrangement = Arrangement.spacedBy(2.dp)
                                 ) {
                                     options.forEachIndexed { index, option ->
@@ -461,7 +475,9 @@ private fun SectionRow(
             color = rowPrimaryColor(focused),
             style = MaterialTheme.typography.bodyMedium,
             maxLines = 1,
-            modifier = Modifier.weight(1f)
+            modifier = Modifier
+                .weight(1f)
+                .then(if (focused) Modifier.basicMarquee() else Modifier)
         )
         if (active) {
             Box(
@@ -486,7 +502,7 @@ private fun ClearFiltersRow(
     focusRequester: FocusRequester,
     onClick: () -> Unit
 ) {
-    Column {
+    Column(Modifier.padding(horizontal = PanelContentInset)) {
         Spacer(Modifier.height(6.dp))
         Box(
             Modifier
@@ -548,7 +564,9 @@ private fun FilterRow(
             color = rowPrimaryColor(focused),
             style = MaterialTheme.typography.bodyMedium,
             maxLines = 1,
-            modifier = Modifier.weight(1f)
+            modifier = Modifier
+                .weight(1f)
+                .then(if (focused) Modifier.basicMarquee() else Modifier)
         )
         if (trailingIcon != null) {
             Icon(

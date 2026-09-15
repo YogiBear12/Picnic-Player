@@ -6,9 +6,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.zIndex
 import app.picnic.player.data.settings.SubtitleAppearance
+import app.picnic.player.ui.common.PanelWidth
 import app.picnic.player.ui.player.osd.PlayerSettingsActions
 import app.picnic.player.ui.player.osd.PlayerSettingsPanel
-import app.picnic.player.ui.player.osd.PlayerSettingsPanelWidth
 import app.picnic.player.ui.player.osd.SidePanel
 
 @Composable
@@ -39,7 +39,7 @@ fun BoxScope.PlayerSettingsSidePanel(
     }
     SidePanel(
         visible = visible,
-        width = PlayerSettingsPanelWidth,
+        width = PanelWidth.FloatingWide,
         modifier = Modifier.zIndex(3f)
     ) { active ->
         PlayerSettingsPanel(
