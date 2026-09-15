@@ -24,6 +24,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -247,7 +248,9 @@ fun PlayerSettingsPanel(
                 .focusGroup()
         ) {
             PanelHeader(title = page.title())
-            val rowScroll = rememberScrollState()
+            val mainScroll = rememberScrollState()
+            val subPageScroll = key(page) { rememberScrollState() }
+            val rowScroll = if (page == Page.MAIN) mainScroll else subPageScroll
             Column(
                 Modifier
                     .weight(1f)
