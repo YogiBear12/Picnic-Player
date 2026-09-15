@@ -236,10 +236,13 @@ internal fun GridFilterPanel(
                         .panelGlass()
                         .padding(vertical = 16.dp)
                         .onKeyEvent { event ->
-                            val closing = event.type == KeyEventType.KeyDown &&
-                                (event.key == Key.DirectionLeft || event.key == Key.DirectionRight)
-                            if (closing) dismiss()
-                            closing
+                            val sideways = event.key == Key.DirectionLeft || event.key == Key.DirectionRight
+                            if (!sideways || event.type != KeyEventType.KeyDown) {
+                                false
+                            } else {
+                                if (openSection == null) dismiss()
+                                true
+                            }
                         }
                         .focusProperties { exit = { FocusRequester.Cancel } }
                         .focusGroup()
@@ -251,13 +254,18 @@ internal fun GridFilterPanel(
                         section = section,
                         sections = sections,
                         activeSections = activeFilterSections(filter, sort),
-                        filter = filter,
-                        sort = sort,
-                        facets = facets,
                         sectionRowFocus = sectionRowFocus,
                         firstValueFocus = firstValueFocus,
-                        onFilterChange = onFilterChange,
-                        onSortChange = onSortChange,
+                        optionsFor = {
+                            buildSectionOptions(
+                                it,
+                                filter,
+                                sort,
+                                facets,
+                                onFilterChange = onFilterChange,
+                                onSortChange = onSortChange
+                            )
+                        },
                         onOpenSection = { openSection = it }
                     )
                     when (content) {
@@ -288,10 +296,7 @@ internal fun GridFilterPanel(
                         ) {
                             content.rows.forEachIndexed { index, row ->
                                 item(key = index) {
-                                    FilterPanelRow(
-                                        row = row,
-                                        focusRequester = row.focusRequester
-                                    )
+                                    FilterPanelRow(row)
                                 }
                             }
                         }
@@ -458,13 +463,9 @@ private fun filterPanelContent(
     section: GridFilterSection?,
     sections: List<GridFilterSection>,
     activeSections: Set<GridFilterSection>,
-    filter: MediaGridFilter,
-    sort: GridSortSpec,
-    facets: GridFilterFacets,
     sectionRowFocus: Map<GridFilterSection, FocusRequester>,
     firstValueFocus: FocusRequester,
-    onFilterChange: (MediaGridFilter) -> Unit,
-    onSortChange: (GridSortSpec) -> Unit,
+    optionsFor: (GridFilterSection) -> List<PanelOption>,
     onOpenSection: (GridFilterSection) -> Unit
 ): FilterPanelContent {
     if (section == null) {
@@ -481,14 +482,7 @@ private fun filterPanelContent(
             }
         )
     }
-    val options = buildSectionOptions(
-        section,
-        filter,
-        sort,
-        facets,
-        onFilterChange = onFilterChange,
-        onSortChange = onSortChange
-    )
+    val options = optionsFor(section)
     if (options.isEmpty()) return FilterPanelContent.LoadingFacets
     return FilterPanelContent.Rows(
         options.mapIndexed { index, option ->
@@ -509,12 +503,9 @@ private fun filterPanelContent(
 }
 
 @Composable
-private fun FilterPanelRow(
-    row: FilterPanelRowModel,
-    focusRequester: FocusRequester?
-) {
+private fun FilterPanelRow(row: FilterPanelRowModel) {
     PicnicListRow(
-        focusRequester = focusRequester,
+        focusRequester = row.focusRequester,
         metrics = GridRowMetrics,
         keys = PanelRowKeys(blockLeft = false),
         onActivate = row.onClick

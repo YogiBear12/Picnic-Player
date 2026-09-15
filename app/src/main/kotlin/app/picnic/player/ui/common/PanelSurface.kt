@@ -25,8 +25,8 @@ private val PanelHairlineTop = Color(0x3DFFFFFF)
 private val PanelHairlineBottom = Color(0x0FFFFFFF)
 private val PanelShadow = 20.dp
 
-fun Modifier.panelGlass(corner: Dp = PanelCornerRadius): Modifier {
-    val shape = RoundedCornerShape(corner)
+fun Modifier.panelGlass(): Modifier {
+    val shape = RoundedCornerShape(PanelCornerRadius)
     return shadow(PanelShadow, shape)
         .clip(shape)
         .background(Brush.verticalGradient(listOf(PanelGlassTop, PanelGlassBottom)))
@@ -37,4 +37,4 @@ fun Modifier.panelGlass(corner: Dp = PanelCornerRadius): Modifier {
         )
 }
 
-fun Modifier.panelSurface(width: Dp, corner: Dp = PanelCornerRadius): Modifier = width(width).panelGlass(corner).padding(vertical = 20.dp)
+fun Modifier.panelSurface(width: Dp): Modifier = width(width).panelGlass().padding(vertical = 20.dp)

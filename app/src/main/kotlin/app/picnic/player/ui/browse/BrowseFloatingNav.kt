@@ -70,7 +70,6 @@ import app.picnic.player.ui.common.PanelRowSpacing
 import app.picnic.player.ui.common.PanelWidth
 import app.picnic.player.ui.common.PicnicListRow
 import app.picnic.player.ui.common.panelGlass
-import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.common.rowPrimaryColor
 import app.picnic.player.ui.common.verticalFadingEdges
 import app.picnic.player.ui.theme.PicnicColors
@@ -154,24 +153,26 @@ internal fun BrowseFloatingNav(
         itemFocusRequesters[key]?.let { runCatching { it.requestFocus() } }
     }
 
-    val refocusNeighbourOf = rememberNeighbourRefocus(destinations, layout, itemFocusRequesters)
+    val refocusNeighbor = latchNeighborRefocus(destinations, layout, itemFocusRequesters)
 
     actionsDest?.let { dest ->
         NavDestActionsDialog(
             dest = dest,
             pinned = layout.isPinned(dest.key),
             onPin = {
-                refocusNeighbourOf(dest)
+                refocusNeighbor(dest)
                 onPin(dest)
             },
             onUnpin = {
-                refocusNeighbourOf(dest)
+                refocusNeighbor(dest)
                 onUnpin(dest)
             },
             onReorder = { onEnterReorder(dest) },
             onDismiss = { actionsDest = null }
         )
     }
+
+    val onPrimaryPage = drawerPage == NavDrawerPage.Primary
 
     val openProgress by animateFloatAsState(
         targetValue = if (panelFocused) 1f else 0f,
@@ -216,11 +217,15 @@ internal fun BrowseFloatingNav(
                     onChromeFocusedChange(it.hasFocus)
                 }
                 .onKeyEvent { event ->
-                    val closing = event.key == Key.DirectionLeft &&
-                        event.type == KeyEventType.KeyDown &&
-                        reorderKey == null
-                    if (closing) runCatching { contentFocusOnRight().requestFocus() }
-                    closing
+                    if (event.key != Key.DirectionLeft ||
+                        event.type != KeyEventType.KeyDown ||
+                        reorderKey != null
+                    ) {
+                        false
+                    } else {
+                        if (onPrimaryPage) runCatching { contentFocusOnRight().requestFocus() }
+                        true
+                    }
                 }
                 .focusProperties {
                     onEnter = {
@@ -228,9 +233,10 @@ internal fun BrowseFloatingNav(
                             ?.let { runCatching { it.requestFocus() } }
                     }
                     exit = { direction ->
-                        when (direction) {
-                            FocusDirection.Right -> contentFocusOnRight()
-                            else -> FocusRequester.Default
+                        when {
+                            direction != FocusDirection.Right -> FocusRequester.Default
+                            onPrimaryPage -> contentFocusOnRight()
+                            else -> FocusRequester.Cancel
                         }
                     }
                 }
@@ -485,33 +491,6 @@ private fun NavPanelIcon(
         tint = navRowIconTint(focused, active = false),
         modifier = Modifier.size(PanelIconSize)
     )
-}
-
-private data class PendingRefocus(val key: String, val capturedLayout: NavLayout)
-
-/**
- * Pinning or unpinning drops the row out of the list it was focused in. Focus must land on its
- * neighbour, but only once the settings store has echoed the new [NavLayout] back, so the target is
- * latched against the layout it was captured under and fires on the first layout that differs.
- */
-@Composable
-private fun rememberNeighbourRefocus(
-    destinations: List<BrowseDest>,
-    layout: NavLayout,
-    itemFocusRequesters: Map<String, FocusRequester>
-): (BrowseDest) -> Unit {
-    var pending by remember { mutableStateOf<PendingRefocus?>(null) }
-    LaunchedEffect(layout) {
-        val target = pending ?: return@LaunchedEffect
-        if (layout == target.capturedLayout) return@LaunchedEffect
-        pending = null
-        itemFocusRequesters[target.key]?.requestFocusWhenAttached(maxFrames = 20)
-    }
-    return { dest ->
-        val index = destinations.indexOfFirst { it.key == dest.key }
-        val neighbour = destinations.getOrNull(index - 1) ?: destinations.getOrNull(index + 1)
-        pending = if (index < 0) null else neighbour?.let { PendingRefocus(it.key, layout) }
-    }
 }
 
 private fun navRowLabelColor(selected: Boolean): Color = if (selected) Color.White else Color.White.copy(alpha = 0.6f)

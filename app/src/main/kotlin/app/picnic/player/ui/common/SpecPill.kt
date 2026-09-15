@@ -33,6 +33,33 @@ private val TrackChipFocusedBg = Color.Black.copy(alpha = 0.06f)
 private val TrackChipFocusedLine = Color.Black.copy(alpha = 0.16f)
 private val TrackChipFocusedInk = Color.Black.copy(alpha = 0.55f)
 
+private data class PillStyle(
+    val height: Dp,
+    val corner: Dp,
+    val horizontalPadding: Dp,
+    val fontSize: TextUnit,
+    val fontWeight: FontWeight,
+    val letterSpacing: TextUnit
+)
+
+private val SpecPillStyle = PillStyle(
+    height = SpecPillHeight,
+    corner = 6.dp,
+    horizontalPadding = 7.dp,
+    fontSize = TextUnit.Unspecified,
+    fontWeight = FontWeight.Bold,
+    letterSpacing = 0.4.sp
+)
+
+private val TrackChipStyle = PillStyle(
+    height = 15.dp,
+    corner = 4.dp,
+    horizontalPadding = 5.dp,
+    fontSize = 9.sp,
+    fontWeight = FontWeight.Medium,
+    letterSpacing = 0.3.sp
+)
+
 @Composable
 internal fun SpecPill(
     text: String?,
@@ -48,12 +75,7 @@ internal fun SpecPill(
         containerColor = containerColor,
         borderColor = borderColor,
         contentColor = contentColor,
-        height = SpecPillHeight,
-        corner = 6.dp,
-        horizontalPadding = 7.dp,
-        fontSize = TextUnit.Unspecified,
-        fontWeight = FontWeight.Bold,
-        letterSpacing = 0.4.sp,
+        style = SpecPillStyle,
         leadingIcon = leadingIcon
     )
 }
@@ -71,12 +93,7 @@ internal fun TrackChip(
         containerColor = if (focused) TrackChipFocusedBg else TrackChipBg,
         borderColor = if (focused) TrackChipFocusedLine else TrackChipLine,
         contentColor = if (focused) TrackChipFocusedInk else TrackChipInk,
-        height = 15.dp,
-        corner = 4.dp,
-        horizontalPadding = 5.dp,
-        fontSize = 9.sp,
-        fontWeight = FontWeight.Medium,
-        letterSpacing = 0.3.sp,
+        style = TrackChipStyle,
         leadingIcon = null
     )
 }
@@ -88,21 +105,16 @@ private fun PillSurface(
     containerColor: Color,
     borderColor: Color,
     contentColor: Color,
-    height: Dp,
-    corner: Dp,
-    horizontalPadding: Dp,
-    fontSize: TextUnit,
-    fontWeight: FontWeight,
-    letterSpacing: TextUnit,
+    style: PillStyle,
     leadingIcon: (@Composable () -> Unit)?
 ) {
     Row(
         modifier = modifier
-            .clip(RoundedCornerShape(corner))
+            .clip(RoundedCornerShape(style.corner))
             .background(containerColor)
-            .border(1.dp, borderColor, RoundedCornerShape(corner))
-            .height(height)
-            .padding(horizontal = horizontalPadding),
+            .border(1.dp, borderColor, RoundedCornerShape(style.corner))
+            .height(style.height)
+            .padding(horizontal = style.horizontalPadding),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
@@ -112,9 +124,9 @@ private fun PillSurface(
                 text = text.uppercase(Locale.ROOT),
                 color = contentColor,
                 style = MaterialTheme.typography.labelSmall,
-                fontSize = fontSize,
-                fontWeight = fontWeight,
-                letterSpacing = letterSpacing,
+                fontSize = style.fontSize,
+                fontWeight = style.fontWeight,
+                letterSpacing = style.letterSpacing,
                 maxLines = 1,
                 softWrap = false
             )

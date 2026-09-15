@@ -3,7 +3,7 @@ package app.picnic.player.util
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
-class AudioFormatLabelTest {
+class AudioFormatTest {
 
     @Test
     fun namesDolbyCodecsTheWayAViewerWould() {

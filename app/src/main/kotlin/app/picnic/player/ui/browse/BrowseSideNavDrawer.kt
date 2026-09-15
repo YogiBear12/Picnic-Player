@@ -57,7 +57,6 @@ import androidx.tv.material3.NavigationDrawerItemScale
 import androidx.tv.material3.Text
 import app.picnic.player.data.auth.UserSession
 import app.picnic.player.data.nav.NavLayout
-import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.common.verticalFadingEdges
 
 private val DrawerHPad = 12.dp
@@ -138,31 +137,18 @@ internal fun BrowseSideNavDrawer(
         itemFocusRequesters[key]?.let { runCatching { it.requestFocus() } }
     }
 
-    var refocusAfter by remember { mutableStateOf<Pair<String, NavLayout>?>(null) }
-    LaunchedEffect(layout) {
-        val (key, before) = refocusAfter ?: return@LaunchedEffect
-        if (layout == before) return@LaunchedEffect
-        refocusAfter = null
-        itemFocusRequesters[key]?.requestFocusWhenAttached(maxFrames = 20)
-    }
-
-    fun neighbourOf(dest: BrowseDest): Pair<String, NavLayout>? {
-        val index = destinations.indexOfFirst { it.key == dest.key }
-        if (index < 0) return null
-        val neighbour = destinations.getOrNull(index - 1) ?: destinations.getOrNull(index + 1)
-        return neighbour?.let { it.key to layout }
-    }
+    val refocusNeighbor = latchNeighborRefocus(destinations, layout, itemFocusRequesters)
 
     actionsDest?.let { dest ->
         NavDestActionsDialog(
             dest = dest,
             pinned = layout.isPinned(dest.key),
             onPin = {
-                refocusAfter = neighbourOf(dest)
+                refocusNeighbor(dest)
                 onPin(dest)
             },
             onUnpin = {
-                refocusAfter = neighbourOf(dest)
+                refocusNeighbor(dest)
                 onUnpin(dest)
             },
             onReorder = { onEnterReorder(dest) },

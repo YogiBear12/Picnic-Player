@@ -30,7 +30,6 @@ import app.picnic.player.ui.common.SpecPillHeight
 import app.picnic.player.ui.common.SpecPillInk
 import app.picnic.player.util.AudioFormat
 import app.picnic.player.util.LanguageDisplay
-import app.picnic.player.util.spatialLabel
 import java.util.Locale
 import kotlin.math.roundToInt
 import org.jellyfin.sdk.model.api.BaseItemDto
@@ -39,22 +38,19 @@ import org.jellyfin.sdk.model.api.MediaStream
 import org.jellyfin.sdk.model.api.MediaStreamType
 import org.jellyfin.sdk.model.api.VideoRangeType
 
-// ── Rail geometry ────────────────────────────────────────────────────────────
-// Fixed (not screen-scaled) so DetailScreen can reserve the exact same height it
-// renders — the rail grows the hero region *downward*, keeping the logo pinned.
 /**
- * Fixed height for the details row. Its content varies by type (movies carry a cert pill +
- * rating chips ~20dp tall, episodes just the date text ~16dp), and the row centres its
- * children vertically — so without a constant height the centred text baseline drifts and
- * episodes read slightly higher than movies. Pin it to the tallest element (the pill).
+ * Fixed height for the details row, not screen-scaled, so DetailScreen can reserve exactly what
+ * the rail renders and the rail grows the hero region downward with the logo pinned. Content
+ * varies by type (movies carry a cert pill + rating chips ~20dp tall, episodes just the date text
+ * ~16dp) and the row centers its children vertically, so without a constant height the centered
+ * text baseline drifts and episodes read slightly higher than movies. Pin it to the tallest
+ * element, the pill.
  */
 internal val HeroDetailsRowHeight = SpecPillHeight
 
-// ── Palette ──────────────────────────────────────────────────────────────────
 private val CertLine = Color.White.copy(alpha = 0.30f)
 private val StarGold = Color(0xFFF0B843)
 
-// ── Data model ───────────────────────────────────────────────────────────────
 internal data class HeroSpecs(
     val certificate: String?,
     val resolution: String?,
@@ -158,8 +154,6 @@ private fun audioLabel(audio: List<MediaStream>): String? {
     }
 }
 
-// ── UI ───────────────────────────────────────────────────────────────────────
-
 /**
  * The hero details line: date/runtime, community star, critic mark, certificate pill. The
  * badge rail is rendered separately ([HeroBadgeRail]) so [BrowseHero] can place it below the
@@ -177,8 +171,6 @@ internal fun HeroInfoLine(
     val community = item.communityRating.takeUnless { isEpisode }
     val critic = item.criticRating.takeUnless { isEpisode }
 
-    // Fixed height so the centred text baseline is identical whether or not the row also
-    // carries a pill/chips (otherwise episodes read higher than movies).
     Row(
         modifier = modifier.height(HeroDetailsRowHeight),
         verticalAlignment = Alignment.CenterVertically,

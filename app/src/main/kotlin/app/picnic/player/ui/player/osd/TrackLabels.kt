@@ -1,10 +1,6 @@
 package app.picnic.player.ui.player.osd
 
 import app.picnic.player.util.AudioFormat
-import app.picnic.player.util.channelLabel
-import app.picnic.player.util.codecLabel
-import app.picnic.player.util.label
-import app.picnic.player.util.spatialLabel
 import java.util.Locale
 
 data class TrackLabel(val secondary: String?, val chips: List<String>)

@@ -4,7 +4,6 @@ package app.picnic.player.ui.player.osd
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -45,6 +44,7 @@ import app.picnic.player.ui.ambient.CardFocusBorderWidth
 import app.picnic.player.ui.ambient.CardFocusGlowAlpha
 import app.picnic.player.ui.ambient.CardFocusGlowElevation
 import app.picnic.player.ui.common.formatClock
+import app.picnic.player.ui.common.marqueeWhenFocused
 import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.player.ChapterMark
 import coil3.compose.AsyncImage
@@ -158,7 +158,7 @@ private fun ChapterCard(
                     maxLines = 1,
                     softWrap = false,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = if (focused) Modifier.basicMarquee() else Modifier
+                    modifier = Modifier.marqueeWhenFocused(focused)
                 )
                 Text(
                     text = formatClock(chapter.startMs),

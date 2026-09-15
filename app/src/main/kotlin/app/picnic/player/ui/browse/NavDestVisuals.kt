@@ -25,6 +25,7 @@ import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Tv
 import androidx.compose.material.icons.outlined.VideoLibrary
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -49,7 +50,9 @@ import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import app.picnic.player.data.auth.UserSession
+import app.picnic.player.data.nav.NavLayout
 import app.picnic.player.ui.common.rememberIdentityBrush
+import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.theme.PicnicColors
 import coil3.compose.AsyncImage
 import coil3.compose.AsyncImagePainter
@@ -186,4 +189,35 @@ internal fun BoxScope.ReorderArrows(offset: Dp) {
             .offset(y = offset)
             .size(18.dp)
     )
+}
+
+private data class PendingRefocus(val key: String, val capturedLayout: NavLayout)
+
+/**
+ * Pinning or unpinning drops the row out of the list it was focused in. Focus must land on its
+ * neighbor, but only once the settings store has echoed the new [NavLayout] back, so the target is
+ * latched against the layout it was captured under and fires on the first layout that differs.
+ */
+@Composable
+internal fun latchNeighborRefocus(
+    destinations: List<BrowseDest>,
+    layout: NavLayout,
+    itemFocusRequesters: Map<String, FocusRequester>
+): (BrowseDest) -> Unit {
+    var pending by remember { mutableStateOf<PendingRefocus?>(null) }
+    LaunchedEffect(layout) {
+        val target = pending ?: return@LaunchedEffect
+        if (layout == target.capturedLayout) return@LaunchedEffect
+        pending = null
+        itemFocusRequesters[target.key]?.requestFocusWhenAttached(maxFrames = 20)
+    }
+    return { dest ->
+        val index = destinations.indexOfFirst { it.key == dest.key }
+        val neighbor = if (index < 0) {
+            null
+        } else {
+            destinations.getOrNull(index - 1) ?: destinations.getOrNull(index + 1)
+        }
+        pending = neighbor?.let { PendingRefocus(it.key, layout) }
+    }
 }
