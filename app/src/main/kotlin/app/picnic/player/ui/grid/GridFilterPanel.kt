@@ -46,6 +46,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -57,7 +58,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
@@ -82,9 +82,11 @@ import app.picnic.player.ui.common.PanelFloatingHeight
 import app.picnic.player.ui.common.PanelHeader
 import app.picnic.player.ui.common.PanelRowKeys
 import app.picnic.player.ui.common.PanelRowMetrics
+import app.picnic.player.ui.common.PanelRowSpacing
 import app.picnic.player.ui.common.PanelWidth
 import app.picnic.player.ui.common.PicnicListRow
 import app.picnic.player.ui.common.panelGlass
+import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.common.rowPrimaryColor
 import app.picnic.player.ui.common.rowTrailingColor
 import app.picnic.player.ui.common.verticalFadingEdges
@@ -93,7 +95,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 private val PanelDimScrim = Color(0x66000000)
-private val GridRowMetrics = PanelRowMetrics(innerPadding = 12.dp)
+private val GridRowMetrics = PanelRowMetrics(innerPadding = 12.dp, verticalPadding = 7.dp)
 private const val PanelAnimMs = 200
 
 internal enum class GridFilterSection(val label: String, val icon: ImageVector) {
@@ -188,29 +190,22 @@ internal fun GridFilterPanel(
         val clearRowFocus = remember { FocusRequester() }
         val firstValueFocus = remember { FocusRequester() }
         val topListState = rememberLazyListState()
-        var panelHasFocus by remember { mutableStateOf(false) }
+        val optionListState = key(openSection) { rememberLazyListState() }
 
         LaunchedEffect(openSection, shown, facets) {
             if (!shown) return@LaunchedEffect
+            val returnTo = lastOpenedSection
             val target = when (val section = openSection) {
-                null -> {
-                    val returnTo = lastOpenedSection
-                    if (returnTo != null) {
-                        runCatching {
-                            topListState.scrollToItem(sections.indexOf(returnTo).coerceAtLeast(0))
-                        }
-                    }
-                    sectionRowFocus[returnTo ?: sections.firstOrNull()] ?: return@LaunchedEffect
-                }
+                null -> sectionRowFocus[returnTo ?: sections.firstOrNull()] ?: return@LaunchedEffect
                 else -> {
                     lastOpenedSection = section
                     firstValueFocus
                 }
             }
-            repeat(20) {
-                runCatching { target.requestFocus() }
-                if (panelHasFocus) return@LaunchedEffect
-                delay(32)
+            if (target.requestFocusWhenAttached(maxFrames = 20)) return@LaunchedEffect
+            if (openSection == null && returnTo != null) {
+                runCatching { topListState.scrollToItem(sections.indexOf(returnTo).coerceAtLeast(0)) }
+                target.requestFocusWhenAttached(maxFrames = 20)
             }
         }
 
@@ -235,97 +230,89 @@ internal fun GridFilterPanel(
                         .height(PanelFloatingHeight)
                         .panelGlass()
                         .padding(vertical = 16.dp)
-                        .onFocusChanged { panelHasFocus = it.hasFocus }
                         .focusProperties { exit = { FocusRequester.Cancel } }
                         .focusGroup()
                 ) {
-                    when (val section = openSection) {
-                        null -> {
-                            PanelHeader("Sort & filter")
-                            LazyColumn(
-                                state = topListState,
+                    val section = openSection
+                    PanelHeader(section?.label ?: "Sort & filter", icon = section?.icon)
+                    val options = section?.let {
+                        buildSectionOptions(
+                            it,
+                            filter,
+                            sort,
+                            facets,
+                            onFilterChange = onFilterChange,
+                            onSortChange = onSortChange
+                        )
+                    }
+                    val listState = if (section == null) topListState else optionListState
+                    val active = activeFilterSections(filter, sort)
+                    val rows = options?.mapIndexed { index, option ->
+                        FilterPanelRowModel(
+                            label = option.label,
+                            leadingIcon = option.leadingIcon,
+                            leadingTint = option.leadingTint,
+                            trailingIcon = option.trailingIcon,
+                            selected = option.selected,
+                            focusRequester = if (index == 0) firstValueFocus else null,
+                            onClick = option.onClick
+                        )
+                    } ?: sections.map { entry ->
+                        FilterPanelRowModel(
+                            label = entry.label,
+                            leadingIcon = entry.icon,
+                            leadingTint = null,
+                            trailingIcon = null,
+                            selected = false,
+                            activeDot = entry in active,
+                            chevron = true,
+                            activateOnRight = true,
+                            focusRequester = sectionRowFocus[entry],
+                            onClick = { openSection = entry }
+                        )
+                    }
+                    if (options != null && options.isEmpty()) {
+                        Box(
+                            modifier = Modifier.weight(1f).fillMaxWidth(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator(
+                                color = PicnicColors.Accent,
                                 modifier = Modifier
-                                    .weight(1f)
-                                    .verticalFadingEdges(
-                                        topFade = topListState.canScrollBackward,
-                                        bottomFade = topListState.canScrollForward,
-                                        length = PanelFadeLength
-                                    )
-                                    .focusGroup(),
-                                contentPadding = PaddingValues(horizontal = PanelContentInset),
-                                verticalArrangement = Arrangement.spacedBy(2.dp)
-                            ) {
-                                sections.forEach { entry ->
-                                    item {
-                                        SectionRow(
-                                            section = entry,
-                                            valueLabel = entry.label,
-                                            active = entry in activeFilterSections(filter, sort),
-                                            focusRequester = sectionRowFocus[entry],
-                                            onClick = { openSection = entry }
-                                        )
-                                    }
-                                }
-                            }
-                            ClearFiltersRow(
-                                focusRequester = clearRowFocus,
-                                onClick = onResetAll
+                                    .size(48.dp)
+                                    .focusRequester(firstValueFocus)
+                                    .focusable()
                             )
                         }
-                        else -> {
-                            PanelHeader(section.label, icon = section.icon)
-                            val options = buildSectionOptions(
-                                section,
-                                filter,
-                                sort,
-                                facets,
-                                onFilterChange = onFilterChange,
-                                onSortChange = onSortChange
-                            )
-                            if (options.isEmpty()) {
-                                Box(
-                                    modifier = Modifier.weight(1f).fillMaxWidth(),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    CircularProgressIndicator(
-                                        color = PicnicColors.Accent,
-                                        modifier = Modifier
-                                            .size(48.dp)
-                                            .focusRequester(firstValueFocus)
-                                            .focusable()
+                    } else {
+                        LazyColumn(
+                            state = listState,
+                            modifier = Modifier
+                                .weight(1f)
+                                .verticalFadingEdges(
+                                    topFade = listState.canScrollBackward,
+                                    bottomFade = listState.canScrollForward,
+                                    length = PanelFadeLength
+                                )
+                                .focusGroup(),
+                            contentPadding = PaddingValues(horizontal = PanelContentInset),
+                            verticalArrangement = Arrangement.spacedBy(PanelRowSpacing)
+                        ) {
+                            rows.forEachIndexed { index, row ->
+                                item(key = index) {
+                                    FilterPanelRow(
+                                        row = row,
+                                        focusRequester = row.focusRequester
                                     )
-                                }
-                            } else {
-                                val optionListState = rememberLazyListState()
-                                LazyColumn(
-                                    state = optionListState,
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .verticalFadingEdges(
-                                            topFade = optionListState.canScrollBackward,
-                                            bottomFade = optionListState.canScrollForward,
-                                            length = PanelFadeLength
-                                        )
-                                        .focusGroup(),
-                                    contentPadding = PaddingValues(horizontal = PanelContentInset),
-                                    verticalArrangement = Arrangement.spacedBy(2.dp)
-                                ) {
-                                    options.forEachIndexed { index, option ->
-                                        item {
-                                            FilterRow(
-                                                label = option.label,
-                                                selected = option.selected,
-                                                trailingIcon = option.trailingIcon,
-                                                leadingIcon = option.leadingIcon,
-                                                leadingTint = option.leadingTint,
-                                                focusRequester = if (index == 0) firstValueFocus else null,
-                                                onClick = option.onClick
-                                            )
-                                        }
-                                    }
                                 }
                             }
                         }
+                    }
+                    if (section == null) {
+                        ClearFiltersRow(
+                            focusRequester = clearRowFocus,
+                            onClick = onResetAll
+                        )
                     }
                 }
             }
@@ -449,37 +436,49 @@ private val RatingStarGold = Color(0xFFE0C05C)
 
 private fun <T> Set<T>.toggle(value: T): Set<T> = if (value in this) this - value else this + value
 
+private data class FilterPanelRowModel(
+    val label: String,
+    val leadingIcon: ImageVector?,
+    val leadingTint: Color?,
+    val trailingIcon: ImageVector?,
+    val selected: Boolean,
+    val activeDot: Boolean = false,
+    val chevron: Boolean = false,
+    val activateOnRight: Boolean = false,
+    val focusRequester: FocusRequester? = null,
+    val onClick: () -> Unit
+)
+
 @Composable
-private fun SectionRow(
-    section: GridFilterSection,
-    valueLabel: String,
-    active: Boolean,
-    focusRequester: FocusRequester?,
-    onClick: () -> Unit
+private fun FilterPanelRow(
+    row: FilterPanelRowModel,
+    focusRequester: FocusRequester?
 ) {
     PicnicListRow(
         focusRequester = focusRequester,
         metrics = GridRowMetrics,
-        keys = PanelRowKeys(blockLeft = false, activateOnRight = true),
-        onActivate = onClick
+        keys = PanelRowKeys(blockLeft = false, activateOnRight = row.activateOnRight),
+        onActivate = row.onClick
     ) { focused ->
-        Icon(
-            section.icon,
-            contentDescription = null,
-            tint = if (focused) Color.Black.copy(alpha = 0.72f) else Color.White.copy(alpha = 0.6f),
-            modifier = Modifier.size(16.dp)
-        )
-        Spacer(Modifier.width(10.dp))
+        if (row.leadingIcon != null) {
+            Icon(
+                row.leadingIcon,
+                contentDescription = null,
+                tint = row.leadingTint ?: if (focused) Color.Black.copy(alpha = 0.72f) else Color.White.copy(alpha = 0.6f),
+                modifier = Modifier.size(16.dp)
+            )
+            Spacer(Modifier.width(10.dp))
+        }
         Text(
-            text = valueLabel,
+            text = row.label,
             color = rowPrimaryColor(focused),
             style = MaterialTheme.typography.bodyMedium,
             maxLines = 1,
             modifier = Modifier
                 .weight(1f)
-                .then(if (focused) Modifier.basicMarquee() else Modifier)
+                .basicMarquee(iterations = if (focused) 3 else 0)
         )
-        if (active) {
+        if (row.activeDot) {
             Box(
                 Modifier
                     .padding(end = 8.dp)
@@ -488,12 +487,26 @@ private fun SectionRow(
                     .background(PicnicColors.Accent)
             )
         }
-        Icon(
-            Icons.AutoMirrored.Filled.KeyboardArrowRight,
-            contentDescription = null,
-            tint = if (focused) Color.Black.copy(alpha = 0.72f) else Color.White.copy(alpha = 0.45f),
-            modifier = Modifier.size(16.dp)
-        )
+        when {
+            row.trailingIcon != null -> Icon(
+                row.trailingIcon,
+                contentDescription = null,
+                tint = rowTrailingColor(focused),
+                modifier = Modifier.size(16.dp)
+            )
+            row.selected -> Icon(
+                Icons.Filled.Check,
+                contentDescription = "Selected",
+                tint = rowTrailingColor(focused),
+                modifier = Modifier.size(16.dp)
+            )
+            row.chevron -> Icon(
+                Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint = if (focused) Color.Black.copy(alpha = 0.72f) else Color.White.copy(alpha = 0.45f),
+                modifier = Modifier.size(16.dp)
+            )
+        }
     }
 }
 
@@ -529,58 +542,6 @@ private fun ClearFiltersRow(
                 color = rowPrimaryColor(focused),
                 style = MaterialTheme.typography.bodyMedium,
                 maxLines = 1
-            )
-        }
-    }
-}
-
-@Composable
-private fun FilterRow(
-    label: String,
-    selected: Boolean,
-    onClick: () -> Unit,
-    focusRequester: FocusRequester? = null,
-    trailingIcon: ImageVector? = null,
-    leadingIcon: ImageVector? = null,
-    leadingTint: Color? = null
-) {
-    PicnicListRow(
-        focusRequester = focusRequester,
-        metrics = GridRowMetrics,
-        keys = PanelRowKeys(blockLeft = false),
-        onActivate = onClick
-    ) { focused ->
-        if (leadingIcon != null) {
-            Icon(
-                leadingIcon,
-                contentDescription = null,
-                tint = leadingTint ?: if (focused) Color.Black.copy(alpha = 0.72f) else Color.White.copy(alpha = 0.6f),
-                modifier = Modifier.size(16.dp)
-            )
-            Spacer(Modifier.width(10.dp))
-        }
-        Text(
-            text = label,
-            color = rowPrimaryColor(focused),
-            style = MaterialTheme.typography.bodyMedium,
-            maxLines = 1,
-            modifier = Modifier
-                .weight(1f)
-                .then(if (focused) Modifier.basicMarquee() else Modifier)
-        )
-        if (trailingIcon != null) {
-            Icon(
-                trailingIcon,
-                contentDescription = null,
-                tint = rowTrailingColor(focused),
-                modifier = Modifier.size(16.dp)
-            )
-        } else if (selected) {
-            Icon(
-                Icons.Filled.Check,
-                contentDescription = "Selected",
-                tint = rowTrailingColor(focused),
-                modifier = Modifier.size(16.dp)
             )
         }
     }
