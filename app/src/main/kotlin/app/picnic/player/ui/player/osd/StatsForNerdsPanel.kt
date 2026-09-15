@@ -40,7 +40,6 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 
 private val PanelDimScrim = Color.Transparent
-private val PanelEdgeInset = 28.dp
 private val StatsPanelWidth = 440.dp
 private val ContentInset = 16.dp
 private val RowInnerPadding = 14.dp
@@ -111,7 +110,7 @@ fun StatsForNerdsPanel(
         Column(
             Modifier
                 .width(StatsPanelWidth)
-                .padding(top = PanelEdgeInset, bottom = PanelEdgeInset, start = PanelEdgeInset)
+                .padding(top = SidePanelEdgeInset, bottom = SidePanelEdgeInset, start = SidePanelEdgeInset)
                 .panelGlass()
                 .padding(vertical = 20.dp)
         ) {

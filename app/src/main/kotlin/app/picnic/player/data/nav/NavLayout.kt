@@ -9,7 +9,7 @@ const val NAV_ID_DISCOVER = "discover"
 const val NAV_ID_PLAYLISTS = "playlists"
 
 /**
- * Per-user sidebar layout: customisable destinations split into pinned (page 1)
+ * Per-user sidebar layout: customizable destinations split into pinned (page 1)
  * and unpinned (More / page 2), each in user order.
  */
 @Serializable
@@ -21,7 +21,7 @@ data class NavLayout(
 }
 
 /**
- * Reconciles saved layout with the currently available customisable ids.
+ * Reconciles saved layout with the currently available customizable ids.
  *
  * - Drops ids that no longer exist.
  * - New ids are pinned at the end of the pinned list (so users notice new libraries).

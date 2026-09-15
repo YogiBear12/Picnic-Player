@@ -39,9 +39,9 @@ import app.picnic.player.data.seerr.SeerrMediaType
 import app.picnic.player.data.seerr.formatSeerrSeriesYears
 import app.picnic.player.ui.browse.BrowseHeroSummaryLineHeight
 import app.picnic.player.ui.browse.HeroDetailsRowHeight
-import app.picnic.player.ui.browse.HeroSpecPillHeight
 import app.picnic.player.ui.browse.heroBlockHeight
 import app.picnic.player.ui.browse.runtimeLabel
+import app.picnic.player.ui.common.SpecPillHeight
 import java.util.Locale
 
 private val HeroInfoTopGap = 14.dp
@@ -198,7 +198,7 @@ private fun SeerrHeroInfoLine(
                     .clip(RoundedCornerShape(6.dp))
                     .background(Color.Transparent)
                     .border(1.dp, CertLine, RoundedCornerShape(6.dp))
-                    .height(HeroSpecPillHeight)
+                    .height(SpecPillHeight)
                     .padding(horizontal = 7.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {

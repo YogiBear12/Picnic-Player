@@ -41,7 +41,7 @@ class TrackLabelsTest {
 
     @Test
     fun forcedOutranksHearingImpaired() {
-        assertEquals(listOf("Forced", "ASS"), label("Signs", forced = true, hearingImpaired = true).chips)
+        assertEquals(listOf("FORCED", "ASS"), label("Signs", forced = true, hearingImpaired = true).chips)
     }
 
     @Test

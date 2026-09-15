@@ -8,7 +8,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
-import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
@@ -90,6 +89,7 @@ import app.picnic.player.ui.common.PanelRowMetrics
 import app.picnic.player.ui.common.PanelRowSpacing
 import app.picnic.player.ui.common.PanelWidth
 import app.picnic.player.ui.common.PicnicListRow
+import app.picnic.player.ui.common.marqueeWhenFocused
 import app.picnic.player.ui.common.panelGlass
 import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.common.rowPrimaryColor
@@ -246,43 +246,22 @@ internal fun GridFilterPanel(
                 ) {
                     val section = openSection
                     PanelHeader(section?.label ?: "Sort & filter", icon = section?.icon)
-                    val options = section?.let {
-                        buildSectionOptions(
-                            it,
-                            filter,
-                            sort,
-                            facets,
-                            onFilterChange = onFilterChange,
-                            onSortChange = onSortChange
-                        )
-                    }
                     val listState = if (section == null) topListState else optionListState
-                    val active = activeFilterSections(filter, sort)
-                    val rows = options?.mapIndexed { index, option ->
-                        FilterPanelRowModel(
-                            label = option.label,
-                            leadingIcon = option.leadingIcon,
-                            leadingTint = option.leadingTint,
-                            trailingIcon = option.trailingIcon,
-                            selected = option.selected,
-                            focusRequester = if (index == 0) firstValueFocus else null,
-                            onClick = option.onClick
-                        )
-                    } ?: sections.map { entry ->
-                        FilterPanelRowModel(
-                            label = entry.label,
-                            leadingIcon = entry.icon,
-                            leadingTint = null,
-                            trailingIcon = null,
-                            selected = false,
-                            activeDot = entry in active,
-                            chevron = true,
-                            focusRequester = sectionRowFocus[entry],
-                            onClick = { openSection = entry }
-                        )
-                    }
-                    if (options != null && options.isEmpty()) {
-                        Box(
+                    val content = filterPanelContent(
+                        section = section,
+                        sections = sections,
+                        activeSections = activeFilterSections(filter, sort),
+                        filter = filter,
+                        sort = sort,
+                        facets = facets,
+                        sectionRowFocus = sectionRowFocus,
+                        firstValueFocus = firstValueFocus,
+                        onFilterChange = onFilterChange,
+                        onSortChange = onSortChange,
+                        onOpenSection = { openSection = it }
+                    )
+                    when (content) {
+                        FilterPanelContent.LoadingFacets -> Box(
                             modifier = Modifier.weight(1f).fillMaxWidth(),
                             contentAlignment = Alignment.Center
                         ) {
@@ -294,8 +273,7 @@ internal fun GridFilterPanel(
                                     .focusable()
                             )
                         }
-                    } else {
-                        LazyColumn(
+                        is FilterPanelContent.Rows -> LazyColumn(
                             state = listState,
                             modifier = Modifier
                                 .weight(1f)
@@ -308,7 +286,7 @@ internal fun GridFilterPanel(
                             contentPadding = PaddingValues(horizontal = PanelContentInset),
                             verticalArrangement = Arrangement.spacedBy(PanelRowSpacing)
                         ) {
-                            rows.forEachIndexed { index, row ->
+                            content.rows.forEachIndexed { index, row ->
                                 item(key = index) {
                                     FilterPanelRow(
                                         row = row,
@@ -446,17 +424,89 @@ private val RatingStarGold = Color(0xFFE0C05C)
 
 private fun <T> Set<T>.toggle(value: T): Set<T> = if (value in this) this - value else this + value
 
+private sealed interface FilterPanelContent {
+    data object LoadingFacets : FilterPanelContent
+
+    data class Rows(val rows: List<FilterPanelRowModel>) : FilterPanelContent
+}
+
+private sealed interface RowTrailing {
+    data object None : RowTrailing
+
+    data object Check : RowTrailing
+
+    data class Glyph(val icon: ImageVector) : RowTrailing
+
+    data class Chevron(val active: Boolean) : RowTrailing
+}
+
 private data class FilterPanelRowModel(
     val label: String,
     val leadingIcon: ImageVector?,
     val leadingTint: Color?,
-    val trailingIcon: ImageVector?,
-    val selected: Boolean,
-    val activeDot: Boolean = false,
-    val chevron: Boolean = false,
+    val trailing: RowTrailing,
     val focusRequester: FocusRequester? = null,
     val onClick: () -> Unit
 )
+
+/**
+ * An open section whose facets have not arrived yet yields no options, which reads the same as a
+ * section that genuinely has none, so the empty list is named as [FilterPanelContent.LoadingFacets]
+ * here rather than re-tested at the call site.
+ */
+private fun filterPanelContent(
+    section: GridFilterSection?,
+    sections: List<GridFilterSection>,
+    activeSections: Set<GridFilterSection>,
+    filter: MediaGridFilter,
+    sort: GridSortSpec,
+    facets: GridFilterFacets,
+    sectionRowFocus: Map<GridFilterSection, FocusRequester>,
+    firstValueFocus: FocusRequester,
+    onFilterChange: (MediaGridFilter) -> Unit,
+    onSortChange: (GridSortSpec) -> Unit,
+    onOpenSection: (GridFilterSection) -> Unit
+): FilterPanelContent {
+    if (section == null) {
+        return FilterPanelContent.Rows(
+            sections.map { entry ->
+                FilterPanelRowModel(
+                    label = entry.label,
+                    leadingIcon = entry.icon,
+                    leadingTint = null,
+                    trailing = RowTrailing.Chevron(active = entry in activeSections),
+                    focusRequester = sectionRowFocus[entry],
+                    onClick = { onOpenSection(entry) }
+                )
+            }
+        )
+    }
+    val options = buildSectionOptions(
+        section,
+        filter,
+        sort,
+        facets,
+        onFilterChange = onFilterChange,
+        onSortChange = onSortChange
+    )
+    if (options.isEmpty()) return FilterPanelContent.LoadingFacets
+    return FilterPanelContent.Rows(
+        options.mapIndexed { index, option ->
+            FilterPanelRowModel(
+                label = option.label,
+                leadingIcon = option.leadingIcon,
+                leadingTint = option.leadingTint,
+                trailing = when {
+                    option.trailingIcon != null -> RowTrailing.Glyph(option.trailingIcon)
+                    option.selected -> RowTrailing.Check
+                    else -> RowTrailing.None
+                },
+                focusRequester = if (index == 0) firstValueFocus else null,
+                onClick = option.onClick
+            )
+        }
+    )
+}
 
 @Composable
 private fun FilterPanelRow(
@@ -485,36 +535,39 @@ private fun FilterPanelRow(
             maxLines = 1,
             modifier = Modifier
                 .weight(1f)
-                .basicMarquee(iterations = if (focused) 3 else 0)
+                .marqueeWhenFocused(focused)
         )
-        if (row.activeDot) {
-            Box(
-                Modifier
-                    .padding(end = 8.dp)
-                    .size(6.dp)
-                    .clip(CircleShape)
-                    .background(PicnicColors.Accent)
-            )
-        }
-        when {
-            row.trailingIcon != null -> Icon(
-                row.trailingIcon,
-                contentDescription = null,
-                tint = rowTrailingColor(focused),
-                modifier = Modifier.size(16.dp)
-            )
-            row.selected -> Icon(
+        when (val trailing = row.trailing) {
+            RowTrailing.None -> Unit
+            RowTrailing.Check -> Icon(
                 Icons.Filled.Check,
                 contentDescription = "Selected",
                 tint = rowTrailingColor(focused),
                 modifier = Modifier.size(16.dp)
             )
-            row.chevron -> Icon(
-                Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            is RowTrailing.Glyph -> Icon(
+                trailing.icon,
                 contentDescription = null,
-                tint = if (focused) Color.Black.copy(alpha = 0.72f) else Color.White.copy(alpha = 0.45f),
+                tint = rowTrailingColor(focused),
                 modifier = Modifier.size(16.dp)
             )
+            is RowTrailing.Chevron -> {
+                if (trailing.active) {
+                    Box(
+                        Modifier
+                            .padding(end = 8.dp)
+                            .size(6.dp)
+                            .clip(CircleShape)
+                            .background(if (focused) rowPrimaryColor(true) else PicnicColors.Accent)
+                    )
+                }
+                Icon(
+                    Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    contentDescription = null,
+                    tint = if (focused) Color.Black.copy(alpha = 0.72f) else Color.White.copy(alpha = 0.45f),
+                    modifier = Modifier.size(16.dp)
+                )
+            }
         }
     }
 }

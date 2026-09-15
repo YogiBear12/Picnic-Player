@@ -209,10 +209,10 @@ internal fun BrowseSideNavDrawer(
                             ScrollingRows(Modifier.weight(1f)) {
                                 destinations.forEach { dest ->
                                     key(dest.key) {
-                                        CustomisableDrawerRow(
+                                        CustomizableDrawerRow(
                                             dest = dest,
                                             selected = dest.key == selectedKey,
-                                            customisable = dest.isCustomisable(),
+                                            customizable = dest.isCustomizable(),
                                             reorderKey = reorderKey,
                                             itemFocusRequester = itemFocusRequesters[dest.key],
                                             onSelect = { onSelect(dest) },
@@ -280,10 +280,10 @@ internal fun BrowseSideNavDrawer(
                             ScrollingRows(Modifier.weight(1f)) {
                                 destinations.forEach { dest ->
                                     key(dest.key) {
-                                        CustomisableDrawerRow(
+                                        CustomizableDrawerRow(
                                             dest = dest,
                                             selected = dest.key == selectedKey,
-                                            customisable = true,
+                                            customizable = true,
                                             reorderKey = reorderKey,
                                             itemFocusRequester = itemFocusRequesters[dest.key],
                                             onSelect = { onSelect(dest) },
@@ -330,10 +330,10 @@ private fun ScrollingRows(
 }
 
 @Composable
-private fun androidx.tv.material3.NavigationDrawerScope.CustomisableDrawerRow(
+private fun androidx.tv.material3.NavigationDrawerScope.CustomizableDrawerRow(
     dest: BrowseDest,
     selected: Boolean,
-    customisable: Boolean,
+    customizable: Boolean,
     reorderKey: String?,
     itemFocusRequester: FocusRequester?,
     onSelect: () -> Unit,
@@ -354,7 +354,7 @@ private fun androidx.tv.material3.NavigationDrawerScope.CustomisableDrawerRow(
             },
             onLongClick = when {
                 inReorder -> null
-                customisable -> onOpenActions
+                customizable -> onOpenActions
                 else -> null
             },
             label = navLabelFor(dest),

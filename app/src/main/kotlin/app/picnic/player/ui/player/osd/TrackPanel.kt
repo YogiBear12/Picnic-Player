@@ -3,7 +3,6 @@
 package app.picnic.player.ui.player.osd
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -37,10 +36,12 @@ import app.picnic.player.ui.common.PanelFadeLength
 import app.picnic.player.ui.common.PanelFloatingHeight
 import app.picnic.player.ui.common.PanelHeader
 import app.picnic.player.ui.common.PanelRowKeys
+import app.picnic.player.ui.common.PanelRowSpacing
 import app.picnic.player.ui.common.PanelWidth
 import app.picnic.player.ui.common.PicnicListRow
 import app.picnic.player.ui.common.RowCheck
 import app.picnic.player.ui.common.TrackChip
+import app.picnic.player.ui.common.marqueeWhenFocused
 import app.picnic.player.ui.common.panelGlass
 import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.common.rowPrimaryColor
@@ -96,7 +97,7 @@ fun TrackPanel(
                     )
                     .focusGroup(),
                 contentPadding = PaddingValues(horizontal = PanelContentInset),
-                verticalArrangement = Arrangement.spacedBy(2.dp)
+                verticalArrangement = Arrangement.spacedBy(PanelRowSpacing)
             ) {
                 if (allowOff) {
                     item {
@@ -162,7 +163,7 @@ private fun TrackRow(
                 color = rowPrimaryColor(focused),
                 style = MaterialTheme.typography.bodyMedium,
                 maxLines = 1,
-                modifier = Modifier.basicMarquee(iterations = if (focused) 3 else 0)
+                modifier = Modifier.marqueeWhenFocused(focused)
             )
             if (secondary != null) {
                 Text(
@@ -170,7 +171,7 @@ private fun TrackRow(
                     color = if (focused) Color.Black.copy(alpha = 0.62f) else Color.White.copy(alpha = 0.58f),
                     style = MaterialTheme.typography.bodySmall,
                     maxLines = 1,
-                    modifier = Modifier.basicMarquee(iterations = if (focused) 3 else 0)
+                    modifier = Modifier.marqueeWhenFocused(focused)
                 )
             }
         }

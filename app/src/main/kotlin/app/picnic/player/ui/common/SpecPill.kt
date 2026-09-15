@@ -22,16 +22,16 @@ import androidx.tv.material3.Text
 import java.util.Locale
 
 internal val SpecPillHeight = 20.dp
-internal val SpecPillBg = Color.White.copy(alpha = 0.09f)
-internal val SpecPillLine = Color.White.copy(alpha = 0.16f)
+private val SpecPillBg = Color.White.copy(alpha = 0.09f)
+private val SpecPillLine = Color.White.copy(alpha = 0.16f)
 internal val SpecPillInk = Color.White.copy(alpha = 0.88f)
 
-internal val TrackChipBg = Color.White.copy(alpha = 0.07f)
-internal val TrackChipLine = Color.White.copy(alpha = 0.12f)
-internal val TrackChipInk = Color.White.copy(alpha = 0.62f)
-internal val TrackChipFocusedBg = Color.Black.copy(alpha = 0.06f)
-internal val TrackChipFocusedLine = Color.Black.copy(alpha = 0.16f)
-internal val TrackChipFocusedInk = Color.Black.copy(alpha = 0.55f)
+private val TrackChipBg = Color.White.copy(alpha = 0.07f)
+private val TrackChipLine = Color.White.copy(alpha = 0.12f)
+private val TrackChipInk = Color.White.copy(alpha = 0.62f)
+private val TrackChipFocusedBg = Color.Black.copy(alpha = 0.06f)
+private val TrackChipFocusedLine = Color.Black.copy(alpha = 0.16f)
+private val TrackChipFocusedInk = Color.Black.copy(alpha = 0.55f)
 
 @Composable
 internal fun SpecPill(

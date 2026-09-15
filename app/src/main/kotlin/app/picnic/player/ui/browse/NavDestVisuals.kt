@@ -85,7 +85,7 @@ internal fun navLabelFor(dest: BrowseDest): String = when (dest) {
     is BrowseDest.Library -> dest.title
 }
 
-internal fun BrowseDest.isCustomisable(): Boolean = this is BrowseDest.Library || this == BrowseDest.Discover || this == BrowseDest.Playlists
+internal fun BrowseDest.isCustomizable(): Boolean = this is BrowseDest.Library || this == BrowseDest.Discover || this == BrowseDest.Playlists
 
 /** Filled first, outlined second. */
 internal fun iconsFor(dest: BrowseDest): Pair<ImageVector, ImageVector> = when (dest) {

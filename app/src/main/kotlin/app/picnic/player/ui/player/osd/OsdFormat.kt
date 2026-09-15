@@ -77,9 +77,11 @@ internal fun serverTranscode(
     )
 }
 
+private val CamelCaseBoundary = Regex("(?<=[a-z0-9])(?=[A-Z])")
+
 internal fun humanizeReason(raw: String): String {
     if (raw.contains(' ')) return raw
-    return raw.replace(Regex("(?<=[a-z0-9])(?=[A-Z])"), " ").lowercase().replaceFirstChar { it.uppercase() }
+    return raw.replace(CamelCaseBoundary, " ").lowercase().replaceFirstChar { it.uppercase() }
 }
 
 internal fun qualitySummary(playMethod: PlayMethodKind?, rung: QualityRung?, serverTranscode: ServerTranscode?): String {

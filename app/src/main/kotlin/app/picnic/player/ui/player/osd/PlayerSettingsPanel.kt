@@ -51,6 +51,7 @@ import app.picnic.player.ui.common.PanelFadeLength
 import app.picnic.player.ui.common.PanelFloatingHeight
 import app.picnic.player.ui.common.PanelHeader
 import app.picnic.player.ui.common.PanelRowKeys
+import app.picnic.player.ui.common.PanelRowSpacing
 import app.picnic.player.ui.common.PanelWidth
 import app.picnic.player.ui.common.PicnicListRow
 import app.picnic.player.ui.common.RowCheck
@@ -262,7 +263,7 @@ fun PlayerSettingsPanel(
                     .verticalScroll(rowScroll)
                     .padding(horizontal = PanelContentInset)
                     .focusGroup(),
-                verticalArrangement = Arrangement.spacedBy(2.dp)
+                verticalArrangement = Arrangement.spacedBy(PanelRowSpacing)
             ) {
                 rows.forEachIndexed { i, row ->
                     PanelRowItem(

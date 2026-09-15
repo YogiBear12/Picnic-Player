@@ -28,8 +28,9 @@ import app.picnic.player.R
 import app.picnic.player.ui.common.SpecPill
 import app.picnic.player.ui.common.SpecPillHeight
 import app.picnic.player.ui.common.SpecPillInk
+import app.picnic.player.util.AudioFormat
 import app.picnic.player.util.LanguageDisplay
-import app.picnic.player.util.audioSpatialLabel
+import app.picnic.player.util.spatialLabel
 import java.util.Locale
 import kotlin.math.roundToInt
 import org.jellyfin.sdk.model.api.BaseItemDto
@@ -41,15 +42,13 @@ import org.jellyfin.sdk.model.api.VideoRangeType
 // ── Rail geometry ────────────────────────────────────────────────────────────
 // Fixed (not screen-scaled) so DetailScreen can reserve the exact same height it
 // renders — the rail grows the hero region *downward*, keeping the logo pinned.
-internal val HeroSpecPillHeight = SpecPillHeight
-
 /**
  * Fixed height for the details row. Its content varies by type (movies carry a cert pill +
  * rating chips ~20dp tall, episodes just the date text ~16dp), and the row centres its
  * children vertically — so without a constant height the centred text baseline drifts and
  * episodes read slightly higher than movies. Pin it to the tallest element (the pill).
  */
-internal val HeroDetailsRowHeight = HeroSpecPillHeight
+internal val HeroDetailsRowHeight = SpecPillHeight
 
 // ── Palette ──────────────────────────────────────────────────────────────────
 private val CertLine = Color.White.copy(alpha = 0.30f)
@@ -135,11 +134,11 @@ private fun dynamicRange(video: List<MediaStream>): String? {
 
 private fun hasAtmos(audio: List<MediaStream>): Boolean {
     val primary = audio.firstOrNull { it.isDefault } ?: audio.firstOrNull() ?: return false
-    return audioSpatialLabel(
-        primary.audioSpatialFormat?.serialName,
-        primary.profile,
-        primary.displayTitle
-    ) == "Atmos"
+    return AudioFormat(
+        spatialFormat = primary.audioSpatialFormat?.serialName,
+        profile = primary.profile,
+        displayTitle = primary.displayTitle
+    ).spatialLabel() == "Atmos"
 }
 
 /** Language only — channel layout was pushing the pill onto a second line. */
@@ -249,7 +248,7 @@ internal fun HeroInfoLine(
 internal fun HeroBadgeRail(specs: HeroSpecs, modifier: Modifier = Modifier) {
     Row(
         modifier = modifier
-            .height(HeroSpecPillHeight)
+            .height(SpecPillHeight)
             .clipToBounds(),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp)

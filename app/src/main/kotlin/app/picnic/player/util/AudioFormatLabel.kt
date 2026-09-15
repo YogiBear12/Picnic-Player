@@ -2,7 +2,17 @@ package app.picnic.player.util
 
 import java.util.Locale
 
-private val CodecNames = mapOf(
+/** The stream fields every audio label reads. They always arrive together, off one `MediaStream`. */
+data class AudioFormat(
+    val codec: String? = null,
+    val channels: Int? = null,
+    val channelLayout: String? = null,
+    val spatialFormat: String? = null,
+    val profile: String? = null,
+    val displayTitle: String? = null
+)
+
+private val AudioCodecNames = mapOf(
     "ac3" to "DD",
     "ac-3" to "DD",
     "eac3" to "DD+",
@@ -22,11 +32,13 @@ private val CodecNames = mapOf(
     "pcm_s24le" to "PCM"
 )
 
-fun audioCodecLabel(codec: String?): String? {
+private val ChannelLayout = Regex("^\\d\\.\\d$")
+
+fun AudioFormat.codecLabel(): String? {
     val key = codec?.trim()?.lowercase(Locale.ROOT)?.takeIf { it.isNotEmpty() } ?: return null
-    CodecNames[key]?.let { return it }
-    val prefix = CodecNames.keys.firstOrNull { key.startsWith(it) }
-    return prefix?.let { CodecNames[it] } ?: key.uppercase(Locale.ROOT)
+    AudioCodecNames[key]?.let { return it }
+    val prefix = AudioCodecNames.keys.firstOrNull { key.startsWith(it) }
+    return prefix?.let { AudioCodecNames[it] } ?: key.uppercase(Locale.ROOT)
 }
 
 /**
@@ -34,7 +46,7 @@ fun audioCodecLabel(codec: String?): String? {
  * down to. The server reports the format inconsistently — a spatial field on newer versions, the
  * codec profile or the composed title on older ones.
  */
-fun audioSpatialLabel(spatialFormat: String?, profile: String?, displayTitle: String?): String? {
+fun AudioFormat.spatialLabel(): String? {
     val haystack = listOfNotNull(spatialFormat, profile, displayTitle).joinToString(" ")
     return when {
         haystack.contains("atmos", ignoreCase = true) -> "Atmos"
@@ -44,8 +56,8 @@ fun audioSpatialLabel(spatialFormat: String?, profile: String?, displayTitle: St
     }
 }
 
-fun audioChannelLabel(channels: Int?, channelLayout: String?): String? {
-    channelLayout?.trim()?.takeIf { Regex("^\\d\\.\\d$").matches(it) }?.let { return it }
+fun AudioFormat.channelLabel(): String? {
+    channelLayout?.trim()?.takeIf { ChannelLayout.matches(it) }?.let { return it }
     return when (channels) {
         null, 0 -> null
         1 -> "Mono"
@@ -59,17 +71,6 @@ fun audioChannelLabel(channels: Int?, channelLayout: String?): String? {
 }
 
 /** One chip: the codec, then whichever of spatial format or channel count says more. */
-fun audioFormatLabel(
-    codec: String?,
-    channels: Int?,
-    channelLayout: String?,
-    spatialFormat: String?,
-    profile: String?,
-    displayTitle: String?
-): String? {
-    val parts = listOfNotNull(
-        audioCodecLabel(codec),
-        audioSpatialLabel(spatialFormat, profile, displayTitle) ?: audioChannelLabel(channels, channelLayout)
-    )
-    return parts.joinToString(" ").takeIf { it.isNotEmpty() }
-}
+fun AudioFormat.label(): String? = listOfNotNull(codecLabel(), spatialLabel() ?: channelLabel())
+    .joinToString(" ")
+    .takeIf { it.isNotEmpty() }

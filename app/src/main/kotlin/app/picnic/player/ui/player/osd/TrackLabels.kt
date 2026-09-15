@@ -1,9 +1,10 @@
 package app.picnic.player.ui.player.osd
 
-import app.picnic.player.util.audioChannelLabel
-import app.picnic.player.util.audioCodecLabel
-import app.picnic.player.util.audioFormatLabel
-import app.picnic.player.util.audioSpatialLabel
+import app.picnic.player.util.AudioFormat
+import app.picnic.player.util.channelLabel
+import app.picnic.player.util.codecLabel
+import app.picnic.player.util.label
+import app.picnic.player.util.spatialLabel
 import java.util.Locale
 
 data class TrackLabel(val secondary: String?, val chips: List<String>)
@@ -19,7 +20,7 @@ private val FlagWords = listOf(
     "cc"
 )
 
-private val CodecNames = mapOf(
+private val SubtitleCodecNames = mapOf(
     "pgssub" to "PGS",
     "pgs" to "PGS",
     "subrip" to "SRT",
@@ -34,6 +35,12 @@ private val CodecNames = mapOf(
     "mov_text" to "TX3G",
     "dvbsub" to "DVB"
 )
+
+private fun wordPattern(token: String) = Regex("(?i)\\b${Regex.escape(token)}\\b")
+
+private val FlagWordPatterns = FlagWords.map { wordPattern(it) }
+private val EmptyBrackets = Regex("\\(\\s*\\)|\\[\\s*]")
+private val RunsOfSpace = Regex("\\s{2,}")
 
 /**
  * The server composes its own subtitle description, so a stream's own title often repeats the
@@ -51,7 +58,7 @@ fun subtitleTrackLabel(
 ): TrackLabel {
     val chips = buildList {
         when {
-            isForced -> add("Forced")
+            isForced -> add("FORCED")
             isHearingImpaired -> add("SDH")
             isExternal -> add("EXT")
         }
@@ -64,30 +71,24 @@ fun audioTrackLabel(
     title: String?,
     languageName: String,
     languageTag: String?,
-    codec: String?,
-    channels: Int?,
-    channelLayout: String?,
-    spatialFormat: String?,
-    profile: String?,
-    displayTitle: String?
+    format: AudioFormat
 ): TrackLabel {
-    val format = audioFormatLabel(codec, channels, channelLayout, spatialFormat, profile, displayTitle)
     val drop = listOfNotNull(
-        audioCodecLabel(codec),
-        audioChannelLabel(channels, channelLayout),
-        audioSpatialLabel(spatialFormat, profile, displayTitle),
+        format.codecLabel(),
+        format.channelLabel(),
+        format.spatialLabel(),
         "surround",
         "channels"
     )
     return TrackLabel(
-        stripKnownTokens(title, languageName, languageTag, codec, drop),
-        listOfNotNull(format)
+        stripKnownTokens(title, languageName, languageTag, format.codec, drop),
+        listOfNotNull(format.label())
     )
 }
 
 internal fun codecChip(codec: String?): String? {
     val key = codec?.trim()?.lowercase(Locale.ROOT)?.takeIf { it.isNotEmpty() } ?: return null
-    return CodecNames[key] ?: key.uppercase(Locale.ROOT)
+    return SubtitleCodecNames[key] ?: key.uppercase(Locale.ROOT)
 }
 
 private fun stripKnownTokens(
@@ -104,8 +105,7 @@ private fun stripKnownTokens(
         codec?.let { add(it) }
         codecChip(codec)?.let { add(it) }
         addAll(extraTokens)
-        addAll(FlagWords)
-    }.filter { it.isNotBlank() }
+    }.filter { it.isNotBlank() }.map { wordPattern(it) } + FlagWordPatterns
 
     val kept = raw.split(" - ", " · ")
         .map { part -> cleanPart(part, drop) }
@@ -113,15 +113,15 @@ private fun stripKnownTokens(
     return kept.joinToString(" · ").takeIf { it.isNotEmpty() }
 }
 
-private fun cleanPart(part: String, drop: List<String>): String {
+private fun cleanPart(part: String, drop: List<Regex>): String {
     var text = part.trim()
-    for (token in drop) {
-        text = text.replace(Regex("(?i)\\b${Regex.escape(token)}\\b"), " ")
+    for (pattern in drop) {
+        text = text.replace(pattern, " ")
     }
     return unwrap(
         text
-            .replace(Regex("\\(\\s*\\)|\\[\\s*]"), " ")
-            .replace(Regex("\\s{2,}"), " ")
+            .replace(EmptyBrackets, " ")
+            .replace(RunsOfSpace, " ")
             .trim()
             .trim('-', '·', ',', '/', '|')
             .trim()

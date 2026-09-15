@@ -29,6 +29,7 @@ import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import app.picnic.player.ui.common.LocalImageUrls
 import app.picnic.player.ui.common.LogoOrFallback
+import app.picnic.player.ui.common.SpecPillHeight
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
 
@@ -44,7 +45,7 @@ private val HeroGenresTopGap = 10.dp
 private val HeroGenresLineHeight = 16.dp
 private val HeroSummaryFocusInset = 8.dp
 
-internal val HeroBadgeRailReserve = HeroRailTopGap + HeroSpecPillHeight
+internal val HeroBadgeRailReserve = HeroRailTopGap + SpecPillHeight
 
 private fun Modifier.outsetHorizontally(inset: Dp) = layout { measurable, constraints ->
     val extra = inset.roundToPx() * 2

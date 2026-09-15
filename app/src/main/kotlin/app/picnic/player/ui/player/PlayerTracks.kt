@@ -22,6 +22,7 @@ import app.picnic.player.playback.SideloadedTrackId
 import app.picnic.player.playback.externalSubtitleCount
 import app.picnic.player.ui.player.osd.audioTrackLabel
 import app.picnic.player.ui.player.osd.subtitleTrackLabel
+import app.picnic.player.util.AudioFormat
 import app.picnic.player.util.LanguageDisplay
 import java.util.Locale
 import kotlinx.coroutines.CoroutineScope
@@ -288,12 +289,14 @@ class PlayerTracks(
                 title = title,
                 languageName = languageLine,
                 languageTag = language,
-                codec = codec,
-                channels = channels,
-                channelLayout = channelLayout,
-                spatialFormat = audioSpatialFormat?.serialName,
-                profile = profile,
-                displayTitle = displayTitle
+                format = AudioFormat(
+                    codec = codec,
+                    channels = channels,
+                    channelLayout = channelLayout,
+                    spatialFormat = audioSpatialFormat?.serialName,
+                    profile = profile,
+                    displayTitle = displayTitle
+                )
             )
         }
         return TrackOption(

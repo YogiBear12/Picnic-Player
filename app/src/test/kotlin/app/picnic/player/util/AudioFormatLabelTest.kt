@@ -7,55 +7,61 @@ class AudioFormatLabelTest {
 
     @Test
     fun namesDolbyCodecsTheWayAViewerWould() {
-        assertEquals("DD", audioCodecLabel("ac3"))
-        assertEquals("DD+", audioCodecLabel("eac3"))
-        assertEquals("TrueHD", audioCodecLabel("truehd"))
-        assertEquals("DTS-HD", audioCodecLabel("dtshd_ma"))
-        assertEquals("AAC", audioCodecLabel("aac"))
+        assertEquals("DD", AudioFormat(codec = "ac3").codecLabel())
+        assertEquals("DD+", AudioFormat(codec = "eac3").codecLabel())
+        assertEquals("TrueHD", AudioFormat(codec = "truehd").codecLabel())
+        assertEquals("DTS-HD", AudioFormat(codec = "dtshd_ma").codecLabel())
+        assertEquals("AAC", AudioFormat(codec = "aac").codecLabel())
     }
 
     @Test
     fun passesAnUnknownCodecThroughUppercased() {
-        assertEquals("VORBIS", audioCodecLabel("vorbis"))
-        assertEquals(null, audioCodecLabel(" "))
+        assertEquals("VORBIS", AudioFormat(codec = "vorbis").codecLabel())
+        assertEquals(null, AudioFormat(codec = " ").codecLabel())
     }
 
     @Test
     fun readsSpatialFormatFromWhicheverFieldCarriesIt() {
-        assertEquals("Atmos", audioSpatialLabel("DolbyAtmos", null, null))
-        assertEquals("Atmos", audioSpatialLabel(null, "Dolby Atmos", null))
-        assertEquals("Atmos", audioSpatialLabel(null, null, "English - TrueHD Atmos 7.1"))
-        assertEquals("DTS:X", audioSpatialLabel(null, "DTS:X", null))
-        assertEquals(null, audioSpatialLabel("None", "DTS-HD MA", null))
+        assertEquals("Atmos", AudioFormat(spatialFormat = "DolbyAtmos").spatialLabel())
+        assertEquals("Atmos", AudioFormat(profile = "Dolby Atmos").spatialLabel())
+        assertEquals("Atmos", AudioFormat(displayTitle = "English - TrueHD Atmos 7.1").spatialLabel())
+        assertEquals("DTS:X", AudioFormat(profile = "DTS:X").spatialLabel())
+        assertEquals(null, AudioFormat(spatialFormat = "None", profile = "DTS-HD MA").spatialLabel())
     }
 
     @Test
     fun namesChannelsNumericallyAboveStereo() {
-        assertEquals("Mono", audioChannelLabel(1, null))
-        assertEquals("Stereo", audioChannelLabel(2, null))
-        assertEquals("5.1", audioChannelLabel(6, null))
-        assertEquals("7.1", audioChannelLabel(8, null))
-        assertEquals("5.1", audioChannelLabel(null, "5.1"))
-        assertEquals("4ch", audioChannelLabel(4, "quad"))
+        assertEquals("Mono", AudioFormat(channels = 1).channelLabel())
+        assertEquals("Stereo", AudioFormat(channels = 2).channelLabel())
+        assertEquals("5.1", AudioFormat(channels = 6).channelLabel())
+        assertEquals("7.1", AudioFormat(channels = 8).channelLabel())
+        assertEquals("5.1", AudioFormat(channelLayout = "5.1").channelLabel())
+        assertEquals("4ch", AudioFormat(channels = 4, channelLayout = "quad").channelLabel())
     }
 
     @Test
     fun spatialFormatReplacesTheChannelCount() {
-        assertEquals("TrueHD Atmos", audioFormatLabel("truehd", 8, "7.1", "DolbyAtmos", null, null))
-        assertEquals("DD+ Atmos", audioFormatLabel("eac3", 6, "5.1", null, "Dolby Digital+ Atmos", null))
+        assertEquals(
+            "TrueHD Atmos",
+            AudioFormat("truehd", 8, "7.1", spatialFormat = "DolbyAtmos").label()
+        )
+        assertEquals(
+            "DD+ Atmos",
+            AudioFormat("eac3", 6, "5.1", profile = "Dolby Digital+ Atmos").label()
+        )
     }
 
     @Test
     fun keepsTheChannelCountWithoutASpatialFormat() {
-        assertEquals("DD 5.1", audioFormatLabel("ac3", 6, "5.1", null, null, null))
-        assertEquals("AAC Stereo", audioFormatLabel("aac", 2, "stereo", null, null, null))
-        assertEquals("FLAC 7.1", audioFormatLabel("flac", 8, null, null, null, null))
+        assertEquals("DD 5.1", AudioFormat("ac3", 6, "5.1").label())
+        assertEquals("AAC Stereo", AudioFormat("aac", 2, "stereo").label())
+        assertEquals("FLAC 7.1", AudioFormat("flac", 8).label())
     }
 
     @Test
     fun namesWhicheverHalfIsKnown() {
-        assertEquals("DTS", audioFormatLabel("dts", null, null, null, null, null))
-        assertEquals("Stereo", audioFormatLabel(null, 2, null, null, null, null))
-        assertEquals(null, audioFormatLabel(null, null, null, null, null, null))
+        assertEquals("DTS", AudioFormat(codec = "dts").label())
+        assertEquals("Stereo", AudioFormat(channels = 2).label())
+        assertEquals(null, AudioFormat().label())
     }
 }
