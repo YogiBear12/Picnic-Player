@@ -49,6 +49,11 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -78,9 +83,13 @@ private val NavPanelWidth = 236.dp
 private val NavPanelHeight = 428.dp
 private val NavPanelCorner = 26.dp
 private val NavPanelPadding = 10.dp
-private val NavRowMetrics = PanelRowMetrics(innerPadding = 10.dp, verticalPadding = 7.dp, cornerRadius = 14.dp)
-private val NavGlassTop = Color(0xE62B3744)
-private val NavGlassBottom = Color(0xF20A0F15)
+private val NavRowMetrics = PanelRowMetrics(
+    innerPadding = 10.dp,
+    verticalPadding = 7.dp,
+    cornerRadius = NavPanelCorner - NavPanelPadding
+)
+private val NavGlassTop = Color(0xF22A2E33)
+private val NavGlassBottom = Color(0xF2101214)
 private val NavHairlineTop = Color(0x3DFFFFFF)
 private val NavHairlineBottom = Color(0x0FFFFFFF)
 private val NavDividerColor = Color(0x1FFFFFFF)
@@ -235,10 +244,17 @@ internal fun BrowseFloatingNav(
                     brush = Brush.verticalGradient(listOf(NavHairlineTop, NavHairlineBottom)),
                     shape = panelShape
                 )
-                .padding(vertical = NavPanelPadding, horizontal = 8.dp)
+                .padding(NavPanelPadding)
                 .onFocusChanged {
                     panelFocused = it.hasFocus
                     onChromeFocusedChange(it.hasFocus)
+                }
+                .onKeyEvent { event ->
+                    val closing = event.key == Key.DirectionLeft &&
+                        event.type == KeyEventType.KeyDown &&
+                        reorderKey == null
+                    if (closing) runCatching { contentFocusOnRight().requestFocus() }
+                    closing
                 }
                 .focusProperties {
                     onEnter = {
