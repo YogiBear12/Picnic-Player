@@ -40,13 +40,7 @@ import app.picnic.player.ui.common.PanelRowKeys
 import app.picnic.player.ui.common.PanelWidth
 import app.picnic.player.ui.common.PicnicListRow
 import app.picnic.player.ui.common.RowCheck
-import app.picnic.player.ui.common.SpecPill
-import app.picnic.player.ui.common.SpecPillBg
-import app.picnic.player.ui.common.SpecPillFocusedBg
-import app.picnic.player.ui.common.SpecPillFocusedInk
-import app.picnic.player.ui.common.SpecPillFocusedLine
-import app.picnic.player.ui.common.SpecPillInk
-import app.picnic.player.ui.common.SpecPillLine
+import app.picnic.player.ui.common.TrackChip
 import app.picnic.player.ui.common.panelGlass
 import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.common.rowPrimaryColor
@@ -181,13 +175,7 @@ private fun TrackRow(
             }
         }
         chips.forEach { chip ->
-            SpecPill(
-                text = chip,
-                modifier = Modifier.padding(start = 6.dp),
-                containerColor = if (focused) SpecPillFocusedBg else SpecPillBg,
-                borderColor = if (focused) SpecPillFocusedLine else SpecPillLine,
-                contentColor = if (focused) SpecPillFocusedInk else SpecPillInk
-            )
+            TrackChip(text = chip, focused = focused, modifier = Modifier.padding(start = 6.dp))
         }
         Spacer(Modifier.width(6.dp))
         RowCheck(focused, visible = selected)
