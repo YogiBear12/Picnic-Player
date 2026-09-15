@@ -66,6 +66,7 @@ import app.picnic.player.ui.common.PanelEdgeInset
 import app.picnic.player.ui.common.PanelFadeLength
 import app.picnic.player.ui.common.PanelFloatingHeight
 import app.picnic.player.ui.common.PanelRowMetrics
+import app.picnic.player.ui.common.PanelRowSpacing
 import app.picnic.player.ui.common.PanelWidth
 import app.picnic.player.ui.common.PicnicListRow
 import app.picnic.player.ui.common.panelGlass
@@ -77,7 +78,6 @@ import app.picnic.player.ui.theme.PicnicColors
 private val DockIconSize = 22.dp
 private val DockAvatarSize = 28.dp
 private val DockSlotSpacing = 18.dp
-private val PanelRowSpacing = 1.dp
 private val PanelIconSize = 18.dp
 private val PanelAvatarSize = 18.dp
 private val NavRowMetrics = PanelRowMetrics(innerPadding = 10.dp, verticalPadding = 7.dp)

@@ -48,6 +48,7 @@ import app.picnic.player.ui.theme.PicnicColors
 internal val PanelContentInset = 10.dp
 internal val PanelRowInnerPadding = 14.dp
 internal val PanelRowCornerRadius = PanelCornerRadius - PanelContentInset
+internal val PanelRowSpacing = 1.dp
 
 @Immutable
 internal data class PanelRowMetrics(
