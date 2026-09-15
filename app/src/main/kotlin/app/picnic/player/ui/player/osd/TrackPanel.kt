@@ -162,7 +162,7 @@ private fun TrackRow(
                 color = rowPrimaryColor(focused),
                 style = MaterialTheme.typography.bodyMedium,
                 maxLines = 1,
-                modifier = if (focused) Modifier.basicMarquee() else Modifier
+                modifier = Modifier.basicMarquee(iterations = if (focused) 3 else 0)
             )
             if (secondary != null) {
                 Text(
@@ -170,7 +170,7 @@ private fun TrackRow(
                     color = if (focused) Color.Black.copy(alpha = 0.62f) else Color.White.copy(alpha = 0.58f),
                     style = MaterialTheme.typography.bodySmall,
                     maxLines = 1,
-                    modifier = if (focused) Modifier.basicMarquee() else Modifier
+                    modifier = Modifier.basicMarquee(iterations = if (focused) 3 else 0)
                 )
             }
         }
