@@ -60,6 +60,11 @@ import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
@@ -230,6 +235,12 @@ internal fun GridFilterPanel(
                         .height(PanelFloatingHeight)
                         .panelGlass()
                         .padding(vertical = 16.dp)
+                        .onKeyEvent { event ->
+                            val closing = event.type == KeyEventType.KeyDown &&
+                                (event.key == Key.DirectionLeft || event.key == Key.DirectionRight)
+                            if (closing) dismiss()
+                            closing
+                        }
                         .focusProperties { exit = { FocusRequester.Cancel } }
                         .focusGroup()
                 ) {
@@ -266,7 +277,6 @@ internal fun GridFilterPanel(
                             selected = false,
                             activeDot = entry in active,
                             chevron = true,
-                            activateOnRight = true,
                             focusRequester = sectionRowFocus[entry],
                             onClick = { openSection = entry }
                         )
@@ -444,7 +454,6 @@ private data class FilterPanelRowModel(
     val selected: Boolean,
     val activeDot: Boolean = false,
     val chevron: Boolean = false,
-    val activateOnRight: Boolean = false,
     val focusRequester: FocusRequester? = null,
     val onClick: () -> Unit
 )
@@ -457,7 +466,7 @@ private fun FilterPanelRow(
     PicnicListRow(
         focusRequester = focusRequester,
         metrics = GridRowMetrics,
-        keys = PanelRowKeys(blockLeft = false, activateOnRight = row.activateOnRight),
+        keys = PanelRowKeys(blockLeft = false),
         onActivate = row.onClick
     ) { focused ->
         if (row.leadingIcon != null) {
