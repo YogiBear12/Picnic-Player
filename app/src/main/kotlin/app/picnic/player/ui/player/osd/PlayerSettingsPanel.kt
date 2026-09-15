@@ -312,7 +312,7 @@ private fun mainRows(
     add(
         PanelRow.Nav(
             RowKey.AUDIO,
-            "Audio",
+            "Audio effects",
             if (audioBoost == AudioBoost.OFF && nightMode == NightMode.OFF) "Off" else "On"
         ) { onNavigate(Page.AUDIO) }
     )

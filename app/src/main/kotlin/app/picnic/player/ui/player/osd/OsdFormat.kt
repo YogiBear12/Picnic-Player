@@ -77,13 +77,18 @@ internal fun serverTranscode(
     )
 }
 
+internal fun humanizeReason(raw: String): String {
+    if (raw.contains(' ')) return raw
+    return raw.replace(Regex("(?<=[a-z0-9])(?=[A-Z])"), " ").lowercase().replaceFirstChar { it.uppercase() }
+}
+
 internal fun qualitySummary(playMethod: PlayMethodKind?, rung: QualityRung?, serverTranscode: ServerTranscode?): String {
     val details = serverTranscode?.details.orEmpty()
     return when {
         playMethod != PlayMethodKind.TRANSCODE -> "Original"
-        rung != null -> "Transcoding · ${rung.label}"
+        rung != null -> rung.label
         details.isEmpty() -> "Transcoding…"
-        else -> "Transcoding · ${details.joinToString(" · ")}"
+        else -> details.joinToString(" · ")
     }
 }
 

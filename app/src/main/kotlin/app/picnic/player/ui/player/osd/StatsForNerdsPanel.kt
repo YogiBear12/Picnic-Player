@@ -136,7 +136,7 @@ fun StatsForNerdsPanel(
 
                     val reasons = state.directPlayBlockedBy.ifEmpty {
                         state.transcodingInfo?.transcodeReasons.orEmpty().map { it.toString() }
-                    }
+                    }.map { humanizeReason(it) }
                     if (reasons.isNotEmpty()) {
                         val reasonLabel = if (
                             state.playMethod == app.picnic.player.data.playback.PlayMethodKind.DIRECT_STREAM
