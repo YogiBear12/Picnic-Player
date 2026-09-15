@@ -20,7 +20,7 @@ import app.picnic.player.playback.JellyfinTrackSelection
 import app.picnic.player.playback.PlaybackDiagnostics
 import app.picnic.player.playback.SideloadedTrackId
 import app.picnic.player.playback.externalSubtitleCount
-import app.picnic.player.ui.player.osd.TrackLabel
+import app.picnic.player.ui.player.osd.audioTrackLabel
 import app.picnic.player.ui.player.osd.subtitleTrackLabel
 import app.picnic.player.util.LanguageDisplay
 import java.util.Locale
@@ -284,7 +284,17 @@ class PlayerTracks(
                 codec = codec
             )
         } else {
-            TrackLabel(displayTitle?.trim()?.takeIf { it.isNotEmpty() }, emptyList())
+            audioTrackLabel(
+                title = title,
+                languageName = languageLine,
+                languageTag = language,
+                codec = codec,
+                channels = channels,
+                channelLayout = channelLayout,
+                spatialFormat = audioSpatialFormat?.serialName,
+                profile = profile,
+                displayTitle = displayTitle
+            )
         }
         return TrackOption(
             id = index.toString(),

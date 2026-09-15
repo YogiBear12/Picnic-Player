@@ -1,5 +1,9 @@
 package app.picnic.player.ui.player.osd
 
+import app.picnic.player.util.audioChannelLabel
+import app.picnic.player.util.audioCodecLabel
+import app.picnic.player.util.audioFormatLabel
+import app.picnic.player.util.audioSpatialLabel
 import java.util.Locale
 
 data class TrackLabel(val secondary: String?, val chips: List<String>)
@@ -56,6 +60,31 @@ fun subtitleTrackLabel(
     return TrackLabel(stripKnownTokens(title, languageName, languageTag, codec), chips)
 }
 
+fun audioTrackLabel(
+    title: String?,
+    languageName: String,
+    languageTag: String?,
+    codec: String?,
+    channels: Int?,
+    channelLayout: String?,
+    spatialFormat: String?,
+    profile: String?,
+    displayTitle: String?
+): TrackLabel {
+    val format = audioFormatLabel(codec, channels, channelLayout, spatialFormat, profile, displayTitle)
+    val drop = listOfNotNull(
+        audioCodecLabel(codec),
+        audioChannelLabel(channels, channelLayout),
+        audioSpatialLabel(spatialFormat, profile, displayTitle),
+        "surround",
+        "channels"
+    )
+    return TrackLabel(
+        stripKnownTokens(title, languageName, languageTag, codec, drop),
+        listOfNotNull(format)
+    )
+}
+
 internal fun codecChip(codec: String?): String? {
     val key = codec?.trim()?.lowercase(Locale.ROOT)?.takeIf { it.isNotEmpty() } ?: return null
     return CodecNames[key] ?: key.uppercase(Locale.ROOT)
@@ -65,7 +94,8 @@ private fun stripKnownTokens(
     title: String?,
     languageName: String,
     languageTag: String?,
-    codec: String?
+    codec: String?,
+    extraTokens: List<String> = emptyList()
 ): String? {
     val raw = title?.trim()?.takeIf { it.isNotEmpty() } ?: return null
     val drop = buildList {
@@ -73,6 +103,7 @@ private fun stripKnownTokens(
         languageTag?.let { add(it) }
         codec?.let { add(it) }
         codecChip(codec)?.let { add(it) }
+        addAll(extraTokens)
         addAll(FlagWords)
     }.filter { it.isNotBlank() }
 

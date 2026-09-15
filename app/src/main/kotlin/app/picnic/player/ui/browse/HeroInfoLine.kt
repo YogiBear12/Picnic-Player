@@ -29,6 +29,7 @@ import app.picnic.player.ui.common.SpecPill
 import app.picnic.player.ui.common.SpecPillHeight
 import app.picnic.player.ui.common.SpecPillInk
 import app.picnic.player.util.LanguageDisplay
+import app.picnic.player.util.audioSpatialLabel
 import java.util.Locale
 import kotlin.math.roundToInt
 import org.jellyfin.sdk.model.api.BaseItemDto
@@ -132,11 +133,13 @@ private fun dynamicRange(video: List<MediaStream>): String? {
     }
 }
 
-/** Dolby Atmos on the primary (default-or-first) audio track. */
 private fun hasAtmos(audio: List<MediaStream>): Boolean {
     val primary = audio.firstOrNull { it.isDefault } ?: audio.firstOrNull() ?: return false
-    return (primary.profile.orEmpty() + " " + primary.displayTitle.orEmpty())
-        .contains("Atmos", ignoreCase = true)
+    return audioSpatialLabel(
+        primary.audioSpatialFormat?.serialName,
+        primary.profile,
+        primary.displayTitle
+    ) == "Atmos"
 }
 
 /** Language only — channel layout was pushing the pill onto a second line. */
