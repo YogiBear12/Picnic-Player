@@ -76,7 +76,7 @@ fun ChapterRow(
         state = listState,
         modifier = modifier.fillMaxWidth().focusGroup(),
         horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(10.dp),
-        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 12.dp)
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp)
     ) {
         items(chapters, key = { it.index }, contentType = { "chapter" }) { chapter ->
             ChapterCard(
