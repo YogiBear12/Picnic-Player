@@ -1,7 +1,6 @@
 package app.picnic.player.data.playback.profile
 
 import android.content.Context
-import android.media.MediaCodecList
 import app.picnic.player.data.playback.quality.QualityRung
 import app.picnic.player.data.settings.PlaybackSettings
 import app.picnic.player.playback.PlaybackDiagnostics
@@ -23,9 +22,7 @@ object DynamicProfileBuilder {
     ): DeviceProfile {
         if (settings.forceDirectPlay) return forceDirectPlayProfile()
 
-        val mediaCodecList = MediaCodecList(MediaCodecList.REGULAR_CODECS)
-        val query = MediaCodecQuery(mediaCodecList)
-        val capabilities = DeviceCapabilities(query)
+        val capabilities = DeviceCapabilities.fromDevice
 
         val baseAudioCodecs = arrayOf(
             "aac", "ac3", "eac3", "dts", "flac", "mp3", "opus", "vorbis", "truehd"
@@ -47,7 +44,7 @@ object DynamicProfileBuilder {
 
         val unsupportedHevcRanges = unsupportedHevcRangeTypes(
             supportsHevcDolbyVision = capabilities.supportsHevcDolbyVision(),
-            supportsHevcDolbyVisionEL = capabilities.supportsHevcDolbyVisionEL(),
+            supportsHevcDolbyVisionProfile7 = capabilities.supportsHevcDolbyVisionProfile7(),
             supportsHevcHDR10 = capabilities.supportsHevcHDR10(),
             supportsHevcHDR10Plus = capabilities.supportsHevcHDR10Plus(),
             forceDoviProfile7 = settings.forceDoviProfile7

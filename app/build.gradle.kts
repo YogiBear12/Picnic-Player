@@ -281,6 +281,8 @@ dependencies {
     // libass (peerless2012) — advanced ASS/SSA subtitle rendering for media3.
     implementation(libs.ass.media)
 
+    implementation(libs.exoplayer.hdr.utils)
+
     // ZXing core (Apache-2.0) — QR generation for Quick Connect pairing.
     implementation(libs.zxing.core)
 

@@ -15,7 +15,7 @@ enum class VideoDynamicRange {
     val isHdr: Boolean get() = this != SDR
 }
 
-private val DolbyVisionCodecPrefixes = listOf("dvhe", "dvh1", "dvav", "dva1", "dav1")
+internal val DolbyVisionCodecPrefixes = listOf("dvhe", "dvh1", "dvav", "dva1", "dav1")
 
 fun videoDynamicRange(format: Format?): VideoDynamicRange {
     if (format == null) return VideoDynamicRange.SDR

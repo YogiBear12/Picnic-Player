@@ -10,7 +10,7 @@ class VideoRangeExclusionsTest {
     fun dvWithoutEnhancementLayer_excludesEl_butAllowsDoviWithHdr10() {
         val ranges = unsupportedHevcRangeTypes(
             supportsHevcDolbyVision = true,
-            supportsHevcDolbyVisionEL = false,
+            supportsHevcDolbyVisionProfile7 = false,
             supportsHevcHDR10 = true,
             supportsHevcHDR10Plus = false,
             forceDoviProfile7 = false,
@@ -29,7 +29,7 @@ class VideoRangeExclusionsTest {
     fun forceDoviProfile7_keepsElRangesPlayable() {
         val ranges = unsupportedHevcRangeTypes(
             supportsHevcDolbyVision = true,
-            supportsHevcDolbyVisionEL = false,
+            supportsHevcDolbyVisionProfile7 = false,
             supportsHevcHDR10 = true,
             supportsHevcHDR10Plus = false,
             forceDoviProfile7 = true,
@@ -44,7 +44,7 @@ class VideoRangeExclusionsTest {
     fun noDolbyVisionDecoder_excludesSingleLayerDoviUnlessHdr10FallbackExists() {
         val withHdr10 = unsupportedHevcRangeTypes(
             supportsHevcDolbyVision = false,
-            supportsHevcDolbyVisionEL = false,
+            supportsHevcDolbyVisionProfile7 = false,
             supportsHevcHDR10 = true,
             supportsHevcHDR10Plus = false,
             forceDoviProfile7 = false,
@@ -55,7 +55,7 @@ class VideoRangeExclusionsTest {
 
         val withoutHdr10 = unsupportedHevcRangeTypes(
             supportsHevcDolbyVision = false,
-            supportsHevcDolbyVisionEL = false,
+            supportsHevcDolbyVisionProfile7 = false,
             supportsHevcHDR10 = false,
             supportsHevcHDR10Plus = false,
             forceDoviProfile7 = false,

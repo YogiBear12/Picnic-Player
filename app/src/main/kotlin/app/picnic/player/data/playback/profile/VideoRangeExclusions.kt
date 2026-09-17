@@ -10,7 +10,7 @@ import org.jellyfin.sdk.model.api.VideoRangeType
  */
 internal fun unsupportedHevcRangeTypes(
     supportsHevcDolbyVision: Boolean,
-    supportsHevcDolbyVisionEL: Boolean,
+    supportsHevcDolbyVisionProfile7: Boolean,
     supportsHevcHDR10: Boolean,
     supportsHevcHDR10Plus: Boolean,
     forceDoviProfile7: Boolean,
@@ -18,7 +18,7 @@ internal fun unsupportedHevcRangeTypes(
 ): Set<String> = buildSet {
     add(VideoRangeType.DOVI_INVALID.serialName)
 
-    if (!supportsHevcDolbyVisionEL && !forceDoviProfile7) {
+    if (!supportsHevcDolbyVisionProfile7 && !forceDoviProfile7) {
         add(VideoRangeType.DOVI_WITH_EL.serialName)
         if (!supportsHevcHDR10Plus && !hevcDoviHdr10PlusBug) {
             add(VideoRangeType.DOVI_WITH_ELHDR10_PLUS.serialName)

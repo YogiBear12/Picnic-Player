@@ -1,12 +1,19 @@
 package app.picnic.player.data.playback.profile
 
 import android.media.MediaCodecInfo.CodecProfileLevel
+import android.media.MediaCodecList
 import android.media.MediaFormat
 import android.os.Build
 
 class DeviceCapabilities(
     private val query: MediaCodecQuery
 ) {
+    companion object {
+        val fromDevice: DeviceCapabilities by lazy {
+            DeviceCapabilities(MediaCodecQuery(MediaCodecList(MediaCodecList.REGULAR_CODECS)))
+        }
+    }
+
     fun supportsAvc(): Boolean = query.hasCodecForMime(MediaFormat.MIMETYPE_VIDEO_AVC)
 
     fun supportsAvcHigh10(): Boolean = query.hasDecoder(
@@ -58,10 +65,17 @@ class DeviceCapabilities(
     fun supportsHevcDolbyVision(): Boolean = Build.VERSION.SDK_INT >= Build.VERSION_CODES.N &&
         query.hasCodecForMime(MediaFormat.MIMETYPE_VIDEO_DOLBY_VISION)
 
-    fun supportsHevcDolbyVisionEL(): Boolean = Build.VERSION.SDK_INT >= Build.VERSION_CODES.N &&
+    fun supportsHevcDolbyVisionProfile7(): Boolean = Build.VERSION.SDK_INT >= Build.VERSION_CODES.N &&
         query.hasDecoder(
             MediaFormat.MIMETYPE_VIDEO_DOLBY_VISION,
             CodecProfileLevel.DolbyVisionProfileDvheDtb, // Profile 7
+            CodecProfileLevel.DolbyVisionLevelHd24
+        )
+
+    fun supportsHevcDolbyVisionProfile8(): Boolean = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1 &&
+        query.hasDecoder(
+            MediaFormat.MIMETYPE_VIDEO_DOLBY_VISION,
+            CodecProfileLevel.DolbyVisionProfileDvheSt, // Profile 8
             CodecProfileLevel.DolbyVisionLevelHd24
         )
 

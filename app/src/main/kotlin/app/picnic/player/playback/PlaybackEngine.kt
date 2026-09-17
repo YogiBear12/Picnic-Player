@@ -78,16 +78,15 @@ class PlaybackEngine(private val context: Context, httpClient: OkHttpClient) {
             ),
             subtitleDelayUs
         )
+        val extractors = instrumentExtractors(
+            DefaultExtractorsFactory()
+                .setConstantBitrateSeekingEnabled(true)
+                .setConstantBitrateSeekingAlwaysEnabled(true)
+                .withAssMkvSupport(parserFactory, assHandler)
+        )
         val mediaSourceFactory = DefaultMediaSourceFactory(
             jellyfinDataSourceFactory(context, httpClient),
-            recoverLateTracks(
-                instrumentExtractors(
-                    DefaultExtractorsFactory()
-                        .setConstantBitrateSeekingEnabled(true)
-                        .setConstantBitrateSeekingAlwaysEnabled(true)
-                        .withAssMkvSupport(parserFactory, assHandler)
-                )
-            )
+            recoverLateTracks(dolbyVisionExtractors(context, extractors))
         ).setSubtitleParserFactory(parserFactory)
         player = ExoPlayer.Builder(context)
             .setTrackSelector(DefaultTrackSelector(context))
