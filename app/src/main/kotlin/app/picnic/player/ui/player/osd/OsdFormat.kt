@@ -1,6 +1,7 @@
 package app.picnic.player.ui.player.osd
 
 import app.picnic.player.data.playback.PlayMethodKind
+import app.picnic.player.data.playback.SegmentKind
 import app.picnic.player.data.playback.quality.QualityRung
 import app.picnic.player.playback.AudioBoost
 import app.picnic.player.playback.NightMode
@@ -24,6 +25,14 @@ internal fun formatDelay(ms: Long): String {
 internal fun formatSpeed(speed: Float): String {
     val text = if (speed % 1f == 0f) speed.toInt().toString() else speed.toString()
     return "$text×"
+}
+
+internal fun skipLabel(kind: SegmentKind): String = when (kind) {
+    SegmentKind.INTRO -> "Skip Intro"
+    SegmentKind.RECAP -> "Skip Recap"
+    SegmentKind.OUTRO -> "Skip Outro"
+    SegmentKind.PREVIEW -> "Skip Preview"
+    SegmentKind.COMMERCIAL -> "Skip Ad"
 }
 
 internal fun audioBoostLabel(level: AudioBoost): String = when (level) {

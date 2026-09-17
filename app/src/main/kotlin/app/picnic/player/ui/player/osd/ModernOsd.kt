@@ -146,25 +146,19 @@ fun ModernOsd(
                 }
             }
             AnimatedVisibility(visible = showSkipInOsd && state.currentSegment != null) {
-                Row {
-                    val label = when (state.currentSegment?.kind) {
-                        app.picnic.player.data.playback.SegmentKind.INTRO -> "Skip Intro"
-                        app.picnic.player.data.playback.SegmentKind.RECAP -> "Skip Recap"
-                        app.picnic.player.data.playback.SegmentKind.OUTRO -> "Skip Outro"
-                        app.picnic.player.data.playback.SegmentKind.PREVIEW -> "Skip Preview"
-                        app.picnic.player.data.playback.SegmentKind.COMMERCIAL -> "Skip Ad"
-                        else -> "Skip"
+                state.currentSegment?.let { segment ->
+                    Row {
+                        OsdTextButton(
+                            text = skipLabel(segment.kind),
+                            focusRequester = osdSkipFocusRequester,
+                            focusEnabled = focusEnabled,
+                            onClick = onSkip,
+                            onDown = { scrubberFocus.requestFocus() },
+                            onBack = onDismiss,
+                            onInteract = onInteract
+                        )
+                        Spacer(Modifier.size(12.dp))
                     }
-                    OsdTextButton(
-                        text = label,
-                        focusRequester = osdSkipFocusRequester,
-                        focusEnabled = focusEnabled,
-                        onClick = onSkip,
-                        onDown = { scrubberFocus.requestFocus() },
-                        onBack = onDismiss,
-                        onInteract = onInteract
-                    )
-                    Spacer(Modifier.size(12.dp))
                 }
             }
             OsdIconButton(
