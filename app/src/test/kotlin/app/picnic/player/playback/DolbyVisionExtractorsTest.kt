@@ -12,6 +12,7 @@ import androidx.media3.extractor.SeekMap
 import androidx.media3.extractor.TrackOutput
 import com.suyashbelekar.exoplayerhdrutils.video.transformers.DoviStrategy
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Test
 
@@ -23,12 +24,20 @@ class DolbyVisionExtractorsTest {
     }
 
     @Test
+    fun discardedProfile7_isAdvertisedAsHevc() {
+        val format = rewrite(DoviStrategy.DISCARD, codecs = "dvhe.07.06")
+
+        assertEquals(MimeTypes.VIDEO_H265, format?.sampleMimeType)
+        assertNull(format?.codecs)
+    }
+
+    @Test
     fun otherProfiles_areUnchanged() {
         val profile8 = dolbyVisionFormat(codecs = "dvhe.08.06")
         val profile5 = dolbyVisionFormat(codecs = "dvhe.05.06")
 
         assertSame(profile8, rewrite(DoviStrategy.CONVERT_TO_P8, profile8))
-        assertSame(profile5, rewrite(DoviStrategy.CONVERT_TO_P8, profile5))
+        assertSame(profile5, rewrite(DoviStrategy.DISCARD, profile5))
     }
 
     @Test

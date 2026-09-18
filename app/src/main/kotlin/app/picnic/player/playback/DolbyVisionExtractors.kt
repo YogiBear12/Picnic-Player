@@ -90,8 +90,12 @@ private class DolbyVisionFormatTrackOutput(
 private fun Format.forDolbyVisionStrategy(strategy: DoviStrategy): Format {
     if (sampleMimeType != MimeTypes.VIDEO_DOLBY_VISION || codecs.dolbyVisionProfile() != PROFILE_7) return this
     return when (strategy) {
+        DoviStrategy.KEEP -> this
         DoviStrategy.CONVERT_TO_P8 -> buildUpon().setCodecs(codecs?.withDolbyVisionProfile(PROFILE_8)).build()
-        DoviStrategy.KEEP, DoviStrategy.DISCARD -> this
+        DoviStrategy.DISCARD -> buildUpon()
+            .setSampleMimeType(MimeTypes.VIDEO_H265)
+            .setCodecs(null)
+            .build()
     }
 }
 

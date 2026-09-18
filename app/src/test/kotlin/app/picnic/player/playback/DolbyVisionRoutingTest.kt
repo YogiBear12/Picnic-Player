@@ -1,16 +1,39 @@
 package app.picnic.player.playback
 
+import android.view.Display
 import com.suyashbelekar.exoplayerhdrutils.video.transformers.DoviStrategy
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class DolbyVisionRoutingTest {
     @Test
-    fun nonDolbyVisionDisplay_keepsProfile7ForMedia3HdrFallback() {
+    fun userDisabledDolbyVision_isNotAvailableForOutput() {
+        assertFalse(
+            isDolbyVisionOutputAvailable(
+                physicallySupported = true,
+                enabledHdrTypes = intArrayOf(Display.HdrCapabilities.HDR_TYPE_HDR10)
+            )
+        )
+    }
+
+    @Test
+    fun enabledDolbyVision_isAvailableForOutput() {
+        assertTrue(
+            isDolbyVisionOutputAvailable(
+                physicallySupported = true,
+                enabledHdrTypes = intArrayOf(Display.HdrCapabilities.HDR_TYPE_DOLBY_VISION)
+            )
+        )
+    }
+
+    @Test
+    fun nonDolbyVisionDisplay_discardsDolbyVisionMetadata() {
         assertEquals(
-            DoviStrategy.KEEP,
+            DoviStrategy.DISCARD,
             doviProfile7Strategy(
-                displaySupportsDolbyVision = false,
+                dolbyVisionOutputAvailable = false,
                 supportsNativeProfile7 = false,
                 supportsProfile8 = true
             )
@@ -22,7 +45,7 @@ class DolbyVisionRoutingTest {
         assertEquals(
             DoviStrategy.KEEP,
             doviProfile7Strategy(
-                displaySupportsDolbyVision = true,
+                dolbyVisionOutputAvailable = true,
                 supportsNativeProfile7 = true,
                 supportsProfile8 = true
             )
@@ -34,7 +57,7 @@ class DolbyVisionRoutingTest {
         assertEquals(
             DoviStrategy.CONVERT_TO_P8,
             doviProfile7Strategy(
-                displaySupportsDolbyVision = true,
+                dolbyVisionOutputAvailable = true,
                 supportsNativeProfile7 = false,
                 supportsProfile8 = true
             )
@@ -42,11 +65,11 @@ class DolbyVisionRoutingTest {
     }
 
     @Test
-    fun noCompatibleDolbyVisionDecoder_keepsProfile7ForMedia3Fallback() {
+    fun noCompatibleDolbyVisionDecoder_discardsDolbyVisionMetadata() {
         assertEquals(
-            DoviStrategy.KEEP,
+            DoviStrategy.DISCARD,
             doviProfile7Strategy(
-                displaySupportsDolbyVision = true,
+                dolbyVisionOutputAvailable = true,
                 supportsNativeProfile7 = false,
                 supportsProfile8 = false
             )

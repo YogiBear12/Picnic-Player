@@ -20,38 +20,39 @@ internal fun dolbyVisionExtractors(context: Context, extractors: ExtractorsFacto
 }
 
 internal fun doviProfile7Strategy(
-    displaySupportsDolbyVision: Boolean,
+    dolbyVisionOutputAvailable: Boolean,
     supportsNativeProfile7: Boolean,
     supportsProfile8: Boolean
-): DoviStrategy = if (displaySupportsDolbyVision && !supportsNativeProfile7 && supportsProfile8) {
-    DoviStrategy.CONVERT_TO_P8
-} else {
-    DoviStrategy.KEEP
+): DoviStrategy = when {
+    !dolbyVisionOutputAvailable -> DoviStrategy.DISCARD
+    supportsNativeProfile7 -> DoviStrategy.KEEP
+    supportsProfile8 -> DoviStrategy.CONVERT_TO_P8
+    else -> DoviStrategy.DISCARD
 }
 
 internal fun doviProfile7Strategy(context: Context): DoviStrategy {
     val capabilities = DeviceCapabilities.fromDevice
     return doviProfile7Strategy(
-        displaySupportsDolbyVision = displaySupportsDolbyVision(context),
+        dolbyVisionOutputAvailable = displaySupportsDolbyVision(context),
         supportsNativeProfile7 = capabilities.supportsHevcDolbyVisionProfile7(),
         supportsProfile8 = capabilities.supportsHevcDolbyVisionProfile8()
     )
 }
 
 internal fun displaySupportsDolbyVision(context: Context): Boolean {
-    return try {
-        val displayManager = context.getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
-        val display = displayManager.getDisplay(Display.DEFAULT_DISPLAY) ?: return false
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            display.supportedModes.any { mode ->
-                Display.HdrCapabilities.HDR_TYPE_DOLBY_VISION in mode.supportedHdrTypes
-            }
-        } else {
-            @Suppress("DEPRECATION")
-            Display.HdrCapabilities.HDR_TYPE_DOLBY_VISION in
-                (display.hdrCapabilities?.supportedHdrTypes ?: IntArray(0))
+    val displayManager = context.getSystemService(DisplayManager::class.java) ?: return false
+    val display = displayManager.getDisplay(Display.DEFAULT_DISPLAY) ?: return false
+
+    @Suppress("DEPRECATION")
+    val enabledHdrTypes = display.hdrCapabilities?.supportedHdrTypes ?: IntArray(0)
+    val physicallySupported = Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE ||
+        display.supportedModes.any { mode ->
+            Display.HdrCapabilities.HDR_TYPE_DOLBY_VISION in mode.supportedHdrTypes
         }
-    } catch (_: Exception) {
-        false
-    }
+    return isDolbyVisionOutputAvailable(physicallySupported, enabledHdrTypes)
 }
+
+internal fun isDolbyVisionOutputAvailable(
+    physicallySupported: Boolean,
+    enabledHdrTypes: IntArray
+): Boolean = physicallySupported && Display.HdrCapabilities.HDR_TYPE_DOLBY_VISION in enabledHdrTypes
