@@ -65,7 +65,6 @@ class PlayingStreamTest {
         )
         assertEquals("TRUEHD", playing.audioCodec)
         assertEquals(8, playing.audioChannels)
-        assertEquals(4_000_000L, playing.audioBitrate)
     }
 
     @Test
@@ -111,6 +110,20 @@ class PlayingStreamTest {
     }
 
     @Test
+    fun dolbyVisionDecodedThroughHevc_reportsTheHdr10BaseLayer() {
+        val playing = playing(
+            playMethod = PlayMethodKind.DIRECT_PLAY,
+            videoFormat = format(
+                MimeTypes.VIDEO_DOLBY_VISION,
+                colorTransfer = C.COLOR_TRANSFER_ST2084
+            ),
+            videoDecoderMimeType = MimeTypes.VIDEO_H265
+        )
+
+        assertEquals(VideoDynamicRange.HDR10, playing.dynamicRange)
+    }
+
+    @Test
     fun videoDirectWhileAudioTranscodes() {
         val playing = playing(
             playMethod = PlayMethodKind.TRANSCODE,
@@ -128,8 +141,17 @@ class PlayingStreamTest {
         mediaStreams: List<MediaStream> = emptyList(),
         selectedAudioIndex: Int? = null,
         videoFormat: Format? = null,
-        audioFormat: Format? = null
-    ) = playingStream(playMethod, transcodingInfo, mediaStreams, selectedAudioIndex, videoFormat, audioFormat)
+        audioFormat: Format? = null,
+        videoDecoderMimeType: String? = null
+    ) = playingStream(
+        playMethod,
+        transcodingInfo,
+        mediaStreams,
+        selectedAudioIndex,
+        videoFormat,
+        audioFormat,
+        videoDecoderMimeType
+    )
 
     private fun format(
         mimeType: String,

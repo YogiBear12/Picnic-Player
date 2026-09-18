@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import app.picnic.player.playback.VideoDecoder
 import app.picnic.player.playback.playingStream
 import app.picnic.player.ui.common.panelGlass
 import app.picnic.player.ui.player.PlayerUiState
@@ -99,7 +100,8 @@ fun StatsForNerdsPanel(
         mediaStreams = state.mediaSource?.mediaStreams.orEmpty(),
         selectedAudioIndex = state.selectedAudioId?.toIntOrNull(),
         videoFormat = videoFormat,
-        audioFormat = audioFormat
+        audioFormat = audioFormat,
+        videoDecoderMimeType = state.videoDecoder?.mimeType
     )
 
     Row(
@@ -130,7 +132,8 @@ fun StatsForNerdsPanel(
 
                     val playbackInfoRows = mutableListOf<Pair<String, Any?>>(
                         "Player" to "ExoPlayer",
-                        "Playback" to playMethodLabel
+                        "Playback" to playMethodLabel,
+                        "Decoder" to (state.videoDecoder?.let(::decoderLabel) ?: "Unknown")
                     )
 
                     val reasons = state.directPlayBlockedBy.ifEmpty {
@@ -172,8 +175,7 @@ fun StatsForNerdsPanel(
                     SimpleTable(
                         listOf(
                             "Audio codec" to sourceLabel(playing.audioCodec, playing.audioDirect),
-                            "Audio channels" to (playing.audioChannels ?: "Unknown"),
-                            "Audio bitrate" to (playing.audioBitrate?.let { formatBitrate(it) } ?: "Unknown")
+                            "Audio channels" to (playing.audioChannels ?: "Unknown")
                         ),
                         keyWidth = 140.dp
                     )
@@ -263,3 +265,9 @@ private fun formatBytes(bytes: Long): String {
 }
 
 private fun sourceLabel(codec: String?, direct: Boolean): String = "${codec ?: "Unknown"} (${if (direct) "direct" else "transcode"})"
+
+private fun decoderLabel(decoder: VideoDecoder): String = if (decoder.hardwareAccelerated) {
+    "${decoder.name} (HW)"
+} else {
+    decoder.name
+}

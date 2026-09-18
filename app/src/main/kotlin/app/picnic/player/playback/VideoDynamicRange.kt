@@ -17,11 +17,19 @@ enum class VideoDynamicRange {
 
 internal val DolbyVisionCodecPrefixes = listOf("dvhe", "dvh1", "dvav", "dva1", "dav1")
 
-fun videoDynamicRange(format: Format?): VideoDynamicRange {
+fun videoDynamicRange(
+    format: Format?,
+    decoderMimeType: String?
+): VideoDynamicRange {
     if (format == null) return VideoDynamicRange.SDR
     val codecs = format.codecs?.lowercase()
-    val dolbyVision = MimeTypes.VIDEO_DOLBY_VISION.equals(format.sampleMimeType, ignoreCase = true) ||
-        DolbyVisionCodecPrefixes.any { codecs?.startsWith(it) == true }
+    val decoderUsesDolbyVision = decoderMimeType == null ||
+        MimeTypes.VIDEO_DOLBY_VISION.equals(decoderMimeType, ignoreCase = true)
+    val dolbyVision = decoderUsesDolbyVision &&
+        (
+            MimeTypes.VIDEO_DOLBY_VISION.equals(format.sampleMimeType, ignoreCase = true) ||
+                DolbyVisionCodecPrefixes.any { codecs?.startsWith(it) == true }
+            )
     val transfer = format.colorInfo?.colorTransfer
     return when {
         dolbyVision -> VideoDynamicRange.DOVI

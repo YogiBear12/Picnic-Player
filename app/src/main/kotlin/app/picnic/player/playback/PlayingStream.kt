@@ -18,8 +18,7 @@ data class PlayingStream(
     val videoBitrate: Long?,
     val dynamicRange: VideoDynamicRange?,
     val audioCodec: String?,
-    val audioChannels: Int?,
-    val audioBitrate: Long?
+    val audioChannels: Int?
 )
 
 fun playingStream(
@@ -28,7 +27,8 @@ fun playingStream(
     mediaStreams: List<MediaStream>,
     selectedAudioIndex: Int?,
     videoFormat: Format?,
-    audioFormat: Format?
+    audioFormat: Format?,
+    videoDecoderMimeType: String?
 ): PlayingStream {
     val directPlay = playMethod == PlayMethodKind.DIRECT_PLAY
     val videoDirect = directPlay || transcodingInfo?.isVideoDirect == true
@@ -57,7 +57,7 @@ fun playingStream(
         } else {
             videoFormat?.bitrate?.positiveLong() ?: transcodingInfo?.bitrate?.positiveLong()
         },
-        dynamicRange = videoFormat?.let(::videoDynamicRange),
+        dynamicRange = videoFormat?.let { videoDynamicRange(it, videoDecoderMimeType) },
         audioCodec = if (audioDirect) {
             audioStream?.codec?.uppercase() ?: codecLabel(audioFormat?.sampleMimeType)
         } else {
@@ -67,11 +67,6 @@ fun playingStream(
             audioStream?.channels?.takeIf { it > 0 } ?: audioFormat?.channelCount?.takeIf { it > 0 }
         } else {
             transcodingInfo?.audioChannels?.takeIf { it > 0 } ?: audioFormat?.channelCount?.takeIf { it > 0 }
-        },
-        audioBitrate = if (audioDirect) {
-            audioStream?.bitRate?.positiveLong() ?: audioFormat?.bitrate?.positiveLong()
-        } else {
-            audioFormat?.bitrate?.positiveLong()
         }
     )
 }

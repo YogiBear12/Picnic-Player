@@ -70,6 +70,7 @@ import app.picnic.player.playback.StreamTarget
 import app.picnic.player.playback.ThemeMusicPlayer
 import app.picnic.player.playback.VideoDynamicRange
 import app.picnic.player.playback.stateName
+import app.picnic.player.playback.videoDynamicRange
 import app.picnic.player.playback.withPreferredVideoMimeTypes
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -294,38 +295,7 @@ class PlayerViewModel @Inject constructor(
         else -> "UNKNOWN($reason)"
     }
 
-    private fun getDecoderString(decoderName: String): String = try {
-        val codecInfo = android.media.MediaCodecList(android.media.MediaCodecList.ALL_CODECS)
-            .codecInfos
-            .firstOrNull { !it.isEncoder && it.name == decoderName }
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q && codecInfo?.isHardwareAccelerated == true) {
-            "$decoderName (HW)"
-        } else {
-            decoderName
-        }
-    } catch (e: Exception) {
-        decoderName
-    }
-
     private val analyticsListener = object : AnalyticsListener {
-        override fun onVideoDecoderInitialized(
-            eventTime: AnalyticsListener.EventTime,
-            decoderName: String,
-            initializedTimestampMs: Long,
-            initializationDurationMs: Long
-        ) {
-            _state.update { it.copy(videoDecoderName = getDecoderString(decoderName)) }
-        }
-
-        override fun onAudioDecoderInitialized(
-            eventTime: AnalyticsListener.EventTime,
-            decoderName: String,
-            initializedTimestampMs: Long,
-            initializationDurationMs: Long
-        ) {
-            _state.update { it.copy(audioDecoderName = getDecoderString(decoderName)) }
-        }
-
         override fun onBandwidthEstimate(
             eventTime: AnalyticsListener.EventTime,
             totalLoadTimeMs: Int,
@@ -352,6 +322,11 @@ class PlayerViewModel @Inject constructor(
     init {
         themeMusicPlayer.stop()
         sessionController.playerStarted()
+        viewModelScope.launch {
+            engine.videoOutput.collect { output ->
+                _state.update { it.copy(videoDecoder = output?.decoder) }
+            }
+        }
         viewModelScope.launch {
             combine(
                 trickplayCache.current,
@@ -448,7 +423,9 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
-    val videoDynamicRange: StateFlow<VideoDynamicRange> = engine.videoDynamicRange
+    val videoDynamicRange: StateFlow<VideoDynamicRange> = engine.videoOutput
+        .map { videoDynamicRange(it?.format, it?.decoder?.mimeType) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, VideoDynamicRange.SDR)
 
     val blackBars: StateFlow<BlackBars> = latchedBars.bars
 

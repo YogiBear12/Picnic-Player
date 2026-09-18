@@ -7,6 +7,7 @@ import android.graphics.Color
 import android.os.Build
 import android.view.ViewGroup
 import androidx.media3.common.Format
+import androidx.media3.common.MimeTypes
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.okhttp.OkHttpDataSource
@@ -17,6 +18,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.exoplayer.audio.AudioCapabilities
 import androidx.media3.exoplayer.audio.AudioSink
+import androidx.media3.exoplayer.mediacodec.MediaCodecAdapter
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.extractor.DefaultExtractorsFactory
@@ -33,6 +35,7 @@ import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import okhttp3.OkHttpClient
 
 class PlaybackEngine(private val context: Context, httpClient: OkHttpClient) {
@@ -56,9 +59,9 @@ class PlaybackEngine(private val context: Context, httpClient: OkHttpClient) {
         return AudioCapabilities.getCapabilities(context).isPassthroughPlaybackSupported(format)
     }
 
-    private val _videoDynamicRange = MutableStateFlow(VideoDynamicRange.SDR)
+    private val _videoOutput = MutableStateFlow<VideoOutput?>(null)
 
-    val videoDynamicRange: StateFlow<VideoDynamicRange> = _videoDynamicRange.asStateFlow()
+    val videoOutput: StateFlow<VideoOutput?> = _videoOutput.asStateFlow()
 
     init {
         val renderType =
@@ -72,7 +75,13 @@ class PlaybackEngine(private val context: Context, httpClient: OkHttpClient) {
         val renderersFactory = SubtitleDelayRenderersFactory(
             AssRenderersFactory(
                 assHandler,
-                AudioRouteRenderersFactory(context) { audioRouteSink = it }
+                InstrumentedRenderersFactory(
+                    context = context,
+                    onSinkBuilt = { audioRouteSink = it },
+                    onVideoDecoderConfigured = { decoder, format ->
+                        _videoOutput.value = VideoOutput(format, decoder)
+                    }
+                )
                     .setEnableDecoderFallback(true)
                     .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
             ),
@@ -100,7 +109,7 @@ class PlaybackEngine(private val context: Context, httpClient: OkHttpClient) {
                 format: Format,
                 decoderReuseEvaluation: DecoderReuseEvaluation?
             ) {
-                _videoDynamicRange.value = videoDynamicRange(format)
+                _videoOutput.update { VideoOutput(format, it?.decoder) }
             }
 
             override fun onAudioSessionIdChanged(eventTime: AnalyticsListener.EventTime, audioSessionId: Int) {
@@ -162,10 +171,29 @@ class PlaybackEngine(private val context: Context, httpClient: OkHttpClient) {
     }
 }
 
-private class AudioRouteRenderersFactory(
+private class InstrumentedRenderersFactory(
     context: Context,
-    private val onSinkBuilt: (AudioRouteSink) -> Unit
+    private val onSinkBuilt: (AudioRouteSink) -> Unit,
+    private val onVideoDecoderConfigured: (VideoDecoder, Format) -> Unit
 ) : DefaultRenderersFactory(context) {
+    override fun getCodecAdapterFactory(): MediaCodecAdapter.Factory {
+        val delegate = super.getCodecAdapterFactory()
+        return MediaCodecAdapter.Factory { configuration ->
+            val adapter = delegate.createAdapter(configuration)
+            if (MimeTypes.isVideo(configuration.codecInfo.mimeType)) {
+                onVideoDecoderConfigured(
+                    VideoDecoder(
+                        name = configuration.codecInfo.name,
+                        mimeType = configuration.codecInfo.mimeType,
+                        hardwareAccelerated = configuration.codecInfo.hardwareAccelerated
+                    ),
+                    configuration.format
+                )
+            }
+            adapter
+        }
+    }
+
     override fun buildAudioSink(
         context: Context,
         enableFloatOutput: Boolean,
@@ -173,6 +201,17 @@ private class AudioRouteRenderersFactory(
     ): AudioSink? = super.buildAudioSink(context, enableFloatOutput, enableAudioTrackPlaybackParams)
         ?.let { AudioRouteSink(it).also(onSinkBuilt) }
 }
+
+data class VideoOutput(
+    val format: Format,
+    val decoder: VideoDecoder?
+)
+
+data class VideoDecoder(
+    val name: String,
+    val mimeType: String,
+    val hardwareAccelerated: Boolean
+)
 
 private fun jellyfinDataSourceFactory(context: Context, httpClient: OkHttpClient): DataSource.Factory {
     val upstream = OkHttpDataSource.Factory(httpClient)
