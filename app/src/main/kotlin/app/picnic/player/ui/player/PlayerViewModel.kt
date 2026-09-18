@@ -69,7 +69,6 @@ import app.picnic.player.playback.StreamResult
 import app.picnic.player.playback.StreamTarget
 import app.picnic.player.playback.ThemeMusicPlayer
 import app.picnic.player.playback.VideoDynamicRange
-import app.picnic.player.playback.stateName
 import app.picnic.player.playback.videoDynamicRange
 import app.picnic.player.playback.withPreferredVideoMimeTypes
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -182,7 +181,7 @@ class PlayerViewModel @Inject constructor(
     private var reloadJob: Job? = null
 
     private val streamTarget = object : StreamTarget {
-        override val positionMs: Long get() = resumeAwarePositionMs()
+        override val positionMs: Long get() = player.currentPosition
 
         override fun stop() = player.stop()
 
@@ -191,9 +190,8 @@ class PlayerViewModel @Inject constructor(
             PlaybackDiagnostics.log("loading at resumeMs=$resumeMs directPlayAllowed=${directPlayVeto.allowsDirectPlay}")
             player.trackSelectionParameters =
                 player.trackSelectionParameters.withPreferredVideoMimeTypes(stream.mediaStreams)
-            player.setMediaItem(mediaItemFor(stream))
+            player.setMediaItem(mediaItemFor(stream), resumeMs)
             player.prepare()
-            pendingSeekMs = resumeMs
         }
 
         override fun resume(playing: Boolean) {
@@ -202,8 +200,6 @@ class PlayerViewModel @Inject constructor(
     }
 
     private val streamLoader = StreamLoader(streamTarget, playbackRepository)
-
-    private var pendingSeekMs: Long = 0
 
     private var canTranscode = true
 
@@ -220,7 +216,6 @@ class PlayerViewModel @Inject constructor(
 
     private val listener = object : Player.Listener {
         override fun onPlaybackStateChanged(playbackState: Int) {
-            applyPendingSeek()
             if (playbackState == Player.STATE_READY) recoverIfNothingToPlay()
         }
 
@@ -265,24 +260,6 @@ class PlayerViewModel @Inject constructor(
         } else {
             _state.update { it.copy(error = "This file has no playable video or audio", isLoading = false) }
         }
-    }
-
-    private fun resumeAwarePositionMs(): Long = maxOf(player.currentPosition, pendingSeekMs)
-
-    private fun applyPendingSeek() {
-        val target = pendingSeekMs
-        if (target <= 0) return
-        if (player.playbackState != Player.STATE_READY || player.duration <= 0) {
-            PlaybackDiagnostics.log(
-                "pending seek $target held: state=${stateName(player.playbackState)} duration=${player.duration}"
-            )
-            return
-        }
-        pendingSeekMs = 0
-        PlaybackDiagnostics.log(
-            "pending seek $target applied: duration=${player.duration} position=${player.currentPosition}"
-        )
-        player.seekTo(target)
     }
 
     private fun discontinuityName(reason: Int): String = when (reason) {
@@ -609,12 +586,12 @@ class PlayerViewModel @Inject constructor(
         val delayMs = _state.value.subtitleDelayMs
         val speed = _state.value.playbackSpeed
 
-        val resumeMs = resumeAwarePositionMs()
+        val resumeMs = player.currentPosition
 
         reloadJob?.cancel()
         reloadJob = viewingScope.launch {
             PlaybackDiagnostics.log(
-                "reload reason=$reason resumeMs=$resumeMs position=${player.currentPosition} pendingSeek=$pendingSeekMs"
+                "reload reason=$reason resumeMs=$resumeMs position=${player.currentPosition}"
             )
             _state.update {
                 it.copy(buffering = true, error = null, notice = null, subtitleCues = emptyList())
@@ -757,7 +734,7 @@ class PlayerViewModel @Inject constructor(
                     playbackRepository.reportProgress(
                         info,
                         id,
-                        resumeAwarePositionMs().msToTicks(),
+                        player.currentPosition.msToTicks(),
                         !player.isPlaying
                     )
                 }
@@ -881,7 +858,7 @@ class PlayerViewModel @Inject constructor(
         val info = stream
         val id = itemId
         val series = seriesId
-        val positionTicks = resumeAwarePositionMs().msToTicks()
+        val positionTicks = player.currentPosition.msToTicks()
         player.removeListener(listener)
         engine.release()
         if (s != null && info != null && id != null) {
