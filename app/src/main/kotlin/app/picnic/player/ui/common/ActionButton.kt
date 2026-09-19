@@ -1,6 +1,7 @@
 package app.picnic.player.ui.common
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.CircularProgressIndicator
@@ -26,12 +27,14 @@ fun ActionButton(
     modifier: Modifier = Modifier,
     focusRequester: FocusRequester? = null,
     enabled: Boolean = true,
-    busy: Boolean = false
+    busy: Boolean = false,
+    fillWidth: Boolean = false
 ) {
     Surface(
         onClick = { if (!busy) onActivate() },
         enabled = enabled,
         modifier = modifier
+            .then(if (fillWidth) Modifier.fillMaxWidth() else Modifier)
             .then(focusRequester?.let { Modifier.focusRequester(it) } ?: Modifier)
             .focusProperties { canFocus = enabled },
         shape = ClickableSurfaceDefaults.shape(shape = GlassRowShape),
@@ -49,7 +52,9 @@ fun ActionButton(
         border = flatSurfaceBorder()
     ) {
         Box(
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 14.dp),
+            modifier = Modifier
+                .then(if (fillWidth) Modifier.fillMaxWidth() else Modifier)
+                .padding(horizontal = 20.dp, vertical = 14.dp),
             contentAlignment = Alignment.Center
         ) {
             if (busy) {

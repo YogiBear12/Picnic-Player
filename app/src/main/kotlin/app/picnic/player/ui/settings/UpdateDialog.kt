@@ -203,6 +203,6 @@ private fun DialogButton(
         label = label,
         onActivate = onActivate,
         focusRequester = focusRequester,
-        modifier = Modifier.fillMaxWidth()
+        fillWidth = true
     )
 }

@@ -50,6 +50,7 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Border
 import androidx.tv.material3.ClickableSurfaceDefaults
@@ -425,19 +426,21 @@ private fun ForgetConfirmDialog(
                 text = message,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
-                color = PicnicColors.OnDark
+                color = PicnicColors.OnDark,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
             )
             Spacer(Modifier.height(8.dp))
             ActionButton(
                 label = "Remove",
                 onActivate = onConfirm,
-                modifier = Modifier.fillMaxWidth()
+                fillWidth = true
             )
             ActionButton(
                 label = "Cancel",
                 onActivate = onCancel,
                 focusRequester = cancelFocus,
-                modifier = Modifier.fillMaxWidth()
+                fillWidth = true
             )
         }
     }

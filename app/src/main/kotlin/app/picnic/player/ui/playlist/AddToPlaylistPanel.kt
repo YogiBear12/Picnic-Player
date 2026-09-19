@@ -93,7 +93,7 @@ fun AddToPlaylistPanel(
                 label = "Create playlist",
                 onActivate = create,
                 enabled = newName.isNotBlank(),
-                modifier = Modifier.fillMaxWidth()
+                fillWidth = true
             )
         } else {
             val seed = rememberFocusSeed(state.loading, enabled = !state.loading)
