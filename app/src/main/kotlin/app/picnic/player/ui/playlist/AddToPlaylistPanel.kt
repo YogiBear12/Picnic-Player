@@ -24,7 +24,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -39,6 +41,7 @@ import app.picnic.player.ui.common.DialogTextField
 import app.picnic.player.ui.common.PanelRowCornerRadius
 import app.picnic.player.ui.common.PanelWidth
 import app.picnic.player.ui.common.focusSeed
+import app.picnic.player.ui.common.marqueeWhenFocused
 import app.picnic.player.ui.common.panelSurface
 import app.picnic.player.ui.common.rememberFocusSeed
 import app.picnic.player.ui.common.requestFocusWhenAttached
@@ -112,13 +115,23 @@ fun AddToPlaylistPanel(
                     .focusSeed(seed)
             )
             state.playlists.forEach { playlist ->
+                var focused by remember(playlist.id) { mutableStateOf(false) }
                 ListItem(
                     selected = false,
                     onClick = {
                         viewModel.addTo(playlist.id.toString(), itemId)
                         onDone()
                     },
-                    headlineContent = { Text(playlist.name.orEmpty(), color = Color.White) },
+                    headlineContent = {
+                        Text(
+                            text = playlist.name.orEmpty(),
+                            color = Color.White,
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.marqueeWhenFocused(focused)
+                        )
+                    },
                     supportingContent = {
                         playlist.childCount?.let {
                             Text(
@@ -130,7 +143,9 @@ fun AddToPlaylistPanel(
                     colors = playlistPickerColors(),
                     shape = playlistPickerShape(),
                     scale = ListItemDefaults.scale(focusedScale = 1f),
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .onFocusChanged { focused = it.isFocused }
                 )
             }
         }
