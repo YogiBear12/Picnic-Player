@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
@@ -79,6 +80,8 @@ fun ContextMenuPanel(
                     focusedContainerColor = Color.White.copy(alpha = 0.15f),
                     contentColor = Color.White
                 ),
+                shape = ListItemDefaults.shape(shape = RoundedCornerShape(PanelRowCornerRadius)),
+                scale = ListItemDefaults.scale(focusedScale = 1f),
                 modifier = Modifier
                     .fillMaxWidth()
                     .then(if (index == seedIndex) Modifier.focusSeed(seed) else Modifier)

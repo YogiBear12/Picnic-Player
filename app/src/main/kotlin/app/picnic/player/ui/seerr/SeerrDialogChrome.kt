@@ -15,11 +15,12 @@ import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import app.picnic.player.ui.common.PanelContentInset
+import app.picnic.player.ui.common.PanelRowCornerRadius
 import app.picnic.player.ui.common.PanelWidth
 
 internal val SeerrPanelWidth = PanelWidth.Picker
 internal val SeerrRowInnerPadding = 14.dp
-internal val SeerrRowCornerRadius = 10.dp
+internal val SeerrRowCornerRadius = PanelRowCornerRadius
 internal val SeerrListViewportHeight = 200.dp
 
 @Composable

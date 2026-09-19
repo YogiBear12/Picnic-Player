@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -35,6 +36,7 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import app.picnic.player.ui.common.ActionButton
 import app.picnic.player.ui.common.DialogTextField
+import app.picnic.player.ui.common.PanelRowCornerRadius
 import app.picnic.player.ui.common.PanelWidth
 import app.picnic.player.ui.common.focusSeed
 import app.picnic.player.ui.common.panelSurface
@@ -103,6 +105,8 @@ fun AddToPlaylistPanel(
                 leadingContent = { Icon(Icons.Default.Add, contentDescription = null, tint = Color.White.copy(alpha = 0.8f)) },
                 headlineContent = { Text("New playlist…", color = Color.White) },
                 colors = playlistPickerColors(),
+                shape = playlistPickerShape(),
+                scale = ListItemDefaults.scale(focusedScale = 1f),
                 modifier = Modifier
                     .fillMaxWidth()
                     .focusSeed(seed)
@@ -124,6 +128,8 @@ fun AddToPlaylistPanel(
                         }
                     },
                     colors = playlistPickerColors(),
+                    shape = playlistPickerShape(),
+                    scale = ListItemDefaults.scale(focusedScale = 1f),
                     modifier = Modifier.fillMaxWidth()
                 )
             }
@@ -136,4 +142,9 @@ private fun playlistPickerColors() = ListItemDefaults.colors(
     containerColor = Color.Transparent,
     focusedContainerColor = Color.White.copy(alpha = 0.15f),
     contentColor = Color.White
+)
+
+@Composable
+private fun playlistPickerShape() = ListItemDefaults.shape(
+    shape = RoundedCornerShape(PanelRowCornerRadius)
 )
