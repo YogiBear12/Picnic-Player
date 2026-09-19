@@ -11,7 +11,12 @@ import app.picnic.player.data.playback.profile.DeviceCapabilities
 import com.suyashbelekar.exoplayerhdrutils.video.transformers.DoviStrategy
 
 internal fun dolbyVisionExtractors(context: Context, extractors: ExtractorsFactory): ExtractorsFactory {
-    val strategy = doviProfile7Strategy(context)
+    val capabilities = DeviceCapabilities.fromDevice
+    val strategy = doviProfile7Strategy(
+        dolbyVisionOutputAvailable = displaySupportsDolbyVision(context),
+        supportsNativeProfile7 = capabilities.supportsHevcDolbyVisionProfile7(),
+        supportsProfile8 = capabilities.supportsHevcDolbyVisionProfile8()
+    )
     return if (strategy == DoviStrategy.KEEP) {
         extractors
     } else {
@@ -30,15 +35,6 @@ internal fun doviProfile7Strategy(
     else -> DoviStrategy.DISCARD
 }
 
-internal fun doviProfile7Strategy(context: Context): DoviStrategy {
-    val capabilities = DeviceCapabilities.fromDevice
-    return doviProfile7Strategy(
-        dolbyVisionOutputAvailable = displaySupportsDolbyVision(context),
-        supportsNativeProfile7 = capabilities.supportsHevcDolbyVisionProfile7(),
-        supportsProfile8 = capabilities.supportsHevcDolbyVisionProfile8()
-    )
-}
-
 internal fun displaySupportsDolbyVision(context: Context): Boolean {
     val displayManager = context.getSystemService(DisplayManager::class.java) ?: return false
     val display = displayManager.getDisplay(Display.DEFAULT_DISPLAY) ?: return false
@@ -49,10 +45,5 @@ internal fun displaySupportsDolbyVision(context: Context): Boolean {
         display.supportedModes.any { mode ->
             Display.HdrCapabilities.HDR_TYPE_DOLBY_VISION in mode.supportedHdrTypes
         }
-    return isDolbyVisionOutputAvailable(physicallySupported, enabledHdrTypes)
+    return physicallySupported && Display.HdrCapabilities.HDR_TYPE_DOLBY_VISION in enabledHdrTypes
 }
-
-internal fun isDolbyVisionOutputAvailable(
-    physicallySupported: Boolean,
-    enabledHdrTypes: IntArray
-): Boolean = physicallySupported && Display.HdrCapabilities.HDR_TYPE_DOLBY_VISION in enabledHdrTypes
