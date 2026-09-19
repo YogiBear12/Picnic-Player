@@ -55,7 +55,7 @@ fun ContextMenuPanel(
     val seed = rememberFocusSeed(seedIndex, enabled = seedIndex >= 0)
 
     Column(
-        verticalArrangement = Arrangement.spacedBy(2.dp),
+        verticalArrangement = Arrangement.spacedBy(PanelRowSpacing),
         modifier = Modifier
             .panelSurface(width = PanelWidth.Panel)
             .heightIn(max = MenuMaxHeight)
