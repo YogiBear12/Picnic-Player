@@ -481,14 +481,6 @@ private fun advancedSections(
             add(
                 viewModel.toggleItem(
                     settings,
-                    "Force DoVi Profile 7 support",
-                    SettingKeys.ForceDoviProfile7,
-                    enabled = !settings.forceDirectPlay
-                )
-            )
-            add(
-                viewModel.toggleItem(
-                    settings,
                     "Enable 4K transcoding",
                     SettingKeys.AllowFourKTranscoding,
                     enabled = !settings.forceDirectPlay

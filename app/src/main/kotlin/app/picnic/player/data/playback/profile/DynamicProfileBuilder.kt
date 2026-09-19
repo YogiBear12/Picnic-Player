@@ -33,8 +33,6 @@ object DynamicProfileBuilder {
             baseAudioCodecs
         }
 
-        PlaybackDiagnostics.logProfile(settings, allowedAudioCodecs)
-
         val codecRules = videoCodecRules(capabilities.videoDecoderSupport())
         val allowedVideoCodecs = codecRules.map { it.codec }.toTypedArray()
         val transcodeVideoCodecs = listOfNotNull(
@@ -45,14 +43,22 @@ object DynamicProfileBuilder {
         val unsupportedHevcRanges = unsupportedHevcRangeTypes(
             supportsHevcDolbyVision = capabilities.supportsHevcDolbyVision(),
             supportsHevcDolbyVisionProfile7 = capabilities.supportsHevcDolbyVisionProfile7(),
+            supportsHevcDolbyVisionProfile8 = capabilities.supportsHevcDolbyVisionProfile8(),
             supportsHevcHDR10 = capabilities.supportsHevcHDR10(),
-            supportsHevcHDR10Plus = capabilities.supportsHevcHDR10Plus(),
-            forceDoviProfile7 = settings.forceDoviProfile7
+            supportsHevcHDR10Plus = capabilities.supportsHevcHDR10Plus()
         )
         val unsupportedAv1Ranges = unsupportedAv1RangeTypes(
             supportsAV1DolbyVision = capabilities.supportsAV1DolbyVision(),
             supportsAV1HDR10 = capabilities.supportsAV1HDR10(),
             supportsAV1HDR10Plus = capabilities.supportsAV1HDR10Plus()
+        )
+
+        PlaybackDiagnostics.logProfile(
+            settings = settings,
+            audioCodecs = allowedAudioCodecs,
+            capabilities = capabilities,
+            unsupportedHevcRanges = unsupportedHevcRanges,
+            unsupportedAv1Ranges = unsupportedAv1Ranges
         )
 
         return buildDeviceProfile {

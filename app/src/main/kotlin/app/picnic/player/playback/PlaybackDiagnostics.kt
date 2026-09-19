@@ -30,6 +30,7 @@ import androidx.media3.extractor.SeekMap
 import androidx.media3.extractor.TrackOutput
 import app.picnic.player.BuildConfig
 import app.picnic.player.data.playback.StreamInfo
+import app.picnic.player.data.playback.profile.DeviceCapabilities
 import app.picnic.player.data.settings.BurnInSubtitles
 import app.picnic.player.data.settings.PlaybackSettings
 import java.io.IOException
@@ -46,11 +47,27 @@ object PlaybackDiagnostics : AnalyticsListener {
         if (enabled) Log.d(PLAYBACK_LOG_TAG, message)
     }
 
-    fun logProfile(settings: PlaybackSettings, audioCodecs: Array<String>) {
+    fun logProfile(
+        settings: PlaybackSettings,
+        audioCodecs: Array<String>,
+        capabilities: DeviceCapabilities,
+        unsupportedHevcRanges: Set<String>,
+        unsupportedAv1Ranges: Set<String>
+    ) {
         if (!enabled) return
         log(
             "profile downmixStereo=${settings.downmixStereo} forceDirectPlay=${settings.forceDirectPlay} " +
                 "burnInSubtitles=${settings.burnInSubtitles} audioCodecs=${audioCodecs.joinToString(",")}"
+        )
+        log(
+            "profile dv=${capabilities.supportsHevcDolbyVision()} " +
+                "dvP7=${capabilities.supportsHevcDolbyVisionProfile7()} " +
+                "dvP8=${capabilities.supportsHevcDolbyVisionProfile8()} " +
+                "hdr10=${capabilities.supportsHevcHDR10()} hdr10Plus=${capabilities.supportsHevcHDR10Plus()}"
+        )
+        log(
+            "profile excludedHevcRanges=${unsupportedHevcRanges.joinToString(",")} " +
+                "excludedAv1Ranges=${unsupportedAv1Ranges.joinToString(",")}"
         )
     }
 

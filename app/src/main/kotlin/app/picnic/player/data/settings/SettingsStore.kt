@@ -68,7 +68,6 @@ data class PlaybackSettings(
     val matchRefreshRate: Boolean = false,
     val matchResolution: Boolean = false,
     val downmixStereo: Boolean = false,
-    val forceDoviProfile7: Boolean = false,
     val forceDirectPlay: Boolean = false,
     val allowFourKTranscoding: Boolean = false,
     val trailerYouTubePackage: String? = null,
@@ -111,7 +110,6 @@ class SettingsStore @Inject constructor(
             matchRefreshRate = p[MATCH_REFRESH_RATE] ?: false,
             matchResolution = p[MATCH_RESOLUTION] ?: false,
             downmixStereo = p[DOWNMIX_STEREO] ?: false,
-            forceDoviProfile7 = p[FORCE_DOVI_PROFILE_7] ?: false,
             forceDirectPlay = p[FORCE_DIRECT_PLAY] ?: false,
             allowFourKTranscoding = p[ALLOW_FOUR_K_TRANSCODING] ?: false,
             trailerYouTubePackage = p[TRAILER_YOUTUBE_PACKAGE],
@@ -162,7 +160,6 @@ class SettingsStore @Inject constructor(
     suspend fun setMatchRefreshRate(value: Boolean) = put { it[MATCH_REFRESH_RATE] = value }
     suspend fun setMatchResolution(value: Boolean) = put { it[MATCH_RESOLUTION] = value }
     suspend fun setDownmixStereo(value: Boolean) = put { it[DOWNMIX_STEREO] = value }
-    suspend fun setForceDoviProfile7(value: Boolean) = put { it[FORCE_DOVI_PROFILE_7] = value }
     suspend fun setForceDirectPlay(value: Boolean) = put { it[FORCE_DIRECT_PLAY] = value }
     suspend fun setAllowFourKTranscoding(value: Boolean) = put { it[ALLOW_FOUR_K_TRANSCODING] = value }
     suspend fun setTrailerYouTubePackage(value: String?) = put {
@@ -246,7 +243,6 @@ class SettingsStore @Inject constructor(
         val MATCH_REFRESH_RATE = booleanPreferencesKey("advanced.matchRefreshRate")
         val MATCH_RESOLUTION = booleanPreferencesKey("advanced.matchResolution")
         val DOWNMIX_STEREO = booleanPreferencesKey("advanced.downmixStereo")
-        val FORCE_DOVI_PROFILE_7 = booleanPreferencesKey("advanced.forceDoviProfile7")
         val FORCE_DIRECT_PLAY = booleanPreferencesKey("advanced.forceDirectPlay")
         val ALLOW_FOUR_K_TRANSCODING = booleanPreferencesKey("advanced.allowFourKTranscoding")
         val TRAILER_YOUTUBE_PACKAGE = stringPreferencesKey("advanced.trailerYouTubePackage")

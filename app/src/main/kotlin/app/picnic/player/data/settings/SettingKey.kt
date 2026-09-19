@@ -38,7 +38,6 @@ object SettingKeys {
     val MatchResolution = SettingKey({ it.matchResolution }, SettingsStore::setMatchResolution)
     val ForceDirectPlay = SettingKey({ it.forceDirectPlay }, SettingsStore::setForceDirectPlay)
     val DownmixStereo = SettingKey({ it.downmixStereo }, SettingsStore::setDownmixStereo)
-    val ForceDoviProfile7 = SettingKey({ it.forceDoviProfile7 }, SettingsStore::setForceDoviProfile7)
     val AllowFourKTranscoding = SettingKey({ it.allowFourKTranscoding }, SettingsStore::setAllowFourKTranscoding)
     val TrailerYouTubePackage = SettingKey<String?>({ it.trailerYouTubePackage }, SettingsStore::setTrailerYouTubePackage)
 }

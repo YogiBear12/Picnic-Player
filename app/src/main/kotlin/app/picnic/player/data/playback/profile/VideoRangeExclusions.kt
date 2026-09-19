@@ -11,28 +11,24 @@ import org.jellyfin.sdk.model.api.VideoRangeType
 internal fun unsupportedHevcRangeTypes(
     supportsHevcDolbyVision: Boolean,
     supportsHevcDolbyVisionProfile7: Boolean,
+    supportsHevcDolbyVisionProfile8: Boolean,
     supportsHevcHDR10: Boolean,
     supportsHevcHDR10Plus: Boolean,
-    forceDoviProfile7: Boolean,
     hevcDoviHdr10PlusBug: Boolean = DeviceDefects.hevcDoviHdr10PlusBug
 ): Set<String> = buildSet {
     add(VideoRangeType.DOVI_INVALID.serialName)
 
-    if (!supportsHevcDolbyVisionProfile7 && !forceDoviProfile7) {
-        add(VideoRangeType.DOVI_WITH_EL.serialName)
-        if (!supportsHevcHDR10Plus && !hevcDoviHdr10PlusBug) {
-            add(VideoRangeType.DOVI_WITH_ELHDR10_PLUS.serialName)
-        }
+    val dolbyVisionDecoderTakesProfile7 =
+        supportsHevcDolbyVisionProfile7 || supportsHevcDolbyVisionProfile8
+    if (!dolbyVisionDecoderTakesProfile7) {
+        if (!supportsHevcHDR10) add(VideoRangeType.DOVI_WITH_EL.serialName)
+        if (!supportsHevcHDR10Plus) add(VideoRangeType.DOVI_WITH_ELHDR10_PLUS.serialName)
+    }
 
-        // Single-layer DV / HDR fallbacks are only rejected when there is no DV decoder.
-        // Profile 7 EL exclusion above still applies when DV exists but EL does not.
-        if (!supportsHevcDolbyVision) {
-            add(VideoRangeType.DOVI.serialName)
-            if (!supportsHevcHDR10) add(VideoRangeType.DOVI_WITH_HDR10.serialName)
-            if (!supportsHevcHDR10Plus && !hevcDoviHdr10PlusBug) {
-                add(VideoRangeType.DOVI_WITH_HDR10_PLUS.serialName)
-            }
-        }
+    if (!supportsHevcDolbyVision) {
+        add(VideoRangeType.DOVI.serialName)
+        if (!supportsHevcHDR10) add(VideoRangeType.DOVI_WITH_HDR10.serialName)
+        if (!supportsHevcHDR10Plus) add(VideoRangeType.DOVI_WITH_HDR10_PLUS.serialName)
     }
 
     if (!supportsHevcHDR10Plus) {
