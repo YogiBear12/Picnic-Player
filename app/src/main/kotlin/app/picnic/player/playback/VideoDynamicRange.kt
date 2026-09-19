@@ -3,7 +3,6 @@
 package app.picnic.player.playback
 
 import androidx.media3.common.C
-import androidx.media3.common.Format
 import androidx.media3.common.MimeTypes
 
 enum class VideoDynamicRange {
@@ -17,15 +16,10 @@ enum class VideoDynamicRange {
 
 internal val DolbyVisionCodecPrefixes = listOf("dvhe", "dvh1", "dvav", "dva1", "dav1")
 
-fun videoDynamicRange(
-    format: Format?,
-    decoderMimeType: String?
-): VideoDynamicRange {
-    if (format == null) return VideoDynamicRange.SDR
+fun videoDynamicRange(output: VideoOutput): VideoDynamicRange {
+    val format = output.format
     val codecs = format.codecs?.lowercase()
-    val decoderUsesDolbyVision = decoderMimeType == null ||
-        MimeTypes.VIDEO_DOLBY_VISION.equals(decoderMimeType, ignoreCase = true)
-    val dolbyVision = decoderUsesDolbyVision &&
+    val dolbyVision = MimeTypes.VIDEO_DOLBY_VISION.equals(output.decoder.mimeType, ignoreCase = true) &&
         (
             MimeTypes.VIDEO_DOLBY_VISION.equals(format.sampleMimeType, ignoreCase = true) ||
                 DolbyVisionCodecPrefixes.any { codecs?.startsWith(it) == true }

@@ -11,7 +11,7 @@ import app.picnic.player.data.playback.quality.QualityRung
 import app.picnic.player.playback.AudioBoost
 import app.picnic.player.playback.NightMode
 import app.picnic.player.playback.SleepTimerState
-import app.picnic.player.playback.VideoDecoder
+import app.picnic.player.playback.VideoOutput
 import app.picnic.player.ui.browse.ShortDateFormat
 import app.picnic.player.ui.browse.TICKS_PER_MINUTE
 import app.picnic.player.ui.player.osd.TrackSupport
@@ -90,7 +90,7 @@ data class PlayerUiState(
     val mediaSourceId: String? = null,
     val mediaSource: MediaSourceInfo? = null,
     val transcodingInfo: TranscodingInfo? = null,
-    val videoDecoder: VideoDecoder? = null,
+    val videoOutput: VideoOutput? = null,
     val estimatedBitrate: Long? = null,
     val notice: String? = null,
     val qualityOptions: List<QualityOption> = emptyList(),

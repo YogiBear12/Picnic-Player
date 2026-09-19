@@ -21,6 +21,11 @@ data class PlayingStream(
     val audioChannels: Int?
 )
 
+/**
+ * [videoFormat] is the live renderer format, so resolution and bitrate track an adaptive switch that
+ * reuses the codec; [videoOutput] is the format paired with the decoder media3 chose for it, and only
+ * that pair can name a dynamic range. Collapsing the two makes one of the rows wrong.
+ */
 fun playingStream(
     playMethod: PlayMethodKind?,
     transcodingInfo: TranscodingInfo?,
@@ -28,7 +33,7 @@ fun playingStream(
     selectedAudioIndex: Int?,
     videoFormat: Format?,
     audioFormat: Format?,
-    videoDecoderMimeType: String?
+    videoOutput: VideoOutput?
 ): PlayingStream {
     val directPlay = playMethod == PlayMethodKind.DIRECT_PLAY
     val videoDirect = directPlay || transcodingInfo?.isVideoDirect == true
@@ -57,7 +62,7 @@ fun playingStream(
         } else {
             videoFormat?.bitrate?.positiveLong() ?: transcodingInfo?.bitrate?.positiveLong()
         },
-        dynamicRange = videoFormat?.let { videoDynamicRange(it, videoDecoderMimeType) },
+        dynamicRange = videoOutput?.let(::videoDynamicRange),
         audioCodec = if (audioDirect) {
             audioStream?.codec?.uppercase() ?: codecLabel(audioFormat?.sampleMimeType)
         } else {

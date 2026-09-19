@@ -95,6 +95,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.last
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -301,7 +302,7 @@ class PlayerViewModel @Inject constructor(
         sessionController.playerStarted()
         viewModelScope.launch {
             engine.videoOutput.collect { output ->
-                _state.update { it.copy(videoDecoder = output?.decoder) }
+                _state.update { it.copy(videoOutput = output) }
             }
         }
         viewModelScope.launch {
@@ -401,7 +402,8 @@ class PlayerViewModel @Inject constructor(
     }
 
     val videoDynamicRange: StateFlow<VideoDynamicRange> = engine.videoOutput
-        .map { videoDynamicRange(it?.format, it?.decoder?.mimeType) }
+        .filterNotNull()
+        .map(::videoDynamicRange)
         .stateIn(viewModelScope, SharingStarted.Eagerly, VideoDynamicRange.SDR)
 
     val blackBars: StateFlow<BlackBars> = latchedBars.bars

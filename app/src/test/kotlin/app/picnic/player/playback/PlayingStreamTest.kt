@@ -99,7 +99,8 @@ class PlayingStreamTest {
         val playing = playing(
             playMethod = PlayMethodKind.TRANSCODE,
             mediaStreams = listOf(video(codec = "hevc")),
-            videoFormat = format(MimeTypes.VIDEO_H265, colorTransfer = C.COLOR_TRANSFER_SDR)
+            videoFormat = format(MimeTypes.VIDEO_H265, colorTransfer = C.COLOR_TRANSFER_SDR),
+            videoDecoderMimeType = MimeTypes.VIDEO_H265
         )
         assertEquals(VideoDynamicRange.SDR, playing.dynamicRange)
     }
@@ -107,6 +108,12 @@ class PlayingStreamTest {
     @Test
     fun rangeIsUnknownUntilTheDecoderReports() {
         assertNull(playing(playMethod = PlayMethodKind.TRANSCODE).dynamicRange)
+        assertNull(
+            playing(
+                playMethod = PlayMethodKind.DIRECT_PLAY,
+                videoFormat = format(MimeTypes.VIDEO_DOLBY_VISION, colorTransfer = C.COLOR_TRANSFER_ST2084)
+            ).dynamicRange
+        )
     }
 
     @Test
@@ -150,7 +157,12 @@ class PlayingStreamTest {
         selectedAudioIndex,
         videoFormat,
         audioFormat,
-        videoDecoderMimeType
+        videoDecoderMimeType?.let {
+            VideoOutput(
+                format = videoFormat ?: format(MimeTypes.VIDEO_H265),
+                decoder = VideoDecoder(name = "test", mimeType = it, hardwareAccelerated = true)
+            )
+        }
     )
 
     private fun format(

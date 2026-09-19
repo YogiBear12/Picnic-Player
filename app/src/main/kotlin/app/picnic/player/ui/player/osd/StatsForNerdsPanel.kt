@@ -101,7 +101,7 @@ fun StatsForNerdsPanel(
         selectedAudioIndex = state.selectedAudioId?.toIntOrNull(),
         videoFormat = videoFormat,
         audioFormat = audioFormat,
-        videoDecoderMimeType = state.videoDecoder?.mimeType
+        videoOutput = state.videoOutput
     )
 
     Row(
@@ -133,7 +133,7 @@ fun StatsForNerdsPanel(
                     val playbackInfoRows = mutableListOf<Pair<String, Any?>>(
                         "Player" to "ExoPlayer",
                         "Playback" to playMethodLabel,
-                        "Decoder" to (state.videoDecoder?.let(::decoderLabel) ?: "Unknown")
+                        "Decoder" to (state.videoOutput?.decoder?.let(::decoderLabel) ?: "Unknown")
                     )
 
                     val reasons = state.directPlayBlockedBy.ifEmpty {

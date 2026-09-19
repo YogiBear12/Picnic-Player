@@ -35,7 +35,6 @@ import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
 import okhttp3.OkHttpClient
 
 class PlaybackEngine(private val context: Context, httpClient: OkHttpClient) {
@@ -75,12 +74,10 @@ class PlaybackEngine(private val context: Context, httpClient: OkHttpClient) {
         val renderersFactory = SubtitleDelayRenderersFactory(
             AssRenderersFactory(
                 assHandler,
-                InstrumentedRenderersFactory(
+                AudioRouteAndVideoDecoderRenderersFactory(
                     context = context,
                     onSinkBuilt = { audioRouteSink = it },
-                    onVideoDecoderConfigured = { decoder, format ->
-                        _videoOutput.value = VideoOutput(format, decoder)
-                    }
+                    onVideoDecoderConfigured = { _videoOutput.value = it }
                 )
                     .setEnableDecoderFallback(true)
                     .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
@@ -104,14 +101,6 @@ class PlaybackEngine(private val context: Context, httpClient: OkHttpClient) {
             .build()
         assHandler.init(player)
         player.addAnalyticsListener(object : AnalyticsListener {
-            override fun onVideoInputFormatChanged(
-                eventTime: AnalyticsListener.EventTime,
-                format: Format,
-                decoderReuseEvaluation: DecoderReuseEvaluation?
-            ) {
-                _videoOutput.update { VideoOutput(format, it?.decoder) }
-            }
-
             override fun onAudioSessionIdChanged(eventTime: AnalyticsListener.EventTime, audioSessionId: Int) {
                 audioEffects.onAudioSessionId(audioSessionId)
             }
@@ -171,10 +160,10 @@ class PlaybackEngine(private val context: Context, httpClient: OkHttpClient) {
     }
 }
 
-private class InstrumentedRenderersFactory(
+private class AudioRouteAndVideoDecoderRenderersFactory(
     context: Context,
     private val onSinkBuilt: (AudioRouteSink) -> Unit,
-    private val onVideoDecoderConfigured: (VideoDecoder, Format) -> Unit
+    private val onVideoDecoderConfigured: (VideoOutput) -> Unit
 ) : DefaultRenderersFactory(context) {
     override fun getCodecAdapterFactory(): MediaCodecAdapter.Factory {
         val delegate = super.getCodecAdapterFactory()
@@ -182,12 +171,14 @@ private class InstrumentedRenderersFactory(
             val adapter = delegate.createAdapter(configuration)
             if (MimeTypes.isVideo(configuration.codecInfo.mimeType)) {
                 onVideoDecoderConfigured(
-                    VideoDecoder(
-                        name = configuration.codecInfo.name,
-                        mimeType = configuration.codecInfo.mimeType,
-                        hardwareAccelerated = configuration.codecInfo.hardwareAccelerated
-                    ),
-                    configuration.format
+                    VideoOutput(
+                        format = configuration.format,
+                        decoder = VideoDecoder(
+                            name = configuration.codecInfo.name,
+                            mimeType = configuration.codecInfo.mimeType,
+                            hardwareAccelerated = configuration.codecInfo.hardwareAccelerated
+                        )
+                    )
                 )
             }
             adapter
@@ -202,9 +193,13 @@ private class InstrumentedRenderersFactory(
         ?.let { AudioRouteSink(it).also(onSinkBuilt) }
 }
 
+/**
+ * A format and the decoder media3 configured for it. Published only from the codec-adapter
+ * factory, where both arrive together, so the two can never describe different video.
+ */
 data class VideoOutput(
     val format: Format,
-    val decoder: VideoDecoder?
+    val decoder: VideoDecoder
 )
 
 data class VideoDecoder(

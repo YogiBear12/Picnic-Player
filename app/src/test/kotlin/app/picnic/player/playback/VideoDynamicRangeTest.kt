@@ -12,6 +12,11 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class VideoDynamicRangeTest {
+    private fun range(format: Format, decoderMimeType: String): VideoDynamicRange {
+        val decoder = VideoDecoder(name = "test", mimeType = decoderMimeType, hardwareAccelerated = true)
+        return videoDynamicRange(VideoOutput(format, decoder))
+    }
+
     private fun format(
         mimeType: String = MimeTypes.VIDEO_H265,
         codecs: String? = null,
@@ -31,8 +36,14 @@ class VideoDynamicRangeTest {
 
     @Test
     fun pqAndHlgTransfers_nameTheirOwnRange() {
-        assertEquals(VideoDynamicRange.HDR10, videoDynamicRange(format(colorTransfer = C.COLOR_TRANSFER_ST2084), decoderMimeType = null))
-        assertEquals(VideoDynamicRange.HLG, videoDynamicRange(format(colorTransfer = C.COLOR_TRANSFER_HLG), decoderMimeType = null))
+        assertEquals(
+            VideoDynamicRange.HDR10,
+            range(format(colorTransfer = C.COLOR_TRANSFER_ST2084), MimeTypes.VIDEO_H265)
+        )
+        assertEquals(
+            VideoDynamicRange.HLG,
+            range(format(colorTransfer = C.COLOR_TRANSFER_HLG), MimeTypes.VIDEO_H265)
+        )
     }
 
     @Test
@@ -45,21 +56,30 @@ class VideoDynamicRangeTest {
 
     @Test
     fun sdrTransfer_isSdr() {
-        assertEquals(VideoDynamicRange.SDR, videoDynamicRange(format(colorTransfer = C.COLOR_TRANSFER_SDR), decoderMimeType = null))
+        assertEquals(
+            VideoDynamicRange.SDR,
+            range(format(colorTransfer = C.COLOR_TRANSFER_SDR), MimeTypes.VIDEO_H265)
+        )
     }
 
     @Test
     fun dolbyVisionMime_isDoviWithoutColorInfo() {
         assertEquals(
             VideoDynamicRange.DOVI,
-            videoDynamicRange(format(mimeType = MimeTypes.VIDEO_DOLBY_VISION), decoderMimeType = null)
+            range(format(mimeType = MimeTypes.VIDEO_DOLBY_VISION), MimeTypes.VIDEO_DOLBY_VISION)
         )
     }
 
     @Test
     fun dolbyVisionCodec_isDoviBehindAnHevcMime() {
-        assertEquals(VideoDynamicRange.DOVI, videoDynamicRange(format(codecs = "dvhe.08.06"), decoderMimeType = null))
-        assertEquals(VideoDynamicRange.DOVI, videoDynamicRange(format(codecs = "dvh1.05.06"), decoderMimeType = null))
+        assertEquals(
+            VideoDynamicRange.DOVI,
+            range(format(codecs = "dvhe.08.06"), MimeTypes.VIDEO_DOLBY_VISION)
+        )
+        assertEquals(
+            VideoDynamicRange.DOVI,
+            range(format(codecs = "dvh1.05.06"), MimeTypes.VIDEO_DOLBY_VISION)
+        )
     }
 
     @Test
@@ -70,7 +90,7 @@ class VideoDynamicRangeTest {
             colorTransfer = C.COLOR_TRANSFER_ST2084
         )
 
-        assertEquals(VideoDynamicRange.HDR10, videoDynamicRange(format, MimeTypes.VIDEO_H265))
+        assertEquals(VideoDynamicRange.HDR10, range(format, MimeTypes.VIDEO_H265))
     }
 
     @Test
@@ -81,13 +101,18 @@ class VideoDynamicRangeTest {
             colorTransfer = C.COLOR_TRANSFER_ST2084
         )
 
-        assertEquals(VideoDynamicRange.DOVI, videoDynamicRange(format, MimeTypes.VIDEO_DOLBY_VISION))
+        assertEquals(VideoDynamicRange.DOVI, range(format, MimeTypes.VIDEO_DOLBY_VISION))
     }
 
     @Test
-    fun sdrCodecsAndMissingFormat_areSdr() {
-        assertEquals(VideoDynamicRange.SDR, videoDynamicRange(format(codecs = "hvc1.1.6.L120.90"), decoderMimeType = null))
-        assertEquals(VideoDynamicRange.SDR, videoDynamicRange(format(codecs = "avc1.640028"), decoderMimeType = null))
-        assertEquals(VideoDynamicRange.SDR, videoDynamicRange(null, decoderMimeType = null))
+    fun sdrCodecs_areSdr() {
+        assertEquals(
+            VideoDynamicRange.SDR,
+            range(format(codecs = "hvc1.1.6.L120.90"), MimeTypes.VIDEO_H265)
+        )
+        assertEquals(
+            VideoDynamicRange.SDR,
+            range(format(codecs = "avc1.640028"), MimeTypes.VIDEO_H265)
+        )
     }
 }
