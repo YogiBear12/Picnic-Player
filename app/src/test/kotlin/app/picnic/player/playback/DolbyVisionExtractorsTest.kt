@@ -32,6 +32,16 @@ class DolbyVisionExtractorsTest {
     }
 
     @Test
+    fun uppercaseDolbyVisionTrack_isStillRewritten() {
+        val format = Format.Builder()
+            .setSampleMimeType(MimeTypes.VIDEO_DOLBY_VISION.uppercase())
+            .setCodecs("DVHE.07.06")
+            .build()
+
+        assertEquals("dvhe.08.06", rewrite(DoviStrategy.CONVERT_TO_P8, format)?.codecs)
+    }
+
+    @Test
     fun otherProfiles_areUnchanged() {
         val profile8 = dolbyVisionFormat(codecs = "dvhe.08.06")
         val profile5 = dolbyVisionFormat(codecs = "dvhe.05.06")

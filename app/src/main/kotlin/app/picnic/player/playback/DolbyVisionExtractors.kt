@@ -88,24 +88,17 @@ private class DolbyVisionFormatTrackOutput(
 }
 
 private fun Format.forDolbyVisionStrategy(strategy: DoviStrategy): Format {
-    if (sampleMimeType != MimeTypes.VIDEO_DOLBY_VISION || codecs.dolbyVisionProfile() != PROFILE_7) return this
+    if (!MimeTypes.VIDEO_DOLBY_VISION.equals(sampleMimeType, ignoreCase = true)) return this
+    val parts = codecs?.lowercase()?.split('.') ?: return this
+    if (parts.size < 2 || parts[0] !in DolbyVisionCodecPrefixes || parts[1] != PROFILE_7) return this
+    val profile8Codecs = parts.mapIndexed { index, part -> if (index == 1) PROFILE_8 else part }
+        .joinToString(".")
     return when (strategy) {
         DoviStrategy.KEEP -> this
-        DoviStrategy.CONVERT_TO_P8 -> buildUpon().setCodecs(codecs?.withDolbyVisionProfile(PROFILE_8)).build()
+        DoviStrategy.CONVERT_TO_P8 -> buildUpon().setCodecs(profile8Codecs).build()
         DoviStrategy.DISCARD -> buildUpon()
             .setSampleMimeType(MimeTypes.VIDEO_H265)
             .setCodecs(null)
             .build()
     }
 }
-
-private fun String?.dolbyVisionProfile(): String? {
-    val parts = this?.lowercase()?.split('.') ?: return null
-    if (parts.size < 2 || parts[0] !in DolbyVisionCodecPrefixes) return null
-    return parts[1]
-}
-
-private fun String.withDolbyVisionProfile(profile: String): String = split('.')
-    .toMutableList()
-    .also { it[1] = profile }
-    .joinToString(".")
