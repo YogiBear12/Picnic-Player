@@ -34,7 +34,7 @@ fun ExpandableButton(
         modifier = modifier.height(ActionButtonHeight),
         contentPadding = if (isFocused) PaddingValues(start = 12.dp, end = 16.dp) else PaddingValues(horizontal = 12.dp),
         colors = ButtonDefaults.colors(
-            containerColor = PicnicColors.GlassFill
+            containerColor = PicnicColors.GlassFillLight
         ),
         scale = ButtonDefaults.scale(focusedScale = 1f),
         interactionSource = interactionSource

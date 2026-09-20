@@ -16,6 +16,7 @@ object PicnicColors {
     val SurfaceVariant = Color(0xFF18242E)
 
     val GlassFill = Color(0xEA181E24)
+    val GlassFillLight = Color(0x29FFFFFF)
 
     val ArtworkPlaceholder = Color(0xFF232A31)
 

@@ -32,7 +32,7 @@ fun SeerrActionButton(
         modifier = modifier.height(40.dp),
         contentPadding = PaddingValues(horizontal = 12.dp),
         colors = ButtonDefaults.colors(
-            containerColor = PicnicColors.GlassFill
+            containerColor = PicnicColors.GlassFillLight
         ),
         scale = ButtonDefaults.scale(focusedScale = 1f)
     ) {
