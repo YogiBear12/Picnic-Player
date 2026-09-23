@@ -635,17 +635,17 @@ private fun AccountActionsRow(
 @Composable
 private fun WatchCountBadges(stats: WatchStats?) {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        WatchCountBadge(stats?.movies, "Movies")
-        WatchCountBadge(stats?.shows, "Shows")
-        WatchCountBadge(stats?.episodes, "Episodes")
+        WatchCountBadge(stats?.showsStarted, "Shows started")
+        WatchCountBadge(stats?.showsWatched, "Shows watched")
+        WatchCountBadge(stats?.episodesWatched, "Episodes watched")
+        WatchCountBadge(stats?.moviesWatched, "Movies watched")
     }
 }
 
 @Composable
 private fun WatchCountBadge(count: Int?, label: String) {
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        verticalAlignment = Alignment.CenterVertically,
+    Column(
+        verticalArrangement = Arrangement.spacedBy(2.dp),
         modifier = Modifier
             .clip(BadgeShape)
             .background(BadgeFill)

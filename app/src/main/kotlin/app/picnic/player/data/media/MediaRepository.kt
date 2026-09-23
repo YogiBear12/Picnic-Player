@@ -43,7 +43,12 @@ import org.jellyfin.sdk.model.api.request.GetSimilarItemsRequest
 
 internal const val MEDIA_GRID_PAGE_SIZE = 100
 
-data class WatchStats(val movies: Int, val shows: Int, val episodes: Int)
+data class WatchStats(
+    val moviesWatched: Int,
+    val episodesWatched: Int,
+    val showsStarted: Int,
+    val showsWatched: Int
+)
 
 private const val LIBRARY_LOG_TAG = "PicnicLibrary"
 
@@ -704,11 +709,16 @@ class MediaRepository @Inject constructor(
 
     suspend fun watchStats(): WatchStats = coroutineScope {
         val movies = async { watchedCount(BaseItemKind.MOVIE) }
-        val series = mutableSetOf<UUID>()
-        val episodes = collectPages(WATCHED_EPISODE_PAGE_SIZE, ::watchedEpisodePage) { items ->
-            items.forEach { item -> item.seriesId?.let(series::add) }
-        }
-        WatchStats(movies = movies.await(), shows = series.size, episodes = episodes)
+        val episodes = async { watchedCount(BaseItemKind.EPISODE) }
+        val series = mutableListOf<BaseItemDto>()
+        collectPages(SERIES_PLAY_STATE_PAGE_SIZE, ::seriesPlayStatePage) { series += it }
+        val started = series.filter { (it.userData?.playedPercentage ?: 0.0) > 0.0 }
+        WatchStats(
+            moviesWatched = movies.await(),
+            episodesWatched = episodes.await(),
+            showsStarted = started.size,
+            showsWatched = started.count { it.userData?.played == true }
+        )
     }
 
     private suspend fun collectPages(
@@ -740,19 +750,18 @@ class MediaRepository @Inject constructor(
         ).content.totalRecordCount
     }
 
-    private suspend fun watchedEpisodePage(startIndex: Int): BaseItemDtoQueryResult = onIo {
+    private suspend fun seriesPlayStatePage(startIndex: Int): BaseItemDtoQueryResult = onIo {
         api().itemsApi.getItems(
             userId = session().userUuid,
-            includeItemTypes = listOf(BaseItemKind.EPISODE),
+            includeItemTypes = listOf(BaseItemKind.SERIES),
             recursive = true,
-            isPlayed = true,
             sortBy = listOf(ItemSortBy.SORT_NAME),
             sortOrder = listOf(SortOrder.ASCENDING),
             startIndex = startIndex,
-            limit = WATCHED_EPISODE_PAGE_SIZE,
-            fields = emptyList(),
+            limit = SERIES_PLAY_STATE_PAGE_SIZE,
+            // The server fills UserData.PlayedPercentage on a series only when RecursiveItemCount is requested.
+            fields = listOf(ItemFields.RECURSIVE_ITEM_COUNT),
             enableImages = false,
-            enableUserData = false,
             enableTotalRecordCount = true
         ).content
     }
@@ -799,7 +808,7 @@ class MediaRepository @Inject constructor(
         const val BOX_SET_FETCH_CONCURRENCY = 4
         const val BOX_SET_CACHE_TTL_MS = 5 * 60 * 1000L
 
-        const val WATCHED_EPISODE_PAGE_SIZE = 2000
+        const val SERIES_PLAY_STATE_PAGE_SIZE = 2000
 
         const val ITEM_FETCH_CHUNK = 100
         const val ITEM_FETCH_CONCURRENCY = 4
