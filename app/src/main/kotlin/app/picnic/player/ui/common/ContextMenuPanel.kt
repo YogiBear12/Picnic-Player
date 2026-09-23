@@ -28,7 +28,7 @@ import androidx.tv.material3.Text
 
 data class ContextMenuAction(
     val label: String,
-    val icon: ImageVector,
+    val icon: ImageVector? = null,
     val enabled: Boolean = true,
     val onClick: () -> Unit
 )
@@ -72,8 +72,8 @@ fun ContextMenuPanel(
                     action.onClick()
                 },
                 headlineContent = { Text(action.label, color = Color.White) },
-                leadingContent = {
-                    Icon(action.icon, contentDescription = null, tint = Color.White.copy(alpha = 0.8f))
+                leadingContent = action.icon?.let { icon ->
+                    { Icon(icon, contentDescription = null, tint = Color.White.copy(alpha = 0.8f)) }
                 },
                 colors = ListItemDefaults.colors(
                     containerColor = Color.Transparent,
