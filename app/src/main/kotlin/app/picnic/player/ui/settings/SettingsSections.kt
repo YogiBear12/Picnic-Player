@@ -501,6 +501,9 @@ private fun advancedSections(
                 )
             )
             add(
+                viewModel.toggleItem(settings, "Local Seerr user login", SettingKeys.LocalSeerrLogin)
+            )
+            add(
                 SettingItem(
                     "External application for trailers",
                     youtubeApps.find { it.packageName == settings.trailerYouTubePackage }?.name ?: "System Default",

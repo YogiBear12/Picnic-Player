@@ -15,12 +15,30 @@ import kotlinx.coroutines.flow.map
 /** Provenance of a stored Seerr URL: typed by the user, or prefilled from the companion plugin. */
 enum class SeerrUrlSource { USER, PLUGIN }
 
+sealed interface SeerrCredentials {
+    val password: String
+
+    data class Jellyfin(override val password: String) : SeerrCredentials
+
+    data class Local(val email: String, override val password: String) : SeerrCredentials
+}
+
+data class SeerrLastLogin(val method: SeerrAuthMethod = SeerrAuthMethod.JELLYFIN, val email: String? = null)
+
+/** A missing method is a link made before local login existed, which was always Jellyfin. */
+internal fun parseSeerrAuthMethod(raw: String?): SeerrAuthMethod = SeerrAuthMethod.entries.find { it.name == raw } ?: SeerrAuthMethod.JELLYFIN
+
+internal fun seerrCredentials(last: SeerrLastLogin, password: String?): SeerrCredentials? {
+    if (password.isNullOrBlank()) return null
+    return when (last.method) {
+        SeerrAuthMethod.JELLYFIN, SeerrAuthMethod.JELLYFIN_TOKEN -> SeerrCredentials.Jellyfin(password)
+        SeerrAuthMethod.LOCAL -> last.email?.takeIf { it.isNotBlank() }?.let { SeerrCredentials.Local(it, password) }
+    }
+}
+
 /**
- * Persists Seerr URL (per Jellyfin Server Connection), encrypted session cookie +
- * Jellyfin password (per User Session), and the Show Discover preference.
- *
- * Password-at-rest is temporary until Seerr supports Jellyfin token auth
- * ([SeerrAuthMethod.JELLYFIN_TOKEN])
+ * A Jellyfin link keeps its password at rest only until Seerr supports Jellyfin token auth
+ * ([SeerrAuthMethod.JELLYFIN_TOKEN]). A local link always needs it for silent renew.
  */
 @Singleton
 class SeerrCredentialStore @Inject constructor(
@@ -65,13 +83,32 @@ class SeerrCredentialStore @Inject constructor(
 
     suspend fun clearSessionCookie(serverId: String, userId: String) = remove(cookieKey(serverId, userId))
 
-    suspend fun jellyfinPassword(serverId: String, userId: String): String? = read(passwordKey(serverId, userId))?.let { secure.decrypt(it) }
-
-    suspend fun setJellyfinPassword(serverId: String, userId: String, password: String) {
-        write(passwordKey(serverId, userId), secure.encrypt(password))
+    suspend fun credentials(serverId: String, userId: String): SeerrCredentials? {
+        val prefs = dataStore.data.first()
+        return seerrCredentials(
+            last = lastLogin(prefs, serverId, userId),
+            password = prefs[stringPreferencesKey(passwordKey(serverId, userId))]?.let { secure.decrypt(it) }
+        )
     }
 
-    suspend fun clearJellyfinPassword(serverId: String, userId: String) = remove(passwordKey(serverId, userId))
+    suspend fun lastLogin(serverId: String, userId: String): SeerrLastLogin = lastLogin(dataStore.data.first(), serverId, userId)
+
+    private fun lastLogin(prefs: Preferences, serverId: String, userId: String) = SeerrLastLogin(
+        method = parseSeerrAuthMethod(prefs[stringPreferencesKey(authMethodKey(serverId, userId))]),
+        email = prefs[stringPreferencesKey(emailKey(serverId, userId))]?.let { secure.decrypt(it) }
+    )
+
+    suspend fun setCredentials(serverId: String, userId: String, credentials: SeerrCredentials) {
+        val password = secure.encrypt(credentials.password)
+        val local = credentials as? SeerrCredentials.Local
+        val email = local?.let { secure.encrypt(it.email) }
+        val method = if (local != null) SeerrAuthMethod.LOCAL else SeerrAuthMethod.JELLYFIN
+        dataStore.edit {
+            it[stringPreferencesKey(passwordKey(serverId, userId))] = password
+            it[stringPreferencesKey(authMethodKey(serverId, userId))] = method.name
+            if (email != null) it[stringPreferencesKey(emailKey(serverId, userId))] = email
+        }
+    }
 
     suspend fun seerrUserId(serverId: String, userId: String): Int? = read(seerrUserKey(serverId, userId))?.toIntOrNull()
 
@@ -81,21 +118,21 @@ class SeerrCredentialStore @Inject constructor(
 
     suspend fun clearSeerrUserId(serverId: String, userId: String) = remove(seerrUserKey(serverId, userId))
 
-    /** True when this User Session has a stored Seerr cookie or password for renew. */
-    suspend fun hasLink(serverId: String, userId: String): Boolean = sessionCookie(serverId, userId) != null || jellyfinPassword(serverId, userId) != null
+    /** True when this User Session has a stored Seerr cookie or credentials for renew. */
+    suspend fun hasLink(serverId: String, userId: String): Boolean = sessionCookie(serverId, userId) != null || credentials(serverId, userId) != null
 
-    /**
-     * Disconnect for this user: drop session + password, keep server URL and showDiscover.
-     */
+    /** Keeps the auth method and email so the next Connect seeds focus and prefill from them. */
     suspend fun disconnectUser(serverId: String, userId: String) {
         clearSessionCookie(serverId, userId)
-        clearJellyfinPassword(serverId, userId)
+        remove(passwordKey(serverId, userId))
         clearSeerrUserId(serverId, userId)
     }
 
     /** Forget user: wipe all Seerr secrets for that profile. */
     suspend fun forgetUser(serverId: String, userId: String) {
         disconnectUser(serverId, userId)
+        remove(authMethodKey(serverId, userId))
+        remove(emailKey(serverId, userId))
         dataStore.edit { it.remove(booleanPreferencesKey(showDiscoverKey(serverId, userId))) }
     }
 
@@ -119,6 +156,8 @@ class SeerrCredentialStore @Inject constructor(
     private fun urlSourceKey(serverId: String) = "seerr.url_source.$serverId"
     private fun cookieKey(serverId: String, userId: String) = "seerr.cookie.$serverId.$userId"
     private fun passwordKey(serverId: String, userId: String) = "seerr.pw.$serverId.$userId"
+    private fun authMethodKey(serverId: String, userId: String) = "seerr.auth_method.$serverId.$userId"
+    private fun emailKey(serverId: String, userId: String) = "seerr.email.$serverId.$userId"
     private fun seerrUserKey(serverId: String, userId: String) = "seerr.uid.$serverId.$userId"
     private fun showDiscoverKey(serverId: String, userId: String) = "seerr.show_discover.$serverId.$userId"
 

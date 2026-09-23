@@ -39,6 +39,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -158,7 +159,8 @@ internal fun AccountSettingsPanel(
     val requestsLoading by viewModel.requestsLoading.collectAsStateWithLifecycle()
     val favorites = loadedFavorites.orEmpty()
     val requests = loadedRequests.orEmpty()
-    var showConnectDialog by remember { mutableStateOf(false) }
+    var connectPrompt by remember { mutableStateOf<SeerrConnectPrompt?>(null) }
+    val scope = rememberCoroutineScope()
     val seerrButtonFr = remember { FocusRequester() }
     val issuesButtonFr = remember { FocusRequester() }
     var lastActionFocus by remember { mutableStateOf(seerrButtonFr) }
@@ -193,8 +195,8 @@ internal fun AccountSettingsPanel(
 
     LaunchedEffect(linked) {
         if (!linked) return@LaunchedEffect
-        if (showConnectDialog) {
-            showConnectDialog = false
+        if (connectPrompt != null) {
+            connectPrompt = null
             seerrButtonFr.requestFocusWhenAttached(maxFrames = 20)
         }
         coroutineScope {
@@ -424,7 +426,7 @@ internal fun AccountSettingsPanel(
                             lastActionFocus = requester
                             focus.onRowFocused(requester)
                         },
-                        onSeerr = { if (linked) viewModel.disconnectSeerr() else showConnectDialog = true },
+                        onSeerr = { if (linked) viewModel.disconnectSeerr() else scope.launch { connectPrompt = viewModel.seerrConnectPrompt() } },
                         onSignOut = { viewModel.signOut(onSignedOut) },
                         modifier = Modifier
                             .blockTop(AccountBlock.ACTIONS, blockTops)
@@ -435,13 +437,15 @@ internal fun AccountSettingsPanel(
         }
     }
 
-    if (showConnectDialog) {
+    connectPrompt?.let { prompt ->
         SeerrConnectDialog(
+            prompt = prompt,
             initialUrl = seerr.serverUrl.orEmpty(),
             connecting = connecting,
             error = connectError,
             onConnect = viewModel::connectSeerr,
-            onDismiss = { showConnectDialog = false }
+            onStepChange = viewModel::clearSeerrConnectError,
+            onDismiss = { connectPrompt = null }
         )
     }
 }

@@ -70,6 +70,7 @@ data class PlaybackSettings(
     val downmixStereo: Boolean = false,
     val forceDirectPlay: Boolean = false,
     val allowFourKTranscoding: Boolean = false,
+    val localSeerrLogin: Boolean = false,
     val trailerYouTubePackage: String? = null,
     val defaultVideoQuality: QualityRung? = null,
     val preferredAudioLanguage: String? = null,
@@ -112,6 +113,7 @@ class SettingsStore @Inject constructor(
             downmixStereo = p[DOWNMIX_STEREO] ?: false,
             forceDirectPlay = p[FORCE_DIRECT_PLAY] ?: false,
             allowFourKTranscoding = p[ALLOW_FOUR_K_TRANSCODING] ?: false,
+            localSeerrLogin = p[LOCAL_SEERR_LOGIN] ?: false,
             trailerYouTubePackage = p[TRAILER_YOUTUBE_PACKAGE],
             defaultVideoQuality = QualityRung.named(p.userString(scope, DEFAULT_VIDEO_QUALITY)),
             preferredAudioLanguage = p.userString(scope, PREFERRED_AUDIO_LANGUAGE),
@@ -162,6 +164,7 @@ class SettingsStore @Inject constructor(
     suspend fun setDownmixStereo(value: Boolean) = put { it[DOWNMIX_STEREO] = value }
     suspend fun setForceDirectPlay(value: Boolean) = put { it[FORCE_DIRECT_PLAY] = value }
     suspend fun setAllowFourKTranscoding(value: Boolean) = put { it[ALLOW_FOUR_K_TRANSCODING] = value }
+    suspend fun setLocalSeerrLogin(value: Boolean) = put { it[LOCAL_SEERR_LOGIN] = value }
     suspend fun setTrailerYouTubePackage(value: String?) = put {
         if (value == null) {
             it.remove(TRAILER_YOUTUBE_PACKAGE)
@@ -245,6 +248,7 @@ class SettingsStore @Inject constructor(
         val DOWNMIX_STEREO = booleanPreferencesKey("advanced.downmixStereo")
         val FORCE_DIRECT_PLAY = booleanPreferencesKey("advanced.forceDirectPlay")
         val ALLOW_FOUR_K_TRANSCODING = booleanPreferencesKey("advanced.allowFourKTranscoding")
+        val LOCAL_SEERR_LOGIN = booleanPreferencesKey("advanced.localSeerrLogin")
         val TRAILER_YOUTUBE_PACKAGE = stringPreferencesKey("advanced.trailerYouTubePackage")
 
         const val DEFAULT_VIDEO_QUALITY = "playback.defaultVideoQuality"

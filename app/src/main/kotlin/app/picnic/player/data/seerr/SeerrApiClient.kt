@@ -74,6 +74,8 @@ class SeerrApiClient @Inject constructor(
         return postRaw("/auth/jellyfin", body)
     }
 
+    fun authLocal(email: String, password: String): SeerrUser = postRaw("/auth/local", json.encodeToString(SeerrLocalAuthBody(email = email, password = password)))
+
     fun publicSettings(): SeerrPublicSettings = get("/settings/public")
 
     fun search(query: String, page: Int = 1): SeerrSearchPage = get("/search?query=${query.encodeUrl()}&page=$page")

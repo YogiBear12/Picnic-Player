@@ -29,8 +29,7 @@ data class SeerrSessionState(
     val serverUrl: String? = null,
     val user: SeerrUser? = null,
     val showDiscover: Boolean = true,
-    val cacheImages: Boolean = false,
-    val authMethod: SeerrAuthMethod = SeerrAuthMethod.JELLYFIN
+    val cacheImages: Boolean = false
 )
 
 @Singleton
@@ -89,10 +88,10 @@ class SeerrRepository @Inject constructor(
                 return
             }
         }
-        val password = store.jellyfinPassword(serverId, userId)
-        if (!password.isNullOrBlank()) {
+        val credentials = store.credentials(serverId, userId)
+        if (credentials != null) {
             val renewed = runCatching {
-                loginInternal(session, url, password, persistPassword = true)
+                loginInternal(session, url, credentials)
             }.isSuccess
             if (renewed) {
                 _state.value = _state.value.copy(showDiscover = showDiscover)
@@ -126,16 +125,32 @@ class SeerrRepository @Inject constructor(
         return store.serverUrl(serverId)
     }
 
-    suspend fun connect(urlInput: String, password: String): Result<SeerrUser> {
+    suspend fun connect(urlInput: String, credentials: SeerrCredentials): Result<SeerrUser> {
         val session = authRepository.activeSession()
             ?: return Result.failure(IllegalStateException("No active Jellyfin session"))
         val url = SeerrCredentialStore.normalizeBaseUrl(urlInput)
         return runCatching {
-            loginInternal(session, url, password, persistPassword = true)
+            try {
+                loginInternal(session, url, credentials)
+            } catch (e: SeerrHttpException) {
+                throw if (credentials is SeerrCredentials.Local) localFailure(e) else e
+            }
         }.onSuccess {
             store.setServerUrlSource(session.server.id, SeerrUrlSource.USER)
         }
     }
+
+    /**
+     * `/auth/local` answers 403 for wrong credentials, and 500 both for "local sign-in disabled"
+     * and for any other failure, so the server's `localLogin` flag tells those apart.
+     */
+    private suspend fun localFailure(e: SeerrHttpException): Exception {
+        if (e.code == 403) return IllegalStateException("Incorrect email or password")
+        val settings = runCatching { onIo { api.publicSettings() } }.getOrNull()
+        return if (settings?.localLogin == false) IllegalStateException("Local sign-in is disabled on this Seerr server") else e
+    }
+
+    suspend fun lastLogin(): SeerrLastLogin = authRepository.activeSession()?.let { store.lastLogin(it.server.id, it.userId) } ?: SeerrLastLogin()
 
     suspend fun disconnect() {
         _issues.value = null
@@ -489,8 +504,8 @@ class SeerrRepository @Inject constructor(
             ?: throw IllegalStateException("Seerr not linked")
         val url = store.serverUrl(session.server.id)
             ?: throw IllegalStateException("Seerr not linked")
-        val password = store.jellyfinPassword(session.server.id, session.userId)
-        if (password.isNullOrBlank()) {
+        val credentials = store.credentials(session.server.id, session.userId)
+        if (credentials == null) {
             markNeedsRelink(
                 session.server.id,
                 session.userId,
@@ -500,7 +515,7 @@ class SeerrRepository @Inject constructor(
             throw IllegalStateException("Seerr session expired")
         }
         runCatching {
-            loginInternal(session, url, password, persistPassword = true)
+            loginInternal(session, url, credentials)
         }.getOrElse {
             markNeedsRelink(
                 session.server.id,
@@ -515,21 +530,21 @@ class SeerrRepository @Inject constructor(
     private suspend fun loginInternal(
         session: UserSession,
         url: String,
-        password: String,
-        persistPassword: Boolean
+        credentials: SeerrCredentials
     ): SeerrUser {
         val showDiscover = store.showDiscover(session.server.id, session.userId)
         val user = onIo {
             api.clearCookies()
             api.setBaseUrl(url)
             api.status()
-            api.authJellyfin(session.username, password)
+            when (credentials) {
+                is SeerrCredentials.Jellyfin -> api.authJellyfin(session.username, credentials.password)
+                is SeerrCredentials.Local -> api.authLocal(credentials.email, credentials.password)
+            }
             api.authMe()
         }
         store.setServerUrl(session.server.id, url)
-        if (persistPassword) {
-            store.setJellyfinPassword(session.server.id, session.userId, password)
-        }
+        store.setCredentials(session.server.id, session.userId, credentials)
         store.setSeerrUserId(session.server.id, session.userId, user.id)
         persistCookie(url, session.server.id, session.userId)
         val settings = runCatching { onIo { api.publicSettings() } }.getOrNull()
@@ -538,8 +553,7 @@ class SeerrRepository @Inject constructor(
             serverUrl = url,
             user = user,
             showDiscover = showDiscover,
-            cacheImages = settings?.cacheImages == true,
-            authMethod = SeerrAuthMethod.JELLYFIN
+            cacheImages = settings?.cacheImages == true
         )
         return user
     }

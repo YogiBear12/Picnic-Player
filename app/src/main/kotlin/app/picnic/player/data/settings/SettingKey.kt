@@ -39,5 +39,6 @@ object SettingKeys {
     val ForceDirectPlay = SettingKey({ it.forceDirectPlay }, SettingsStore::setForceDirectPlay)
     val DownmixStereo = SettingKey({ it.downmixStereo }, SettingsStore::setDownmixStereo)
     val AllowFourKTranscoding = SettingKey({ it.allowFourKTranscoding }, SettingsStore::setAllowFourKTranscoding)
+    val LocalSeerrLogin = SettingKey({ it.localSeerrLogin }, SettingsStore::setLocalSeerrLogin)
     val TrailerYouTubePackage = SettingKey<String?>({ it.trailerYouTubePackage }, SettingsStore::setTrailerYouTubePackage)
 }

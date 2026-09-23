@@ -17,6 +17,8 @@ import app.picnic.player.data.media.batches
 import app.picnic.player.data.playback.CulturePickerOption
 import app.picnic.player.data.playback.cultureDisplayName
 import app.picnic.player.data.playback.culturePickerOptions
+import app.picnic.player.data.seerr.SeerrCredentials
+import app.picnic.player.data.seerr.SeerrLastLogin
 import app.picnic.player.data.seerr.SeerrLinkState
 import app.picnic.player.data.seerr.SeerrRequestDisplay
 import app.picnic.player.data.seerr.isOpen
@@ -213,10 +215,22 @@ class SettingsViewModel @Inject constructor(
         onDone()
     }
 
-    fun connectSeerr(url: String, password: String) = viewModelScope.launch {
+    suspend fun seerrConnectPrompt(): SeerrConnectPrompt {
+        _seerrConnectError.value = null
+        return SeerrConnectPrompt(
+            offerLocalLogin = settings.value.localSeerrLogin,
+            lastLogin = seerrRepository.lastLogin()
+        )
+    }
+
+    fun clearSeerrConnectError() {
+        _seerrConnectError.value = null
+    }
+
+    fun connectSeerr(url: String, credentials: SeerrCredentials) = viewModelScope.launch {
         _seerrConnecting.value = true
         _seerrConnectError.value = null
-        seerrRepository.connect(url, password)
+        seerrRepository.connect(url, credentials)
             .onSuccess {
                 refreshMyRequests()
             }
@@ -281,3 +295,5 @@ class SettingsViewModel @Inject constructor(
         val NEXT_UP_COUNTDOWN_OPTIONS = listOf(0, 5, 10, 15)
     }
 }
+
+data class SeerrConnectPrompt(val offerLocalLogin: Boolean, val lastLogin: SeerrLastLogin)

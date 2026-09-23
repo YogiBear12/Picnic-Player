@@ -7,7 +7,8 @@ import kotlinx.serialization.Serializable
 
 enum class SeerrAuthMethod {
     JELLYFIN,
-    JELLYFIN_TOKEN
+    JELLYFIN_TOKEN,
+    LOCAL
 }
 
 enum class SeerrMediaType {
@@ -130,6 +131,12 @@ data class SeerrJellyfinAuthBody(
 )
 
 @Serializable
+data class SeerrLocalAuthBody(
+    val email: String,
+    val password: String
+)
+
+@Serializable
 data class SeerrUser(
     val id: Int,
     val email: String? = null,
@@ -144,7 +151,8 @@ data class SeerrPublicSettings(
     val initialized: Boolean = true,
     val movie4kEnabled: Boolean = false,
     val series4kEnabled: Boolean = false,
-    val cacheImages: Boolean = false
+    val cacheImages: Boolean = false,
+    val localLogin: Boolean = true
 )
 
 @Serializable
