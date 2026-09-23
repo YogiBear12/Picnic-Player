@@ -142,7 +142,7 @@ fun SettingsScreen(
     Row(
         modifier = Modifier
             .fillMaxSize()
-            .padding(start = SettingsSideInset)
+            .padding(start = SettingsRailStartInset)
     ) {
         val updateViewModel: UpdateViewModel = hiltViewModel()
         val updateBadge by updateViewModel.updateAvailable.collectAsStateWithLifecycle()
@@ -412,7 +412,7 @@ private fun DetailPanel(
     Column(
         modifier = modifier
             .verticalScroll(scrollState)
-            .padding(top = SettingsTopInset, bottom = SettingsBottomInset, end = SettingsSideInset)
+            .padding(top = SettingsListTopInset, bottom = SettingsBottomInset, end = SettingsSideInset)
             .onFocusChanged { focus.onFocusChanged(it.hasFocus) },
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {

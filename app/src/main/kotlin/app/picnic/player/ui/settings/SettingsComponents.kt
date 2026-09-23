@@ -38,6 +38,12 @@ internal val SettingsBottomInset: Dp
 internal val SettingsSideInset: Dp
     @Composable get() = settingsScaleX(64f)
 
+internal val SettingsRailStartInset: Dp
+    @Composable get() = settingsScaleX(40f)
+
+internal val SettingsListTopInset: Dp
+    @Composable get() = settingsScaleY(88f)
+
 internal val SettingsSubPageTopInset: Dp
     @Composable get() = settingsScaleY(32f)
 
