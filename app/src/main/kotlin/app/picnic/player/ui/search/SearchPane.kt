@@ -230,17 +230,7 @@ private fun ResultRowsSection(
                     horizontalArrangement = Arrangement.spacedBy(metrics.cardSpacing),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .focusProperties {
-                            if (rowIndex == 0) {
-                                exit = { direction ->
-                                    if (direction == FocusDirection.Up) {
-                                        fieldFocus
-                                    } else {
-                                        FocusRequester.Default
-                                    }
-                                }
-                            }
-                        }
+                        .focusProperties { exit = searchRowExit(fieldFocus.takeIf { rowIndex == 0 }) }
                         .focusRestorer(rowCardFocus[rowIndex])
                         .focusGroup()
                 ) {
@@ -309,15 +299,7 @@ private fun ResultRowsSection(
                     modifier = Modifier
                         .fillMaxWidth()
                         .focusProperties {
-                            if (state.results.isEmpty() && rowIndex == 0) {
-                                exit = { direction ->
-                                    if (direction == FocusDirection.Up) {
-                                        fieldFocus
-                                    } else {
-                                        FocusRequester.Default
-                                    }
-                                }
-                            }
+                            exit = searchRowExit(fieldFocus.takeIf { state.results.isEmpty() && rowIndex == 0 })
                         }
                         .focusRestorer(discoverCardFocus[rowIndex])
                         .focusGroup()
@@ -395,6 +377,14 @@ private fun SearchResultCard(
             subtitleOverride = episodeSubtitle,
             modifier = Modifier.padding(top = style.topInset)
         )
+    }
+}
+
+private fun searchRowExit(upFocus: FocusRequester?): (FocusDirection) -> FocusRequester = { direction ->
+    when (direction) {
+        FocusDirection.Right -> FocusRequester.Cancel
+        FocusDirection.Up -> upFocus ?: FocusRequester.Default
+        else -> FocusRequester.Default
     }
 }
 
