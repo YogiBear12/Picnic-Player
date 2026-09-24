@@ -10,10 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -30,6 +27,7 @@ import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import app.picnic.player.ui.ambient.CardFocusBorderWidth
+import app.picnic.player.ui.ambient.cardFocusGlow
 import app.picnic.player.ui.ambient.rememberCardFocusGlow
 import kotlin.math.abs
 
@@ -49,16 +47,13 @@ internal fun GenreCard(
 ) {
     val shape = RoundedCornerShape(12.dp)
     val gradient = remember(name) { genreGradient(name) }
-    var focused by remember { mutableStateOf(false) }
-    val focusedGlow = rememberCardFocusGlow(Color.White, focused)
+    val focusGlow = rememberCardFocusGlow(Color.White, shape, focusedScale = 1.05f)
 
     var cardModifier = modifier
         .aspectRatio(16f / 9f)
-        .onFocusChanged {
-            focused = it.isFocused
-            if (it.isFocused) onFocused()
-        }
+        .onFocusChanged { if (it.isFocused) onFocused() }
     if (focusRequester != null) cardModifier = cardModifier.focusRequester(focusRequester)
+    cardModifier = cardModifier.cardFocusGlow(focusGlow)
 
     Card(
         onClick = onClick,
@@ -67,12 +62,12 @@ internal fun GenreCard(
             containerColor = Color.Transparent,
             focusedContainerColor = Color.Transparent
         ),
-        scale = CardDefaults.scale(focusedScale = 1.05f),
+        scale = CardDefaults.scale(focusedScale = focusGlow.focusedScale),
         border = CardDefaults.border(
             border = Border(BorderStroke(0.dp, Color.Transparent), shape = shape),
             focusedBorder = Border(BorderStroke(CardFocusBorderWidth, Color.White), shape = shape)
         ),
-        glow = CardDefaults.glow(focusedGlow = focusedGlow),
+        interactionSource = focusGlow.interactionSource,
         modifier = cardModifier
     ) {
         Box(

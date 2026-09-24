@@ -44,6 +44,7 @@ import androidx.tv.material3.Text
 import app.picnic.player.data.jellyfin.JellyfinImages
 import app.picnic.player.ui.ambient.CardFocusBorderWidth
 import app.picnic.player.ui.ambient.LocalCapBadgeCount
+import app.picnic.player.ui.ambient.cardFocusGlow
 import app.picnic.player.ui.ambient.rememberCardFocusAccent
 import app.picnic.player.ui.ambient.rememberCardFocusGlow
 import app.picnic.player.ui.common.ArtworkImage
@@ -199,17 +200,13 @@ internal fun PosterCardFrame(
     content: @Composable BoxScope.() -> Unit
 ) {
     val focusAccent = rememberCardFocusAccent(accentUrl, accentBlurHash)
-    var focused by remember { mutableStateOf(false) }
-    val focusedGlow = rememberCardFocusGlow(focusAccent.glowColor, focused)
     val shape = RoundedCornerShape(CardCornerRadius)
+    val focusGlow = rememberCardFocusGlow(focusAccent.glowColor, shape, CardFocusedScale)
 
     var cardModifier = modifier
         .width(style.width)
         .height(style.height)
-        .onFocusChanged {
-            focused = it.isFocused
-            if (it.isFocused) onFocused()
-        }
+        .onFocusChanged { if (it.isFocused) onFocused() }
     if (focusRequester != null) cardModifier = cardModifier.focusRequester(focusRequester)
     cardModifier = cardModifier.focusProperties {
         upFocus?.let { up = it() }
@@ -217,6 +214,7 @@ internal fun PosterCardFrame(
         leftFocus?.let { left = it }
         rightFocus?.let { right = it }
     }
+    cardModifier = cardModifier.cardFocusGlow(focusGlow)
 
     Card(
         onClick = onClick,
@@ -226,7 +224,7 @@ internal fun PosterCardFrame(
             containerColor = Color.Transparent,
             focusedContainerColor = Color.Transparent
         ),
-        scale = CardDefaults.scale(focusedScale = CardFocusedScale),
+        scale = CardDefaults.scale(focusedScale = focusGlow.focusedScale),
         border = CardDefaults.border(
             border = Border(BorderStroke(0.dp, Color.Transparent), shape = shape),
             focusedBorder = Border(
@@ -234,7 +232,7 @@ internal fun PosterCardFrame(
                 shape = shape
             )
         ),
-        glow = CardDefaults.glow(focusedGlow = focusedGlow),
+        interactionSource = focusGlow.interactionSource,
         modifier = cardModifier,
         content = { Box(Modifier.fillMaxSize(), content = content) }
     )

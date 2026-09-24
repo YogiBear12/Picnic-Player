@@ -21,7 +21,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
@@ -34,6 +33,7 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import app.picnic.player.ui.ambient.CardFocusBorderWidth
+import app.picnic.player.ui.ambient.cardFocusGlow
 import app.picnic.player.ui.ambient.rememberCardFocusGlow
 import coil3.compose.AsyncImage
 import coil3.compose.AsyncImagePainter
@@ -62,7 +62,8 @@ fun CircularPersonCard(
 ) {
     var imageFailed by remember(imageUrl) { mutableStateOf(false) }
     val topInset = imageSize * (0.1f * 0.25f) + 1.dp + 6.dp
-    var focused by remember { mutableStateOf(false) }
+    val focusGlow = rememberCardFocusGlow(Color.White, CircleShape, focusedScale = 1.1f)
+    val focused by focusGlow.focused
     val labelGap by animateDpAsState(
         if (focused) 14.dp else 6.dp,
         label = "personCardLabelGap"
@@ -87,13 +88,11 @@ fun CircularPersonCard(
                     shape = CircleShape
                 )
             ),
-            glow = ClickableSurfaceDefaults.glow(
-                focusedGlow = rememberCardFocusGlow(Color.White, focused)
-            ),
-            scale = ClickableSurfaceDefaults.scale(focusedScale = 1.1f),
+            scale = ClickableSurfaceDefaults.scale(focusedScale = focusGlow.focusedScale),
+            interactionSource = focusGlow.interactionSource,
             modifier = modifier
-                .onFocusChanged { focused = it.isFocused }
                 .size(imageSize)
+                .cardFocusGlow(focusGlow)
         ) {
             if (imageUrl == null || imageFailed) {
                 Box(

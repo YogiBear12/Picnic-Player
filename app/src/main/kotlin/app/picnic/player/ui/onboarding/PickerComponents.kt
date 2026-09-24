@@ -41,7 +41,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.Key
@@ -60,6 +59,7 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import app.picnic.player.ui.ambient.CardFocusBorderWidth
+import app.picnic.player.ui.ambient.cardFocusGlow
 import app.picnic.player.ui.ambient.rememberCardFocusAccent
 import app.picnic.player.ui.ambient.rememberCardFocusGlow
 import app.picnic.player.ui.common.ActionButton
@@ -281,8 +281,8 @@ private fun PickerTile(
         hasError -> PicnicColors.Error
         else -> focusAccent.glowColor
     }
-    var focused by remember { mutableStateOf(false) }
-    val focusedGlow = rememberCardFocusGlow(focusGlowColor, focused)
+    val focusGlow = rememberCardFocusGlow(focusGlowColor, tileShape, focusedScale = 1.1f, enabled = focusable)
+    val focused by focusGlow.focused
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -297,7 +297,7 @@ private fun PickerTile(
                 onLongClick = if (supportsLongPress) onLongPress else null,
                 enabled = focusable,
                 shape = ClickableSurfaceDefaults.shape(tileShape),
-                scale = ClickableSurfaceDefaults.scale(focusedScale = 1.1f),
+                scale = ClickableSurfaceDefaults.scale(focusedScale = focusGlow.focusedScale),
                 colors = ClickableSurfaceDefaults.colors(
                     containerColor = PicnicColors.SurfaceVariant,
                     focusedContainerColor = PicnicColors.SurfaceVariant
@@ -309,12 +309,12 @@ private fun PickerTile(
                         shape = tileShape
                     )
                 ),
-                glow = ClickableSurfaceDefaults.glow(focusedGlow = focusedGlow),
+                interactionSource = focusGlow.interactionSource,
                 modifier = Modifier
                     .size(size.dp)
                     .focusRequester(focusRequester)
-                    .onFocusChanged { focused = it.isFocused }
                     .onKeyEvent { ev -> editingThis && onEditKey(ev) }
+                    .cardFocusGlow(focusGlow)
             ) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     if (entry.icon != null) {

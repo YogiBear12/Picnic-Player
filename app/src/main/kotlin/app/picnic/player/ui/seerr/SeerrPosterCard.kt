@@ -42,6 +42,7 @@ import app.picnic.player.data.seerr.SeerrImages
 import app.picnic.player.data.seerr.personCreditDetailLine
 import app.picnic.player.data.seerr.personCreditRoleLine
 import app.picnic.player.ui.ambient.CardFocusBorderWidth
+import app.picnic.player.ui.ambient.cardFocusGlow
 import app.picnic.player.ui.ambient.rememberCardFocusAccent
 import app.picnic.player.ui.ambient.rememberCardFocusGlow
 import app.picnic.player.ui.browse.BrowseCardStyle
@@ -201,19 +202,16 @@ private fun SeerrPosterFace(
     val accentUrl = SeerrImages.poster(seerrBaseUrl, item.posterPath, cacheImages, size = AccentPosterSize)
     val focusAccent = rememberCardFocusAccent(accentUrl)
     val shape = RoundedCornerShape(12.dp)
-    var focused by remember { mutableStateOf(false) }
-    val focusedGlow = rememberCardFocusGlow(focusAccent.glowColor, focused)
+    val focusGlow = rememberCardFocusGlow(focusAccent.glowColor, shape, focusedScale = 1.1f)
 
     var cardModifier = modifier
         .width(style.width)
         .height(style.height)
-        .onFocusChanged {
-            focused = it.isFocused
-            if (it.isFocused) onFocused()
-        }
+        .onFocusChanged { if (it.isFocused) onFocused() }
     if (focusRequester != null) cardModifier = cardModifier.focusRequester(focusRequester)
     if (upFocus != null) cardModifier = cardModifier.focusProperties { up = upFocus() }
     if (leftFocus != null) cardModifier = cardModifier.focusProperties { left = leftFocus }
+    cardModifier = cardModifier.cardFocusGlow(focusGlow)
 
     Card(
         onClick = onClick,
@@ -223,7 +221,7 @@ private fun SeerrPosterFace(
             containerColor = Color.Transparent,
             focusedContainerColor = Color.Transparent
         ),
-        scale = CardDefaults.scale(focusedScale = 1.1f),
+        scale = CardDefaults.scale(focusedScale = focusGlow.focusedScale),
         border = CardDefaults.border(
             border = Border(BorderStroke(0.dp, Color.Transparent), shape = shape),
             focusedBorder = Border(
@@ -231,7 +229,7 @@ private fun SeerrPosterFace(
                 shape = shape
             )
         ),
-        glow = CardDefaults.glow(focusedGlow = focusedGlow),
+        interactionSource = focusGlow.interactionSource,
         modifier = cardModifier
     ) {
         Box(Modifier.fillMaxSize()) {

@@ -61,6 +61,7 @@ import app.picnic.player.playback.LocalThemeMusicPlayer
 import app.picnic.player.ui.ambient.BackdropSpec
 import app.picnic.player.ui.ambient.CardFocusBorderWidth
 import app.picnic.player.ui.ambient.PublishBackdrop
+import app.picnic.player.ui.ambient.cardFocusGlow
 import app.picnic.player.ui.ambient.rememberCardFocusGlow
 import app.picnic.player.ui.browse.CardTimeLeftBadge
 import app.picnic.player.ui.browse.CardWatchedBadge
@@ -484,8 +485,9 @@ private fun EpisodeItem(
     onPlay: (String, Long?) -> Unit,
     onLongClick: () -> Unit
 ) {
-    var focused by remember { mutableStateOf(false) }
     val thumbShape = RoundedCornerShape(8.dp)
+    val focusGlow = rememberCardFocusGlow(Color.White, thumbShape, focusedScale = 1.03f)
+    val focused by focusGlow.focused
 
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -505,22 +507,18 @@ private fun EpisodeItem(
                 containerColor = Color.Transparent,
                 focusedContainerColor = Color.Transparent
             ),
-            scale = CardDefaults.scale(focusedScale = 1.03f),
+            scale = CardDefaults.scale(focusedScale = focusGlow.focusedScale),
             border = CardDefaults.border(
                 border = Border(BorderStroke(0.dp, Color.Transparent), shape = thumbShape),
                 focusedBorder = Border(BorderStroke(CardFocusBorderWidth, Color.White), shape = thumbShape)
             ),
-            glow = CardDefaults.glow(
-                focusedGlow = rememberCardFocusGlow(Color.White, focused)
-            ),
+            interactionSource = focusGlow.interactionSource,
             modifier = Modifier
                 .size(width = 200.dp, height = 112.dp)
-                .onFocusChanged {
-                    focused = it.isFocused
-                    if (it.isFocused) onFocused()
-                }
+                .onFocusChanged { if (it.isFocused) onFocused() }
                 .then(if (leftFocus != null) Modifier.focusProperties { left = leftFocus } else Modifier)
                 .then(if (enterFr != null) Modifier.focusRequester(enterFr) else Modifier)
+                .cardFocusGlow(focusGlow)
         ) {
             Box(Modifier.fillMaxSize()) {
                 ArtworkPlaceholder()
