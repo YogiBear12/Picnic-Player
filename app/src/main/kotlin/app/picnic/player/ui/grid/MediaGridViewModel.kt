@@ -108,7 +108,6 @@ class LibraryGridViewModel @Inject constructor(
 
     private suspend fun reloadGrid() {
         val current = _state.value
-        lastPagedPage = Int.MIN_VALUE
         try {
             store.reset(current.sort, current.filter)
         } catch (cancelled: CancellationException) {
@@ -117,6 +116,7 @@ class LibraryGridViewModel @Inject constructor(
             return
         }
         _state.update { it.copy(totalCount = store.totalCount, revision = it.revision + 1) }
+        if (lastPagedPage >= 0) loadAround(lastPagedPage)
     }
 
     fun retry() {
@@ -138,10 +138,18 @@ class LibraryGridViewModel @Inject constructor(
         val page = firstVisibleIndex / store.pageSize
         if (page == lastPagedPage) return
         lastPagedPage = page
-        viewModelScope.launch {
-            var loaded = false
-            for (p in (page - 1)..(page + 2)) {
-                if (p >= 0 && store.ensureIndex(p * store.pageSize)) loaded = true
+        viewModelScope.launch { loadAround(page) }
+    }
+
+    private suspend fun loadAround(page: Int) {
+        for (p in (page - 1).coerceAtLeast(0)..(page + 2)) {
+            val loaded = try {
+                store.ensureIndex(p * store.pageSize)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Exception) {
+                lastPagedPage = Int.MIN_VALUE
+                return
             }
             if (loaded) _state.update { it.copy(revision = it.revision + 1) }
         }

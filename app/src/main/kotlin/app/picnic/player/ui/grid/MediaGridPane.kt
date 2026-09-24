@@ -14,7 +14,6 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.focusGroup
-import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.BringIntoViewSpec
 import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
 import androidx.compose.foundation.layout.Arrangement
@@ -51,7 +50,6 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.ExperimentalTvMaterial3Api
@@ -329,13 +327,13 @@ private fun MediaGridBody(
                         .focusGroup()
                         .onFocusChanged { contentFocused = it.hasFocus }
                         .focusProperties {
-                            enter = { firstFocus }
+                            enter = { if (itemAt(focusedIndex) != null) firstFocus else FocusRequester.Default }
                             exit = { direction ->
                                 when (direction) {
                                     androidx.compose.ui.focus.FocusDirection.Right ->
                                         railLetterFocus[railActiveIndex.value]
                                     androidx.compose.ui.focus.FocusDirection.Up ->
-                                        upExitFocus ?: FocusRequester.Cancel
+                                        if (topRowFocused) upExitFocus ?: FocusRequester.Cancel else FocusRequester.Cancel
                                     androidx.compose.ui.focus.FocusDirection.Down ->
                                         FocusRequester.Cancel
                                     else -> FocusRequester.Default
@@ -361,15 +359,8 @@ private fun MediaGridBody(
                                 onLongClick = { contextMenu.show(item) }
                             )
                         } else {
-                            val focusRequester = if (index == focusedIndex) firstFocus else null
-                            Box(
-                                Modifier
-                                    .width(cardStyle.width)
-                                    .height(cellHeight)
-                                    .onFocusChanged { if (it.hasFocus) focusOn(index) }
-                                    .focusRequester(focusRequester ?: FocusRequester.Default)
-                                    .focusable()
-                            )
+                            // Never focusable: a focused placeholder is disposed when its page lands.
+                            Box(Modifier.width(cardStyle.width).height(cellHeight))
                         }
                     }
                 }
