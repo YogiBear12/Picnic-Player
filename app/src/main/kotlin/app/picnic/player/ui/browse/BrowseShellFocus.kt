@@ -1,5 +1,13 @@
 package app.picnic.player.ui.browse
 
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.focus.FocusRequester
+
 /**
  * Focus-ownership model for the browse shell.
  *
@@ -27,4 +35,42 @@ internal enum class PaneFocusRequest {
 
     /** The pane owns focus; nothing pending. */
     None
+}
+
+/**
+ * The latest [DeclarePaneEntry] wins, and withdrawing it falls back to the one below. Effects run
+ * in composition order, so a container declares before its content and the innermost sits on top.
+ */
+internal class PaneEntryFocus {
+    private val targets = mutableListOf<() -> FocusRequester>()
+
+    fun requester(): FocusRequester = targets.lastOrNull()?.invoke() ?: FocusRequester.Default
+
+    fun declare(target: () -> FocusRequester) {
+        targets += target
+    }
+
+    fun withdraw(target: () -> FocusRequester) {
+        targets -= target
+    }
+}
+
+internal val LocalPaneEntryFocus = compositionLocalOf<PaneEntryFocus?> { null }
+
+/** Only active content sees the holder, so a pane or tab fading out cannot declare over it. */
+@Composable
+internal fun PaneEntryScope(active: Boolean, content: @Composable () -> Unit) {
+    val entry = LocalPaneEntryFocus.current
+    CompositionLocalProvider(LocalPaneEntryFocus provides entry.takeIf { active }, content = content)
+}
+
+@Composable
+internal fun DeclarePaneEntry(target: () -> FocusRequester) {
+    val entry = LocalPaneEntryFocus.current
+    val current by rememberUpdatedState(target)
+    DisposableEffect(entry) {
+        val declared = { current() }
+        entry?.declare(declared)
+        onDispose { entry?.withdraw(declared) }
+    }
 }

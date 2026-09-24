@@ -38,7 +38,6 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.onFocusChanged
@@ -90,7 +89,7 @@ internal fun BrowseFloatingNav(
     selectedKey: String,
     selectedDest: BrowseDest,
     itemFocusRequesters: Map<String, FocusRequester>,
-    contentFocusOnRight: () -> FocusRequester,
+    paneEntryFocus: () -> FocusRequester,
     drawerState: DrawerState,
     drawerDim: State<Float>,
     drawerPage: NavDrawerPage,
@@ -217,27 +216,16 @@ internal fun BrowseFloatingNav(
                     onChromeFocusedChange(it.hasFocus)
                 }
                 .onKeyEvent { event ->
-                    if (event.key != Key.DirectionLeft ||
-                        event.type != KeyEventType.KeyDown ||
-                        reorderKey != null
-                    ) {
-                        false
-                    } else {
-                        if (onPrimaryPage) runCatching { contentFocusOnRight().requestFocus() }
-                        true
+                    val sideways = event.key == Key.DirectionLeft || event.key == Key.DirectionRight
+                    if (sideways && event.type == KeyEventType.KeyDown && onPrimaryPage && reorderKey == null) {
+                        runCatching { paneEntryFocus().requestFocus() }
                     }
+                    sideways
                 }
                 .focusProperties {
                     onEnter = {
                         itemFocusRequesters[selectedKey]
                             ?.let { runCatching { it.requestFocus() } }
-                    }
-                    exit = { direction ->
-                        when {
-                            direction != FocusDirection.Right -> FocusRequester.Default
-                            onPrimaryPage -> contentFocusOnRight()
-                            else -> FocusRequester.Cancel
-                        }
                     }
                 }
                 .focusGroup(),

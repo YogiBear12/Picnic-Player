@@ -78,7 +78,7 @@ internal fun BrowseSideNavDrawer(
     destinations: List<BrowseDest>,
     selectedKey: String,
     itemFocusRequesters: Map<String, FocusRequester>,
-    contentFocusOnRight: () -> FocusRequester,
+    paneEntryFocus: () -> FocusRequester,
     drawerState: DrawerState,
     drawerDim: State<Float>,
     drawerPage: NavDrawerPage,
@@ -172,7 +172,7 @@ internal fun BrowseSideNavDrawer(
                             }
                             exit = { direction ->
                                 when (direction) {
-                                    FocusDirection.Right -> contentFocusOnRight()
+                                    FocusDirection.Right -> paneEntryFocus()
                                     else -> FocusRequester.Default
                                 }
                             }

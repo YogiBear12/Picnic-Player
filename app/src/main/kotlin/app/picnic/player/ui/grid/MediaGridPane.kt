@@ -56,6 +56,7 @@ import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Text
 import app.picnic.player.ui.ambient.LocalAmbientPrewarmer
 import app.picnic.player.ui.browse.BrowseLayoutMetrics
+import app.picnic.player.ui.browse.DeclarePaneEntry
 import app.picnic.player.ui.browse.posterCardStyle
 import app.picnic.player.ui.common.LoadFailedState
 import app.picnic.player.ui.common.LocalContextMenuHandler
@@ -98,6 +99,7 @@ internal fun MediaGridPane(
     when {
         state.error != null -> {
             val retryFocus = rememberOneShotFocus(seedContentFocus, onContentFocusSeeded)
+            DeclarePaneEntry { retryFocus }
             LoadFailedState(
                 message = state.error,
                 retryFocus = retryFocus,
@@ -216,13 +218,14 @@ private fun MediaGridBody(
     }
 
     val emptyStateFallback = if (filter.isActive || pendingClearSeed) adjustFiltersFocus else filterFocus
+    val paneEntry = if (totalCount == 0) emptyStateFallback else firstFocus
+    DeclarePaneEntry { paneEntry }
 
     LaunchedEffect(focusReason, totalCount) {
         when (focusReason) {
             null -> Unit
             GridFocusReason.Seed -> {
-                val target = if (totalCount == 0) emptyStateFallback else firstFocus
-                target.requestFocusWhenAttached()
+                paneEntry.requestFocusWhenAttached()
                 onContentFocusSeeded()
             }
             GridFocusReason.FiltersCleared -> {

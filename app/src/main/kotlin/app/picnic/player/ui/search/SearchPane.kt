@@ -40,6 +40,7 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import app.picnic.player.ui.ambient.LocalAmbientPrewarmer
 import app.picnic.player.ui.browse.BrowseLayoutMetrics
+import app.picnic.player.ui.browse.DeclarePaneEntry
 import app.picnic.player.ui.browse.episodeCardSubtitle
 import app.picnic.player.ui.browse.landscapeCardStyle
 import app.picnic.player.ui.browse.posterCardStyle
@@ -91,6 +92,7 @@ internal fun SearchPane(
             else -> fieldFocus
         }
     }
+    DeclarePaneEntry(entryFocus)
 
     LaunchedEffect(
         seedContentFocus,

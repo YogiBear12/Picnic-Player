@@ -59,6 +59,7 @@ internal fun ImmersiveBrowseScaffold(
     metrics: BrowseLayoutMetrics
 ) {
     val restoreRow = focusedRowIndex.coerceIn(0, (rows.size - 1).coerceAtLeast(0))
+    DeclarePaneEntry(focus::entryFocus)
 
     LaunchedEffect(seedContentFocus, rows.size, focusedRowIndex) {
         if (!seedContentFocus || rows.isEmpty()) return@LaunchedEffect
@@ -116,15 +117,7 @@ internal fun ImmersiveBrowseScaffold(
             Modifier
                 .fillMaxSize()
                 .focusProperties {
-                    onEnter = {
-                        runCatching {
-                            focus.rowCardFocus.getOrElse(restoreRow) {
-                                focus.rowFocusRequesters.getOrElse(restoreRow) {
-                                    focus.rowFocusRequesters[0]
-                                }
-                            }.requestFocus()
-                        }
-                    }
+                    onEnter = { runCatching { focus.entryFocus().requestFocus() } }
                 }
         ) {
             Box(Modifier.fillMaxWidth().weight(1f).clipToBounds()) {
@@ -150,15 +143,7 @@ internal fun ImmersiveBrowseScaffold(
                         .fillMaxWidth()
                         .height(metrics.rowsRegionHeight.coerceAtLeast(0.dp))
                         .offset(y = metrics.rowsViewportOffset)
-                        .focusProperties {
-                            enter = {
-                                focus.rowCardFocus.getOrElse(restoreRow) {
-                                    focus.rowFocusRequesters.getOrElse(restoreRow) {
-                                        focus.rowFocusRequesters[0]
-                                    }
-                                }
-                            }
-                        },
+                        .focusProperties { enter = { focus.entryFocus() } },
                     state = focus.listState,
                     contentPadding = PaddingValues(bottom = metrics.bottomInset),
                     verticalArrangement = Arrangement.spacedBy(metrics.rowSpacing)

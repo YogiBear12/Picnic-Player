@@ -37,7 +37,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.Text
 import app.picnic.player.ui.browse.BrowseDest
 import app.picnic.player.ui.browse.BrowseLayoutMetrics
+import app.picnic.player.ui.browse.DeclarePaneEntry
 import app.picnic.player.ui.browse.ImmersiveBrowseScaffold
+import app.picnic.player.ui.browse.PaneEntryScope
 import app.picnic.player.ui.browse.rememberHomeBrowseFocus
 import app.picnic.player.ui.common.LoadFailedState
 import app.picnic.player.ui.common.rememberOneShotFocus
@@ -97,6 +99,7 @@ internal fun LibraryPane(
 
     val selectedTab = paneState.selectedTab
     val tabFocus = remember { FocusRequester() }
+    DeclarePaneEntry { tabFocus }
     var tabRowFocused by remember { mutableStateOf(false) }
     val libraryEmptyFocus = remember { FocusRequester() }
     val collectionsEmptyFocus = remember { FocusRequester() }
@@ -149,68 +152,70 @@ internal fun LibraryPane(
                 transitionSpec = { fadeIn(tween(260)) togetherWith fadeOut(tween(260)) },
                 label = "libraryTabContent"
             ) { tab ->
-                when (tab) {
-                    LibraryTab.LIBRARY -> {
-                        LaunchedEffect(dest) {
-                            gridViewModel.bindLibrary(dest.id, dest.kinds, dest.title)
+                PaneEntryScope(active = tab == selectedTab) {
+                    when (tab) {
+                        LibraryTab.LIBRARY -> {
+                            LaunchedEffect(dest) {
+                                gridViewModel.bindLibrary(dest.id, dest.kinds, dest.title)
+                            }
+                            MediaGridPane(
+                                state = gridState,
+                                viewModel = gridViewModel,
+                                metrics = metrics,
+                                seedContentFocus = seedContentFocus && tab == selectedTab,
+                                onContentFocusSeeded = onContentFocusSeeded,
+                                onItem = onItem,
+                                onChromeVisibleChange = { libraryChromeVisible = it },
+                                upExitFocus = tabFocus,
+                                emptyStateFocus = libraryEmptyFocus,
+                                onEmptyFilteredChange = { libraryEmptyFiltered = it }
+                            )
                         }
-                        MediaGridPane(
-                            state = gridState,
-                            viewModel = gridViewModel,
+                        LibraryTab.FOR_YOU -> ForYouTabContent(
+                            state = forYouState,
+                            viewModel = forYouViewModel,
+                            dest = dest,
                             metrics = metrics,
+                            horizontalInset = horizontalInset,
+                            tabFocus = tabFocus,
+                            active = tab == selectedTab,
                             seedContentFocus = seedContentFocus && tab == selectedTab,
                             onContentFocusSeeded = onContentFocusSeeded,
-                            onItem = onItem,
-                            onChromeVisibleChange = { libraryChromeVisible = it },
-                            upExitFocus = tabFocus,
-                            emptyStateFocus = libraryEmptyFocus,
-                            onEmptyFilteredChange = { libraryEmptyFiltered = it }
+                            onItem = onItem
                         )
-                    }
-                    LibraryTab.FOR_YOU -> ForYouTabContent(
-                        state = forYouState,
-                        viewModel = forYouViewModel,
-                        dest = dest,
-                        metrics = metrics,
-                        horizontalInset = horizontalInset,
-                        tabFocus = tabFocus,
-                        active = tab == selectedTab,
-                        seedContentFocus = seedContentFocus && tab == selectedTab,
-                        onContentFocusSeeded = onContentFocusSeeded,
-                        onItem = onItem
-                    )
-                    LibraryTab.GENRES -> GenresTabContent(
-                        paneState = paneState,
-                        metrics = metrics,
-                        horizontalInset = horizontalInset,
-                        tabFocus = tabFocus,
-                        seedContentFocus = seedContentFocus && tab == selectedTab,
-                        onContentFocusSeeded = onContentFocusSeeded,
-                        onGenreFocused = paneViewModel::onGenreFocused,
-                        onRetryGenres = paneViewModel::retryGenres,
-                        onGenre = onGenre
-                    )
-                    LibraryTab.COLLECTIONS -> {
-                        LaunchedEffect(Unit) { collectionsViewModel.bindCollections() }
-                        MediaGridPane(
-                            state = collectionsState,
-                            viewModel = collectionsViewModel,
+                        LibraryTab.GENRES -> GenresTabContent(
+                            paneState = paneState,
                             metrics = metrics,
+                            horizontalInset = horizontalInset,
+                            tabFocus = tabFocus,
                             seedContentFocus = seedContentFocus && tab == selectedTab,
                             onContentFocusSeeded = onContentFocusSeeded,
-                            onItem = { item, bg, amb ->
-                                if (item.type == BaseItemKind.BOX_SET) {
-                                    onCollection(item)
-                                } else {
-                                    onItem(item, bg, amb)
-                                }
-                            },
-                            onChromeVisibleChange = { collectionsChromeVisible = it },
-                            offeredFilters = emptySet(),
-                            upExitFocus = tabFocus,
-                            emptyStateFocus = collectionsEmptyFocus,
-                            onEmptyFilteredChange = { collectionsEmptyFiltered = it }
+                            onGenreFocused = paneViewModel::onGenreFocused,
+                            onRetryGenres = paneViewModel::retryGenres,
+                            onGenre = onGenre
                         )
+                        LibraryTab.COLLECTIONS -> {
+                            LaunchedEffect(Unit) { collectionsViewModel.bindCollections() }
+                            MediaGridPane(
+                                state = collectionsState,
+                                viewModel = collectionsViewModel,
+                                metrics = metrics,
+                                seedContentFocus = seedContentFocus && tab == selectedTab,
+                                onContentFocusSeeded = onContentFocusSeeded,
+                                onItem = { item, bg, amb ->
+                                    if (item.type == BaseItemKind.BOX_SET) {
+                                        onCollection(item)
+                                    } else {
+                                        onItem(item, bg, amb)
+                                    }
+                                },
+                                onChromeVisibleChange = { collectionsChromeVisible = it },
+                                offeredFilters = emptySet(),
+                                upExitFocus = tabFocus,
+                                emptyStateFocus = collectionsEmptyFocus,
+                                onEmptyFilteredChange = { collectionsEmptyFiltered = it }
+                            )
+                        }
                     }
                 }
             }
@@ -244,6 +249,7 @@ private fun ForYouTabContent(
     when {
         state.error != null -> {
             val retryFocus = rememberOneShotFocus(seedContentFocus, onContentFocusSeeded)
+            DeclarePaneEntry { retryFocus }
             LoadFailedState(
                 message = state.error,
                 retryFocus = retryFocus,
@@ -317,7 +323,8 @@ private fun GenresTabContent(
     }
 
     when {
-        failed ->
+        failed -> {
+            DeclarePaneEntry { retryFocus }
             LoadFailedState(
                 message = "Could not load genres",
                 retryFocus = retryFocus,
@@ -328,23 +335,27 @@ private fun GenresTabContent(
                 retrying = paneState.genresLoading,
                 upExitFocus = tabFocus
             )
+        }
         paneState.genresLoading ->
             Box(Modifier.fillMaxSize(), Alignment.Center) {
                 CircularProgressIndicator(color = PicnicColors.Accent)
             }
         paneState.genres.isEmpty() ->
             Box(Modifier.fillMaxSize(), Alignment.Center) { Text("No genres in this library") }
-        else -> GenreBrowseGrid(
-            genres = paneState.genres,
-            gridState = genreGridState,
-            focusedGenreIndex = paneState.focusedGenreIndex,
-            genreCardFocus = genreCardFocus,
-            upFocus = tabFocus,
-            horizontalInset = horizontalInset,
-            metrics = metrics,
-            onGenreFocused = onGenreFocused,
-            onGenre = onGenre,
-            modifier = Modifier.padding(top = 8.dp)
-        )
+        else -> {
+            DeclarePaneEntry { genreCardFocus }
+            GenreBrowseGrid(
+                genres = paneState.genres,
+                gridState = genreGridState,
+                focusedGenreIndex = paneState.focusedGenreIndex,
+                genreCardFocus = genreCardFocus,
+                upFocus = tabFocus,
+                horizontalInset = horizontalInset,
+                metrics = metrics,
+                onGenreFocused = onGenreFocused,
+                onGenre = onGenre,
+                modifier = Modifier.padding(top = 8.dp)
+            )
+        }
     }
 }

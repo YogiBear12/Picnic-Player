@@ -26,6 +26,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -34,6 +35,7 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import app.picnic.player.text.countLabel
 import app.picnic.player.ui.browse.BrowseLayoutMetrics
+import app.picnic.player.ui.browse.DeclarePaneEntry
 import app.picnic.player.ui.browse.posterCardStyle
 import app.picnic.player.ui.common.ContextMenuAction
 import app.picnic.player.ui.common.ContextMenuPanel
@@ -61,6 +63,13 @@ internal fun PlaylistsPane(
     val cardFocus = rememberKeyedFocusRequesters()
     var menu by remember { mutableStateOf<PlaylistMenu?>(null) }
     var refocusSlot by remember { mutableStateOf<Int?>(null) }
+    var focusedKey by remember { mutableStateOf<String?>(null) }
+    DeclarePaneEntry {
+        val keys = state.playlists.map { it.id.toString() }
+        (focusedKey?.takeIf { it in keys } ?: keys.firstOrNull())
+            ?.let { cardFocus[it] }
+            ?: FocusRequester.Default
+    }
 
     LaunchedEffect(seedContentFocus, state.playlists.isEmpty()) {
         val first = state.playlists.firstOrNull()
@@ -115,7 +124,7 @@ internal fun PlaylistsPane(
                             upFocus = null,
                             onClick = { onPlaylist(item) },
                             onLongClick = { menu = PlaylistMenu(item) },
-                            onFocused = {},
+                            onFocused = { focusedKey = item.id.toString() },
                             subtitleOverride = playlistCountLabel(item),
                             modifier = Modifier.padding(top = style.topInset)
                         )

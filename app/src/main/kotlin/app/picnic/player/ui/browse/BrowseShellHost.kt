@@ -24,7 +24,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.DrawerState
@@ -156,10 +155,12 @@ fun BrowseShellHost(
         return
     }
 
+    val paneEntry = remember { PaneEntryFocus() }
     BoxWithConstraints(Modifier.fillMaxSize()) {
         CompositionLocalProvider(
             LocalColouredFocus provides colouredFocus,
-            LocalCapBadgeCount provides capBadgeCount
+            LocalCapBadgeCount provides capBadgeCount,
+            LocalPaneEntryFocus provides paneEntry
         ) {
             val metrics = browseLayoutMetrics(maxWidth, maxHeight)
             val onHome = selectedKey == BrowseDest.Home.key
@@ -174,20 +175,6 @@ fun BrowseShellHost(
                 focusedRowIndex = discoverState.focusedRowIndex,
                 scrollEnabled = onDiscover
             )
-
-            val contentFocusOnRight: () -> FocusRequester = {
-                when (selectedKey) {
-                    BrowseDest.Home.key ->
-                        homeFocus.rowCardFocus.getOrNull(homeState.focusedRowIndex)
-                            ?: homeFocus.rowFocusRequesters.getOrNull(homeState.focusedRowIndex)
-                            ?: FocusRequester.Default
-                    BrowseDest.Discover.key ->
-                        discoverFocus.rowCardFocus.getOrNull(discoverState.focusedRowIndex)
-                            ?: discoverFocus.rowFocusRequesters.getOrNull(discoverState.focusedRowIndex)
-                            ?: FocusRequester.Default
-                    else -> FocusRequester.Default
-                }
-            }
 
             val images = LocalImageUrls.current
             val homeFocused = homeViewModel.focusedItem(homeState)
@@ -243,7 +230,7 @@ fun BrowseShellHost(
                 selectedKey = selectedKey,
                 selectedDest = selected,
                 itemFocusRequesters = railRequesters,
-                contentFocusOnRight = contentFocusOnRight,
+                paneEntryFocus = paneEntry::requester,
                 drawerState = drawerState,
                 drawerDim = drawerDim,
                 drawerPage = drawerPage,
@@ -278,58 +265,60 @@ fun BrowseShellHost(
                                 PaneFocusRequest.WhenIdle -> !navChromeFocused
                                 PaneFocusRequest.None -> false
                             }
-                        when (dest) {
-                            BrowseDest.Search -> SearchPane(
-                                state = searchState,
-                                viewModel = searchViewModel,
-                                metrics = metrics,
-                                horizontalInset = paneInset,
-                                seedContentFocus = seedPaneFocus,
-                                onContentFocusSeeded = onPaneSeeded,
-                                onItem = onItem,
-                                onSeerrItem = onSeerrItem,
-                                onGenre = onGenre,
-                                onCollection = onCollection,
-                                onPerson = onPerson
-                            )
-                            BrowseDest.Home -> HomeBrowsePane(
-                                state = homeState,
-                                viewModel = homeViewModel,
-                                metrics = metrics,
-                                horizontalInset = paneInset,
-                                focus = homeFocus,
-                                seedContentFocus = seedPaneFocus,
-                                onContentFocusSeeded = onPaneSeeded,
-                                onItem = onItem
-                            )
-                            BrowseDest.Discover -> DiscoverPane(
-                                state = discoverState,
-                                viewModel = discoverViewModel,
-                                metrics = metrics,
-                                horizontalInset = paneInset,
-                                focus = discoverFocus,
-                                seedContentFocus = seedPaneFocus,
-                                onContentFocusSeeded = onPaneSeeded,
-                                onSeerrItem = onSeerrItem
-                            )
-                            BrowseDest.Playlists -> PlaylistsPane(
-                                metrics = metrics,
-                                horizontalInset = paneInset,
-                                seedContentFocus = seedPaneFocus,
-                                onContentFocusSeeded = onPaneSeeded,
-                                onPlaylist = onPlaylist
-                            )
-                            is BrowseDest.Library -> LibraryPane(
-                                dest = dest,
-                                metrics = metrics,
-                                horizontalInset = paneInset,
-                                seedContentFocus = seedPaneFocus,
-                                onContentFocusSeeded = onPaneSeeded,
-                                onItem = onItem,
-                                onGenre = { genre -> onLibraryGenre(genre, dest) },
-                                onCollection = onCollection,
-                                onSessionExpired = onSessionExpired
-                            )
+                        PaneEntryScope(active = dest.key == selectedKey) {
+                            when (dest) {
+                                BrowseDest.Search -> SearchPane(
+                                    state = searchState,
+                                    viewModel = searchViewModel,
+                                    metrics = metrics,
+                                    horizontalInset = paneInset,
+                                    seedContentFocus = seedPaneFocus,
+                                    onContentFocusSeeded = onPaneSeeded,
+                                    onItem = onItem,
+                                    onSeerrItem = onSeerrItem,
+                                    onGenre = onGenre,
+                                    onCollection = onCollection,
+                                    onPerson = onPerson
+                                )
+                                BrowseDest.Home -> HomeBrowsePane(
+                                    state = homeState,
+                                    viewModel = homeViewModel,
+                                    metrics = metrics,
+                                    horizontalInset = paneInset,
+                                    focus = homeFocus,
+                                    seedContentFocus = seedPaneFocus,
+                                    onContentFocusSeeded = onPaneSeeded,
+                                    onItem = onItem
+                                )
+                                BrowseDest.Discover -> DiscoverPane(
+                                    state = discoverState,
+                                    viewModel = discoverViewModel,
+                                    metrics = metrics,
+                                    horizontalInset = paneInset,
+                                    focus = discoverFocus,
+                                    seedContentFocus = seedPaneFocus,
+                                    onContentFocusSeeded = onPaneSeeded,
+                                    onSeerrItem = onSeerrItem
+                                )
+                                BrowseDest.Playlists -> PlaylistsPane(
+                                    metrics = metrics,
+                                    horizontalInset = paneInset,
+                                    seedContentFocus = seedPaneFocus,
+                                    onContentFocusSeeded = onPaneSeeded,
+                                    onPlaylist = onPlaylist
+                                )
+                                is BrowseDest.Library -> LibraryPane(
+                                    dest = dest,
+                                    metrics = metrics,
+                                    horizontalInset = paneInset,
+                                    seedContentFocus = seedPaneFocus,
+                                    onContentFocusSeeded = onPaneSeeded,
+                                    onItem = onItem,
+                                    onGenre = { genre -> onLibraryGenre(genre, dest) },
+                                    onCollection = onCollection,
+                                    onSessionExpired = onSessionExpired
+                                )
+                            }
                         }
                     }
                 }

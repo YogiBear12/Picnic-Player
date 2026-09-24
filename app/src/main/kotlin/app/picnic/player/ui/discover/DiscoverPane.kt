@@ -52,6 +52,7 @@ import app.picnic.player.ui.ambient.LocalAmbientPaletteLoader
 import app.picnic.player.ui.ambient.LocalAmbientPrewarmer
 import app.picnic.player.ui.browse.BrowseCardStyle
 import app.picnic.player.ui.browse.BrowseLayoutMetrics
+import app.picnic.player.ui.browse.DeclarePaneEntry
 import app.picnic.player.ui.browse.ImmersiveBrowseFocus
 import app.picnic.player.ui.browse.ScrollToTopBringIntoView
 import app.picnic.player.ui.browse.posterCardStyle
@@ -106,7 +107,7 @@ private fun DiscoverImmersiveContent(
 ) {
     val focused = viewModel.focusedItem(state)
     val seerr = state.seerr
-    val restoreRow = state.focusedRowIndex.coerceIn(0, (state.rows.size - 1).coerceAtLeast(0))
+    DeclarePaneEntry(focus::entryFocus)
 
     LaunchedEffect(seedContentFocus, state.rows.size, state.focusedRowIndex) {
         if (!seedContentFocus || state.rows.isEmpty()) return@LaunchedEffect
@@ -135,13 +136,7 @@ private fun DiscoverImmersiveContent(
             Modifier
                 .fillMaxSize()
                 .focusProperties {
-                    onEnter = {
-                        runCatching {
-                            focus.rowFocusRequesters.getOrElse(restoreRow) {
-                                focus.rowFocusRequesters[0]
-                            }.requestFocus()
-                        }
-                    }
+                    onEnter = { runCatching { focus.entryFocus().requestFocus() } }
                 }
         ) {
             Box(Modifier.fillMaxWidth().weight(1f).clipToBounds()) {
@@ -164,7 +159,7 @@ private fun DiscoverImmersiveContent(
                         .fillMaxWidth()
                         .height(metrics.rowsRegionHeight.coerceAtLeast(0.dp))
                         .offset(y = metrics.rowsViewportOffset)
-                        .focusProperties { enter = { focus.rowFocusRequesters[restoreRow] } },
+                        .focusProperties { enter = { focus.entryFocus() } },
                     state = focus.listState,
                     contentPadding = PaddingValues(bottom = metrics.bottomInset),
                     verticalArrangement = Arrangement.spacedBy(metrics.rowSpacing)

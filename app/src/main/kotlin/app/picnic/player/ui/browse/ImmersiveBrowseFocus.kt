@@ -20,8 +20,14 @@ internal class ImmersiveBrowseFocus(
     val rowFocusRequesters: List<FocusRequester>,
     val rowCardFocus: List<FocusRequester>,
     val focusedRowIndex: Int,
-    val defaultRowBringIntoView: BringIntoViewSpec
-)
+    val defaultRowBringIntoView: BringIntoViewSpec,
+    private val rowCount: Int
+) {
+    fun entryFocus(): FocusRequester {
+        val row = focusedRowIndex.coerceIn(0, (rowCount - 1).coerceAtLeast(0))
+        return rowCardFocus.getOrNull(row) ?: rowFocusRequesters.getOrNull(row) ?: FocusRequester.Default
+    }
+}
 
 @Composable
 internal fun rememberImmersiveBrowseFocus(
@@ -45,6 +51,7 @@ internal fun rememberImmersiveBrowseFocus(
         rowFocusRequesters = rowFocusRequesters,
         rowCardFocus = rowCardFocus,
         focusedRowIndex = focusedRowIndex,
-        defaultRowBringIntoView = defaultRowBringIntoView
+        defaultRowBringIntoView = defaultRowBringIntoView,
+        rowCount = rowCount
     )
 }
