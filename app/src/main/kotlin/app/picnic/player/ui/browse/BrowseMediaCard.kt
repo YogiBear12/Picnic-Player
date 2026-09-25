@@ -57,7 +57,7 @@ import app.picnic.player.ui.common.PosterPlaceholderLabel
 import app.picnic.player.ui.common.watchProgress
 import org.jellyfin.sdk.model.api.BaseItemDto
 
-private val CardCornerRadius = 12.dp
+internal val CardCornerRadius = 12.dp
 private const val CardFocusedScale = 1.1f
 
 @Composable

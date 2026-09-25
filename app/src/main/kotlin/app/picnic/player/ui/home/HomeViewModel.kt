@@ -10,8 +10,10 @@ import app.picnic.player.data.jellyfin.serverErrorMessage
 import app.picnic.player.data.media.HiddenResumeStore
 import app.picnic.player.data.media.HomeContent
 import app.picnic.player.data.media.HomeContentLoader
+import app.picnic.player.data.media.HomeLoad
 import app.picnic.player.data.media.HomeResult
 import app.picnic.player.data.media.HomeRow
+import app.picnic.player.data.media.HomeSlot
 import app.picnic.player.data.media.LibraryChangeBus
 import app.picnic.player.data.media.MediaRepository
 import app.picnic.player.data.media.batches
@@ -31,7 +33,6 @@ import app.picnic.player.ui.browse.BrowseDest
 import app.picnic.player.ui.browse.NavRailState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
-import java.time.LocalDateTime
 import java.util.UUID
 import javax.inject.Inject
 import kotlinx.coroutines.FlowPreview
@@ -43,10 +44,14 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapNotNull
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -73,6 +78,7 @@ class HomeViewModel @Inject constructor(
     data class UiState(
         val loading: Boolean = true,
         val rows: List<HomeRow> = emptyList(),
+        val pendingSlots: List<HomeSlot>? = null,
         val session: UserSession? = null,
         val error: String? = null,
         val sessionExpiredServerId: String? = null,
@@ -110,10 +116,7 @@ class HomeViewModel @Inject constructor(
 
     private var channelSyncRequested = false
 
-    private var latestByLibrary: List<Pair<BaseItemDto, List<BaseItemDto>>> = emptyList()
-    private var lastResume: List<BaseItemDto> = emptyList()
-    private var lastNextUp: List<BaseItemDto> = emptyList()
-    private var lastQueuedDates: Map<UUID, LocalDateTime> = emptyMap()
+    private var lastResult: HomeResult? = null
 
     init {
         load()
@@ -139,6 +142,7 @@ class HomeViewModel @Inject constructor(
     }
 
     private suspend fun republishNavLayout(discoverAvailable: Boolean) {
+        if (_state.value.pendingSlots == null) return
         val session = _state.value.session ?: return
         val libraries = _state.value.libraries
         val playlistsAvailable = _state.value.playlistsAvailable
@@ -219,12 +223,31 @@ class HomeViewModel @Inject constructor(
                 _state.update { it.copy(loading = false, error = "No active session") }
                 return@launch
             }
+            _state.update { it.copy(session = session) }
             if (!channelSyncRequested) {
                 channelSyncRequested = true
                 TvChannelReceiver.enqueueImmediateSync(appContext)
             }
-            val deferred = homeLoader.prefetch(session)
-            applyOrError(runCatching { deferred.await() }, session)
+            val done = homeLoader.prefetch(session)
+                .combine(navRail.layoutEpoch) { home, _ -> home }
+                .onEach(::applyProgress)
+                .mapNotNull { it.outcome }
+                .first()
+            applyOrError(done, session)
+        }
+    }
+
+    private fun applyProgress(load: HomeLoad) {
+        val slots = load.slots ?: return
+        val visible = HomeContent.visibleSlots(slots, navRail.pinnedLibraryIds())
+        val revealed = HomeContent.reveal(visible, load.resolved)
+        _state.update { current ->
+            if (!current.loading) return@update current
+            current.withRows(revealed.rows).copy(
+                pendingSlots = revealed.pending,
+                libraries = load.libraries,
+                playlistsAvailable = load.playlistsAvailable
+            )
         }
     }
 
@@ -253,44 +276,46 @@ class HomeViewModel @Inject constructor(
             }
     }
 
+    private suspend fun rowsFor(result: HomeResult): List<HomeRow> = HomeContent.buildHomeRows(
+        result.resume,
+        result.nextUp,
+        result.latestByLibrary,
+        navRail.pinnedLibraryIds(),
+        hiddenResumeStore.snapshot(),
+        result.queuedDates
+    )
+
     private suspend fun applyFresh(result: HomeResult) {
-        lastResume = result.resume
-        lastNextUp = result.nextUp
-        lastQueuedDates = result.queuedDates
-        latestByLibrary = result.latestByLibrary
-        val firstItem = result.rows.firstOrNull()?.items?.firstOrNull()
+        val rows = rowsFor(result)
+        lastResult = result
         _state.update { current ->
-            val rowIds = current.rowFocusedItemIds.ifEmpty {
-                firstItem?.let { mapOf(0 to it.id) } ?: emptyMap()
-            }
-            current.copy(
+            current.withRows(rows).copy(
                 loading = false,
-                rows = result.rows,
+                pendingSlots = emptyList(),
                 session = result.session,
                 libraries = result.libraries,
                 playlistsAvailable = result.playlistsAvailable,
-                error = if (result.rows.isEmpty()) "Nothing to watch yet." else null,
-                focusedItemId = current.focusedItemId ?: firstItem?.id,
-                focusedRowIndex = if (current.focusedItemId == null) 0 else current.focusedRowIndex,
-                rowFocusedItemIds = rowIds
+                error = if (rows.isEmpty()) "Nothing to watch yet." else null
             )
         }
-        resolveSeasonCounts(result.rows)
+        resolveSeasonCounts(rows)
         focusChangedFlow.tryEmit(Unit)
     }
 
-    private suspend fun rebuildRowsFromCache() {
-        if (latestByLibrary.isEmpty() && lastResume.isEmpty() && lastNextUp.isEmpty()) return
-        val pinnedIds = navRail.pinnedLibraries().map { it.id }
-        val hidden = hiddenResumeStore.snapshot()
-        val rows = HomeContent.buildHomeRows(
-            lastResume,
-            lastNextUp,
-            latestByLibrary,
-            pinnedIds,
-            hidden,
-            lastQueuedDates
+    private fun UiState.withRows(rows: List<HomeRow>): UiState {
+        val firstItem = rows.firstOrNull()?.items?.firstOrNull()
+        return copy(
+            rows = rows,
+            focusedItemId = focusedItemId ?: firstItem?.id,
+            focusedRowIndex = if (focusedItemId == null) 0 else focusedRowIndex,
+            rowFocusedItemIds = rowFocusedItemIds.ifEmpty {
+                firstItem?.let { mapOf(0 to it.id) } ?: emptyMap()
+            }
         )
+    }
+
+    private suspend fun rebuildRowsFromCache() {
+        val rows = rowsFor(lastResult ?: return)
         val visibleIds = rows.flatMap { row -> row.items.map { it.id } }.toSet()
         _state.update { current ->
             current.copy(

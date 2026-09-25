@@ -2,16 +2,16 @@ package app.picnic.player.ui.home
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Dp
 import androidx.tv.material3.Text
+import app.picnic.player.data.media.HomeSlot
 import app.picnic.player.ui.browse.BrowseLayoutMetrics
 import app.picnic.player.ui.browse.ImmersiveBrowseFocus
 import app.picnic.player.ui.browse.ImmersiveBrowseScaffold
-import app.picnic.player.ui.theme.PicnicColors
+import app.picnic.player.ui.browse.SkeletonRow
 import org.jellyfin.sdk.model.api.BaseItemDto
 
 @Composable
@@ -26,11 +26,7 @@ internal fun HomeBrowsePane(
     onItem: (BaseItemDto, String?, String?) -> Unit
 ) {
     when {
-        state.loading ->
-            Box(Modifier.fillMaxSize(), Alignment.Center) {
-                CircularProgressIndicator(color = PicnicColors.Accent)
-            }
-        state.rows.isEmpty() ->
+        !state.loading && state.rows.isEmpty() ->
             Box(Modifier.fillMaxSize(), Alignment.Center) { Text(state.error ?: "Nothing here") }
         else -> ImmersiveBrowseScaffold(
             rows = state.rows,
@@ -48,7 +44,16 @@ internal fun HomeBrowsePane(
             onBrowseItemFocused = viewModel::onBrowseItemFocused,
             onItem = onItem,
             horizontalInset = horizontalInset,
-            metrics = metrics
+            metrics = metrics,
+            skeletonRows = if (state.loading) skeletonRows(state.pendingSlots) else emptyList()
         )
     }
 }
+
+private const val GenericSkeletonRowCount = 3
+
+private val GenericSkeletonRows = List(GenericSkeletonRowCount) { index ->
+    SkeletonRow(key = "skeleton-$index", title = null, landscape = index == 0)
+}
+
+private fun skeletonRows(pendingSlots: List<HomeSlot>?): List<SkeletonRow> = pendingSlots?.map { SkeletonRow(it.key, it.title, it.continueWatching) } ?: GenericSkeletonRows

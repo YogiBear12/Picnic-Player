@@ -12,8 +12,19 @@ import org.jellyfin.sdk.model.api.BaseItemDto
 data class HomeRow(
     val title: String,
     val items: List<BaseItemDto>,
-    val continueWatching: Boolean
+    val continueWatching: Boolean,
+    val key: String
 )
+
+@Immutable
+data class HomeSlot(val title: String, val libraryId: UUID?) {
+    val continueWatching: Boolean get() = libraryId == null
+    val key: String get() = libraryId?.let { "library-$it" } ?: "continue-watching"
+
+    fun row(items: List<BaseItemDto>): HomeRow? = items.takeIf { it.isNotEmpty() }?.let { HomeRow(title, it, continueWatching, key) }
+}
+
+data class RevealedRows(val rows: List<HomeRow>, val pending: List<HomeSlot>)
 
 object HomeContent {
     fun lastPlayedMillis(item: BaseItemDto): Long? = item.userData?.lastPlayedDate
@@ -78,35 +89,46 @@ object HomeContent {
         return out.sortedByDescending { queuedDates[it.id] ?: it.userData?.lastPlayedDate }
     }
 
+    fun homeSlots(views: List<BaseItemDto>): List<HomeSlot> = listOf(HomeSlot("Continue watching", libraryId = null)) +
+        views.map { view -> HomeSlot("Recently added in ${view.name.orEmpty()}", view.id) }
+
+    fun visibleSlots(slots: List<HomeSlot>, pinnedLibraryIds: List<UUID>): List<HomeSlot> {
+        val byId = slots.associateBy { it.libraryId }
+        return listOfNotNull(byId[null]) + pinnedLibraryIds.mapNotNull(byId::get)
+    }
+
+    fun continueWatchingItems(
+        resume: List<BaseItemDto>,
+        nextUp: List<BaseItemDto>,
+        hidden: Map<String, Long>,
+        queuedDates: Map<UUID, LocalDateTime>
+    ): List<BaseItemDto> = withoutHidden(combineContinueWatching(resume, nextUp, queuedDates), hidden)
+
     fun buildHomeRows(
         resume: List<BaseItemDto>,
         nextUp: List<BaseItemDto>,
         latestByLibrary: List<Pair<BaseItemDto, List<BaseItemDto>>>,
-        pinnedLibraryIds: List<UUID>? = null,
+        pinnedLibraryIds: List<UUID>,
         hidden: Map<String, Long> = emptyMap(),
         queuedDates: Map<UUID, LocalDateTime> = emptyMap()
     ): List<HomeRow> {
-        val rows = ArrayList<HomeRow>()
-        val continueWatching =
-            withoutHidden(combineContinueWatching(resume, nextUp, queuedDates), hidden)
-        if (continueWatching.isNotEmpty()) {
-            rows += HomeRow("Continue watching", continueWatching, continueWatching = true)
+        val continueWatching = continueWatchingItems(resume, nextUp, hidden, queuedDates)
+        val latest = latestByLibrary.associate { (view, items) -> view.id to items }
+        return visibleSlots(homeSlots(latestByLibrary.map { it.first }), pinnedLibraryIds).mapNotNull { slot ->
+            slot.row(if (slot.continueWatching) continueWatching else latest[slot.libraryId].orEmpty())
         }
-        val byId = latestByLibrary.associateBy { it.first.id }
-        val ordered = if (pinnedLibraryIds == null) {
-            latestByLibrary
-        } else {
-            pinnedLibraryIds.mapNotNull { byId[it] }
+    }
+
+    /**
+     * Rows show strictly top-down: a slot is revealed only once every slot above it has
+     * resolved, so a row never appears above one the user is already on.
+     */
+    fun reveal(slots: List<HomeSlot>, resolved: Map<String, HomeRow?>): RevealedRows {
+        val rows = ArrayList<HomeRow>(slots.size)
+        for ((index, slot) in slots.withIndex()) {
+            if (slot.key !in resolved) return RevealedRows(rows, slots.subList(index, slots.size))
+            resolved[slot.key]?.let(rows::add)
         }
-        for ((view, items) in ordered) {
-            if (items.isNotEmpty()) {
-                rows += HomeRow(
-                    title = "Recently added in ${view.name.orEmpty()}",
-                    items = items,
-                    continueWatching = false
-                )
-            }
-        }
-        return rows
+        return RevealedRows(rows, emptyList())
     }
 }

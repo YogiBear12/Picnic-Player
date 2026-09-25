@@ -23,3 +23,5 @@ internal fun landscapeCardStyle(sy: (Float) -> Dp): BrowseCardStyle {
     val hgt = sy(96f)
     return BrowseCardStyle(width = hgt * (16f / 9f), height = hgt, landscape = true)
 }
+
+internal fun browseCardStyle(landscape: Boolean, sy: (Float) -> Dp): BrowseCardStyle = if (landscape) landscapeCardStyle(sy) else posterCardStyle(sy)

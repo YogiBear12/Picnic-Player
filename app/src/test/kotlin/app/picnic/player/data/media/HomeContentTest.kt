@@ -179,6 +179,7 @@ class HomeContentTest {
             resume = listOf(staleResume),
             nextUp = listOf(queued),
             latestByLibrary = emptyList(),
+            pinnedLibraryIds = emptyList(),
             queuedDates = mapOf(queued.id to day(9))
         )
         assertEquals(listOf(queued.id, staleResume.id), rows.first().items.map { it.id })
@@ -217,7 +218,8 @@ class HomeContentTest {
         val rows = HomeContent.buildHomeRows(
             resume = listOf(resume),
             nextUp = emptyList(),
-            latestByLibrary = listOf(lib to listOf(item(kind = BaseItemKind.MOVIE)))
+            latestByLibrary = listOf(lib to listOf(item(kind = BaseItemKind.MOVIE))),
+            pinnedLibraryIds = listOf(lib.id)
         )
         assertEquals("Continue watching", rows.first().title)
         assertEquals(true, rows.first().continueWatching)
@@ -230,7 +232,8 @@ class HomeContentTest {
         val rows = HomeContent.buildHomeRows(
             resume = emptyList(),
             nextUp = emptyList(),
-            latestByLibrary = listOf(lib to listOf(item(kind = BaseItemKind.SERIES)))
+            latestByLibrary = listOf(lib to listOf(item(kind = BaseItemKind.SERIES))),
+            pinnedLibraryIds = listOf(lib.id)
         )
         assertEquals(1, rows.size)
         assertEquals("Recently added in Shows", rows.first().title)
@@ -246,7 +249,8 @@ class HomeContentTest {
             latestByLibrary = listOf(
                 libA to emptyList(),
                 libB to listOf(item(kind = BaseItemKind.MOVIE))
-            )
+            ),
+            pinnedLibraryIds = listOf(libA.id, libB.id)
         )
         assertEquals(1, rows.size)
         assertEquals("Recently added in B", rows.first().title)
@@ -271,5 +275,87 @@ class HomeContentTest {
             listOf("Recently added in C", "Recently added in A"),
             rows.map { it.title }
         )
+    }
+
+    private val movies = item(name = "Movies", kind = BaseItemKind.COLLECTION_FOLDER)
+    private val shows = item(name = "Shows", kind = BaseItemKind.COLLECTION_FOLDER)
+    private val slots = HomeContent.visibleSlots(HomeContent.homeSlots(listOf(movies, shows)), listOf(movies.id, shows.id))
+    private val continueSlot = slots[0]
+    private val moviesSlot = slots[1]
+    private val showsSlot = slots[2]
+
+    @Test
+    fun homeSlots_continueWatchingFirstThenPinnedLibraries() {
+        assertEquals(
+            listOf("continue-watching", "library-${movies.id}", "library-${shows.id}"),
+            HomeContent.visibleSlots(HomeContent.homeSlots(listOf(movies, shows)), listOf(movies.id, shows.id)).map { it.key }
+        )
+        assertEquals(
+            listOf("Continue watching", "Recently added in Shows"),
+            HomeContent.visibleSlots(HomeContent.homeSlots(listOf(movies, shows)), listOf(shows.id)).map { it.title }
+        )
+    }
+
+    @Test
+    fun slotKey_matchesTheRowItBecomes() {
+        val row = checkNotNull(moviesSlot.row(listOf(item(kind = BaseItemKind.MOVIE))))
+        assertEquals(moviesSlot.key, row.key)
+        val continueRow = checkNotNull(continueSlot.row(listOf(item())))
+        assertEquals(continueSlot.key, continueRow.key)
+    }
+
+    @Test
+    fun duplicateLibraryTitles_keepDistinctKeysAndRows() {
+        val first = item(name = "Movies", kind = BaseItemKind.COLLECTION_FOLDER)
+        val second = item(name = "Movies", kind = BaseItemKind.COLLECTION_FOLDER)
+        val slots = HomeContent.visibleSlots(HomeContent.homeSlots(listOf(first, second)), listOf(first.id, second.id))
+        val firstRow = slots[1].row(listOf(item(kind = BaseItemKind.MOVIE)))
+        val secondRow = slots[2].row(listOf(item(kind = BaseItemKind.MOVIE)))
+        val revealed = HomeContent.reveal(
+            slots,
+            mapOf(slots[0].key to null, slots[1].key to firstRow, slots[2].key to secondRow)
+        )
+        assertEquals(listOf(firstRow, secondRow), revealed.rows)
+        assertEquals(2, revealed.rows.map { it.key }.distinct().size)
+    }
+
+    @Test
+    fun visibleSlots_followChangedPinsDuringLoad() {
+        val all = HomeContent.homeSlots(listOf(movies, shows))
+        assertEquals(listOf(continueSlot, showsSlot), HomeContent.visibleSlots(all, listOf(shows.id)))
+        assertEquals(listOf(continueSlot, moviesSlot, showsSlot), HomeContent.visibleSlots(all, listOf(movies.id, shows.id)))
+    }
+
+    @Test
+    fun reveal_nothingResolved_allPending() {
+        val revealed = HomeContent.reveal(slots, emptyMap())
+        assertEquals(emptyList<HomeRow>(), revealed.rows)
+        assertEquals(slots, revealed.pending)
+    }
+
+    @Test
+    fun reveal_holdsALoadedRowBelowOneStillLoading() {
+        val moviesRow = moviesSlot.row(listOf(item(kind = BaseItemKind.MOVIE)))
+        val revealed = HomeContent.reveal(slots, mapOf(moviesSlot.key to moviesRow))
+        assertEquals(emptyList<HomeRow>(), revealed.rows)
+        assertEquals(slots, revealed.pending)
+    }
+
+    @Test
+    fun reveal_emptyContinueWatchingCollapsesAndUnblocksTheNextRow() {
+        val moviesRow = moviesSlot.row(listOf(item(kind = BaseItemKind.MOVIE)))
+        val revealed = HomeContent.reveal(
+            slots,
+            mapOf(continueSlot.key to null, moviesSlot.key to moviesRow)
+        )
+        assertEquals(listOf(moviesRow), revealed.rows)
+        assertEquals(listOf(showsSlot), revealed.pending)
+    }
+
+    @Test
+    fun reveal_everythingEmpty_noRowsNothingPending() {
+        val revealed = HomeContent.reveal(slots, slots.associate { it.key to null })
+        assertEquals(emptyList<HomeRow>(), revealed.rows)
+        assertEquals(emptyList<HomeSlot>(), revealed.pending)
     }
 }

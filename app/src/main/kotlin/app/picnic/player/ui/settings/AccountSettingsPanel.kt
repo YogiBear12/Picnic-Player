@@ -5,12 +5,6 @@ package app.picnic.player.ui.settings
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
@@ -50,7 +44,6 @@ import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -73,6 +66,11 @@ import app.picnic.player.ui.common.ActionButton
 import app.picnic.player.ui.common.LocalContextMenuHandler
 import app.picnic.player.ui.common.LocalImageUrls
 import app.picnic.player.ui.common.RowFocusState
+import app.picnic.player.ui.common.SkeletonBar
+import app.picnic.player.ui.common.SkeletonBlockCorner
+import app.picnic.player.ui.common.SkeletonCardRow
+import app.picnic.player.ui.common.SkeletonTextCorner
+import app.picnic.player.ui.common.SkeletonTextHeight
 import app.picnic.player.ui.common.rememberIdentityBrush
 import app.picnic.player.ui.common.rememberRowFocusState
 import app.picnic.player.ui.common.requestFocusWhenAttached
@@ -89,7 +87,10 @@ import org.jellyfin.sdk.model.api.BaseItemKind
 
 private val BadgeShape = RoundedCornerShape(10.dp)
 private val BadgeFill = Color.White.copy(alpha = 0.07f)
-private val SkeletonFill = Color.White.copy(alpha = 0.14f)
+private val SkeletonTitleGap = 2.dp
+private val SkeletonCardTextGap = 6.dp
+private const val CardTitleBarWidth = 0.8f
+private const val CardSubtitleBarWidth = 0.45f
 private val RowPeekInset = 40.dp
 private val RowGap = 20.dp
 private val RowToRowGap = 12.dp
@@ -462,16 +463,6 @@ private fun AccountRowSkeleton(
     cardSpacing: Dp
 ) {
     AnimatedVisibility(visible = visible, enter = EnterTransition.None, exit = exit) {
-        val pulse = rememberInfiniteTransition(label = "skeleton")
-        val alpha = pulse.animateFloat(
-            initialValue = 0.35f,
-            targetValue = 1f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(durationMillis = 900, easing = LinearEasing),
-                repeatMode = RepeatMode.Reverse
-            ),
-            label = "skeletonAlpha"
-        )
         Column {
             Spacer(Modifier.height(topGap))
             Text(
@@ -479,39 +470,20 @@ private fun AccountRowSkeleton(
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
                 color = Color.White,
-                modifier = Modifier.padding(bottom = 2.dp)
+                modifier = Modifier.padding(bottom = SkeletonTitleGap)
             )
-            BoxWithConstraints {
-                val slot = style.width + cardSpacing
-                val cards = if (slot > 0.dp) (maxWidth / slot).toInt() + 1 else 1
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(cardSpacing),
-                    modifier = Modifier.graphicsLayer { this.alpha = alpha.value }
+            SkeletonCardRow(cardWidth = style.width, spacing = cardSpacing) {
+                Column(
+                    Modifier.gridCellSlot(style).padding(top = style.topInset),
+                    verticalArrangement = Arrangement.spacedBy(SkeletonCardTextGap)
                 ) {
-                    repeat(cards) {
-                        Column(
-                            Modifier.gridCellSlot(style).padding(top = style.topInset),
-                            verticalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            SkeletonBar(width = style.width, height = style.height, corner = 6.dp)
-                            SkeletonBar(width = style.width * 0.8f, height = 10.dp, corner = 3.dp)
-                            SkeletonBar(width = style.width * 0.45f, height = 10.dp, corner = 3.dp)
-                        }
-                    }
+                    SkeletonBar(width = style.width, height = style.height, corner = SkeletonBlockCorner)
+                    SkeletonBar(width = style.width * CardTitleBarWidth, height = SkeletonTextHeight, corner = SkeletonTextCorner)
+                    SkeletonBar(width = style.width * CardSubtitleBarWidth, height = SkeletonTextHeight, corner = SkeletonTextCorner)
                 }
             }
         }
     }
-}
-
-@Composable
-private fun SkeletonBar(width: Dp, height: Dp, corner: Dp) {
-    Box(
-        Modifier
-            .size(width = width, height = height)
-            .clip(RoundedCornerShape(corner))
-            .background(SkeletonFill)
-    )
 }
 
 @Composable

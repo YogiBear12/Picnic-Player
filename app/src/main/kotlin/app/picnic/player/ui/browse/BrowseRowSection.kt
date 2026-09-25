@@ -75,7 +75,7 @@ internal fun BrowseRowSection(
             fontWeight = FontWeight.Bold,
             color = Color.White,
             maxLines = 1,
-            modifier = Modifier.padding(start = hInset, bottom = 2.dp)
+            modifier = Modifier.padding(start = hInset, bottom = RowTitleBottomGap)
         )
         CompositionLocalProvider(LocalBringIntoViewSpec provides rowBringIntoView) {
             LazyRow(
@@ -110,3 +110,5 @@ internal fun BrowseRowSection(
         }
     }
 }
+
+internal val RowTitleBottomGap = 2.dp

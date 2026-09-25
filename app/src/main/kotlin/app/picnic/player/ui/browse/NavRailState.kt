@@ -9,6 +9,7 @@ import app.picnic.player.data.nav.NavLayout
 import app.picnic.player.data.nav.NavLayoutResolver
 import app.picnic.player.data.nav.NavLayoutStore
 import dagger.hilt.android.lifecycle.HiltViewModel
+import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -67,7 +68,7 @@ class NavRailState @Inject constructor() {
 
     fun destinationFor(key: String): BrowseDest? = _allDestinations.value.firstOrNull { it.key == key }
 
-    fun pinnedLibraries(): List<BrowseDest.Library> = _layout.value.pinnedIds.mapNotNull { customById[it] as? BrowseDest.Library }
+    fun pinnedLibraryIds(): List<UUID> = _layout.value.pinnedIds.mapNotNull { (customById[it] as? BrowseDest.Library)?.id }
 
     fun lastPublishedLibraries(): List<BrowseDest.Library> = lastLibraries
 

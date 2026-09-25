@@ -11,7 +11,7 @@ class HeroPrefetchTest {
 
     private fun item(kind: BaseItemKind, id: UUID = UUID.randomUUID()) = BaseItemDto(id = id, type = kind)
 
-    private fun row(vararg items: BaseItemDto) = HomeRow(title = "r", items = items.toList(), continueWatching = false)
+    private fun row(vararg items: BaseItemDto) = HomeRow(title = "r", items = items.toList(), continueWatching = false, key = "r")
 
     // --- planHeroStreamPrefetch ------------------------------------------------
 

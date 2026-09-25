@@ -29,7 +29,14 @@ import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import app.picnic.player.ui.common.LocalImageUrls
 import app.picnic.player.ui.common.LogoOrFallback
+import app.picnic.player.ui.common.SkeletonBar
+import app.picnic.player.ui.common.SkeletonBlockCorner
+import app.picnic.player.ui.common.SkeletonTextCorner
+import app.picnic.player.ui.common.SkeletonTextHeight
+import app.picnic.player.ui.common.SkeletonTitleHeight
 import app.picnic.player.ui.common.SpecPillHeight
+import app.picnic.player.ui.common.rememberSkeletonPulse
+import app.picnic.player.ui.common.skeletonPulse
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
 
@@ -65,6 +72,34 @@ internal fun heroBlockHeight(logoHeight: Dp, reserveBadgeRail: Boolean = true): 
     return logoHeight + HeroInfoTopGap + HeroDetailsRowHeight + HeroSummaryTopGap +
         summaryLine * 3 + badgeRail + HeroGenresTopGap + HeroGenresLineHeight
 }
+
+@Composable
+internal fun BrowseHeroSkeleton(logoHeight: Dp, width: Dp, modifier: Modifier = Modifier) {
+    val summaryLine = with(LocalDensity.current) { BrowseHeroSummaryLineHeight.toDp() }
+    Column(modifier.height(heroBlockHeight(logoHeight)).skeletonPulse(rememberSkeletonPulse())) {
+        Box(Modifier.height(logoHeight), contentAlignment = Alignment.CenterStart) {
+            SkeletonBar(width = width * HeroSkeletonLogoWidth, height = logoHeight * HeroSkeletonLogoHeight, corner = SkeletonBlockCorner)
+        }
+        Box(
+            Modifier.padding(top = HeroInfoTopGap).height(HeroDetailsRowHeight),
+            contentAlignment = Alignment.CenterStart
+        ) {
+            SkeletonBar(width = width * HeroSkeletonDetailsWidth, height = SkeletonTitleHeight, corner = SkeletonTextCorner)
+        }
+        Column(Modifier.padding(top = HeroSummaryTopGap)) {
+            for (fraction in HeroSkeletonSummaryLines) {
+                Box(Modifier.height(summaryLine), contentAlignment = Alignment.CenterStart) {
+                    SkeletonBar(width = width * fraction, height = SkeletonTextHeight, corner = SkeletonTextCorner)
+                }
+            }
+        }
+    }
+}
+
+private const val HeroSkeletonLogoWidth = 0.6f
+private const val HeroSkeletonLogoHeight = 0.5f
+private const val HeroSkeletonDetailsWidth = 0.45f
+private val HeroSkeletonSummaryLines = listOf(1f, 0.95f, 0.7f)
 
 @Composable
 internal fun heroRegionHeight(metrics: BrowseLayoutMetrics, screenHeight: Dp, blockHeight: Dp): Dp = screenHeight - metrics.rowsRegionHeight - heroBlockHeight(metrics.logoHeight) + blockHeight

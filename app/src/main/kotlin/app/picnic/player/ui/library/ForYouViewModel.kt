@@ -179,7 +179,8 @@ class ForYouViewModel @Inject constructor(
                         rows += HomeRow(
                             title = "Because you watched ${seed.seedName.orEmpty()}",
                             items = items,
-                            continueWatching = false
+                            continueWatching = false,
+                            key = "because-${seed.seedId}"
                         )
                     }
             }
