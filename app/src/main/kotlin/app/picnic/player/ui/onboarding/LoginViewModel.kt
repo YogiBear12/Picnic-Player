@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.picnic.player.data.auth.AuthRepository
 import app.picnic.player.data.auth.ServerConnection
+import app.picnic.player.data.auth.UserSession
+import app.picnic.player.data.media.HomeContentLoader
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.Job
@@ -26,6 +28,7 @@ import kotlinx.coroutines.launch
 @HiltViewModel
 class LoginViewModel @Inject constructor(
     private val authRepository: AuthRepository,
+    private val homeLoader: HomeContentLoader,
     private val onboarding: OnboardingSession
 ) : ViewModel() {
 
@@ -85,7 +88,7 @@ class LoginViewModel @Inject constructor(
         _state.update { it.copy(loading = true, passwordError = null) }
         viewModelScope.launch {
             runCatching { authRepository.loginWithPassword(server, s.username.trim(), s.password) }
-                .onSuccess { complete() }
+                .onSuccess(::complete)
                 .onFailure { e ->
                     val msg = e.message?.takeIf(String::isNotBlank) ?: "Sign-in failed"
                     _state.update { it.copy(loading = false, passwordError = msg) }
@@ -109,7 +112,7 @@ class LoginViewModel @Inject constructor(
                 }.getOrDefault(false)
                 if (approved) {
                     runCatching { authRepository.loginWithQuickConnect(server, request.secret) }
-                        .onSuccess { complete() }
+                        .onSuccess(::complete)
                         .onFailure {
                             _state.update {
                                 it.copy(quickConnectCode = null, quickConnectError = "Sign-in failed")
@@ -121,7 +124,8 @@ class LoginViewModel @Inject constructor(
         }
     }
 
-    private fun complete() {
+    private fun complete(session: UserSession) {
+        homeLoader.enter(session)
         quickConnectJob?.cancel()
         onboarding.clear()
         _state.update { it.copy(loading = false, loggedIn = true) }

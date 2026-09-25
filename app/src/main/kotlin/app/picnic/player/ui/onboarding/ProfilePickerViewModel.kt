@@ -185,7 +185,7 @@ class ProfilePickerViewModel @AssistedInject constructor(
             viewModelScope.launch {
                 val session = authRepository.useStoredSession(serverId, profile.userId)
                 if (session != null) {
-                    homeLoader.prefetch(session)
+                    homeLoader.enter(session)
                     _state.update { it.copy(goReady = true) }
                 } else {
                     routeToLogin(server, profile.name)

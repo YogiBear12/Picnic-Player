@@ -1,12 +1,14 @@
 package app.picnic.player.data.seerr
 
 import app.picnic.player.data.auth.AuthRepository
+import app.picnic.player.data.auth.UserScope
 import app.picnic.player.data.auth.UserSession
 import app.picnic.player.data.plugin.PicnicPluginClient
 import app.picnic.player.di.IoDispatcher
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -40,6 +42,8 @@ class SeerrRepository @Inject constructor(
     private val pluginClient: PicnicPluginClient,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) {
+    @Volatile private var attachedUser: UserScope? = null
+
     private val _state = MutableStateFlow(SeerrSessionState())
     val state: StateFlow<SeerrSessionState> = _state.asStateFlow()
 
@@ -48,18 +52,13 @@ class SeerrRepository @Inject constructor(
 
     private suspend inline fun <T> onIo(crossinline block: () -> T): T = withContext(ioDispatcher) { block() }
 
-    suspend fun attachActiveSession() {
-        val session = authRepository.activeSession()
-        if (session == null) {
-            clearRuntime()
-            return
-        }
-        attach(session)
-    }
-
     suspend fun attach(session: UserSession) {
         val serverId = session.server.id
         val userId = session.userId
+        if (attachedUser != session.scope) {
+            clearRuntime()
+            attachedUser = session.scope
+        }
         var url = store.serverUrl(serverId)
         val showDiscover = store.showDiscover(serverId, userId)
         if (url.isNullOrBlank() || store.serverUrlSource(serverId) == SeerrUrlSource.PLUGIN) {
@@ -74,10 +73,10 @@ class SeerrRepository @Inject constructor(
         val cookie = store.sessionCookie(serverId, userId)
         if (cookie != null) {
             api.loadCookie(url, cookie)
-            val user = runCatching { onIo { api.authMe() } }.getOrNull()
+            val user = attempt { onIo { api.authMe() } }
             if (user != null) {
                 persistCookie(url, serverId, userId)
-                val settings = runCatching { onIo { api.publicSettings() } }.getOrNull()
+                val settings = attempt { onIo { api.publicSettings() } }
                 _state.value = SeerrSessionState(
                     linkState = SeerrLinkState.Linked,
                     serverUrl = url,
@@ -90,9 +89,7 @@ class SeerrRepository @Inject constructor(
         }
         val credentials = store.credentials(serverId, userId)
         if (credentials != null) {
-            val renewed = runCatching {
-                loginInternal(session, url, credentials)
-            }.isSuccess
+            val renewed = attempt { loginInternal(session, url, credentials) } != null
             if (renewed) {
                 _state.value = _state.value.copy(showDiscover = showDiscover)
                 return
@@ -109,6 +106,15 @@ class SeerrRepository @Inject constructor(
                 showDiscover = showDiscover
             )
         }
+    }
+
+    /** Like `runCatching`, but a cancelled attach stops instead of writing the previous user's state. */
+    private suspend fun <T> attempt(block: suspend () -> T): T? = try {
+        block()
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        null
     }
 
     private suspend fun prefillFromPlugin(
@@ -587,6 +593,7 @@ class SeerrRepository @Inject constructor(
     }
 
     private fun clearRuntime() {
+        attachedUser = null
         api.clearCookies()
         api.setBaseUrl(null)
         cachedGenreNames = null

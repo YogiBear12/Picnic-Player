@@ -26,6 +26,7 @@ data class UserSession(
     val accessToken: String
 ) {
     val userUuid: UUID = UUID.fromString(userId)
+    val scope: UserScope get() = UserScope(server.id, userId)
 }
 
 @Serializable

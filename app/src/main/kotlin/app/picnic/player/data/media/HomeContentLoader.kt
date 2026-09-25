@@ -1,5 +1,6 @@
 package app.picnic.player.data.media
 
+import app.picnic.player.data.auth.UserScope
 import app.picnic.player.data.auth.UserSession
 import app.picnic.player.data.seerr.SeerrRepository
 import app.picnic.player.di.ApplicationScope
@@ -11,6 +12,8 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -44,28 +47,38 @@ class HomeContentLoader @Inject constructor(
     private val hiddenResumeStore: HiddenResumeStore,
     @ApplicationScope private val appScope: CoroutineScope
 ) {
-    private var inFlight: Pair<String, StateFlow<HomeLoad>>? = null
+    private class InFlight(val scope: UserScope, val load: StateFlow<HomeLoad>, val job: Job)
 
-    fun cacheKey(session: UserSession): String = "${session.server.id}|${session.userId}"
+    private var inFlight: InFlight? = null
+    private var attach: Job? = null
+
+    /**
+     * The one way into a session: Seerr links in the background while Home starts loading.
+     * Undispatched so Seerr drops the previous user's link before the first rail publish reads it.
+     */
+    fun enter(session: UserSession): StateFlow<HomeLoad> {
+        attach?.cancel()
+        attach = appScope.launch(start = CoroutineStart.UNDISPATCHED) { seerrRepository.attach(session) }
+        return prefetch(session)
+    }
 
     @Synchronized
     fun prefetch(session: UserSession): StateFlow<HomeLoad> {
-        val key = cacheKey(session)
-        inFlight?.let { (inFlightKey, existing) ->
-            if (inFlightKey == key && existing.value.outcome == null) return existing
+        inFlight?.takeIf { it.job.isActive }?.let { current ->
+            if (current.scope == session.scope) return current.load
+            current.job.cancel()
         }
         val load = MutableStateFlow(HomeLoad())
-        appScope.launch {
+        val job = appScope.launch {
             try {
                 val result = fetch(session, load)
                 load.update { it.copy(outcome = Result.success(result)) }
-            } catch (e: CancellationException) {
-                throw e
             } catch (e: Throwable) {
                 load.update { it.copy(outcome = Result.failure(e)) }
+                if (e is CancellationException) throw e
             }
         }
-        inFlight = key to load
+        inFlight = InFlight(session.scope, load, job)
         return load
     }
 

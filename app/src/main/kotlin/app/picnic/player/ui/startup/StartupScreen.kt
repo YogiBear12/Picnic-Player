@@ -15,7 +15,6 @@ import androidx.lifecycle.viewModelScope
 import androidx.navigation3.runtime.NavKey
 import app.picnic.player.data.auth.AuthRepository
 import app.picnic.player.data.auth.SessionCheck
-import app.picnic.player.data.seerr.SeerrRepository
 import app.picnic.player.ui.navigation.BrowseKey
 import app.picnic.player.ui.navigation.ProfilePickerKey
 import app.picnic.player.ui.navigation.ServerEntryKey
@@ -31,7 +30,6 @@ import kotlinx.coroutines.launch
 @HiltViewModel
 class StartupViewModel @Inject constructor(
     private val authRepository: AuthRepository,
-    private val seerrRepository: SeerrRepository,
     private val homeLoader: app.picnic.player.data.media.HomeContentLoader,
     private val settingsStore: app.picnic.player.data.settings.SettingsStore,
     serverDiscovery: app.picnic.player.data.media.ServerDiscovery
@@ -65,11 +63,7 @@ class StartupViewModel @Inject constructor(
                 SessionCheck.Valid -> {
                     val autoLogin = settingsStore.settings.first().autoLoginLastUser
                     if (autoLogin) {
-                        seerrRepository.attach(session)
-                        // Start the home fetch NOW so it overlaps the rest of the splash — Home
-                        // re-uses this in-flight work and usually lands on fresh rows immediately.
-                        // Fire-and-forget; the loader runs in the app scope.
-                        homeLoader.prefetch(session)
+                        homeLoader.enter(session)
                         BrowseKey
                     } else {
                         ProfilePickerKey(session.server.id)

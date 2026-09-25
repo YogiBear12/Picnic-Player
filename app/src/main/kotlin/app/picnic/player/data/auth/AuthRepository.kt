@@ -4,17 +4,14 @@ import app.picnic.player.data.jellyfin.JellyfinFactory
 import app.picnic.player.data.jellyfin.isAuthFailure
 import app.picnic.player.data.jellyfin.serverErrorMessage
 import app.picnic.player.data.seerr.SeerrRepository
-import app.picnic.player.di.ApplicationScope
 import app.picnic.player.di.IoDispatcher
 import dagger.Lazy
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.jellyfin.sdk.api.client.extensions.quickConnectApi
 import org.jellyfin.sdk.api.client.extensions.sessionApi
@@ -38,7 +35,6 @@ class AuthRepository @Inject constructor(
     private val jellyfin: JellyfinFactory,
     private val credentials: CredentialStore,
     private val seerrRepository: Lazy<SeerrRepository>,
-    @ApplicationScope private val appScope: CoroutineScope,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) {
     private suspend inline fun <T> onIo(crossinline block: suspend () -> T): T = withContext(ioDispatcher) { block() }
@@ -233,7 +229,6 @@ class AuthRepository @Inject constructor(
     suspend fun useStoredSession(serverId: String, userId: String): UserSession? {
         val session = credentials.session(serverId, userId) ?: return null
         credentials.setActive(serverId, userId)
-        appScope.launch { seerrRepository.get().attach(session) }
         return session
     }
 
@@ -293,7 +288,6 @@ class AuthRepository @Inject constructor(
         credentials.saveSession(session)
         credentials.clearSessionAuthError(session.server.id, session.userId)
         patchSnapshotAfterSaveSession(session)
-        appScope.launch { seerrRepository.get().attach(session) }
         return session
     }
 
