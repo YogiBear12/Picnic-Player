@@ -5,22 +5,38 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.picnic.player.data.auth.AuthRepository
 import app.picnic.player.data.auth.UserSession
+import app.picnic.player.data.nav.NAV_ID_DISCOVER
+import app.picnic.player.data.nav.NAV_ID_PLAYLISTS
 import app.picnic.player.data.nav.NavLayout
 import app.picnic.player.data.nav.NavLayoutResolver
 import app.picnic.player.data.nav.NavLayoutStore
+import app.picnic.player.data.seerr.SeerrLinkState
+import app.picnic.player.data.seerr.SeerrRepository
+import app.picnic.player.di.ApplicationScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 enum class NavDrawerPage { Primary, More }
 
 @Singleton
-class NavRailState @Inject constructor() {
+class NavRailState @Inject constructor(
+    private val navLayoutStore: NavLayoutStore,
+    private val seerrRepository: SeerrRepository,
+    @ApplicationScope appScope: CoroutineScope
+) {
     private val _session = MutableStateFlow<UserSession?>(null)
     val session = _session.asStateFlow()
 
@@ -49,10 +65,13 @@ class NavRailState @Inject constructor() {
     private val _layoutEpoch = MutableStateFlow(0)
     val layoutEpoch = _layoutEpoch.asStateFlow()
 
-    private var lastLibraries: List<BrowseDest.Library> = emptyList()
-    private var discoverAvailable: Boolean = false
-    private var playlistsAvailable: Boolean = false
-    private var customById: Map<String, BrowseDest> = emptyMap()
+    @Volatile private var lastLibraries: List<BrowseDest.Library> = emptyList()
+
+    @Volatile private var discoverAvailable: Boolean = false
+
+    @Volatile private var playlistsAvailable: Boolean = false
+
+    @Volatile private var customById: Map<String, BrowseDest> = emptyMap()
 
     private val _selectedKey = MutableStateFlow(BrowseDest.Home.key)
     val selectedKey = _selectedKey.asStateFlow()
@@ -70,17 +89,39 @@ class NavRailState @Inject constructor() {
 
     fun pinnedLibraryIds(): List<UUID> = _layout.value.pinnedIds.mapNotNull { (customById[it] as? BrowseDest.Library)?.id }
 
-    fun lastPublishedLibraries(): List<BrowseDest.Library> = lastLibraries
+    fun isShown(id: String): Boolean = id in customById
 
-    fun isDiscoverAvailable(): Boolean = discoverAvailable
+    private val publishLock = Mutex()
 
-    fun publish(
+    init {
+        appScope.launch {
+            combine(seerrRepository.state.map { it.linkState == SeerrLinkState.Linked }.distinctUntilChanged(), _layoutEpoch) { linked, _ -> linked }
+                .collectLatest { linked -> if (linked != discoverAvailable) republish() }
+        }
+    }
+
+    suspend fun publish(session: UserSession, libraries: List<BrowseDest.Library>, playlistsAvailable: Boolean) = publishLock.withLock { resolveAndApply(session, libraries, playlistsAvailable) { true } }
+
+    /** A clear or user switch during the layout read wins; the stale republish is dropped. */
+    private suspend fun republish() = publishLock.withLock {
+        val session = _session.value ?: return@withLock
+        resolveAndApply(session, lastLibraries, playlistsAvailable) { _session.value == session }
+    }
+
+    private suspend fun resolveAndApply(
         session: UserSession,
         libraries: List<BrowseDest.Library>,
-        discoverAvailable: Boolean,
         playlistsAvailable: Boolean,
-        layout: NavLayout
+        stillCurrent: () -> Boolean
     ) {
+        val discoverAvailable = seerrRepository.state.value.linkState == SeerrLinkState.Linked
+        val availableIds = buildList {
+            addAll(libraries.map { it.key })
+            if (playlistsAvailable) add(NAV_ID_PLAYLISTS)
+            if (discoverAvailable) add(NAV_ID_DISCOVER)
+        }
+        val layout = navLayoutStore.resolve(session.server.id, session.userId, availableIds)
+        if (!stillCurrent()) return
         _session.value = session
         lastLibraries = libraries
         this.discoverAvailable = discoverAvailable
@@ -92,7 +133,14 @@ class NavRailState @Inject constructor() {
         _layoutEpoch.update { it + 1 }
     }
 
-    fun applyLayout(layout: NavLayout) {
+    suspend fun updateLayout(transform: (NavLayout) -> NavLayout) = publishLock.withLock {
+        val session = _session.value ?: return@withLock
+        val next = transform(_layout.value)
+        applyLayout(next)
+        navLayoutStore.save(session.server.id, session.userId, next)
+    }
+
+    private fun applyLayout(layout: NavLayout) {
         _layout.value = layout
         rebuildDestinations()
         if (_drawerPage.value == NavDrawerPage.More && !_moreVisible.value) {
@@ -210,43 +258,28 @@ class NavRailState @Inject constructor() {
 @HiltViewModel
 class NavRailViewModel @Inject constructor(
     val rail: NavRailState,
-    private val authRepository: AuthRepository,
-    private val navLayoutStore: NavLayoutStore
+    private val authRepository: AuthRepository
 ) : ViewModel() {
     fun softLogout() {
         viewModelScope.launch { authRepository.logout() }
     }
 
     fun pin(dest: BrowseDest) {
-        mutateLayout { NavLayoutResolver.pin(it, dest.key) }
-        if (rail.selectedKey.value == dest.key) {
-            rail.openPrimaryPage()
+        viewModelScope.launch {
+            rail.updateLayout { NavLayoutResolver.pin(it, dest.key) }
+            if (rail.selectedKey.value == dest.key) rail.openPrimaryPage()
         }
     }
 
     fun unpin(dest: BrowseDest) {
-        mutateLayout { NavLayoutResolver.unpin(it, dest.key) }
-        if (rail.selectedKey.value == dest.key) {
-            rail.openMorePage()
+        viewModelScope.launch {
+            rail.updateLayout { NavLayoutResolver.unpin(it, dest.key) }
+            if (rail.selectedKey.value == dest.key) rail.openMorePage()
         }
     }
 
     fun moveReorder(delta: Int) {
         val key = rail.reorderKey.value ?: return
-        val session = rail.session.value ?: return
-        val next = NavLayoutResolver.move(rail.layout.value, key, delta)
-        rail.applyLayout(next)
-        viewModelScope.launch {
-            navLayoutStore.save(session.server.id, session.userId, next)
-        }
-    }
-
-    private fun mutateLayout(transform: (NavLayout) -> NavLayout) {
-        viewModelScope.launch {
-            val session = rail.session.value ?: return@launch
-            val next = transform(rail.layout.value)
-            navLayoutStore.save(session.server.id, session.userId, next)
-            rail.applyLayout(next)
-        }
+        viewModelScope.launch { rail.updateLayout { NavLayoutResolver.move(it, key, delta, rail::isShown) } }
     }
 }

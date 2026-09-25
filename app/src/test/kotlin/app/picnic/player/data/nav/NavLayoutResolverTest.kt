@@ -30,6 +30,21 @@ class NavLayoutResolverTest {
     }
 
     @Test
+    fun firstRun_legacyDiscoverOff_beforeSeerrLinks_staysUnpinnedOnceLinked() {
+        val first = NavLayoutResolver.reconcile(listOf("lib:a"), saved = null, legacyDiscoverPinned = false)
+        val linked = NavLayoutResolver.reconcile(listOf("lib:a", NAV_ID_DISCOVER), first)
+        assertEquals(listOf("lib:a"), linked.pinnedIds)
+        assertEquals(listOf(NAV_ID_DISCOVER), linked.unpinnedIds)
+    }
+
+    @Test
+    fun newLibrary_appendedAfterHiddenIds() {
+        val saved = NavLayout(pinnedIds = listOf("lib:a", NAV_ID_DISCOVER))
+        val layout = NavLayoutResolver.reconcile(listOf("lib:a", "lib:b"), saved)
+        assertEquals(listOf("lib:a", NAV_ID_DISCOVER, "lib:b"), layout.pinnedIds)
+    }
+
+    @Test
     fun newLibrary_appendedToPinned() {
         val saved = NavLayout(pinnedIds = listOf("lib:a"), unpinnedIds = listOf(NAV_ID_DISCOVER))
         val layout = NavLayoutResolver.reconcile(
@@ -41,7 +56,7 @@ class NavLayoutResolverTest {
     }
 
     @Test
-    fun removedLibrary_droppedFromBothLists() {
+    fun unavailableIds_keptInSavedPositions() {
         val saved = NavLayout(
             pinnedIds = listOf("lib:a", "lib:gone"),
             unpinnedIds = listOf("lib:also-gone", NAV_ID_DISCOVER)
@@ -50,8 +65,24 @@ class NavLayoutResolverTest {
             availableIds = listOf("lib:a", NAV_ID_DISCOVER),
             saved = saved
         )
-        assertEquals(listOf("lib:a"), layout.pinnedIds)
-        assertEquals(listOf(NAV_ID_DISCOVER), layout.unpinnedIds)
+        assertEquals(saved, layout)
+    }
+
+    @Test
+    fun pinnedDiscover_returnsToItsIndex_afterBeingUnavailable() {
+        val saved = NavLayout(pinnedIds = listOf("lib:a", NAV_ID_DISCOVER, "lib:b"))
+        val without = NavLayoutResolver.reconcile(listOf("lib:a", "lib:b"), saved)
+        val back = NavLayoutResolver.reconcile(listOf("lib:a", "lib:b", NAV_ID_DISCOVER), without)
+        assertEquals(listOf("lib:a", NAV_ID_DISCOVER, "lib:b"), back.pinnedIds)
+    }
+
+    @Test
+    fun unpinnedDiscover_staysUnpinned_afterBeingUnavailable() {
+        val saved = NavLayout(pinnedIds = listOf("lib:a"), unpinnedIds = listOf(NAV_ID_DISCOVER))
+        val without = NavLayoutResolver.reconcile(listOf("lib:a"), saved)
+        val back = NavLayoutResolver.reconcile(listOf("lib:a", NAV_ID_DISCOVER), without)
+        assertEquals(listOf("lib:a"), back.pinnedIds)
+        assertEquals(listOf(NAV_ID_DISCOVER), back.unpinnedIds)
     }
 
     @Test
@@ -75,10 +106,17 @@ class NavLayoutResolverTest {
     @Test
     fun move_swapsWithinPinnedOnly() {
         val start = NavLayout(pinnedIds = listOf("a", "b", "c"), unpinnedIds = listOf("d"))
-        val down = NavLayoutResolver.move(start, "a", 1)
+        val down = NavLayoutResolver.move(start, "a", 1) { true }
         assertEquals(listOf("b", "a", "c"), down.pinnedIds)
         assertEquals(listOf("d"), down.unpinnedIds)
-        val up = NavLayoutResolver.move(down, "c", -1)
+        val up = NavLayoutResolver.move(down, "c", -1) { true }
         assertEquals(listOf("b", "c", "a"), up.pinnedIds)
+    }
+
+    @Test
+    fun move_skipsIdsThatAreNotShown() {
+        val start = NavLayout(pinnedIds = listOf("a", NAV_ID_DISCOVER, "b"))
+        val moved = NavLayoutResolver.move(start, "b", -1) { it != NAV_ID_DISCOVER }
+        assertEquals(listOf("b", NAV_ID_DISCOVER, "a"), moved.pinnedIds)
     }
 }

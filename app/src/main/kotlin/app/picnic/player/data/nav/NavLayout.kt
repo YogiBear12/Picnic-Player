@@ -23,10 +23,12 @@ data class NavLayout(
 /**
  * Reconciles saved layout with the currently available customizable ids.
  *
- * - Drops ids that no longer exist.
+ * - Keeps saved ids that are unavailable right now, in place, so an id that returns (Discover
+ *   linking late, a library coming back) keeps its position and pin state. Display filters them.
  * - New ids are pinned at the end of the pinned list (so users notice new libraries).
  * - On first layout ([saved] null): all libraries pinned in [availableIds] order;
- *   Discover (if present) respects [legacyDiscoverPinned] (migrated Show Discover pref).
+ *   Discover respects [legacyDiscoverPinned] (migrated Show Discover pref). An unpinned Discover
+ *   is saved even before Seerr links, because the legacy pref is deleted after this first run.
  */
 object NavLayoutResolver {
 
@@ -36,18 +38,17 @@ object NavLayoutResolver {
         legacyDiscoverPinned: Boolean = true
     ): NavLayout {
         val available = availableIds.distinct()
-        val availableSet = available.toSet()
 
         if (saved == null) {
             val pinned = available.filter { id ->
                 if (id == NAV_ID_DISCOVER) legacyDiscoverPinned else true
             }
-            val unpinned = available.filter { it == NAV_ID_DISCOVER && !legacyDiscoverPinned }
+            val unpinned = if (legacyDiscoverPinned) emptyList() else listOf(NAV_ID_DISCOVER)
             return NavLayout(pinnedIds = pinned, unpinnedIds = unpinned)
         }
 
-        val pinned = saved.pinnedIds.filter { it in availableSet }
-        val unpinned = saved.unpinnedIds.filter { it in availableSet && it !in pinned }
+        val pinned = saved.pinnedIds.distinct()
+        val unpinned = saved.unpinnedIds.filter { it !in pinned }.distinct()
         val known = (pinned + unpinned).toSet()
         val newcomers = available.filterNot { it in known }
         return NavLayout(
@@ -78,12 +79,14 @@ object NavLayoutResolver {
         )
     }
 
-    /** Move [id] up or down within its current list (pinned or unpinned). */
-    fun move(layout: NavLayout, id: String, delta: Int): NavLayout {
+    /** Move [id] up or down within its current list, past ids that are not [shown]. */
+    fun move(layout: NavLayout, id: String, delta: Int, shown: (String) -> Boolean): NavLayout {
         fun swap(list: List<String>): List<String> {
             val i = list.indexOf(id)
             if (i < 0) return list
-            val j = (i + delta).coerceIn(list.indices)
+            val visible = list.indices.filter { it == i || shown(list[it]) }
+            val at = visible.indexOf(i)
+            val j = visible[(at + delta).coerceIn(visible.indices)]
             if (i == j) return list
             return list.toMutableList().also {
                 val tmp = it[i]

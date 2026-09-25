@@ -21,15 +21,9 @@ import app.picnic.player.data.media.fetchHeroPrefetch
 import app.picnic.player.data.media.planHeroStreamPrefetch
 import app.picnic.player.data.media.seriesNeedingSeasonCount
 import app.picnic.player.data.media.withSeriesFallback
-import app.picnic.player.data.nav.NAV_ID_DISCOVER
-import app.picnic.player.data.nav.NAV_ID_PLAYLISTS
-import app.picnic.player.data.nav.NavLayoutStore
-import app.picnic.player.data.seerr.SeerrLinkState
-import app.picnic.player.data.seerr.SeerrRepository
 import app.picnic.player.data.settings.SettingsStore
 import app.picnic.player.data.tvprovider.TvChannelReceiver
 import app.picnic.player.ui.ambient.AmbientPaletteLoader
-import app.picnic.player.ui.browse.BrowseDest
 import app.picnic.player.ui.browse.NavRailState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -46,7 +40,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
-import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -71,9 +64,7 @@ class HomeViewModel @Inject constructor(
     private val hiddenResumeStore: HiddenResumeStore,
     settingsStore: SettingsStore,
     val ambientLoader: AmbientPaletteLoader,
-    private val navRail: NavRailState,
-    private val seerrRepository: SeerrRepository,
-    private val navLayoutStore: NavLayoutStore
+    private val navRail: NavRailState
 ) : ViewModel() {
     data class UiState(
         val loading: Boolean = true,
@@ -87,8 +78,6 @@ class HomeViewModel @Inject constructor(
         val focusedItemId: UUID? = null,
         val rowFocusedItemIds: Map<Int, UUID> = emptyMap(),
         val seasonCounts: Map<UUID, Int> = emptyMap(),
-        val libraries: List<BrowseDest.Library> = emptyList(),
-        val playlistsAvailable: Boolean = false,
         val heroStreams: Map<UUID, List<MediaStream>> = emptyMap(),
         val seriesItems: Map<UUID, BaseItemDto> = emptyMap(),
         val seasonLeads: Map<UUID, BaseItemDto> = emptyMap()
@@ -132,27 +121,6 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             hiddenResumeStore.hidden.drop(1).collectLatest { rebuildRowsFromCache() }
         }
-        viewModelScope.launch {
-            seerrRepository.state
-                .map { it.linkState == SeerrLinkState.Linked }
-                .distinctUntilChanged()
-                .drop(1)
-                .collectLatest { linked -> republishNavLayout(linked) }
-        }
-    }
-
-    private suspend fun republishNavLayout(discoverAvailable: Boolean) {
-        if (_state.value.pendingSlots == null) return
-        val session = _state.value.session ?: return
-        val libraries = _state.value.libraries
-        val playlistsAvailable = _state.value.playlistsAvailable
-        val availableIds = buildList {
-            addAll(libraries.map { it.key })
-            if (playlistsAvailable) add(NAV_ID_PLAYLISTS)
-            if (discoverAvailable) add(NAV_ID_DISCOVER)
-        }
-        val layout = navLayoutStore.resolve(session.server.id, session.userId, availableIds)
-        navRail.publish(session, libraries, discoverAvailable, playlistsAvailable, layout)
     }
 
     fun refresh() {
@@ -243,11 +211,7 @@ class HomeViewModel @Inject constructor(
         val revealed = HomeContent.reveal(visible, load.resolved)
         _state.update { current ->
             if (!current.loading) return@update current
-            current.withRows(revealed.rows).copy(
-                pendingSlots = revealed.pending,
-                libraries = load.libraries,
-                playlistsAvailable = load.playlistsAvailable
-            )
+            current.withRows(revealed.rows).copy(pendingSlots = revealed.pending)
         }
     }
 
@@ -293,8 +257,6 @@ class HomeViewModel @Inject constructor(
                 loading = false,
                 pendingSlots = emptyList(),
                 session = result.session,
-                libraries = result.libraries,
-                playlistsAvailable = result.playlistsAvailable,
                 error = if (rows.isEmpty()) "Nothing to watch yet." else null
             )
         }

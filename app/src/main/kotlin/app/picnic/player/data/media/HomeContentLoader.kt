@@ -1,10 +1,6 @@
 package app.picnic.player.data.media
 
 import app.picnic.player.data.auth.UserSession
-import app.picnic.player.data.nav.NAV_ID_DISCOVER
-import app.picnic.player.data.nav.NAV_ID_PLAYLISTS
-import app.picnic.player.data.nav.NavLayoutStore
-import app.picnic.player.data.seerr.SeerrLinkState
 import app.picnic.player.data.seerr.SeerrRepository
 import app.picnic.player.di.ApplicationScope
 import app.picnic.player.ui.browse.BrowseDest
@@ -28,8 +24,6 @@ import org.jellyfin.sdk.model.api.CollectionType
 
 data class HomeResult(
     val session: UserSession,
-    val libraries: List<BrowseDest.Library>,
-    val playlistsAvailable: Boolean,
     val resume: List<BaseItemDto>,
     val nextUp: List<BaseItemDto>,
     val queuedDates: Map<UUID, LocalDateTime>,
@@ -38,8 +32,6 @@ data class HomeResult(
 
 data class HomeLoad(
     val slots: List<HomeSlot>? = null,
-    val libraries: List<BrowseDest.Library> = emptyList(),
-    val playlistsAvailable: Boolean = false,
     val resolved: Map<String, HomeRow?> = emptyMap(),
     val outcome: Result<HomeResult>? = null
 )
@@ -48,7 +40,6 @@ data class HomeLoad(
 class HomeContentLoader @Inject constructor(
     private val mediaRepository: MediaRepository,
     private val seerrRepository: SeerrRepository,
-    private val navLayoutStore: NavLayoutStore,
     private val navRail: NavRailState,
     private val hiddenResumeStore: HiddenResumeStore,
     @ApplicationScope private val appScope: CoroutineScope
@@ -90,18 +81,9 @@ class HomeContentLoader @Inject constructor(
             }
             BrowseDest.Library(view.id, view.name.orEmpty(), kinds)
         }
-        val discoverAvailable = seerrRepository.state.value.linkState == SeerrLinkState.Linked
-        val availableIds = buildList {
-            addAll(libraries.map { it.key })
-            if (playlistsAvailable) add(NAV_ID_PLAYLISTS)
-            if (discoverAvailable) add(NAV_ID_DISCOVER)
-        }
-        val layout = navLayoutStore.resolve(session.server.id, session.userId, availableIds)
-        navRail.publish(session, libraries, discoverAvailable, playlistsAvailable, layout)
+        navRail.publish(session, libraries, playlistsAvailable)
         val slots = HomeContent.homeSlots(views)
-        progress?.update {
-            it.copy(slots = slots, libraries = libraries, playlistsAvailable = playlistsAvailable)
-        }
+        progress?.update { it.copy(slots = slots) }
         val slotByLibrary = slots.associateBy { it.libraryId }
         fun resolve(slot: HomeSlot?, items: List<BaseItemDto>) {
             if (slot == null) return
@@ -136,8 +118,6 @@ class HomeContentLoader @Inject constructor(
 
             HomeResult(
                 session = session,
-                libraries = libraries,
-                playlistsAvailable = playlistsAvailable,
                 resume = resume,
                 nextUp = nextUp,
                 queuedDates = queuedDates,
