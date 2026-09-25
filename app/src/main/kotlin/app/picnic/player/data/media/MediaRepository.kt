@@ -83,8 +83,11 @@ class MediaRepository @Inject constructor(
         api().itemsApi.getResumeItems(
             limit = limit,
             includeItemTypes = PLAYABLE_KINDS,
+            // Redundant with the kinds, but without it the server takes ~10 s instead of ~0.5 s.
+            mediaTypes = listOf(MediaType.VIDEO),
             fields = CONTINUE_FIELDS,
-            enableImageTypes = IMAGE_TYPES
+            enableImageTypes = IMAGE_TYPES,
+            enableTotalRecordCount = false
         ).content.items.orEmpty()
     }
 
