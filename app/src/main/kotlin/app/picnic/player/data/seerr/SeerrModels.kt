@@ -452,8 +452,16 @@ data class SeerrCatalogItem(
 
 val SeerrCatalogItem.catalogKey: String get() = "$mediaType-$tmdbId"
 
+enum class DiscoverRowKind(val title: String) {
+    TRENDING("Trending"),
+    POPULAR_MOVIES("Popular movies"),
+    POPULAR_TV("Popular TV"),
+    UPCOMING_MOVIES("Upcoming movies"),
+    UPCOMING_TV("Upcoming TV")
+}
+
 data class SeerrDiscoverRow(
-    val title: String,
+    val kind: DiscoverRowKind,
     val items: List<SeerrCatalogItem>
 )
 

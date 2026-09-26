@@ -195,15 +195,16 @@ class SeerrRepository @Inject constructor(
 
     suspend fun discoverRows(): List<SeerrDiscoverRow> = authed {
         val genres = genreNamesById()
-        listOf(
-            "Trending" to api.discoverTrending(),
-            "Popular movies" to api.discoverMovies(),
-            "Popular TV" to api.discoverTv(),
-            "Upcoming movies" to api.discoverMoviesUpcoming(),
-            "Upcoming TV" to api.discoverTvUpcoming()
-        ).mapNotNull { (title, page) ->
+        DiscoverRowKind.entries.mapNotNull { kind ->
+            val page = when (kind) {
+                DiscoverRowKind.TRENDING -> api.discoverTrending()
+                DiscoverRowKind.POPULAR_MOVIES -> api.discoverMovies()
+                DiscoverRowKind.POPULAR_TV -> api.discoverTv()
+                DiscoverRowKind.UPCOMING_MOVIES -> api.discoverMoviesUpcoming()
+                DiscoverRowKind.UPCOMING_TV -> api.discoverTvUpcoming()
+            }
             val items = page.results.mapNotNull { it.toCatalogItem(genres) }
-            if (items.isEmpty()) null else SeerrDiscoverRow(title, items)
+            if (items.isEmpty()) null else SeerrDiscoverRow(kind, items)
         }
     }
 

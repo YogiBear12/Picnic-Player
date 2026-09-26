@@ -21,8 +21,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -45,17 +45,24 @@ import androidx.compose.ui.unit.dp
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import app.picnic.player.data.seerr.DiscoverRowKind
 import app.picnic.player.data.seerr.SeerrCatalogItem
 import app.picnic.player.data.seerr.SeerrDiscoverRow
 import app.picnic.player.data.seerr.SeerrImages
 import app.picnic.player.ui.ambient.LocalAmbientPaletteLoader
 import app.picnic.player.ui.ambient.LocalAmbientPrewarmer
 import app.picnic.player.ui.browse.BrowseCardStyle
+import app.picnic.player.ui.browse.BrowseHeroSkeleton
 import app.picnic.player.ui.browse.BrowseLayoutMetrics
+import app.picnic.player.ui.browse.BrowseRowSkeleton
 import app.picnic.player.ui.browse.DeclarePaneEntry
 import app.picnic.player.ui.browse.ImmersiveBrowseFocus
+import app.picnic.player.ui.browse.RowTitleBottomGap
 import app.picnic.player.ui.browse.ScrollToTopBringIntoView
+import app.picnic.player.ui.browse.SkeletonRow
 import app.picnic.player.ui.browse.posterCardStyle
+import app.picnic.player.ui.common.LoadingFocusTarget
+import app.picnic.player.ui.common.rememberLoadingFocusHolder
 import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.seerr.SeerrHero
 import app.picnic.player.ui.seerr.SeerrMediaCard
@@ -75,10 +82,7 @@ internal fun DiscoverPane(
     LaunchedEffect(Unit) { viewModel.ensureLoaded() }
 
     when {
-        state.loading -> Box(Modifier.fillMaxSize(), Alignment.Center) {
-            CircularProgressIndicator(color = PicnicColors.Accent)
-        }
-        state.rows.isEmpty() -> Box(Modifier.fillMaxSize(), Alignment.Center) {
+        !state.loading && state.rows.isEmpty() -> Box(Modifier.fillMaxSize(), Alignment.Center) {
             Text(state.error ?: "Nothing here", color = PicnicColors.OnDark)
         }
         else -> DiscoverImmersiveContent(
@@ -107,10 +111,18 @@ private fun DiscoverImmersiveContent(
 ) {
     val focused = viewModel.focusedItem(state)
     val seerr = state.seerr
-    DeclarePaneEntry(focus::entryFocus)
+    val skeletonRows = if (state.loading && state.rows.isEmpty()) DiscoverSkeletonRows else emptyList()
+    val loadingFocus = rememberLoadingFocusHolder()
+    val holdLoadingFocus = loadingFocus.holds(skeletonRows.isNotEmpty())
+    val currentEntryFocus = { if (holdLoadingFocus) loadingFocus.requester else focus.entryFocus() }
+    DeclarePaneEntry(currentEntryFocus)
 
-    LaunchedEffect(seedContentFocus, state.rows.size, state.focusedRowIndex) {
-        if (!seedContentFocus || state.rows.isEmpty()) return@LaunchedEffect
+    LaunchedEffect(seedContentFocus, state.rows.size, state.focusedRowIndex, holdLoadingFocus) {
+        if (!seedContentFocus) return@LaunchedEffect
+        if (state.rows.isEmpty()) {
+            if (holdLoadingFocus) loadingFocus.requester.requestFocusWhenAttached()
+            return@LaunchedEffect
+        }
         val rowIndex = state.focusedRowIndex.coerceIn(0, state.rows.lastIndex)
         val savedCardIndex = state.rowFocusedIds[rowIndex]
             ?.let { id -> state.rows[rowIndex].items.indexOfFirst { it.tmdbId == id } }
@@ -136,22 +148,28 @@ private fun DiscoverImmersiveContent(
             Modifier
                 .fillMaxSize()
                 .focusProperties {
-                    onEnter = { runCatching { focus.entryFocus().requestFocus() } }
+                    onEnter = { runCatching { currentEntryFocus().requestFocus() } }
                 }
         ) {
             Box(Modifier.fillMaxWidth().weight(1f).clipToBounds()) {
-                SeerrHero(
-                    item = focused,
-                    logoHeight = metrics.logoHeight,
-                    modifier = Modifier
-                        .align(Alignment.BottomStart)
-                        .padding(
-                            start = horizontalInset,
-                            end = horizontalInset,
-                            bottom = metrics.heroGap
-                        )
-                        .width(metrics.heroContentWidth)
-                )
+                if (holdLoadingFocus) LoadingFocusTarget(loadingFocus)
+                val heroModifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(
+                        start = horizontalInset,
+                        end = horizontalInset,
+                        bottom = metrics.heroGap
+                    )
+                    .width(metrics.heroContentWidth)
+                if (focused == null && skeletonRows.isNotEmpty()) {
+                    BrowseHeroSkeleton(
+                        logoHeight = metrics.logoHeight,
+                        width = metrics.heroContentWidth,
+                        modifier = heroModifier
+                    )
+                } else {
+                    SeerrHero(item = focused, logoHeight = metrics.logoHeight, modifier = heroModifier)
+                }
             }
             CompositionLocalProvider(LocalBringIntoViewSpec provides rowColumnPivot) {
                 LazyColumn(
@@ -159,14 +177,14 @@ private fun DiscoverImmersiveContent(
                         .fillMaxWidth()
                         .height(metrics.rowsRegionHeight.coerceAtLeast(0.dp))
                         .offset(y = metrics.rowsViewportOffset)
-                        .focusProperties { enter = { focus.entryFocus() } },
+                        .focusProperties { enter = { currentEntryFocus() } },
                     state = focus.listState,
                     contentPadding = PaddingValues(bottom = metrics.bottomInset),
                     verticalArrangement = Arrangement.spacedBy(metrics.rowSpacing)
                 ) {
                     itemsIndexed(
                         items = state.rows,
-                        key = { _, row -> row.title }
+                        key = { _, row -> row.kind.name }
                     ) { rowIndex, row ->
                         DiscoverRowSection(
                             row = row,
@@ -182,7 +200,17 @@ private fun DiscoverImmersiveContent(
                             focusedTmdbId = state.rowFocusedIds[rowIndex],
                             rowBringIntoView = focus.defaultRowBringIntoView,
                             onFocusItem = viewModel::onItemFocused,
-                            onSeerrItem = onSeerrItem
+                            onSeerrItem = onSeerrItem,
+                            modifier = Modifier.animateItem(fadeInSpec = null)
+                        )
+                    }
+                    items(items = skeletonRows, key = { it.key }) { row ->
+                        BrowseRowSkeleton(
+                            row = row,
+                            style = posterCardStyle(metrics.sy),
+                            hInset = horizontalInset,
+                            spacing = metrics.cardSpacing,
+                            modifier = Modifier.animateItem(fadeInSpec = null)
                         )
                     }
                 }
@@ -206,21 +234,22 @@ private fun DiscoverRowSection(
     focusedTmdbId: Int?,
     rowBringIntoView: androidx.compose.foundation.gestures.BringIntoViewSpec,
     onFocusItem: (Int, SeerrCatalogItem) -> Unit,
-    onSeerrItem: (SeerrCatalogItem, String?, String?) -> Unit
+    onSeerrItem: (SeerrCatalogItem, String?, String?) -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val focusIndex = focusedTmdbId
         ?.let { id -> row.items.indexOfFirst { it.tmdbId == id }.takeIf { it >= 0 } }
         ?: 0
     val ambientPrewarmer = LocalAmbientPrewarmer.current
 
-    Column {
+    Column(modifier) {
         Text(
-            text = row.title,
+            text = row.kind.title,
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
             color = Color.White,
             maxLines = 1,
-            modifier = Modifier.padding(start = hInset, bottom = 2.dp)
+            modifier = Modifier.padding(start = hInset, bottom = RowTitleBottomGap)
         )
         CompositionLocalProvider(LocalBringIntoViewSpec provides rowBringIntoView) {
             LazyRow(
@@ -254,4 +283,8 @@ private fun DiscoverRowSection(
             }
         }
     }
+}
+
+private val DiscoverSkeletonRows = DiscoverRowKind.entries.map { kind ->
+    SkeletonRow(key = kind.name, title = kind.title, landscape = false)
 }

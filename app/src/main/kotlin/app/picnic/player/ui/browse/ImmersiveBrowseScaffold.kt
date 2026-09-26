@@ -3,7 +3,6 @@
 package app.picnic.player.ui.browse
 
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -14,7 +13,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -24,7 +22,6 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
@@ -32,15 +29,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import app.picnic.player.data.media.HomeRow
 import app.picnic.player.ui.ambient.AmbientPaletteLoader
 import app.picnic.player.ui.ambient.LocalAmbientPaletteLoader
+import app.picnic.player.ui.common.LoadingFocusTarget
+import app.picnic.player.ui.common.rememberLoadingFocusHolder
 import app.picnic.player.ui.common.requestFocusWhenAttached
 import java.util.UUID
 import kotlinx.coroutines.flow.first
@@ -67,16 +63,15 @@ internal fun ImmersiveBrowseScaffold(
     skeletonRows: List<SkeletonRow> = emptyList()
 ) {
     val restoreRow = focusedRowIndex.coerceIn(0, (rows.size - 1).coerceAtLeast(0))
-    val loadingFocus = remember { FocusRequester() }
-    var loadingFocused by remember { mutableStateOf(false) }
-    val holdLoadingFocus = (rows.isEmpty() && skeletonRows.isNotEmpty()) || loadingFocused
-    val currentEntryFocus = { if (holdLoadingFocus) loadingFocus else focus.entryFocus() }
+    val loadingFocus = rememberLoadingFocusHolder()
+    val holdLoadingFocus = loadingFocus.holds(rows.isEmpty() && skeletonRows.isNotEmpty())
+    val currentEntryFocus = { if (holdLoadingFocus) loadingFocus.requester else focus.entryFocus() }
     DeclarePaneEntry(currentEntryFocus)
 
     LaunchedEffect(seedContentFocus, rows.size, focusedRowIndex, holdLoadingFocus) {
         if (!seedContentFocus) return@LaunchedEffect
         if (rows.isEmpty()) {
-            if (holdLoadingFocus) loadingFocus.requestFocusWhenAttached()
+            if (holdLoadingFocus) loadingFocus.requester.requestFocusWhenAttached()
             return@LaunchedEffect
         }
         val rowIndex = focusedRowIndex.coerceIn(0, rows.lastIndex)
@@ -137,15 +132,7 @@ internal fun ImmersiveBrowseScaffold(
                 }
         ) {
             Box(Modifier.fillMaxWidth().weight(1f).clipToBounds()) {
-                if (holdLoadingFocus) {
-                    Box(
-                        Modifier
-                            .size(LoadingFocusHolderSize)
-                            .focusRequester(loadingFocus)
-                            .onFocusChanged { loadingFocused = it.isFocused }
-                            .focusable()
-                    )
-                }
+                if (holdLoadingFocus) LoadingFocusTarget(loadingFocus)
                 val heroModifier = Modifier
                     .align(Alignment.BottomStart)
                     .padding(
@@ -222,5 +209,3 @@ internal fun rememberHomeBrowseFocus(
     focusedRowIndex: Int,
     scrollEnabled: Boolean = true
 ): ImmersiveBrowseFocus = rememberImmersiveBrowseFocus(rowCount, focusedRowIndex, scrollEnabled)
-
-private val LoadingFocusHolderSize = 1.dp

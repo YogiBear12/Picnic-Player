@@ -22,10 +22,15 @@ import app.picnic.player.ui.common.rememberSkeletonPulse
 import app.picnic.player.ui.common.skeletonPulse
 
 private const val TitleBarCards = 2
+private const val UntitledSkeletonRowCount = 3
 
 /** [key] matches the key of the row that replaces it, so the swap happens in place. */
 @Immutable
 internal data class SkeletonRow(val key: String, val title: String?, val landscape: Boolean)
+
+internal fun untitledSkeletonRows(landscapeFirst: Boolean): List<SkeletonRow> = List(UntitledSkeletonRowCount) { index ->
+    SkeletonRow(key = "skeleton-$index", title = null, landscape = landscapeFirst && index == 0)
+}
 
 @Composable
 internal fun BrowseRowSkeleton(

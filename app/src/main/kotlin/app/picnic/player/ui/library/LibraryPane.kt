@@ -41,6 +41,7 @@ import app.picnic.player.ui.browse.DeclarePaneEntry
 import app.picnic.player.ui.browse.ImmersiveBrowseScaffold
 import app.picnic.player.ui.browse.PaneEntryScope
 import app.picnic.player.ui.browse.rememberHomeBrowseFocus
+import app.picnic.player.ui.browse.untitledSkeletonRows
 import app.picnic.player.ui.common.LoadFailedState
 import app.picnic.player.ui.common.rememberOneShotFocus
 import app.picnic.player.ui.common.rememberRetrySeed
@@ -261,11 +262,7 @@ private fun ForYouTabContent(
                 upExitFocus = tabFocus
             )
         }
-        state.loading ->
-            Box(Modifier.fillMaxSize(), Alignment.Center) {
-                CircularProgressIndicator(color = PicnicColors.Accent)
-            }
-        state.rows.isEmpty() ->
+        !state.loading && state.rows.isEmpty() ->
             Box(Modifier.fillMaxSize(), Alignment.Center) {
                 Text(ForYouEmptyMessage)
             }
@@ -288,10 +285,13 @@ private fun ForYouTabContent(
             onBrowseItemFocused = viewModel::onBrowseItemFocused,
             onItem = onItem,
             horizontalInset = horizontalInset,
-            metrics = metrics
+            metrics = metrics,
+            skeletonRows = if (state.loading && state.rows.isEmpty()) ForYouSkeletonRows else emptyList()
         )
     }
 }
+
+private val ForYouSkeletonRows = untitledSkeletonRows(landscapeFirst = false)
 
 @Composable
 private fun GenresTabContent(

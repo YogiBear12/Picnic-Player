@@ -12,6 +12,7 @@ import app.picnic.player.ui.browse.BrowseLayoutMetrics
 import app.picnic.player.ui.browse.ImmersiveBrowseFocus
 import app.picnic.player.ui.browse.ImmersiveBrowseScaffold
 import app.picnic.player.ui.browse.SkeletonRow
+import app.picnic.player.ui.browse.untitledSkeletonRows
 import org.jellyfin.sdk.model.api.BaseItemDto
 
 @Composable
@@ -50,10 +51,6 @@ internal fun HomeBrowsePane(
     }
 }
 
-private const val GenericSkeletonRowCount = 3
-
-private val GenericSkeletonRows = List(GenericSkeletonRowCount) { index ->
-    SkeletonRow(key = "skeleton-$index", title = null, landscape = index == 0)
-}
+private val GenericSkeletonRows = untitledSkeletonRows(landscapeFirst = true)
 
 private fun skeletonRows(pendingSlots: List<HomeSlot>?): List<SkeletonRow> = pendingSlots?.map { SkeletonRow(it.key, it.title, it.continueWatching) } ?: GenericSkeletonRows
