@@ -4,6 +4,7 @@ package app.picnic.player.ui.browse
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
@@ -161,6 +162,7 @@ internal fun BrowseFloatingNav(
                 NavDrawerPage.Primary -> {
                     val fixed = chrome.destinations.filterNot { it.isCustomizable() }
                     val rearrangeable = chrome.destinations.filter { it.isCustomizable() }
+                    val libraryScroll = rememberLibraryScroll(panelFocused, chrome.selectedDest)
 
                     NavPanelRow(
                         label = chrome.session.username,
@@ -185,7 +187,7 @@ internal fun BrowseFloatingNav(
 
                     NavPanelDivider()
 
-                    PanelScrollColumn(Modifier.weight(1f)) {
+                    PanelScrollColumn(Modifier.weight(1f), libraryScroll) {
                         rearrangeable.forEachIndexed { index, dest ->
                             key(dest.key) {
                                 FloatingNavDestRow(
@@ -305,11 +307,21 @@ private fun NavPanelDivider() {
 }
 
 @Composable
+private fun rememberLibraryScroll(panelFocused: Boolean, selectedDest: BrowseDest): ScrollState {
+    val scrollState = rememberScrollState()
+    val resetToTop = panelFocused && !selectedDest.isCustomizable()
+    LaunchedEffect(resetToTop) {
+        if (resetToTop) scrollState.scrollTo(0)
+    }
+    return scrollState
+}
+
+@Composable
 private fun PanelScrollColumn(
     modifier: Modifier = Modifier,
+    scrollState: ScrollState = rememberScrollState(),
     content: @Composable ColumnScope.() -> Unit
 ) {
-    val scrollState = rememberScrollState()
     Column(
         modifier = modifier
             .verticalFadingEdges(
