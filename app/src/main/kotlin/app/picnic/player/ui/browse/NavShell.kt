@@ -53,6 +53,7 @@ internal class NavChromeActions(
 internal class NavChromeFocus {
     val moreItem = FocusRequester()
     val moreBack = FocusRequester()
+    val settings = FocusRequester()
 }
 
 @Composable
@@ -60,12 +61,16 @@ internal fun NavShell(
     alternate: Boolean,
     chrome: NavChromeState,
     actions: NavChromeActions,
+    focusSettingsOnEntry: Boolean,
     drawerState: DrawerState,
     drawerDim: State<Float>,
     content: @Composable () -> Unit
 ) {
     var actionsDest by remember { mutableStateOf<BrowseDest?>(null) }
     val chromeFocus = remember { NavChromeFocus() }
+    LaunchedEffect(focusSettingsOnEntry) {
+        if (focusSettingsOnEntry) chromeFocus.settings.requestFocusWhenAttached()
+    }
     var previousPage by remember { mutableStateOf(chrome.drawerPage) }
 
     if (chrome.reorderKey != null) {

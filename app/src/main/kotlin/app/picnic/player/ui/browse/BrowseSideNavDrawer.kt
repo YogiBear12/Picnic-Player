@@ -154,7 +154,9 @@ internal fun BrowseSideNavDrawer(
                                 selected = false,
                                 onClick = actions.onSettings,
                                 label = "Settings",
-                                modifier = Modifier.lockedDuringReorder(chrome.reorderKey),
+                                modifier = Modifier
+                                    .lockedDuringReorder(chrome.reorderKey)
+                                    .focusRequester(chromeFocus.settings),
                                 height = DrawerChromeRowHeight,
                                 leadingContent = {
                                     Box {

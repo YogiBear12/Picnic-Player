@@ -216,6 +216,7 @@ internal fun BrowseFloatingNav(
                         label = "Settings",
                         onActivate = actions.onSettings,
                         modifier = Modifier.lockedDuringReorder(chrome.reorderKey),
+                        focusRequester = chromeFocus.settings,
                         leading = { focused ->
                             Box {
                                 NavPanelIcon(Icons.Outlined.Settings, focused)

@@ -20,6 +20,7 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
@@ -76,7 +77,13 @@ fun BrowseShellHost(
     val rail = railViewModel.rail
     val selectedKey by rail.selectedKey.collectAsStateWithLifecycle()
     val navChromeFocused by rail.chromeFocused.collectAsStateWithLifecycle()
-    var paneFocusRequest by remember { mutableStateOf(PaneFocusRequest.WhenIdle) }
+    // Saved so it survives the Settings entry; snapshotted so clearing it cannot undo this return.
+    var returnToSettings by rememberSaveable { mutableStateOf(false) }
+    val returningFromSettings = remember { returnToSettings }
+    LaunchedEffect(Unit) { returnToSettings = false }
+    var paneFocusRequest by remember {
+        mutableStateOf(if (returningFromSettings) PaneFocusRequest.None else PaneFocusRequest.WhenIdle)
+    }
     val homeState by homeViewModel.state.collectAsStateWithLifecycle()
     val searchState by searchViewModel.state.collectAsStateWithLifecycle()
     val discoverState by discoverViewModel.state.collectAsStateWithLifecycle()
@@ -228,7 +235,10 @@ fun BrowseShellHost(
                     onOpenMore = { rail.openMorePage() },
                     onBackFromMore = { rail.openPrimaryPage() },
                     onSwapUser = onSwapUser,
-                    onSettings = onSettings,
+                    onSettings = {
+                        returnToSettings = true
+                        onSettings()
+                    },
                     onChromeFocusedChange = rail::setChromeFocused,
                     onPin = railViewModel::pin,
                     onUnpin = railViewModel::unpin,
@@ -253,6 +263,7 @@ fun BrowseShellHost(
                     settingsBadge = updateBadge
                 ),
                 actions = navActions,
+                focusSettingsOnEntry = returningFromSettings,
                 drawerState = drawerState,
                 drawerDim = drawerDim
             ) {
