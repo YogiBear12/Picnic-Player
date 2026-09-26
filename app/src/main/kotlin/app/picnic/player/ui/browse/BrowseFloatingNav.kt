@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -66,6 +67,7 @@ import app.picnic.player.ui.common.PanelRowSpacing
 import app.picnic.player.ui.common.PanelWidth
 import app.picnic.player.ui.common.PicnicListRow
 import app.picnic.player.ui.common.panelGlass
+import app.picnic.player.ui.common.rememberReorderBringIntoView
 import app.picnic.player.ui.common.rowPrimaryColor
 import app.picnic.player.ui.common.verticalFadingEdges
 import app.picnic.player.ui.theme.PicnicColors
@@ -167,10 +169,11 @@ internal fun BrowseFloatingNav(
                         leading = { NavAvatar(chrome.session, chrome.avatarUrl, PanelAvatarSize) }
                     )
 
-                    fixed.forEach { dest ->
+                    fixed.forEachIndexed { index, dest ->
                         key(dest.key) {
                             FloatingNavDestRow(
                                 dest = dest,
+                                index = index,
                                 selected = dest.key == chrome.selectedKey,
                                 reorderKey = chrome.reorderKey,
                                 itemFocusRequester = chrome.itemFocusRequesters[dest.key],
@@ -183,10 +186,11 @@ internal fun BrowseFloatingNav(
                     NavPanelDivider()
 
                     PanelScrollColumn(Modifier.weight(1f)) {
-                        rearrangeable.forEach { dest ->
+                        rearrangeable.forEachIndexed { index, dest ->
                             key(dest.key) {
                                 FloatingNavDestRow(
                                     dest = dest,
+                                    index = index,
                                     selected = dest.key == chrome.selectedKey,
                                     reorderKey = chrome.reorderKey,
                                     itemFocusRequester = chrome.itemFocusRequesters[dest.key],
@@ -234,10 +238,11 @@ internal fun BrowseFloatingNav(
                     NavPanelDivider()
 
                     PanelScrollColumn(Modifier.weight(1f)) {
-                        chrome.destinations.forEach { dest ->
+                        chrome.destinations.forEachIndexed { index, dest ->
                             key(dest.key) {
                                 FloatingNavDestRow(
                                     dest = dest,
+                                    index = index,
                                     selected = dest.key == chrome.selectedKey,
                                     reorderKey = chrome.reorderKey,
                                     itemFocusRequester = chrome.itemFocusRequesters[dest.key],
@@ -322,6 +327,7 @@ private fun PanelScrollColumn(
 @Composable
 private fun FloatingNavDestRow(
     dest: BrowseDest,
+    index: Int,
     selected: Boolean,
     reorderKey: String?,
     itemFocusRequester: FocusRequester?,
@@ -331,6 +337,7 @@ private fun FloatingNavDestRow(
     val (filled, outlined) = iconsFor(dest)
     val inReorder = reorderKey == dest.key
     val active = selected || inReorder
+    val bringIntoView = rememberReorderBringIntoView(inReorder, index)
 
     Box(contentAlignment = Alignment.Center) {
         NavPanelRow(
@@ -339,7 +346,9 @@ private fun FloatingNavDestRow(
             onLongActivate = if (dest.isCustomizable()) onOpenActions else null,
             focusRequester = itemFocusRequester,
             selected = active,
-            modifier = Modifier.focusableDuringReorder(reorderKey, dest.key),
+            modifier = Modifier
+                .bringIntoViewRequester(bringIntoView)
+                .focusableDuringReorder(reorderKey, dest.key),
             leading = { focused ->
                 Icon(
                     imageVector = if (active) filled else outlined,

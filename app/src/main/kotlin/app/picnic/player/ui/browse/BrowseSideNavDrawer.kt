@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -50,6 +51,7 @@ import androidx.tv.material3.NavigationDrawerItem
 import androidx.tv.material3.NavigationDrawerItemDefaults
 import androidx.tv.material3.NavigationDrawerItemScale
 import androidx.tv.material3.Text
+import app.picnic.player.ui.common.rememberReorderBringIntoView
 import app.picnic.player.ui.common.verticalFadingEdges
 
 private val DrawerHPad = 12.dp
@@ -113,10 +115,11 @@ internal fun BrowseSideNavDrawer(
                             Spacer(Modifier.height(6.dp))
 
                             ScrollingRows(Modifier.weight(1f)) {
-                                chrome.destinations.forEach { dest ->
+                                chrome.destinations.forEachIndexed { index, dest ->
                                     key(dest.key) {
                                         CustomizableDrawerRow(
                                             dest = dest,
+                                            index = index,
                                             selected = dest.key == chrome.selectedKey,
                                             reorderKey = chrome.reorderKey,
                                             itemFocusRequester = chrome.itemFocusRequesters[dest.key],
@@ -186,10 +189,11 @@ internal fun BrowseSideNavDrawer(
                             Spacer(Modifier.height(10.dp))
 
                             ScrollingRows(Modifier.weight(1f)) {
-                                chrome.destinations.forEach { dest ->
+                                chrome.destinations.forEachIndexed { index, dest ->
                                     key(dest.key) {
                                         CustomizableDrawerRow(
                                             dest = dest,
+                                            index = index,
                                             selected = dest.key == chrome.selectedKey,
                                             reorderKey = chrome.reorderKey,
                                             itemFocusRequester = chrome.itemFocusRequesters[dest.key],
@@ -237,6 +241,7 @@ private fun ScrollingRows(
 @Composable
 private fun androidx.tv.material3.NavigationDrawerScope.CustomizableDrawerRow(
     dest: BrowseDest,
+    index: Int,
     selected: Boolean,
     reorderKey: String?,
     itemFocusRequester: FocusRequester?,
@@ -246,6 +251,7 @@ private fun androidx.tv.material3.NavigationDrawerScope.CustomizableDrawerRow(
     val (filled, outlined) = iconsFor(dest)
     val inReorder = reorderKey == dest.key
     val active = selected || inReorder
+    val bringIntoView = rememberReorderBringIntoView(inReorder, index)
 
     Box(contentAlignment = Alignment.Center) {
         PicnicDrawerItem(
@@ -254,6 +260,7 @@ private fun androidx.tv.material3.NavigationDrawerScope.CustomizableDrawerRow(
             onLongClick = if (dest.isCustomizable()) onOpenActions else null,
             label = navLabelFor(dest),
             modifier = Modifier
+                .bringIntoViewRequester(bringIntoView)
                 .then(itemFocusRequester?.let { Modifier.focusRequester(it) } ?: Modifier)
                 .focusableDuringReorder(reorderKey, dest.key),
             leadingContent = {

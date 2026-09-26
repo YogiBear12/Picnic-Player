@@ -31,7 +31,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -101,6 +100,7 @@ import app.picnic.player.ui.common.SkeletonTextHeight
 import app.picnic.player.ui.common.SkeletonTextLine
 import app.picnic.player.ui.common.isResumable
 import app.picnic.player.ui.common.rememberKeyedFocusRequesters
+import app.picnic.player.ui.common.rememberReorderBringIntoView
 import app.picnic.player.ui.common.rememberRowFocusState
 import app.picnic.player.ui.common.rememberSkeletonPulse
 import app.picnic.player.ui.common.requestFocusWhenAttached
@@ -481,10 +481,7 @@ private fun PlaylistRow(
 ) {
     var focused by remember { mutableStateOf(false) }
     val rowShape = RoundedCornerShape(12.dp)
-    val bringIntoView = remember { BringIntoViewRequester() }
-    LaunchedEffect(reordering, index) {
-        if (reordering) bringIntoView.bringIntoView()
-    }
+    val bringIntoView = rememberReorderBringIntoView(reordering, index)
 
     Card(
         onClick = {
