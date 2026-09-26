@@ -74,8 +74,8 @@ fun ColumnScope.SeasonList(
                 .focusProperties {
                     enter = { rail.requesterFor(selectedIndex) ?: FocusRequester.Default }
                 },
-            contentPadding = PaddingValues(top = 16.dp, bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(2.dp)
+            contentPadding = PaddingValues(top = SeasonListTopPadding, bottom = SeasonListBottomPadding),
+            verticalArrangement = Arrangement.spacedBy(SeasonListSpacing)
         ) {
             items(
                 count = seasons.size,
@@ -141,3 +141,7 @@ fun ColumnScope.SeasonList(
         }
     }
 }
+
+internal val SeasonListTopPadding = 16.dp
+internal val SeasonListSpacing = 2.dp
+private val SeasonListBottomPadding = 24.dp

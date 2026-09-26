@@ -9,7 +9,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -22,7 +24,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -78,10 +79,15 @@ import app.picnic.player.ui.common.LoadFailedState
 import app.picnic.player.ui.common.LocalImageUrls
 import app.picnic.player.ui.common.LogoOrFallback
 import app.picnic.player.ui.common.SeasonContextMenu
+import app.picnic.player.ui.common.SkeletonBar
+import app.picnic.player.ui.common.SkeletonTextBar
+import app.picnic.player.ui.common.SkeletonTextCorner
+import app.picnic.player.ui.common.SkeletonTitleHeight
 import app.picnic.player.ui.common.isResumable
+import app.picnic.player.ui.common.rememberSkeletonPulse
 import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.common.resumeTicks
-import app.picnic.player.ui.theme.PicnicColors
+import app.picnic.player.ui.common.skeletonPulse
 import java.util.UUID
 import kotlinx.coroutines.delay
 import org.jellyfin.sdk.model.api.BaseItemDto
@@ -238,14 +244,9 @@ fun SeriesEpisodesScreen(
                 retrying = viewModel.seasonsLoading
             )
         } else {
-            Row(Modifier.fillMaxSize().graphicsLayer { alpha = if (initialLoadComplete.value) 1f else 0f }) {
-                Column(
-                    modifier = Modifier
-                        .width(300.dp)
-                        .fillMaxHeight()
-                        .padding(start = 60.dp, end = 16.dp)
-                ) {
-                    Spacer(Modifier.height(76.dp))
+            EpisodesFrame(
+                modifier = Modifier.graphicsLayer { alpha = if (initialLoadComplete.value) 1f else 0f },
+                rail = {
                     SeriesHeader(viewModel.seriesItem)
 
                     SeasonList(
@@ -262,46 +263,44 @@ fun SeriesEpisodesScreen(
                         onLongPress = { contextMenuSeason = it }
                     )
                 }
-
-                Box(Modifier.fillMaxSize()) {
-                    if (episodesFailure != null) {
-                        LoadFailedState(
-                            message = "Could not load episodes",
-                            retryFocus = episodeRetryFocus,
-                            onRetry = {
-                                listFocus.onRetryPressed()
-                                episodes.retry()
-                            },
-                            detail = episodesFailure,
-                            retrying = episodes.loadState.refresh is LoadState.Loading
-                        )
-                    } else {
-                        LazyColumn(
-                            state = episodeFocus.listState,
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .onFocusChanged { episodeFocus.hasFocus = it.hasFocus },
-                            contentPadding = PaddingValues(start = 44.dp, end = 40.dp, top = 24.dp, bottom = 24.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            items(
-                                count = episodes.itemCount,
-                                contentType = episodes.itemContentType { "episode" }
-                            ) { index ->
-                                val episode = episodes[index]
-                                if (episode != null) {
-                                    EpisodeItem(
-                                        episode = episode,
-                                        leftFocus = selectedSeasonFr,
-                                        enterFr = episodeFocus.requesterFor(index),
-                                        onFocused = { episodeFocus.onEpisodeFocused(index) },
-                                        onPlay = { id, resumeTicks ->
-                                            listFocus.onEpisodeOpened(id, selectedSeasonId)
-                                            onPlay(id, resumeTicks)
-                                        },
-                                        onLongClick = { contextMenuEpisode = episode }
-                                    )
-                                }
+            ) {
+                if (episodesFailure != null) {
+                    LoadFailedState(
+                        message = "Could not load episodes",
+                        retryFocus = episodeRetryFocus,
+                        onRetry = {
+                            listFocus.onRetryPressed()
+                            episodes.retry()
+                        },
+                        detail = episodesFailure,
+                        retrying = episodes.loadState.refresh is LoadState.Loading
+                    )
+                } else {
+                    LazyColumn(
+                        state = episodeFocus.listState,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .onFocusChanged { episodeFocus.hasFocus = it.hasFocus },
+                        contentPadding = EpisodeListPadding,
+                        verticalArrangement = Arrangement.spacedBy(EpisodeSpacing)
+                    ) {
+                        items(
+                            count = episodes.itemCount,
+                            contentType = episodes.itemContentType { "episode" }
+                        ) { index ->
+                            val episode = episodes[index]
+                            if (episode != null) {
+                                EpisodeItem(
+                                    episode = episode,
+                                    leftFocus = selectedSeasonFr,
+                                    enterFr = episodeFocus.requesterFor(index),
+                                    onFocused = { episodeFocus.onEpisodeFocused(index) },
+                                    onPlay = { id, resumeTicks ->
+                                        listFocus.onEpisodeOpened(id, selectedSeasonId)
+                                        onPlay(id, resumeTicks)
+                                    },
+                                    onLongClick = { contextMenuEpisode = episode }
+                                )
                             }
                         }
                     }
@@ -310,10 +309,12 @@ fun SeriesEpisodesScreen(
         }
 
         if (!initialLoadComplete.value && !seasonsFailed) {
-            CircularProgressIndicator(
-                Modifier.align(Alignment.Center),
-                color = PicnicColors.Accent
-            )
+            EpisodesFrame(
+                rail = {
+                    SeriesHeader(viewModel.seriesItem)
+                    SeasonListSkeleton()
+                }
+            ) { EpisodeListSkeleton() }
         }
 
         contextMenuEpisode?.let { ep ->
@@ -428,6 +429,66 @@ private fun SeriesLogoOrTitle(seriesItem: BaseItemDto) {
 }
 
 @Composable
+private fun EpisodesFrame(
+    modifier: Modifier = Modifier,
+    rail: @Composable ColumnScope.() -> Unit,
+    list: @Composable () -> Unit
+) {
+    Row(modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .width(EpisodesRailWidth)
+                .fillMaxHeight()
+                .padding(start = EpisodesRailStartPadding, end = EpisodesRailEndPadding)
+        ) {
+            Spacer(Modifier.height(EpisodesRailTopPadding))
+            rail()
+        }
+        Box(Modifier.fillMaxSize()) { list() }
+    }
+}
+
+@Composable
+private fun SeasonListSkeleton() {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(SeasonListSpacing),
+        modifier = Modifier
+            .padding(top = SeasonListTopPadding)
+            .skeletonPulse(rememberSkeletonPulse())
+    ) {
+        repeat(SkeletonSeasonCount) {
+            Box(Modifier.fillMaxWidth().height(SkeletonSeasonRowHeight), contentAlignment = Alignment.Center) {
+                SkeletonTextBar(width = SkeletonSeasonBarWidth)
+            }
+        }
+    }
+}
+
+@Composable
+private fun EpisodeListSkeleton() {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(EpisodeSpacing),
+        modifier = Modifier
+            .padding(EpisodeListPadding)
+            .skeletonPulse(rememberSkeletonPulse())
+    ) {
+        repeat(SkeletonEpisodeCount) {
+            Row(horizontalArrangement = Arrangement.spacedBy(EpisodeThumbGap), verticalAlignment = Alignment.CenterVertically) {
+                SkeletonBar(width = EpisodeThumbWidth, height = EpisodeThumbHeight, corner = EpisodeThumbCorner)
+                BoxWithConstraints {
+                    val width = maxWidth
+                    Column(verticalArrangement = Arrangement.spacedBy(SkeletonEpisodeTextGap)) {
+                        SkeletonBar(width = width * SkeletonEpisodeTitleWidth, height = SkeletonTitleHeight, corner = SkeletonTextCorner)
+                        SkeletonTextBar(width = width * SkeletonEpisodeMetaWidth)
+                        SkeletonTextBar(width = width * SkeletonEpisodeOverviewWidth)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun SeriesHeader(seriesItem: BaseItemDto?) {
     Box(
         modifier = Modifier
@@ -485,13 +546,13 @@ private fun EpisodeItem(
     onPlay: (String, Long?) -> Unit,
     onLongClick: () -> Unit
 ) {
-    val thumbShape = RoundedCornerShape(8.dp)
+    val thumbShape = RoundedCornerShape(EpisodeThumbCorner)
     val focusGlow = rememberCardFocusGlow(Color.White, thumbShape, focusedScale = 1.03f)
     val focused by focusGlow.focused
 
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(20.dp),
+        horizontalArrangement = Arrangement.spacedBy(EpisodeThumbGap),
         verticalAlignment = Alignment.CenterVertically
     ) {
         val imageUrl = LocalImageUrls.current.primary(episode, fillWidth = 300)
@@ -514,7 +575,7 @@ private fun EpisodeItem(
             ),
             interactionSource = focusGlow.interactionSource,
             modifier = Modifier
-                .size(width = 200.dp, height = 112.dp)
+                .size(width = EpisodeThumbWidth, height = EpisodeThumbHeight)
                 .onFocusChanged { if (it.isFocused) onFocused() }
                 .then(if (leftFocus != null) Modifier.focusProperties { left = leftFocus } else Modifier)
                 .then(if (enterFr != null) Modifier.focusRequester(enterFr) else Modifier)
@@ -602,3 +663,22 @@ private fun EpisodeItem(
         }
     }
 }
+
+private val EpisodesRailWidth = 300.dp
+private val EpisodesRailStartPadding = 60.dp
+private val EpisodesRailEndPadding = 16.dp
+private val EpisodesRailTopPadding = 76.dp
+private val EpisodeListPadding = PaddingValues(start = 44.dp, end = 40.dp, top = 24.dp, bottom = 24.dp)
+private val EpisodeSpacing = 12.dp
+private val EpisodeThumbGap = 20.dp
+private val EpisodeThumbWidth = 200.dp
+private val EpisodeThumbHeight = 112.dp
+private val EpisodeThumbCorner = 8.dp
+private const val SkeletonEpisodeCount = 6
+private val SkeletonEpisodeTextGap = 10.dp
+private const val SkeletonEpisodeTitleWidth = 0.4f
+private const val SkeletonEpisodeMetaWidth = 0.25f
+private const val SkeletonEpisodeOverviewWidth = 0.9f
+private const val SkeletonSeasonCount = 6
+private val SkeletonSeasonRowHeight = 48.dp
+private val SkeletonSeasonBarWidth = 120.dp

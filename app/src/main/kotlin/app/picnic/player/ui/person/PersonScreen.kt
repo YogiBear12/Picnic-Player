@@ -30,7 +30,6 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -75,9 +74,12 @@ import app.picnic.player.ui.ambient.LocalAmbientPrewarmer
 import app.picnic.player.ui.ambient.PublishBackdrop
 import app.picnic.player.ui.browse.BrowseCardStyle
 import app.picnic.player.ui.browse.BrowseHeroSummaryLineHeight
+import app.picnic.player.ui.browse.BrowseLayoutMetrics
 import app.picnic.player.ui.browse.DetailContentStartInset
 import app.picnic.player.ui.browse.DetailMediaRow
+import app.picnic.player.ui.browse.RowTitleBottomGap
 import app.picnic.player.ui.browse.ScrollToTopBringIntoView
+import app.picnic.player.ui.browse.SkeletonTitleBarCards
 import app.picnic.player.ui.browse.browseLayoutMetrics
 import app.picnic.player.ui.browse.posterCardStyle
 import app.picnic.player.ui.common.ActionButton
@@ -86,9 +88,18 @@ import app.picnic.player.ui.common.LocalContextMenuHandler
 import app.picnic.player.ui.common.LocalImageUrls
 import app.picnic.player.ui.common.RowFocusState
 import app.picnic.player.ui.common.ScrollableTextDialog
+import app.picnic.player.ui.common.SkeletonCardRow
+import app.picnic.player.ui.common.SkeletonTextBar
+import app.picnic.player.ui.common.SkeletonTextHeight
+import app.picnic.player.ui.common.SkeletonTextLine
+import app.picnic.player.ui.common.SkeletonTitleHeight
 import app.picnic.player.ui.common.rememberRowFocusState
 import app.picnic.player.ui.common.rememberRowRevealed
+import app.picnic.player.ui.common.rememberSkeletonPulse
 import app.picnic.player.ui.common.requestFocusWhenAttached
+import app.picnic.player.ui.common.skeletonFill
+import app.picnic.player.ui.common.skeletonPulse
+import app.picnic.player.ui.grid.GridCardSkeleton
 import app.picnic.player.ui.grid.MediaGridCard
 import app.picnic.player.ui.grid.MetaLineReserve
 import app.picnic.player.ui.grid.gridCellSlot
@@ -118,6 +129,19 @@ private const val KnownForRowTitle = "Known for"
 
 private val PersonRowBottomPadding = 16.dp
 private val PersonHeroImageHeight = 232.dp
+private const val PersonHeroImageAspect = 2f / 3f
+private val PersonHeroImageCorner = 12.dp
+private val PersonHeroImageGap = 16.dp
+private val PersonHeroTextInset = 16.dp
+private val PersonNameMetaGap = 8.dp
+private val PersonHeroSummaryGap = 16.dp
+private val PersonSummaryTextPadding = 16.dp
+private val PersonHeroTopPadding = 48.dp
+private val PersonHeroBottomPadding = 24.dp
+private const val PersonNameBarWidth = 0.5f
+private val PersonNameBarHeight = 24.dp
+private const val PersonMetaBarWidth = 0.35f
+private val PersonSummaryBarWidths = listOf(1f, 0.95f, 0.7f)
 
 private const val ROW_HERO = "hero"
 private const val ROW_MOVIES = "movies"
@@ -140,8 +164,10 @@ fun PersonScreen(
 
     val state by viewModel.state.collectAsStateWithLifecycle()
     if (state.loading) {
-        Box(Modifier.fillMaxSize(), Alignment.Center) {
-            CircularProgressIndicator(color = PicnicColors.Accent)
+        val metrics = browseLayoutMetrics(maxWidth, maxHeight)
+        Column(Modifier.fillMaxSize()) {
+            PersonHeroSkeleton(Modifier.personHeroPadding(metrics))
+            PersonPosterRowSkeleton(metrics)
         }
         return@BoxWithConstraints
     }
@@ -331,12 +357,7 @@ fun PersonScreen(
                         onFilmography = filmographyTmdbId?.let { id ->
                             { onFilmography(id, hero.name.orEmpty(), state.knownForDepartment) }
                         },
-                        modifier = Modifier.padding(
-                            start = DetailContentStartInset,
-                            end = metrics.hInset,
-                            top = 48.dp,
-                            bottom = 24.dp
-                        )
+                        modifier = Modifier.personHeroPadding(metrics)
                     )
                 }
             }
@@ -656,7 +677,7 @@ private fun PersonHero(
             name = content.name
         )
 
-        Spacer(modifier = Modifier.width(16.dp))
+        Spacer(modifier = Modifier.width(PersonHeroImageGap))
 
         Column(
             modifier = Modifier
@@ -668,20 +689,20 @@ private fun PersonHero(
                 text = content.name.orEmpty(),
                 color = Color.White,
                 style = MaterialTheme.typography.displayMedium,
-                modifier = Modifier.padding(horizontal = 16.dp)
+                modifier = Modifier.padding(horizontal = PersonHeroTextInset)
             )
 
             if (content.meta.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(PersonNameMetaGap))
                 Text(
                     text = content.meta.joinToString("  •  "),
                     color = Color.White.copy(alpha = 0.7f),
                     style = MaterialTheme.typography.titleSmall,
-                    modifier = Modifier.padding(horizontal = 16.dp)
+                    modifier = Modifier.padding(horizontal = PersonHeroTextInset)
                 )
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(PersonHeroSummaryGap))
 
             if (summary != null) {
                 SummarySurface(
@@ -701,7 +722,7 @@ private fun PersonHero(
                     onActivate = onFilmography,
                     focusRequester = filmographyFocus,
                     modifier = Modifier
-                        .padding(horizontal = 16.dp)
+                        .padding(horizontal = PersonHeroTextInset)
                         .onFocusChanged { if (it.isFocused) onFocused() }
                         .focusProperties { if (summary != null) up = focusRequester }
                 )
@@ -709,6 +730,61 @@ private fun PersonHero(
         }
     }
 }
+
+@Composable
+private fun PersonHeroSkeleton(modifier: Modifier = Modifier) {
+    val pulse = rememberSkeletonPulse()
+    val summaryLine = with(LocalDensity.current) { BrowseHeroSummaryLineHeight.toDp() }
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(PersonHeroImageHeight)
+            .skeletonPulse(pulse),
+        verticalAlignment = Alignment.Top
+    ) {
+        Box(
+            Modifier
+                .height(PersonHeroImageHeight)
+                .aspectRatio(PersonHeroImageAspect)
+                .skeletonFill(PersonHeroImageCorner)
+        )
+        Spacer(modifier = Modifier.width(PersonHeroImageGap))
+        BoxWithConstraints(Modifier.weight(1f).padding(horizontal = PersonHeroTextInset)) {
+            val width = maxWidth
+            Column {
+                SkeletonTextLine(MaterialTheme.typography.displayMedium, width * PersonNameBarWidth, PersonNameBarHeight)
+                Spacer(modifier = Modifier.height(PersonNameMetaGap))
+                SkeletonTextLine(MaterialTheme.typography.titleSmall, width * PersonMetaBarWidth, SkeletonTextHeight)
+                Spacer(modifier = Modifier.height(PersonHeroSummaryGap + PersonSummaryTextPadding))
+                for (fraction in PersonSummaryBarWidths) {
+                    Box(Modifier.height(summaryLine), contentAlignment = Alignment.CenterStart) {
+                        SkeletonTextBar(width = width * fraction)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PersonPosterRowSkeleton(metrics: BrowseLayoutMetrics) {
+    val style = posterCardStyle(sy = metrics.sy)
+    Column {
+        SkeletonTextLine(
+            style = MaterialTheme.typography.titleMedium,
+            width = style.width * SkeletonTitleBarCards,
+            barHeight = SkeletonTitleHeight,
+            modifier = Modifier
+                .padding(start = DetailContentStartInset, bottom = RowTitleBottomGap)
+                .skeletonPulse(rememberSkeletonPulse())
+        )
+        SkeletonCardRow(cardWidth = style.width, spacing = metrics.cardSpacing, startInset = DetailContentStartInset) {
+            GridCardSkeleton(style, metaLine = true)
+        }
+    }
+}
+
+private fun Modifier.personHeroPadding(metrics: BrowseLayoutMetrics): Modifier = padding(start = DetailContentStartInset, end = metrics.hInset, top = PersonHeroTopPadding, bottom = PersonHeroBottomPadding)
 
 @Composable
 private fun PersonHeroImage(
@@ -721,8 +797,8 @@ private fun PersonHeroImage(
         Box(
             Modifier
                 .height(PersonHeroImageHeight)
-                .aspectRatio(2f / 3f)
-                .clip(RoundedCornerShape(12.dp))
+                .aspectRatio(PersonHeroImageAspect)
+                .clip(RoundedCornerShape(PersonHeroImageCorner))
                 .background(Color.DarkGray),
             contentAlignment = Alignment.Center
         ) {
@@ -741,8 +817,8 @@ private fun PersonHeroImage(
             onState = { if (it is AsyncImagePainter.State.Error) onImageFailed() },
             modifier = Modifier
                 .height(PersonHeroImageHeight)
-                .aspectRatio(2f / 3f)
-                .clip(RoundedCornerShape(12.dp))
+                .aspectRatio(PersonHeroImageAspect)
+                .clip(RoundedCornerShape(PersonHeroImageCorner))
         )
     }
 }
@@ -770,7 +846,7 @@ private fun SummarySurface(
             .focusProperties { if (downFocus != null) down = downFocus }
             .onFocusChanged { if (it.isFocused) onFocused() }
     ) {
-        BoxWithConstraints(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        BoxWithConstraints(modifier = Modifier.fillMaxSize().padding(PersonSummaryTextPadding)) {
             val lineHeightPx = with(LocalDensity.current) { BrowseHeroSummaryLineHeight.toPx() }
             val maxLines = (constraints.maxHeight / lineHeightPx).toInt().coerceAtLeast(1)
             Text(

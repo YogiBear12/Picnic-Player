@@ -21,8 +21,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.tv.material3.Text
 
 private val SkeletonFill = Color.White.copy(alpha = 0.14f)
 internal val SkeletonTitleHeight = 12.dp
@@ -65,6 +67,15 @@ internal fun SkeletonBar(width: Dp, height: Dp, corner: Dp, modifier: Modifier =
 @Composable
 internal fun SkeletonTextBar(width: Dp, modifier: Modifier = Modifier) {
     SkeletonBar(width = width, height = SkeletonTextHeight, corner = SkeletonTextCorner, modifier = modifier)
+}
+
+/** The empty [Text] holds the line height of [style], so the bar sits where the real line will. */
+@Composable
+internal fun SkeletonTextLine(style: TextStyle, width: Dp, barHeight: Dp, modifier: Modifier = Modifier) {
+    Box(modifier, contentAlignment = Alignment.CenterStart) {
+        Text(text = "", style = style)
+        SkeletonBar(width = width, height = barHeight, corner = SkeletonTextCorner)
+    }
 }
 
 @Composable

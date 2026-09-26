@@ -21,7 +21,7 @@ import app.picnic.player.ui.common.SkeletonTitleHeight
 import app.picnic.player.ui.common.rememberSkeletonPulse
 import app.picnic.player.ui.common.skeletonPulse
 
-private const val TitleBarCards = 2
+internal const val SkeletonTitleBarCards = 2
 private const val UntitledSkeletonRowCount = 3
 
 /** [key] matches the key of the row that replaces it, so the swap happens in place. */
@@ -51,7 +51,7 @@ internal fun BrowseRowSkeleton(
             )
             if (row.title == null) {
                 SkeletonBar(
-                    width = style.width * TitleBarCards,
+                    width = style.width * SkeletonTitleBarCards,
                     height = SkeletonTitleHeight,
                     corner = SkeletonTextCorner,
                     modifier = Modifier.skeletonPulse(rememberSkeletonPulse())

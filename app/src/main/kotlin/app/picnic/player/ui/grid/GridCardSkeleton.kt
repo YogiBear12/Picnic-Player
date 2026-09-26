@@ -16,9 +16,9 @@ private const val CardTitleBarWidth = 0.8f
 private const val CardSubtitleBarWidth = 0.45f
 
 @Composable
-internal fun GridCardSkeleton(style: BrowseCardStyle) {
+internal fun GridCardSkeleton(style: BrowseCardStyle, metaLine: Boolean = false) {
     Column(
-        Modifier.gridCellSlot(style).padding(top = style.topInset),
+        Modifier.gridCellSlot(style, metaLine).padding(top = style.topInset),
         verticalArrangement = Arrangement.spacedBy(SkeletonCardTextGap)
     ) {
         SkeletonBar(width = style.width, height = style.height, corner = SkeletonBlockCorner)
