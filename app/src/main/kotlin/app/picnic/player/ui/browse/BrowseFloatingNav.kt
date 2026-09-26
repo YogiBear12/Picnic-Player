@@ -2,7 +2,6 @@
 
 package app.picnic.player.ui.browse
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -34,7 +33,6 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -58,7 +56,6 @@ import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import app.picnic.player.data.auth.UserSession
-import app.picnic.player.data.nav.NavLayout
 import app.picnic.player.ui.common.PanelContentInset
 import app.picnic.player.ui.common.PanelDividerColor
 import app.picnic.player.ui.common.PanelEdgeInset
@@ -83,95 +80,21 @@ private const val PanelAnimMs = 220
 
 @Composable
 internal fun BrowseFloatingNav(
-    session: UserSession?,
-    avatarUrl: String?,
-    destinations: List<BrowseDest>,
-    selectedKey: String,
-    selectedDest: BrowseDest,
-    itemFocusRequesters: Map<String, FocusRequester>,
-    paneEntryFocus: () -> FocusRequester,
+    chrome: NavChromeState,
+    chromeFocus: NavChromeFocus,
+    actions: NavChromeActions,
+    onOpenActions: (BrowseDest) -> Unit,
     drawerState: DrawerState,
     drawerDim: State<Float>,
-    drawerPage: NavDrawerPage,
-    moreVisible: Boolean,
-    layout: NavLayout,
-    reorderKey: String?,
-    onSelect: (BrowseDest) -> Unit,
-    onOpenMore: () -> Unit,
-    onBackFromMore: () -> Unit,
-    onSwapUser: () -> Unit,
-    onSettings: () -> Unit,
-    onChromeFocusedChange: (Boolean) -> Unit,
-    onPin: (BrowseDest) -> Unit,
-    onUnpin: (BrowseDest) -> Unit,
-    onEnterReorder: (BrowseDest) -> Unit,
-    onExitReorder: () -> Unit,
-    onMoveReorder: (Int) -> Unit,
-    settingsBadge: Boolean = false,
     content: @Composable () -> Unit
 ) {
-    if (session == null) {
-        Box(Modifier.fillMaxSize()) { content() }
-        return
-    }
-
-    var actionsDest by remember { mutableStateOf<BrowseDest?>(null) }
     var panelFocused by remember { mutableStateOf(false) }
-    val moreItemFocus = remember { FocusRequester() }
-    val moreBackFocus = remember { FocusRequester() }
-    var previousPage by remember { mutableStateOf(drawerPage) }
-
-    if (reorderKey != null) {
-        BackHandler { onExitReorder() }
-    }
 
     LaunchedEffect(panelFocused) {
         drawerState.setValue(if (panelFocused) DrawerValue.Open else DrawerValue.Closed)
     }
 
-    LaunchedEffect(drawerPage) {
-        val from = previousPage
-        previousPage = drawerPage
-        if (from == drawerPage) return@LaunchedEffect
-        kotlinx.coroutines.yield()
-        when (drawerPage) {
-            NavDrawerPage.More -> runCatching { moreBackFocus.requestFocus() }
-            NavDrawerPage.Primary -> {
-                if (moreVisible) {
-                    runCatching { moreItemFocus.requestFocus() }
-                } else {
-                    itemFocusRequesters[selectedKey]?.let { runCatching { it.requestFocus() } }
-                }
-            }
-        }
-    }
-
-    LaunchedEffect(reorderKey, destinations) {
-        val key = reorderKey ?: return@LaunchedEffect
-        repeat(2) { withFrameNanos { } }
-        itemFocusRequesters[key]?.let { runCatching { it.requestFocus() } }
-    }
-
-    val refocusNeighbor = latchNeighborRefocus(destinations, layout, itemFocusRequesters)
-
-    actionsDest?.let { dest ->
-        NavDestActionsDialog(
-            dest = dest,
-            pinned = layout.isPinned(dest.key),
-            onPin = {
-                refocusNeighbor(dest)
-                onPin(dest)
-            },
-            onUnpin = {
-                refocusNeighbor(dest)
-                onUnpin(dest)
-            },
-            onReorder = { onEnterReorder(dest) },
-            onDismiss = { actionsDest = null }
-        )
-    }
-
-    val onPrimaryPage = drawerPage == NavDrawerPage.Primary
+    val onPrimaryPage = chrome.drawerPage == NavDrawerPage.Primary
 
     val openProgress by animateFloatAsState(
         targetValue = if (panelFocused) 1f else 0f,
@@ -190,9 +113,9 @@ internal fun BrowseFloatingNav(
         ) { content() }
 
         NavDock(
-            session = session,
-            avatarUrl = avatarUrl,
-            selected = selectedDest,
+            session = chrome.session,
+            avatarUrl = chrome.avatarUrl,
+            selected = chrome.selectedDest,
             modifier = Modifier
                 .align(Alignment.CenterStart)
                 .width(DrawerCollapsedWidth)
@@ -213,46 +136,46 @@ internal fun BrowseFloatingNav(
                 .padding(PanelContentInset)
                 .onFocusChanged {
                     panelFocused = it.hasFocus
-                    onChromeFocusedChange(it.hasFocus)
+                    actions.onChromeFocusedChange(it.hasFocus)
                 }
+                .navReorderKeys(chrome.reorderKey, actions.onMoveReorder, actions.onExitReorder)
                 .onKeyEvent { event ->
                     val sideways = event.key == Key.DirectionLeft || event.key == Key.DirectionRight
-                    if (sideways && event.type == KeyEventType.KeyDown && onPrimaryPage && reorderKey == null) {
-                        runCatching { paneEntryFocus().requestFocus() }
+                    if (sideways && event.type == KeyEventType.KeyDown && onPrimaryPage) {
+                        runCatching { actions.paneEntryFocus().requestFocus() }
                     }
                     sideways
                 }
                 .focusProperties {
                     onEnter = {
-                        itemFocusRequesters[selectedKey]
+                        chrome.itemFocusRequesters[chrome.selectedKey]
                             ?.let { runCatching { it.requestFocus() } }
                     }
                 }
                 .focusGroup(),
             verticalArrangement = Arrangement.spacedBy(PanelRowSpacing)
         ) {
-            when (drawerPage) {
+            when (chrome.drawerPage) {
                 NavDrawerPage.Primary -> {
-                    val fixed = destinations.filterNot { it.isCustomizable() }
-                    val rearrangeable = destinations.filter { it.isCustomizable() }
+                    val fixed = chrome.destinations.filterNot { it.isCustomizable() }
+                    val rearrangeable = chrome.destinations.filter { it.isCustomizable() }
 
                     NavPanelRow(
-                        label = session.username,
-                        onActivate = onSwapUser,
-                        leading = { NavAvatar(session, avatarUrl, PanelAvatarSize) }
+                        label = chrome.session.username,
+                        onActivate = actions.onSwapUser,
+                        modifier = Modifier.lockedDuringReorder(chrome.reorderKey),
+                        leading = { NavAvatar(chrome.session, chrome.avatarUrl, PanelAvatarSize) }
                     )
 
                     fixed.forEach { dest ->
                         key(dest.key) {
                             FloatingNavDestRow(
                                 dest = dest,
-                                selected = dest.key == selectedKey,
-                                reorderKey = reorderKey,
-                                itemFocusRequester = itemFocusRequesters[dest.key],
-                                onSelect = { onSelect(dest) },
-                                onOpenActions = { actionsDest = dest },
-                                onMoveReorder = onMoveReorder,
-                                onExitReorder = onExitReorder
+                                selected = dest.key == chrome.selectedKey,
+                                reorderKey = chrome.reorderKey,
+                                itemFocusRequester = chrome.itemFocusRequesters[dest.key],
+                                onSelect = { actions.onSelect(dest) },
+                                onOpenActions = { onOpenActions(dest) }
                             )
                         }
                     }
@@ -264,22 +187,21 @@ internal fun BrowseFloatingNav(
                             key(dest.key) {
                                 FloatingNavDestRow(
                                     dest = dest,
-                                    selected = dest.key == selectedKey,
-                                    reorderKey = reorderKey,
-                                    itemFocusRequester = itemFocusRequesters[dest.key],
-                                    onSelect = { onSelect(dest) },
-                                    onOpenActions = { actionsDest = dest },
-                                    onMoveReorder = onMoveReorder,
-                                    onExitReorder = onExitReorder
+                                    selected = dest.key == chrome.selectedKey,
+                                    reorderKey = chrome.reorderKey,
+                                    itemFocusRequester = chrome.itemFocusRequesters[dest.key],
+                                    onSelect = { actions.onSelect(dest) },
+                                    onOpenActions = { onOpenActions(dest) }
                                 )
                             }
                         }
 
-                        if (moreVisible) {
+                        if (chrome.moreVisible) {
                             NavPanelRow(
                                 label = "More",
-                                onActivate = onOpenMore,
-                                focusRequester = moreItemFocus,
+                                onActivate = actions.onOpenMore,
+                                modifier = Modifier.lockedDuringReorder(chrome.reorderKey),
+                                focusRequester = chromeFocus.moreItem,
                                 leading = { NavPanelIcon(Icons.Outlined.MoreHoriz, it) }
                             )
                         }
@@ -289,11 +211,12 @@ internal fun BrowseFloatingNav(
 
                     NavPanelRow(
                         label = "Settings",
-                        onActivate = onSettings,
+                        onActivate = actions.onSettings,
+                        modifier = Modifier.lockedDuringReorder(chrome.reorderKey),
                         leading = { focused ->
                             Box {
                                 NavPanelIcon(Icons.Outlined.Settings, focused)
-                                if (settingsBadge) {
+                                if (chrome.settingsBadge) {
                                     UpdateBadgeDot(Modifier.align(Alignment.TopEnd))
                                 }
                             }
@@ -303,24 +226,23 @@ internal fun BrowseFloatingNav(
                 NavDrawerPage.More -> {
                     NavPanelRow(
                         label = "Back",
-                        onActivate = onBackFromMore,
-                        focusRequester = moreBackFocus,
+                        onActivate = actions.onBackFromMore,
+                        modifier = Modifier.lockedDuringReorder(chrome.reorderKey),
+                        focusRequester = chromeFocus.moreBack,
                         leading = { NavPanelIcon(Icons.AutoMirrored.Filled.ArrowBack, it) }
                     )
                     NavPanelDivider()
 
                     PanelScrollColumn(Modifier.weight(1f)) {
-                        destinations.forEach { dest ->
+                        chrome.destinations.forEach { dest ->
                             key(dest.key) {
                                 FloatingNavDestRow(
                                     dest = dest,
-                                    selected = dest.key == selectedKey,
-                                    reorderKey = reorderKey,
-                                    itemFocusRequester = itemFocusRequesters[dest.key],
-                                    onSelect = { onSelect(dest) },
-                                    onOpenActions = { actionsDest = dest },
-                                    onMoveReorder = onMoveReorder,
-                                    onExitReorder = onExitReorder
+                                    selected = dest.key == chrome.selectedKey,
+                                    reorderKey = chrome.reorderKey,
+                                    itemFocusRequester = chrome.itemFocusRequesters[dest.key],
+                                    onSelect = { actions.onSelect(dest) },
+                                    onOpenActions = { onOpenActions(dest) }
                                 )
                             }
                         }
@@ -404,9 +326,7 @@ private fun FloatingNavDestRow(
     reorderKey: String?,
     itemFocusRequester: FocusRequester?,
     onSelect: () -> Unit,
-    onOpenActions: () -> Unit,
-    onMoveReorder: (Int) -> Unit,
-    onExitReorder: () -> Unit
+    onOpenActions: () -> Unit
 ) {
     val (filled, outlined) = iconsFor(dest)
     val inReorder = reorderKey == dest.key
@@ -415,15 +335,11 @@ private fun FloatingNavDestRow(
     Box(contentAlignment = Alignment.Center) {
         NavPanelRow(
             label = navLabelFor(dest),
-            onActivate = if (inReorder) ({}) else onSelect,
-            onLongActivate = if (!inReorder && dest.isCustomizable()) onOpenActions else null,
+            onActivate = onSelect,
+            onLongActivate = if (dest.isCustomizable()) onOpenActions else null,
             focusRequester = itemFocusRequester,
             selected = active,
-            modifier = if (inReorder) {
-                Modifier.navReorderKeys(onMoveReorder, onExitReorder)
-            } else {
-                Modifier
-            },
+            modifier = Modifier.focusableDuringReorder(reorderKey, dest.key),
             leading = { focused ->
                 Icon(
                     imageVector = if (active) filled else outlined,

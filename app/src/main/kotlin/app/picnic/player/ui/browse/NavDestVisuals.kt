@@ -25,7 +25,6 @@ import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Tv
 import androidx.compose.material.icons.outlined.VideoLibrary
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -33,7 +32,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -50,9 +48,7 @@ import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import app.picnic.player.data.auth.UserSession
-import app.picnic.player.data.nav.NavLayout
 import app.picnic.player.ui.common.rememberIdentityBrush
-import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.theme.PicnicColors
 import coil3.compose.AsyncImage
 import coil3.compose.AsyncImagePainter
@@ -142,16 +138,16 @@ internal fun NavAvatar(session: UserSession, imageUrl: String?, size: Dp) {
 }
 
 /**
- * While a row is held in reorder, up and down move it instead of moving focus, so the row must
- * swallow those keys before the row's own click handling sees them.
+ * Attach to the stable nav container: moving the focused row can temporarily detach its key handler
+ * while auto-repeat continues. Preview keys before a sibling receives focus or activates. Sideways
+ * keys are held too: leaving the nav would strand reorder with nothing left to receive its keys.
  */
 internal fun Modifier.navReorderKeys(
+    reorderKey: String?,
     onMoveReorder: (Int) -> Unit,
     onExitReorder: () -> Unit
-): Modifier = focusProperties {
-    up = FocusRequester.Cancel
-    down = FocusRequester.Cancel
-}.onPreviewKeyEvent { event ->
+): Modifier = onPreviewKeyEvent { event ->
+    if (reorderKey == null) return@onPreviewKeyEvent false
     when (event.key) {
         Key.DirectionUp -> {
             if (event.type == KeyEventType.KeyDown) onMoveReorder(-1)
@@ -165,8 +161,17 @@ internal fun Modifier.navReorderKeys(
             if (event.type == KeyEventType.KeyUp) onExitReorder()
             true
         }
+        Key.DirectionLeft, Key.DirectionRight -> true
         else -> false
     }
+}
+
+internal fun Modifier.focusableDuringReorder(reorderKey: String?, rowKey: String): Modifier = focusProperties {
+    canFocus = reorderKey == null || reorderKey == rowKey
+}
+
+internal fun Modifier.lockedDuringReorder(reorderKey: String?): Modifier = focusProperties {
+    canFocus = reorderKey == null
 }
 
 @Composable
@@ -189,35 +194,4 @@ internal fun BoxScope.ReorderArrows(offset: Dp) {
             .offset(y = offset)
             .size(18.dp)
     )
-}
-
-private data class PendingRefocus(val key: String, val capturedLayout: NavLayout)
-
-/**
- * Pinning or unpinning drops the row out of the list it was focused in. Focus must land on its
- * neighbor, but only once the settings store has echoed the new [NavLayout] back, so the target is
- * latched against the layout it was captured under and fires on the first layout that differs.
- */
-@Composable
-internal fun latchNeighborRefocus(
-    destinations: List<BrowseDest>,
-    layout: NavLayout,
-    itemFocusRequesters: Map<String, FocusRequester>
-): (BrowseDest) -> Unit {
-    var pending by remember { mutableStateOf<PendingRefocus?>(null) }
-    LaunchedEffect(layout) {
-        val target = pending ?: return@LaunchedEffect
-        if (layout == target.capturedLayout) return@LaunchedEffect
-        pending = null
-        itemFocusRequesters[target.key]?.requestFocusWhenAttached(maxFrames = 20)
-    }
-    return { dest ->
-        val index = destinations.indexOfFirst { it.key == dest.key }
-        val neighbor = if (index < 0) {
-            null
-        } else {
-            destinations.getOrNull(index - 1) ?: destinations.getOrNull(index + 1)
-        }
-        pending = neighbor?.let { PendingRefocus(it.key, layout) }
-    }
 }

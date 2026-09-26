@@ -2,7 +2,6 @@
 
 package app.picnic.player.ui.browse
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -25,14 +24,10 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -55,8 +50,6 @@ import androidx.tv.material3.NavigationDrawerItem
 import androidx.tv.material3.NavigationDrawerItemDefaults
 import androidx.tv.material3.NavigationDrawerItemScale
 import androidx.tv.material3.Text
-import app.picnic.player.data.auth.UserSession
-import app.picnic.player.data.nav.NavLayout
 import app.picnic.player.ui.common.verticalFadingEdges
 
 private val DrawerHPad = 12.dp
@@ -73,89 +66,14 @@ private val DrawerRowSpacing = 4.dp
 
 @Composable
 internal fun BrowseSideNavDrawer(
-    session: UserSession?,
-    avatarUrl: String?,
-    destinations: List<BrowseDest>,
-    selectedKey: String,
-    itemFocusRequesters: Map<String, FocusRequester>,
-    paneEntryFocus: () -> FocusRequester,
+    chrome: NavChromeState,
+    chromeFocus: NavChromeFocus,
+    actions: NavChromeActions,
+    onOpenActions: (BrowseDest) -> Unit,
     drawerState: DrawerState,
     drawerDim: State<Float>,
-    drawerPage: NavDrawerPage,
-    moreVisible: Boolean,
-    layout: NavLayout,
-    reorderKey: String?,
-    onSelect: (BrowseDest) -> Unit,
-    onOpenMore: () -> Unit,
-    onBackFromMore: () -> Unit,
-    onSwapUser: () -> Unit,
-    onSettings: () -> Unit,
-    onChromeFocusedChange: (Boolean) -> Unit,
-    onPin: (BrowseDest) -> Unit,
-    onUnpin: (BrowseDest) -> Unit,
-    onEnterReorder: (BrowseDest) -> Unit,
-    onExitReorder: () -> Unit,
-    onMoveReorder: (Int) -> Unit,
-    settingsBadge: Boolean = false,
     content: @Composable () -> Unit
 ) {
-    if (session == null) {
-        Box(Modifier.fillMaxSize()) { content() }
-        return
-    }
-
-    var actionsDest by remember { mutableStateOf<BrowseDest?>(null) }
-    val inReorder = reorderKey != null
-    val moreItemFocus = remember { FocusRequester() }
-    val moreBackFocus = remember { FocusRequester() }
-    var previousPage by remember { mutableStateOf(drawerPage) }
-
-    if (inReorder) {
-        BackHandler { onExitReorder() }
-    }
-
-    LaunchedEffect(drawerPage) {
-        val from = previousPage
-        previousPage = drawerPage
-        if (from == drawerPage) return@LaunchedEffect
-        kotlinx.coroutines.yield()
-        when (drawerPage) {
-            NavDrawerPage.More -> runCatching { moreBackFocus.requestFocus() }
-            NavDrawerPage.Primary -> {
-                if (moreVisible) {
-                    runCatching { moreItemFocus.requestFocus() }
-                } else {
-                    itemFocusRequesters[selectedKey]?.let { runCatching { it.requestFocus() } }
-                }
-            }
-        }
-    }
-
-    LaunchedEffect(reorderKey, destinations) {
-        val key = reorderKey ?: return@LaunchedEffect
-        repeat(2) { withFrameNanos { } }
-        itemFocusRequesters[key]?.let { runCatching { it.requestFocus() } }
-    }
-
-    val refocusNeighbor = latchNeighborRefocus(destinations, layout, itemFocusRequesters)
-
-    actionsDest?.let { dest ->
-        NavDestActionsDialog(
-            dest = dest,
-            pinned = layout.isPinned(dest.key),
-            onPin = {
-                refocusNeighbor(dest)
-                onPin(dest)
-            },
-            onUnpin = {
-                refocusNeighbor(dest)
-                onUnpin(dest)
-            },
-            onReorder = { onEnterReorder(dest) },
-            onDismiss = { actionsDest = null }
-        )
-    }
-
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val browseContentWidth = maxWidth - DrawerCollapsedWidth
         NavigationDrawer(
@@ -164,15 +82,16 @@ internal fun BrowseSideNavDrawer(
                 Column(
                     modifier = Modifier
                         .fillMaxHeight()
-                        .onFocusChanged { onChromeFocusedChange(it.hasFocus) }
+                        .onFocusChanged { actions.onChromeFocusedChange(it.hasFocus) }
+                        .navReorderKeys(chrome.reorderKey, actions.onMoveReorder, actions.onExitReorder)
                         .focusProperties {
                             onEnter = {
-                                itemFocusRequesters[selectedKey]
+                                chrome.itemFocusRequesters[chrome.selectedKey]
                                     ?.let { runCatching { it.requestFocus() } }
                             }
                             exit = { direction ->
                                 when (direction) {
-                                    FocusDirection.Right -> paneEntryFocus()
+                                    FocusDirection.Right -> actions.paneEntryFocus()
                                     else -> FocusRequester.Default
                                 }
                             }
@@ -181,40 +100,40 @@ internal fun BrowseSideNavDrawer(
                         .padding(horizontal = DrawerHPad, vertical = 14.dp),
                     verticalArrangement = Arrangement.spacedBy(DrawerRowSpacing)
                 ) {
-                    when (drawerPage) {
+                    when (chrome.drawerPage) {
                         NavDrawerPage.Primary -> {
                             PicnicDrawerItem(
                                 selected = false,
-                                onClick = onSwapUser,
-                                label = session.username,
-                                leadingContent = { NavAvatar(session, avatarUrl, DrawerAvatarSize) },
+                                onClick = actions.onSwapUser,
+                                label = chrome.session.username,
+                                modifier = Modifier.lockedDuringReorder(chrome.reorderKey),
+                                leadingContent = { NavAvatar(chrome.session, chrome.avatarUrl, DrawerAvatarSize) },
                                 height = DrawerChromeRowHeight
                             )
                             Spacer(Modifier.height(6.dp))
 
                             ScrollingRows(Modifier.weight(1f)) {
-                                destinations.forEach { dest ->
+                                chrome.destinations.forEach { dest ->
                                     key(dest.key) {
                                         CustomizableDrawerRow(
                                             dest = dest,
-                                            selected = dest.key == selectedKey,
-                                            customizable = dest.isCustomizable(),
-                                            reorderKey = reorderKey,
-                                            itemFocusRequester = itemFocusRequesters[dest.key],
-                                            onSelect = { onSelect(dest) },
-                                            onOpenActions = { actionsDest = dest },
-                                            onMoveReorder = onMoveReorder,
-                                            onExitReorder = onExitReorder
+                                            selected = dest.key == chrome.selectedKey,
+                                            reorderKey = chrome.reorderKey,
+                                            itemFocusRequester = chrome.itemFocusRequesters[dest.key],
+                                            onSelect = { actions.onSelect(dest) },
+                                            onOpenActions = { onOpenActions(dest) }
                                         )
                                     }
                                 }
 
-                                if (moreVisible) {
+                                if (chrome.moreVisible) {
                                     PicnicDrawerItem(
                                         selected = false,
-                                        onClick = onOpenMore,
+                                        onClick = actions.onOpenMore,
                                         label = "More",
-                                        modifier = Modifier.focusRequester(moreItemFocus),
+                                        modifier = Modifier
+                                            .lockedDuringReorder(chrome.reorderKey)
+                                            .focusRequester(chromeFocus.moreItem),
                                         leadingContent = {
                                             Icon(
                                                 imageVector = Icons.Outlined.MoreHoriz,
@@ -230,8 +149,9 @@ internal fun BrowseSideNavDrawer(
 
                             PicnicDrawerItem(
                                 selected = false,
-                                onClick = onSettings,
+                                onClick = actions.onSettings,
                                 label = "Settings",
+                                modifier = Modifier.lockedDuringReorder(chrome.reorderKey),
                                 height = DrawerChromeRowHeight,
                                 leadingContent = {
                                     Box {
@@ -240,7 +160,7 @@ internal fun BrowseSideNavDrawer(
                                             contentDescription = null,
                                             modifier = Modifier.size(DrawerIconSize)
                                         )
-                                        if (settingsBadge) {
+                                        if (chrome.settingsBadge) {
                                             UpdateBadgeDot(Modifier.align(Alignment.TopEnd))
                                         }
                                     }
@@ -250,9 +170,11 @@ internal fun BrowseSideNavDrawer(
                         NavDrawerPage.More -> {
                             PicnicDrawerItem(
                                 selected = false,
-                                onClick = onBackFromMore,
+                                onClick = actions.onBackFromMore,
                                 label = "Back",
-                                modifier = Modifier.focusRequester(moreBackFocus),
+                                modifier = Modifier
+                                    .lockedDuringReorder(chrome.reorderKey)
+                                    .focusRequester(chromeFocus.moreBack),
                                 leadingContent = {
                                     Icon(
                                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
@@ -264,18 +186,15 @@ internal fun BrowseSideNavDrawer(
                             Spacer(Modifier.height(10.dp))
 
                             ScrollingRows(Modifier.weight(1f)) {
-                                destinations.forEach { dest ->
+                                chrome.destinations.forEach { dest ->
                                     key(dest.key) {
                                         CustomizableDrawerRow(
                                             dest = dest,
-                                            selected = dest.key == selectedKey,
-                                            customizable = true,
-                                            reorderKey = reorderKey,
-                                            itemFocusRequester = itemFocusRequesters[dest.key],
-                                            onSelect = { onSelect(dest) },
-                                            onOpenActions = { actionsDest = dest },
-                                            onMoveReorder = onMoveReorder,
-                                            onExitReorder = onExitReorder
+                                            selected = dest.key == chrome.selectedKey,
+                                            reorderKey = chrome.reorderKey,
+                                            itemFocusRequester = chrome.itemFocusRequesters[dest.key],
+                                            onSelect = { actions.onSelect(dest) },
+                                            onOpenActions = { onOpenActions(dest) }
                                         )
                                     }
                                 }
@@ -319,43 +238,27 @@ private fun ScrollingRows(
 private fun androidx.tv.material3.NavigationDrawerScope.CustomizableDrawerRow(
     dest: BrowseDest,
     selected: Boolean,
-    customizable: Boolean,
     reorderKey: String?,
     itemFocusRequester: FocusRequester?,
     onSelect: () -> Unit,
-    onOpenActions: () -> Unit,
-    onMoveReorder: (Int) -> Unit,
-    onExitReorder: () -> Unit
+    onOpenActions: () -> Unit
 ) {
     val (filled, outlined) = iconsFor(dest)
     val inReorder = reorderKey == dest.key
+    val active = selected || inReorder
 
     Box(contentAlignment = Alignment.Center) {
         PicnicDrawerItem(
-            selected = selected || inReorder,
-            onClick = if (inReorder) {
-                {}
-            } else {
-                onSelect
-            },
-            onLongClick = when {
-                inReorder -> null
-                customizable -> onOpenActions
-                else -> null
-            },
+            selected = active,
+            onClick = onSelect,
+            onLongClick = if (dest.isCustomizable()) onOpenActions else null,
             label = navLabelFor(dest),
             modifier = Modifier
                 .then(itemFocusRequester?.let { Modifier.focusRequester(it) } ?: Modifier)
-                .then(
-                    if (inReorder) {
-                        Modifier.navReorderKeys(onMoveReorder, onExitReorder)
-                    } else {
-                        Modifier
-                    }
-                ),
+                .focusableDuringReorder(reorderKey, dest.key),
             leadingContent = {
                 Icon(
-                    imageVector = if (selected || inReorder) filled else outlined,
+                    imageVector = if (active) filled else outlined,
                     contentDescription = null,
                     modifier = Modifier.size(DrawerIconSize)
                 )

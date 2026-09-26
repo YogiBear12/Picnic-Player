@@ -126,12 +126,11 @@ fun BrowseShellHost(
 
     val activity = LocalActivity.current
 
+    // Reorder never reaches this: NavShell registers its own BackHandler later, so it takes Back first.
     BackHandler {
         when {
             !navChromeFocused ->
                 runCatching { rail.requesterFor(selectedKey).requestFocus() }
-            reorderKey != null ->
-                rail.exitReorder()
             drawerPage == NavDrawerPage.More ->
                 rail.openPrimaryPage()
             selectedKey != BrowseDest.Home.key ->
@@ -222,36 +221,40 @@ fun BrowseShellHost(
             val updateBadge by updateViewModel.updateAvailable.collectAsStateWithLifecycle()
             val avatarViewModel: app.picnic.player.ui.common.UserAvatarViewModel = hiltViewModel()
             val avatarUrl by avatarViewModel.url.collectAsStateWithLifecycle()
+            val navActions = remember(onSwapUser, onSettings) {
+                NavChromeActions(
+                    paneEntryFocus = paneEntry::requester,
+                    onSelect = { dest -> rail.select(dest) },
+                    onOpenMore = { rail.openMorePage() },
+                    onBackFromMore = { rail.openPrimaryPage() },
+                    onSwapUser = onSwapUser,
+                    onSettings = onSettings,
+                    onChromeFocusedChange = rail::setChromeFocused,
+                    onPin = railViewModel::pin,
+                    onUnpin = railViewModel::unpin,
+                    onEnterReorder = { rail.enterReorder(it.key) },
+                    onExitReorder = rail::exitReorder,
+                    onMoveReorder = railViewModel::moveReorder
+                )
+            }
             NavShell(
                 alternate = alternateNavigation,
-                session = session,
-                avatarUrl = avatarUrl,
-                destinations = destinations,
-                selectedKey = selectedKey,
-                selectedDest = selected,
-                itemFocusRequesters = railRequesters,
-                paneEntryFocus = paneEntry::requester,
+                chrome = NavChromeState(
+                    session = session,
+                    avatarUrl = avatarUrl,
+                    destinations = destinations,
+                    selectedKey = selectedKey,
+                    selectedDest = selected,
+                    itemFocusRequesters = railRequesters,
+                    drawerPage = drawerPage,
+                    moreVisible = moreVisible,
+                    reorderKey = reorderKey,
+                    layout = layout,
+                    settingsBadge = updateBadge
+                ),
+                actions = navActions,
                 drawerState = drawerState,
-                drawerDim = drawerDim,
-                drawerPage = drawerPage,
-                moreVisible = moreVisible,
-                layout = layout,
-                reorderKey = reorderKey,
-                onSelect = { dest -> rail.select(dest) },
-                onOpenMore = { rail.openMorePage() },
-                onBackFromMore = { rail.openPrimaryPage() },
-                onSwapUser = onSwapUser,
-                onSettings = onSettings,
-                onChromeFocusedChange = rail::setChromeFocused,
-                onPin = railViewModel::pin,
-                onUnpin = railViewModel::unpin,
-                onEnterReorder = { dest ->
-                    rail.enterReorder(dest.key)
-                    runCatching { rail.requesterFor(dest.key).requestFocus() }
-                },
-                onExitReorder = rail::exitReorder,
-                onMoveReorder = railViewModel::moveReorder,
-                settingsBadge = updateBadge
+                drawerDim = drawerDim
             ) {
                 BrowseShellScaffold {
                     AnimatedContent(
