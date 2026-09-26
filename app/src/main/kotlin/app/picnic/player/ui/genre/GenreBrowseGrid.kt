@@ -4,14 +4,19 @@ package app.picnic.player.ui.genre
 
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyGridScope
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -25,7 +30,12 @@ import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import app.picnic.player.ui.browse.BrowseLayoutMetrics
+import app.picnic.player.ui.common.rememberSkeletonPulse
+import app.picnic.player.ui.common.skeletonFill
+import app.picnic.player.ui.common.skeletonPulse
 import app.picnic.player.ui.search.GenreCard
+import app.picnic.player.ui.search.GenreCardAspectRatio
+import app.picnic.player.ui.search.GenreCardCorner
 import org.jellyfin.sdk.model.api.BaseItemDto
 
 /** Fixed genre-tile column count — the chrome rule treats indices below this as row 1. */
@@ -52,22 +62,12 @@ internal fun GenreBrowseGrid(
 ) {
     if (genres.isEmpty()) return
 
-    LazyVerticalGrid(
-        columns = GridCells.Fixed(GenreGridColumns),
-        state = gridState,
-        horizontalArrangement = Arrangement.spacedBy(metrics.cardSpacing),
-        verticalArrangement = Arrangement.spacedBy(metrics.cardSpacing),
-        contentPadding = PaddingValues(
-            start = horizontalInset,
-            end = horizontalInset,
-            // Top room INSIDE the viewport so a top-row tile's focus scale/glow renders
-            // fully instead of clipping at the grid's own boundary (the same trick as
-            // MediaGridPane's top padding).
-            top = 12.dp,
-            bottom = metrics.bottomInset
-        ),
+    GenreGridFrame(
+        gridState = gridState,
+        horizontalInset = horizontalInset,
+        metrics = metrics,
+        header = header,
         modifier = modifier
-            .fillMaxSize()
             .focusGroup()
             .focusProperties {
                 enter = { genreCardFocus }
@@ -82,6 +82,63 @@ internal fun GenreBrowseGrid(
                 }
             }
     ) {
+        itemsIndexed(genres, key = { _, genre -> genre.id }) { index, genre ->
+            GenreCard(
+                name = genre.name.orEmpty(),
+                onClick = { onGenre(genre) },
+                onFocused = { onGenreFocused(index) },
+                focusRequester = if (index == focusedGenreIndex) genreCardFocus else null
+            )
+        }
+    }
+}
+
+@Composable
+internal fun GenreGridSkeleton(
+    horizontalInset: Dp,
+    metrics: BrowseLayoutMetrics,
+    header: String? = null,
+    modifier: Modifier = Modifier
+) {
+    val pulse = rememberSkeletonPulse()
+    GenreGridFrame(
+        gridState = rememberLazyGridState(),
+        horizontalInset = horizontalInset,
+        metrics = metrics,
+        header = header,
+        modifier = modifier
+    ) {
+        items(GenreSkeletonTiles) {
+            Box(Modifier.aspectRatio(GenreCardAspectRatio).skeletonPulse(pulse).skeletonFill(GenreCardCorner))
+        }
+    }
+}
+
+@Composable
+private fun GenreGridFrame(
+    gridState: LazyGridState,
+    horizontalInset: Dp,
+    metrics: BrowseLayoutMetrics,
+    header: String?,
+    modifier: Modifier,
+    tiles: LazyGridScope.() -> Unit
+) {
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(GenreGridColumns),
+        state = gridState,
+        horizontalArrangement = Arrangement.spacedBy(metrics.cardSpacing),
+        verticalArrangement = Arrangement.spacedBy(metrics.cardSpacing),
+        contentPadding = PaddingValues(
+            start = horizontalInset,
+            end = horizontalInset,
+            // Top room INSIDE the viewport so a top-row tile's focus scale/glow renders
+            // fully instead of clipping at the grid's own boundary (the same trick as
+            // MediaGridPane's top padding).
+            top = 12.dp,
+            bottom = metrics.bottomInset
+        ),
+        modifier = modifier.fillMaxSize()
+    ) {
         if (header != null) {
             item(span = { GridItemSpan(maxLineSpan) }) {
                 Text(
@@ -93,13 +150,9 @@ internal fun GenreBrowseGrid(
                 )
             }
         }
-        itemsIndexed(genres, key = { _, genre -> genre.id }) { index, genre ->
-            GenreCard(
-                name = genre.name.orEmpty(),
-                onClick = { onGenre(genre) },
-                onFocused = { onGenreFocused(index) },
-                focusRequester = if (index == focusedGenreIndex) genreCardFocus else null
-            )
-        }
+        tiles()
     }
 }
+
+private const val GenreSkeletonGridRows = 6
+private const val GenreSkeletonTiles = GenreGridColumns * GenreSkeletonGridRows

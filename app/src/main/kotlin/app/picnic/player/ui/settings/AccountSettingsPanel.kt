@@ -66,14 +66,11 @@ import app.picnic.player.ui.common.ActionButton
 import app.picnic.player.ui.common.LocalContextMenuHandler
 import app.picnic.player.ui.common.LocalImageUrls
 import app.picnic.player.ui.common.RowFocusState
-import app.picnic.player.ui.common.SkeletonBar
-import app.picnic.player.ui.common.SkeletonBlockCorner
 import app.picnic.player.ui.common.SkeletonCardRow
-import app.picnic.player.ui.common.SkeletonTextCorner
-import app.picnic.player.ui.common.SkeletonTextHeight
 import app.picnic.player.ui.common.rememberIdentityBrush
 import app.picnic.player.ui.common.rememberRowFocusState
 import app.picnic.player.ui.common.requestFocusWhenAttached
+import app.picnic.player.ui.grid.GridCardSkeleton
 import app.picnic.player.ui.grid.MediaGridCard
 import app.picnic.player.ui.grid.gridCellSlot
 import app.picnic.player.ui.theme.PicnicColors
@@ -88,9 +85,6 @@ import org.jellyfin.sdk.model.api.BaseItemKind
 private val BadgeShape = RoundedCornerShape(10.dp)
 private val BadgeFill = Color.White.copy(alpha = 0.07f)
 private val SkeletonTitleGap = 2.dp
-private val SkeletonCardTextGap = 6.dp
-private const val CardTitleBarWidth = 0.8f
-private const val CardSubtitleBarWidth = 0.45f
 private val RowPeekInset = 40.dp
 private val RowGap = 20.dp
 private val RowToRowGap = 12.dp
@@ -472,16 +466,7 @@ private fun AccountRowSkeleton(
                 color = Color.White,
                 modifier = Modifier.padding(bottom = SkeletonTitleGap)
             )
-            SkeletonCardRow(cardWidth = style.width, spacing = cardSpacing) {
-                Column(
-                    Modifier.gridCellSlot(style).padding(top = style.topInset),
-                    verticalArrangement = Arrangement.spacedBy(SkeletonCardTextGap)
-                ) {
-                    SkeletonBar(width = style.width, height = style.height, corner = SkeletonBlockCorner)
-                    SkeletonBar(width = style.width * CardTitleBarWidth, height = SkeletonTextHeight, corner = SkeletonTextCorner)
-                    SkeletonBar(width = style.width * CardSubtitleBarWidth, height = SkeletonTextHeight, corner = SkeletonTextCorner)
-                }
-            }
+            SkeletonCardRow(cardWidth = style.width, spacing = cardSpacing) { GridCardSkeleton(style) }
         }
     }
 }

@@ -16,9 +16,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.key
@@ -41,19 +41,23 @@ import androidx.tv.material3.Text
 import app.picnic.player.ui.ambient.LocalAmbientPrewarmer
 import app.picnic.player.ui.browse.BrowseLayoutMetrics
 import app.picnic.player.ui.browse.DeclarePaneEntry
+import app.picnic.player.ui.browse.RowTitleBottomGap
 import app.picnic.player.ui.browse.episodeCardSubtitle
 import app.picnic.player.ui.browse.landscapeCardStyle
 import app.picnic.player.ui.browse.posterCardStyle
 import app.picnic.player.ui.common.CircularPersonCard
 import app.picnic.player.ui.common.LocalContextMenuHandler
 import app.picnic.player.ui.common.LocalImageUrls
+import app.picnic.player.ui.common.SkeletonCardRow
 import app.picnic.player.ui.common.rememberRowFocusRequesters
 import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.genre.GenreBrowseGrid
+import app.picnic.player.ui.genre.GenreGridSkeleton
+import app.picnic.player.ui.grid.GridCardSkeleton
 import app.picnic.player.ui.grid.MediaGridCard
 import app.picnic.player.ui.grid.gridCellSlot
-import app.picnic.player.ui.theme.PicnicColors
 import org.jellyfin.sdk.model.api.BaseItemDto
+import org.jellyfin.sdk.model.api.BaseItemKind
 
 @Composable
 internal fun SearchPane(
@@ -101,16 +105,9 @@ internal fun SearchPane(
         state.results.size,
         state.discoverResults.size
     ) {
-        if (!seedContentFocus || state.loading) return@LaunchedEffect
+        if (!seedContentFocus) return@LaunchedEffect
         entryFocus().requestFocusWhenAttached(maxFrames = 30)
         onContentFocusSeeded()
-    }
-
-    if (state.loading) {
-        Box(Modifier.fillMaxSize(), Alignment.Center) {
-            CircularProgressIndicator(color = PicnicColors.Accent)
-        }
-        return
     }
 
     Column(
@@ -132,6 +129,11 @@ internal fun SearchPane(
         Spacer(Modifier.height(SearchFieldGap))
 
         when {
+            state.query.isBlank() && state.loading -> GenreGridSkeleton(
+                horizontalInset = horizontalInset,
+                metrics = metrics,
+                header = BrowseHeader
+            )
             state.query.isBlank() -> GenreBrowseGrid(
                 genres = state.genres,
                 gridState = genreGridState,
@@ -142,15 +144,9 @@ internal fun SearchPane(
                 metrics = metrics,
                 onGenreFocused = viewModel::onGenreFocused,
                 onGenre = onGenre,
-                header = "Browse"
+                header = BrowseHeader
             )
-            state.searching && state.results.isEmpty() && state.discoverResults.isEmpty() -> Box(
-                Modifier.fillMaxSize(),
-                Alignment.Center
-            ) {
-                CircularProgressIndicator(color = PicnicColors.Accent)
-            }
-            state.results.isEmpty() && state.discoverResults.isEmpty() -> Box(Modifier.fillMaxSize(), Alignment.Center) {
+            !state.searching && state.results.isEmpty() && state.discoverResults.isEmpty() -> Box(Modifier.fillMaxSize(), Alignment.Center) {
                 Text(
                     text = "No results for “${state.query}”",
                     color = Color.White.copy(alpha = 0.7f),
@@ -159,6 +155,7 @@ internal fun SearchPane(
             }
             else -> ResultRowsSection(
                 state = state,
+                skeletonKinds = if (state.results.isEmpty() && state.discoverResults.isEmpty()) SearchSkeletonKinds else emptyList(),
                 listState = resultListState,
                 rowCardFocus = rowCardFocus,
                 discoverCardFocus = discoverCardFocus,
@@ -179,6 +176,7 @@ internal fun SearchPane(
 @Composable
 private fun ResultRowsSection(
     state: SearchViewModel.UiState,
+    skeletonKinds: List<SearchViewModel.ResultKind>,
     listState: androidx.compose.foundation.lazy.LazyListState,
     rowCardFocus: List<FocusRequester>,
     discoverCardFocus: List<FocusRequester>,
@@ -195,6 +193,7 @@ private fun ResultRowsSection(
     if (state.session == null) return
     val posterStyle = posterCardStyle(sy = metrics.sy)
     val landscapeStyle = landscapeCardStyle(sy = metrics.sy)
+    val cardStyleFor = { kind: BaseItemKind -> if (kind == BaseItemKind.EPISODE) landscapeStyle else posterStyle }
     val ambientPrewarmer = LocalAmbientPrewarmer.current
     val contextMenu = LocalContextMenuHandler.current
     val images = LocalImageUrls.current
@@ -205,25 +204,14 @@ private fun ResultRowsSection(
         verticalArrangement = Arrangement.spacedBy(metrics.rowSpacing),
         modifier = Modifier.fillMaxSize()
     ) {
-        itemsIndexed(state.results, key = { _, row -> row.title }) { rowIndex, row ->
-            val cardStyle = if (row.kind == org.jellyfin.sdk.model.api.BaseItemKind.EPISODE) {
-                landscapeStyle
-            } else {
-                posterStyle
-            }
+        itemsIndexed(state.results, key = { _, row -> row.kind.name }) { rowIndex, row ->
+            val cardStyle = cardStyleFor(row.kind)
             val focusIndex = state.rowFocusedItemIds[rowIndex]
                 ?.let { id -> row.items.indexOfFirst { it.id == id }.takeIf { it >= 0 } }
                 ?: 0
             val rowState = key(state.query) { rememberLazyListState() }
-            Column {
-                Text(
-                    text = row.title,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White,
-                    maxLines = 1,
-                    modifier = Modifier.padding(start = horizontalInset, bottom = 2.dp)
-                )
+            Column(Modifier.animateItem(fadeInSpec = null)) {
+                ResultRowTitle(row.title, horizontalInset)
                 LazyRow(
                     state = rowState,
                     contentPadding = PaddingValues(horizontal = horizontalInset),
@@ -240,7 +228,7 @@ private fun ResultRowsSection(
                         contentType = { _, _ -> "SearchResultCard" }
                     ) { index, item ->
                         val requester = if (index == focusIndex) rowCardFocus[rowIndex] else null
-                        if (row.kind == org.jellyfin.sdk.model.api.BaseItemKind.PERSON) {
+                        if (row.kind == BaseItemKind.PERSON) {
                             CircularPersonCard(
                                 imageUrl = images.primary(item),
                                 name = item.name,
@@ -259,7 +247,7 @@ private fun ResultRowsSection(
                                 focusRequester = requester,
                                 onClick = {
                                     when (row.kind) {
-                                        org.jellyfin.sdk.model.api.BaseItemKind.BOX_SET -> onCollection(item)
+                                        BaseItemKind.BOX_SET -> onCollection(item)
                                         else -> {
                                             val nav = images.navImages(item)
                                             ambientPrewarmer.warm(nav.ambUrl)
@@ -275,23 +263,25 @@ private fun ResultRowsSection(
                 }
             }
         }
+        items(items = skeletonKinds, key = { it.itemKind.name }) { kind ->
+            val style = cardStyleFor(kind.itemKind)
+            Column(Modifier.animateItem(fadeInSpec = null)) {
+                ResultRowTitle(kind.title, horizontalInset)
+                SkeletonCardRow(cardWidth = style.width, spacing = metrics.cardSpacing, startInset = horizontalInset) {
+                    GridCardSkeleton(style)
+                }
+            }
+        }
         itemsIndexed(
             state.discoverResults,
-            key = { _, row -> "discover-${row.title}" }
+            key = { index, _ -> "discover-$index" }
         ) { rowIndex, row ->
             val focusIndex = state.discoverRowFocusedIds[rowIndex]
                 ?.let { id -> row.items.indexOfFirst { it.tmdbId == id }.takeIf { it >= 0 } }
                 ?: 0
             val rowState = key(state.query) { rememberLazyListState() }
-            Column {
-                Text(
-                    text = row.title,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White,
-                    maxLines = 1,
-                    modifier = Modifier.padding(start = horizontalInset, bottom = 2.dp)
-                )
+            Column(Modifier.animateItem(fadeInSpec = null)) {
+                ResultRowTitle(row.title, horizontalInset)
                 LazyRow(
                     state = rowState,
                     contentPadding = PaddingValues(horizontal = horizontalInset),
@@ -350,7 +340,7 @@ private fun SearchResultCard(
     onLongClick: () -> Unit,
     onFocused: () -> Unit
 ) {
-    val isEpisode = kind == org.jellyfin.sdk.model.api.BaseItemKind.EPISODE
+    val isEpisode = kind == BaseItemKind.EPISODE
     val images = LocalImageUrls.current
     val stillUrl = if (isEpisode) {
         images.episodeStill(item)
@@ -380,6 +370,18 @@ private fun SearchResultCard(
     }
 }
 
+@Composable
+private fun ResultRowTitle(title: String, horizontalInset: Dp) {
+    Text(
+        text = title,
+        style = MaterialTheme.typography.titleMedium,
+        fontWeight = FontWeight.Bold,
+        color = Color.White,
+        maxLines = 1,
+        modifier = Modifier.padding(start = horizontalInset, bottom = RowTitleBottomGap)
+    )
+}
+
 private fun searchRowExit(upFocus: FocusRequester?): (FocusDirection) -> FocusRequester = { direction ->
     when (direction) {
         FocusDirection.Right -> FocusRequester.Cancel
@@ -389,3 +391,6 @@ private fun searchRowExit(upFocus: FocusRequester?): (FocusDirection) -> FocusRe
 }
 
 private val SearchFieldGap = 20.dp
+private const val BrowseHeader = "Browse"
+private const val SearchSkeletonRowCount = 3
+private val SearchSkeletonKinds = SearchViewModel.ResultKinds.take(SearchSkeletonRowCount)

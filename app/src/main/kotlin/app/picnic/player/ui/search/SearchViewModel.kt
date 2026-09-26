@@ -13,19 +13,18 @@ import app.picnic.player.data.seerr.SeerrRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.util.UUID
 import javax.inject.Inject
-import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
 
-@OptIn(FlowPreview::class)
 @HiltViewModel
 class SearchViewModel @Inject constructor(
     private val authRepository: AuthRepository,
@@ -34,6 +33,8 @@ class SearchViewModel @Inject constructor(
     private val changeBus: LibraryChangeBus
 ) : ViewModel() {
     enum class FocusArea { FIELD, GENRES, RESULTS, DISCOVER }
+
+    data class ResultKind(val itemKind: BaseItemKind, val title: String)
 
     data class ResultRow(val kind: BaseItemKind, val title: String, val items: List<BaseItemDto>)
 
@@ -75,8 +76,9 @@ class SearchViewModel @Inject constructor(
                 _state.update { it.copy(loading = false, error = "No active session") }
                 return@launch
             }
+            _state.update { it.copy(session = session) }
             val genres = runCatching { mediaRepository.genres() }.getOrDefault(emptyList())
-            _state.update { it.copy(loading = false, session = session, genres = genres) }
+            _state.update { it.copy(loading = false, genres = genres) }
         }
         viewModelScope.launch {
             seerrRepository.state.collect { seerr ->
@@ -96,25 +98,20 @@ class SearchViewModel @Inject constructor(
             changeBus.batches().collect { batch -> patchResults(batch.itemIds) }
         }
         viewModelScope.launch {
-            queryFlow.debounce(QUERY_DEBOUNCE_MS).collectLatest { query ->
-                if (query.isBlank()) {
-                    _state.update {
-                        it.copy(
-                            searching = false,
-                            results = emptyList(),
-                            discoverResults = emptyList()
-                        )
-                    }
+            // The debounce lives inside collectLatest so a keystroke also cancels the search in flight;
+            // setQuery has already cleared the old results, and a stale search must not refill them.
+            queryFlow.collectLatest { query ->
+                if (query.isBlank()) return@collectLatest
+                delay(QUERY_DEBOUNCE_MS)
+                val ready = _state.first { it.session != null || !it.loading }
+                if (ready.session == null) {
+                    _state.update { it.copy(searching = false) }
                     return@collectLatest
                 }
-                val session = _state.value.session ?: return@collectLatest
-                _state.update { it.copy(searching = true) }
                 val (rows, discover) = coroutineScope {
-                    val movies = async { search(query, BaseItemKind.MOVIE) }
-                    val shows = async { search(query, BaseItemKind.SERIES) }
-                    val collections = async { search(query, BaseItemKind.BOX_SET) }
-                    val episodes = async { search(query, BaseItemKind.EPISODE) }
-                    val people = async { searchPeople(query) }
+                    val searches = ResultKinds.associate { (kind) ->
+                        kind to async { if (kind == BaseItemKind.PERSON) searchPeople(query) else search(query, kind) }
+                    }
                     val seerr = async {
                         if (_state.value.seerrLinked) {
                             runCatching { seerrRepository.search(query) }.getOrDefault(emptyList())
@@ -122,13 +119,9 @@ class SearchViewModel @Inject constructor(
                             emptyList()
                         }
                     }
-                    val libraryRows = listOf(
-                        ResultRow(BaseItemKind.MOVIE, "Movies", movies.await()),
-                        ResultRow(BaseItemKind.SERIES, "Shows", shows.await()),
-                        ResultRow(BaseItemKind.EPISODE, "Episodes", episodes.await()),
-                        ResultRow(BaseItemKind.BOX_SET, "Collections", collections.await()),
-                        ResultRow(BaseItemKind.PERSON, "People", people.await())
-                    ).filter { it.items.isNotEmpty() }
+                    val libraryRows = ResultKinds
+                        .map { (kind, title) -> ResultRow(kind, title, searches.getValue(kind).await()) }
+                        .filter { it.items.isNotEmpty() }
                     val seerrItems = seerr.await()
                     val discoverRows = if (seerrItems.isEmpty()) {
                         emptyList()
@@ -185,7 +178,17 @@ class SearchViewModel @Inject constructor(
     }
 
     fun setQuery(query: String) {
-        _state.update { it.copy(query = query) }
+        if (query == _state.value.query) return
+        _state.update {
+            it.copy(
+                query = query,
+                searching = query.isNotBlank(),
+                results = emptyList(),
+                discoverResults = emptyList(),
+                rowFocusedItemIds = emptyMap(),
+                discoverRowFocusedIds = emptyMap()
+            )
+        }
         queryFlow.value = query
     }
 
@@ -229,7 +232,15 @@ class SearchViewModel @Inject constructor(
         )
     }
 
-    private companion object {
-        const val QUERY_DEBOUNCE_MS = 600L
+    companion object {
+        private const val QUERY_DEBOUNCE_MS = 600L
+
+        val ResultKinds = listOf(
+            ResultKind(BaseItemKind.MOVIE, "Movies"),
+            ResultKind(BaseItemKind.SERIES, "Shows"),
+            ResultKind(BaseItemKind.EPISODE, "Episodes"),
+            ResultKind(BaseItemKind.BOX_SET, "Collections"),
+            ResultKind(BaseItemKind.PERSON, "People")
+        )
     }
 }

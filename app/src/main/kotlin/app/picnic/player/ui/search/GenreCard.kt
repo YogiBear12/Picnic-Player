@@ -31,6 +31,9 @@ import app.picnic.player.ui.ambient.cardFocusGlow
 import app.picnic.player.ui.ambient.rememberCardFocusGlow
 import kotlin.math.abs
 
+internal val GenreCardCorner = 12.dp
+internal const val GenreCardAspectRatio = 16f / 9f
+
 /**
  * 16:9 genre tile for the search tab's browse grid: a deterministic two-stop
  * gradient (hashed from the genre name, stable across sessions) with the name
@@ -45,12 +48,12 @@ internal fun GenreCard(
     focusRequester: FocusRequester?,
     modifier: Modifier = Modifier
 ) {
-    val shape = RoundedCornerShape(12.dp)
+    val shape = RoundedCornerShape(GenreCardCorner)
     val gradient = remember(name) { genreGradient(name) }
     val focusGlow = rememberCardFocusGlow(Color.White, shape, focusedScale = 1.05f)
 
     var cardModifier = modifier
-        .aspectRatio(16f / 9f)
+        .aspectRatio(GenreCardAspectRatio)
         .onFocusChanged { if (it.isFocused) onFocused() }
     if (focusRequester != null) cardModifier = cardModifier.focusRequester(focusRequester)
     cardModifier = cardModifier.cardFocusGlow(focusGlow)

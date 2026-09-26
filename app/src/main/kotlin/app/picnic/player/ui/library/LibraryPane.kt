@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -48,9 +47,9 @@ import app.picnic.player.ui.common.rememberRetrySeed
 import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.genre.GenreBrowseGrid
 import app.picnic.player.ui.genre.GenreGridColumns
+import app.picnic.player.ui.genre.GenreGridSkeleton
 import app.picnic.player.ui.grid.LibraryGridViewModel
 import app.picnic.player.ui.grid.MediaGridPane
-import app.picnic.player.ui.theme.PicnicColors
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
 
@@ -336,10 +335,11 @@ private fun GenresTabContent(
                 upExitFocus = tabFocus
             )
         }
-        paneState.genresLoading ->
-            Box(Modifier.fillMaxSize(), Alignment.Center) {
-                CircularProgressIndicator(color = PicnicColors.Accent)
-            }
+        paneState.genresLoading -> GenreGridSkeleton(
+            horizontalInset = horizontalInset,
+            metrics = metrics,
+            modifier = Modifier.padding(top = GenreGridTopGap)
+        )
         paneState.genres.isEmpty() ->
             Box(Modifier.fillMaxSize(), Alignment.Center) { Text("No genres in this library") }
         else -> {
@@ -354,8 +354,10 @@ private fun GenresTabContent(
                 metrics = metrics,
                 onGenreFocused = onGenreFocused,
                 onGenre = onGenre,
-                modifier = Modifier.padding(top = 8.dp)
+                modifier = Modifier.padding(top = GenreGridTopGap)
             )
         }
     }
 }
+
+private val GenreGridTopGap = 8.dp

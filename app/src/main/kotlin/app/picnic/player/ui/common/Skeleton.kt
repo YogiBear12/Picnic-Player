@@ -55,14 +55,16 @@ private const val PulseMinAlpha = 0.35f
 
 internal fun Modifier.skeletonPulse(pulse: State<Float>): Modifier = graphicsLayer { alpha = pulse.value }
 
+internal fun Modifier.skeletonFill(corner: Dp): Modifier = clip(RoundedCornerShape(corner)).background(SkeletonFill)
+
 @Composable
 internal fun SkeletonBar(width: Dp, height: Dp, corner: Dp, modifier: Modifier = Modifier) {
-    Box(
-        modifier
-            .size(width = width, height = height)
-            .clip(RoundedCornerShape(corner))
-            .background(SkeletonFill)
-    )
+    Box(modifier.size(width = width, height = height).skeletonFill(corner))
+}
+
+@Composable
+internal fun SkeletonTextBar(width: Dp, modifier: Modifier = Modifier) {
+    SkeletonBar(width = width, height = SkeletonTextHeight, corner = SkeletonTextCorner, modifier = modifier)
 }
 
 @Composable
