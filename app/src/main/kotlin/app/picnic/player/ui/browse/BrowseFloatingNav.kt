@@ -98,6 +98,7 @@ internal fun BrowseFloatingNav(
     }
 
     val onPrimaryPage = chrome.drawerPage == NavDrawerPage.Primary
+    val libraryScroll = rememberLibraryScroll(panelFocused, chrome.selectedDest)
 
     val openProgress by animateFloatAsState(
         targetValue = if (panelFocused) 1f else 0f,
@@ -150,10 +151,7 @@ internal fun BrowseFloatingNav(
                     sideways
                 }
                 .focusProperties {
-                    onEnter = {
-                        chrome.itemFocusRequesters[chrome.selectedKey]
-                            ?.let { runCatching { it.requestFocus() } }
-                    }
+                    onEnter = { onEnterFocusActiveDestination(chrome.itemFocusRequesters[chrome.selectedKey]) }
                 }
                 .focusGroup(),
             verticalArrangement = Arrangement.spacedBy(PanelRowSpacing)
@@ -162,7 +160,6 @@ internal fun BrowseFloatingNav(
                 NavDrawerPage.Primary -> {
                     val fixed = chrome.destinations.filterNot { it.isCustomizable() }
                     val rearrangeable = chrome.destinations.filter { it.isCustomizable() }
-                    val libraryScroll = rememberLibraryScroll(panelFocused, chrome.selectedDest)
 
                     NavPanelRow(
                         label = chrome.session.username,

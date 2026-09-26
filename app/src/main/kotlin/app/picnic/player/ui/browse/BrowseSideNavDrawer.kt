@@ -2,6 +2,7 @@
 
 package app.picnic.player.ui.browse
 
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -76,6 +77,8 @@ internal fun BrowseSideNavDrawer(
     drawerDim: State<Float>,
     content: @Composable () -> Unit
 ) {
+    val primaryScroll = rememberScrollState()
+
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val browseContentWidth = maxWidth - DrawerCollapsedWidth
         NavigationDrawer(
@@ -87,10 +90,7 @@ internal fun BrowseSideNavDrawer(
                         .onFocusChanged { actions.onChromeFocusedChange(it.hasFocus) }
                         .navReorderKeys(chrome.reorderKey, actions.onMoveReorder, actions.onExitReorder)
                         .focusProperties {
-                            onEnter = {
-                                chrome.itemFocusRequesters[chrome.selectedKey]
-                                    ?.let { runCatching { it.requestFocus() } }
-                            }
+                            onEnter = { onEnterFocusActiveDestination(chrome.itemFocusRequesters[chrome.selectedKey]) }
                             exit = { direction ->
                                 when (direction) {
                                     FocusDirection.Right -> actions.paneEntryFocus()
@@ -114,7 +114,7 @@ internal fun BrowseSideNavDrawer(
                             )
                             Spacer(Modifier.height(6.dp))
 
-                            ScrollingRows(Modifier.weight(1f)) {
+                            ScrollingRows(Modifier.weight(1f), primaryScroll) {
                                 chrome.destinations.forEachIndexed { index, dest ->
                                     key(dest.key) {
                                         CustomizableDrawerRow(
@@ -222,9 +222,9 @@ internal fun BrowseSideNavDrawer(
 @Composable
 private fun ScrollingRows(
     modifier: Modifier = Modifier,
+    scrollState: ScrollState = rememberScrollState(),
     content: @Composable ColumnScope.() -> Unit
 ) {
-    val scrollState = rememberScrollState()
     Column(
         modifier = modifier
             .verticalFadingEdges(

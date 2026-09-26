@@ -32,6 +32,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.focus.FocusEnterExitScope
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -194,4 +197,10 @@ internal fun BoxScope.ReorderArrows(offset: Dp) {
             .offset(y = offset)
             .size(18.dp)
     )
+}
+
+/** A directional entry lands on the active destination; a requested entry already names its row. */
+internal fun FocusEnterExitScope.onEnterFocusActiveDestination(active: FocusRequester?) {
+    if (requestedFocusDirection == FocusDirection.Enter) return
+    active?.let { runCatching { it.requestFocus() } }
 }
