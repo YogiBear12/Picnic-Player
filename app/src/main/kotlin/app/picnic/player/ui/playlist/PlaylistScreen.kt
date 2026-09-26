@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -41,7 +42,6 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PlayCircleOutline
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.SwapVert
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -87,17 +87,26 @@ import app.picnic.player.ui.browse.CardTimeLeftBadge
 import app.picnic.player.ui.browse.CardWatchedBadge
 import app.picnic.player.ui.browse.minutesLeft
 import app.picnic.player.ui.browse.runtimeMinutes
+import app.picnic.player.ui.common.ActionButtonHeight
 import app.picnic.player.ui.common.ContextMenuAction
 import app.picnic.player.ui.common.ExpandableButton
+import app.picnic.player.ui.common.ExpandableButtonCollapsedWidth
 import app.picnic.player.ui.common.GlobalContextMenuDialog
 import app.picnic.player.ui.common.ImageUrls
 import app.picnic.player.ui.common.LocalImageUrls
 import app.picnic.player.ui.common.PlayFromStartLabel
+import app.picnic.player.ui.common.SkeletonBar
+import app.picnic.player.ui.common.SkeletonTextBar
+import app.picnic.player.ui.common.SkeletonTextHeight
+import app.picnic.player.ui.common.SkeletonTextLine
 import app.picnic.player.ui.common.isResumable
 import app.picnic.player.ui.common.rememberKeyedFocusRequesters
 import app.picnic.player.ui.common.rememberRowFocusState
+import app.picnic.player.ui.common.rememberSkeletonPulse
 import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.common.resumeTicks
+import app.picnic.player.ui.common.skeletonFill
+import app.picnic.player.ui.common.skeletonPulse
 import app.picnic.player.ui.common.watchProgress
 import app.picnic.player.ui.theme.PicnicColors
 import coil3.compose.AsyncImage
@@ -128,10 +137,7 @@ fun PlaylistScreen(
         PublishBackdrop(BackdropSpec(backdropUrl = null, ambientUrl = null))
 
         when {
-            state.loading -> CircularProgressIndicator(
-                Modifier.align(Alignment.Center),
-                color = PicnicColors.Accent
-            )
+            state.loading -> PlaylistSkeleton(title)
             session == null || state.items.isEmpty() -> EmptyPlaylist(title)
             else -> PlaylistContent(
                 playlistId = playlistId,
@@ -144,6 +150,85 @@ fun PlaylistScreen(
                 onGoToSeries = onGoToSeries,
                 onBack = onBack
             )
+        }
+    }
+}
+
+@Composable
+private fun PlaylistFrame(header: @Composable ColumnScope.() -> Unit, list: @Composable (Modifier) -> Unit) {
+    Row(Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .width(PlaylistHeaderWidth)
+                .fillMaxHeight()
+                .padding(start = PlaylistHeaderStartPadding, end = PlaylistHeaderEndPadding),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Spacer(Modifier.height(PlaylistHeaderTopPadding))
+            header()
+        }
+        list(Modifier.weight(1f).fillMaxHeight())
+    }
+}
+
+@Composable
+private fun PlaylistTitle(name: String) {
+    Text(name, style = MaterialTheme.typography.headlineSmall, color = Color.White, textAlign = TextAlign.Center)
+}
+
+@Composable
+private fun PlaylistDivider() {
+    Spacer(Modifier.height(PlaylistDividerGap))
+    Box(Modifier.fillMaxWidth().height(PlaylistDividerThickness).background(PlaylistDividerColor))
+    Spacer(Modifier.height(PlaylistDividerGap))
+}
+
+@Composable
+private fun PlaylistSkeleton(name: String) {
+    val pulse = rememberSkeletonPulse()
+    PlaylistFrame(
+        header = {
+            Box(Modifier.width(PlaylistPosterSize).aspectRatio(1f).skeletonPulse(pulse).skeletonFill(PlaylistPosterCorner))
+            Spacer(Modifier.height(PlaylistPosterTitleGap))
+            PlaylistTitle(name)
+            Spacer(Modifier.height(PlaylistTitleMetaGap))
+            SkeletonTextLine(
+                style = MaterialTheme.typography.labelMedium,
+                width = PlaylistPosterSize * SkeletonMetaBarWidth,
+                barHeight = SkeletonTextHeight,
+                modifier = Modifier.skeletonPulse(pulse)
+            )
+            Spacer(Modifier.height(PlaylistMetaActionsGap))
+            Row(horizontalArrangement = Arrangement.spacedBy(PlaylistButtonSpacing), modifier = Modifier.skeletonPulse(pulse)) {
+                repeat(SkeletonButtonCount) {
+                    SkeletonBar(width = ExpandableButtonCollapsedWidth, height = ActionButtonHeight, corner = ActionButtonHeight / 2)
+                }
+            }
+            PlaylistDivider()
+        }
+    ) { listModifier ->
+        Column(
+            verticalArrangement = Arrangement.spacedBy(PlaylistRowSpacing),
+            modifier = listModifier
+                .padding(PlaylistListPadding)
+                .skeletonPulse(pulse)
+        ) {
+            repeat(SkeletonRowCount) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(PlaylistRowGap),
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth().padding(PlaylistRowPadding)
+                ) {
+                    Box(Modifier.width(PlaylistIndexWidth)) {
+                        SkeletonTextBar(width = PlaylistIndexWidth * SkeletonIndexBarWidth)
+                    }
+                    SkeletonBar(width = PlaylistThumbWidth, height = PlaylistThumbHeight, corner = PlaylistThumbCorner)
+                    Column(verticalArrangement = Arrangement.spacedBy(SkeletonRowTextGap)) {
+                        SkeletonTextBar(width = PlaylistThumbWidth * SkeletonTitleBarThumbs)
+                        SkeletonTextBar(width = PlaylistThumbWidth)
+                    }
+                }
+            }
         }
     }
 }
@@ -231,26 +316,19 @@ private fun PlaylistContent(
 
     BackHandler(enabled = reorderKey != null) { exitReorder() }
 
-    Row(Modifier.fillMaxSize()) {
-        Column(
-            modifier = Modifier
-                .width(340.dp)
-                .fillMaxHeight()
-                .padding(start = 56.dp, end = 24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Spacer(Modifier.height(56.dp))
-            PlaylistPoster(playlist, items, Modifier.width(160.dp))
-            Spacer(Modifier.height(14.dp))
-            Text(name, style = MaterialTheme.typography.headlineSmall, color = Color.White, textAlign = TextAlign.Center)
-            Spacer(Modifier.height(4.dp))
+    PlaylistFrame(
+        header = {
+            PlaylistPoster(playlist, items, Modifier.width(PlaylistPosterSize))
+            Spacer(Modifier.height(PlaylistPosterTitleGap))
+            PlaylistTitle(name)
+            Spacer(Modifier.height(PlaylistTitleMetaGap))
             Text(
                 text = playlistMetaLine(items),
                 style = MaterialTheme.typography.labelMedium,
                 color = PicnicColors.OnDarkMuted,
                 textAlign = TextAlign.Center
             )
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(PlaylistMetaActionsGap))
             val actions = buildList {
                 add(
                     PlaylistAction(PlayFromStartLabel, Icons.Default.PlayArrow) {
@@ -274,7 +352,7 @@ private fun PlaylistContent(
                 )
             }
             Row(
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(PlaylistButtonSpacing),
                 modifier = Modifier
                     .focusGroup()
                     .focusProperties {
@@ -309,9 +387,7 @@ private fun PlaylistContent(
                     )
                 }
             }
-            Spacer(Modifier.height(14.dp))
-            Box(Modifier.fillMaxWidth().height(1.dp).background(Color.White.copy(alpha = 0.15f)))
-            Spacer(Modifier.height(14.dp))
+            PlaylistDivider()
 
             if (!focusedItem?.overview.isNullOrBlank()) {
                 Text(
@@ -325,14 +401,12 @@ private fun PlaylistContent(
                 )
             }
         }
-
+    ) { listModifier ->
         LazyColumn(
             state = listState,
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxHeight(),
-            contentPadding = PaddingValues(start = 24.dp, end = 48.dp, top = 48.dp, bottom = 64.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            modifier = listModifier,
+            contentPadding = PlaylistListPadding,
+            verticalArrangement = Arrangement.spacedBy(PlaylistRowSpacing)
         ) {
             itemsIndexed(items, key = { _, it -> keyOf(it) }) { index, item ->
                 val itemKey = keyOf(item)
@@ -452,18 +526,18 @@ private fun PlaylistRow(
             }
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            modifier = Modifier.fillMaxWidth().padding(PlaylistRowPadding),
+            horizontalArrangement = Arrangement.spacedBy(PlaylistRowGap),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
                 text = "${index + 1}.",
                 style = MaterialTheme.typography.titleSmall,
                 color = Color.White.copy(alpha = if (focused) 0.9f else 0.45f),
-                modifier = Modifier.width(32.dp)
+                modifier = Modifier.width(PlaylistIndexWidth)
             )
 
-            Box(Modifier.size(width = 148.dp, height = 83.dp).clip(RoundedCornerShape(6.dp))) {
+            Box(Modifier.size(width = PlaylistThumbWidth, height = PlaylistThumbHeight).clip(RoundedCornerShape(PlaylistThumbCorner))) {
                 AsyncImage(
                     model = landscapeImage(LocalImageUrls.current, item),
                     contentDescription = null,
@@ -530,7 +604,7 @@ private fun PlaylistPoster(playlist: BaseItemDto?, items: List<BaseItemDto>, mod
             contentScale = ContentScale.Crop,
             modifier = modifier
                 .aspectRatio(1f)
-                .clip(RoundedCornerShape(10.dp))
+                .clip(RoundedCornerShape(PlaylistPosterCorner))
                 .background(PicnicColors.SurfaceVariant)
         )
         return
@@ -540,7 +614,7 @@ private fun PlaylistPoster(playlist: BaseItemDto?, items: List<BaseItemDto>, mod
         if (unique.size < 4) unique.take(1) else unique
     }
     Column(
-        modifier = modifier.clip(RoundedCornerShape(10.dp)),
+        modifier = modifier.clip(RoundedCornerShape(PlaylistPosterCorner)),
         verticalArrangement = Arrangement.spacedBy(2.dp)
     ) {
         tiles.chunked(2).forEach { rowItems ->
@@ -610,3 +684,31 @@ private fun posterImage(images: ImageUrls, item: BaseItemDto): String? = if (ite
 } else {
     images.primary(item)
 }
+
+private val PlaylistHeaderWidth = 340.dp
+private val PlaylistHeaderStartPadding = 56.dp
+private val PlaylistHeaderEndPadding = 24.dp
+private val PlaylistHeaderTopPadding = 56.dp
+private val PlaylistPosterSize = 160.dp
+private val PlaylistPosterTitleGap = 14.dp
+private val PlaylistTitleMetaGap = 4.dp
+private val PlaylistMetaActionsGap = 12.dp
+private val PlaylistDividerGap = 14.dp
+private val PlaylistDividerThickness = 1.dp
+private val PlaylistDividerColor = Color.White.copy(alpha = 0.15f)
+private val PlaylistPosterCorner = 10.dp
+private val PlaylistButtonSpacing = 12.dp
+private val PlaylistListPadding = PaddingValues(start = 24.dp, end = 48.dp, top = 48.dp, bottom = 64.dp)
+private val PlaylistRowSpacing = 8.dp
+private val PlaylistRowPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+private val PlaylistRowGap = 16.dp
+private val PlaylistIndexWidth = 32.dp
+private val PlaylistThumbWidth = 148.dp
+private val PlaylistThumbHeight = 83.dp
+private val PlaylistThumbCorner = 6.dp
+private const val SkeletonButtonCount = 3
+private const val SkeletonRowCount = 8
+private val SkeletonRowTextGap = 8.dp
+private const val SkeletonMetaBarWidth = 0.6f
+private const val SkeletonIndexBarWidth = 0.6f
+private const val SkeletonTitleBarThumbs = 1.6f

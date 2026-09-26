@@ -20,6 +20,11 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import app.picnic.player.ui.theme.PicnicColors
 
+private val ExpandableButtonPadding = 12.dp
+private val ExpandableButtonExpandedEndPadding = 16.dp
+private val ExpandableButtonIconSize = 20.dp
+internal val ExpandableButtonCollapsedWidth = ExpandableButtonIconSize + ExpandableButtonPadding * 2
+
 @Composable
 fun ExpandableButton(
     title: String,
@@ -32,7 +37,11 @@ fun ExpandableButton(
     Button(
         onClick = onClick,
         modifier = modifier.height(ActionButtonHeight),
-        contentPadding = if (isFocused) PaddingValues(start = 12.dp, end = 16.dp) else PaddingValues(horizontal = 12.dp),
+        contentPadding = if (isFocused) {
+            PaddingValues(start = ExpandableButtonPadding, end = ExpandableButtonExpandedEndPadding)
+        } else {
+            PaddingValues(horizontal = ExpandableButtonPadding)
+        },
         colors = ButtonDefaults.colors(
             containerColor = PicnicColors.GlassFillLight
         ),
@@ -42,7 +51,7 @@ fun ExpandableButton(
         Icon(
             imageVector = icon,
             contentDescription = null,
-            modifier = Modifier.size(20.dp)
+            modifier = Modifier.size(ExpandableButtonIconSize)
         )
         AnimatedVisibility(isFocused) {
             androidx.compose.foundation.layout.Row(verticalAlignment = Alignment.CenterVertically) {
