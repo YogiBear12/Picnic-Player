@@ -56,6 +56,9 @@ sealed interface EpisodeStart {
 
 private data class EpisodeWindow(val seasonId: String, val startIndex: Int)
 
+// Covers only the paging generation it was made against: the next refresh carries server state.
+private class EpisodeOverride(val generation: Int, val apply: (BaseItemDto) -> BaseItemDto)
+
 internal fun episodeStartIndex(episodes: List<BaseItemDto>, targetEpisodeId: String?): Int {
     val targetIndex = episodes.indexOfFirst { it.id.toString() == targetEpisodeId }
     if (targetIndex >= 0) return targetIndex
@@ -112,7 +115,7 @@ class SeriesEpisodesViewModel @Inject constructor(
     private val _window = MutableStateFlow<EpisodeWindow?>(null)
     private val _visibleSeasonIndices = MutableStateFlow<List<Int>>(emptyList())
 
-    private val episodeMutations = MutableStateFlow<Map<String, (BaseItemDto) -> BaseItemDto>>(emptyMap())
+    private val episodeMutations = MutableStateFlow<Map<String, EpisodeOverride>>(emptyMap())
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val episodes: Flow<PagingData<BaseItemDto>> = _window
@@ -155,13 +158,16 @@ class SeriesEpisodesViewModel @Inject constructor(
                             }
                         ).also { episodeSource = it }
                     }
-                ).flow.cachedIn(viewModelScope).combine(episodeMutations) { pagingData, mutations ->
-                    if (mutations.isEmpty()) {
-                        pagingData
-                    } else {
-                        pagingData.map { item -> mutations[item.id.toString()]?.invoke(item) ?: item }
+                ).flow.cachedIn(viewModelScope)
+                    .map { pagingData -> sourceGeneration to pagingData }
+                    .combine(episodeMutations) { (generation, pagingData), mutations ->
+                        val live = mutations.filterValues { it.generation >= generation }
+                        if (live.isEmpty()) {
+                            pagingData
+                        } else {
+                            pagingData.map { item -> live[item.id.toString()]?.apply?.invoke(item) ?: item }
+                        }
                     }
-                }
             }
         }
         .cachedIn(viewModelScope)
@@ -281,7 +287,7 @@ class SeriesEpisodesViewModel @Inject constructor(
         val series = currentSeriesId?.let(UUID::fromString)
 
         val currentMutations = episodeMutations.value.toMutableMap()
-        currentMutations[episodeId] = { ep -> ep.copy(userData = ep.userData?.copy(played = played)) }
+        currentMutations[episodeId] = EpisodeOverride(sourceGeneration) { ep -> ep.copy(userData = ep.userData?.copy(played = played)) }
         episodeMutations.value = currentMutations
 
         viewModelScope.launch {
@@ -294,7 +300,7 @@ class SeriesEpisodesViewModel @Inject constructor(
         val series = currentSeriesId?.let(UUID::fromString)
 
         val currentMutations = episodeMutations.value.toMutableMap()
-        currentMutations[episodeId] = { ep -> ep.copy(userData = ep.userData?.copy(isFavorite = favorite)) }
+        currentMutations[episodeId] = EpisodeOverride(sourceGeneration) { ep -> ep.copy(userData = ep.userData?.copy(isFavorite = favorite)) }
         episodeMutations.value = currentMutations
 
         viewModelScope.launch {
@@ -318,7 +324,6 @@ class SeriesEpisodesViewModel @Inject constructor(
             runCatching {
                 userDataRepository.setWatched(UUID.fromString(seasonId), played, series)
             }
-            episodeMutations.value = emptyMap()
             episodeSource?.invalidate()
             currentSeriesId?.let { loadSeasons(it) }
         }
