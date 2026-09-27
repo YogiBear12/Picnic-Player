@@ -31,7 +31,13 @@ class EpisodeListFocus(
         restoreEpisode.value = null
     }
 
-    fun restoreLivesIn(seasonId: String?): Boolean = restoreSeason.value.let { it == null || it == seasonId }
+    fun startRequest(seasonId: String): EpisodeStart {
+        val restoreId = restoreEpisode.value
+            ?: return if (firstEntryDone.value) EpisodeStart.Top else EpisodeStart.Resolve(null)
+        if (restoreSeason.value.let { it == null || it == seasonId }) return EpisodeStart.Resolve(restoreId)
+        onRestoreUnavailable()
+        return EpisodeStart.Top
+    }
 
     fun onEpisodeOpened(episodeId: String, seasonId: String?) {
         restoreEpisode.value = episodeId

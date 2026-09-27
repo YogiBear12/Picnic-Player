@@ -12,10 +12,17 @@ import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.ItemFields
 
 private const val TAG = "EpisodePagingSource"
+private const val RefreshPageSpan = 3
+
+internal fun alignedPageStart(index: Int, pageSize: Int): Int = index / pageSize * pageSize
+
+internal fun refreshStart(anchor: Int, pageSize: Int): Int = (alignedPageStart(anchor, pageSize) - pageSize * (RefreshPageSpan / 2)).coerceAtLeast(0)
 
 class EpisodePagingSource(
     private val api: ApiClient,
     private val ioDispatcher: CoroutineDispatcher,
+    private val initialKey: Int,
+    private val firstLoad: Boolean,
     private val seriesId: String,
     private val seasonId: String,
     private val userId: UUID,
@@ -23,23 +30,27 @@ class EpisodePagingSource(
 ) : PagingSource<Int, BaseItemDto>() {
     override suspend fun load(params: LoadParams<Int>): LoadResult<Int, BaseItemDto> = withContext(ioDispatcher) {
         val startIndex = params.key ?: 0
+        val limit = if (params is LoadParams.Refresh && !firstLoad) params.loadSize * RefreshPageSpan else params.loadSize
         try {
             val response = api.tvShowsApi.getEpisodes(
                 seriesId = UUID.fromString(seriesId),
                 seasonId = UUID.fromString(seasonId),
                 userId = userId,
                 startIndex = startIndex,
-                limit = params.loadSize,
+                limit = limit,
                 fields = listOf(ItemFields.OVERVIEW)
             )
-            val items = response.content.items ?: emptyList()
+            val items = response.content.items
+            val totalRecordCount = response.content.totalRecordCount
 
-            response.content.totalRecordCount?.let { onTotalRecordCount(it) }
+            onTotalRecordCount(totalRecordCount)
 
             LoadResult.Page(
                 data = items,
-                prevKey = if (startIndex == 0) null else maxOf(0, startIndex - params.loadSize),
-                nextKey = if (items.isEmpty() || items.size < params.loadSize) null else startIndex + params.loadSize
+                prevKey = if (startIndex == 0) null else (startIndex - params.loadSize).coerceAtLeast(0),
+                nextKey = if (items.isEmpty() || items.size < limit) null else startIndex + limit,
+                itemsBefore = startIndex,
+                itemsAfter = (totalRecordCount - startIndex - items.size).coerceAtLeast(0)
             )
         } catch (e: Exception) {
             Log.e(TAG, "Episode page load failed (series=$seriesId season=$seasonId start=$startIndex)", e)
@@ -47,8 +58,5 @@ class EpisodePagingSource(
         }
     }
 
-    override fun getRefreshKey(state: PagingState<Int, BaseItemDto>): Int? = state.anchorPosition?.let { pos ->
-        val page = state.closestPageToPosition(pos)
-        page?.prevKey?.plus(state.config.pageSize) ?: page?.nextKey?.minus(state.config.pageSize)
-    }
+    override fun getRefreshKey(state: PagingState<Int, BaseItemDto>): Int? = state.anchorPosition?.let { refreshStart(it, state.config.pageSize) } ?: initialKey
 }

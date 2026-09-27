@@ -20,10 +20,13 @@ import app.picnic.player.data.media.MediaRepository
 import app.picnic.player.data.media.UserDataRepository
 import app.picnic.player.data.media.batches
 import app.picnic.player.data.paging.EpisodePagingSource
+import app.picnic.player.data.paging.alignedPageStart
 import app.picnic.player.di.IoDispatcher
+import app.picnic.player.ui.common.isResumable
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.util.UUID
 import javax.inject.Inject
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
@@ -32,7 +35,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
@@ -44,6 +46,21 @@ import org.jellyfin.sdk.model.api.BaseItemDto
 
 private const val TAG = "SeriesEpisodes"
 private const val SeasonSettleMs = 200L
+private const val EpisodePageSize = 50
+
+sealed interface EpisodeStart {
+    data object Top : EpisodeStart
+
+    data class Resolve(val targetEpisodeId: String?) : EpisodeStart
+}
+
+private data class EpisodeWindow(val seasonId: String, val startIndex: Int)
+
+internal fun episodeStartIndex(episodes: List<BaseItemDto>, targetEpisodeId: String?): Int {
+    val targetIndex = episodes.indexOfFirst { it.id.toString() == targetEpisodeId }
+    if (targetIndex >= 0) return targetIndex
+    return episodes.indexOfFirst { it.isResumable() }.coerceAtLeast(0)
+}
 
 private fun <T> Flow<T>.collapseBursts(windowMs: Long): Flow<T> = channelFlow {
     var lastValueAt = 0L
@@ -86,44 +103,55 @@ class SeriesEpisodesViewModel @Inject constructor(
         private set
 
     private var currentSeriesId: String? = null
+    private var episodeLookup: Job? = null
+    private var episodeSource: EpisodePagingSource? = null
+    private var sourceGeneration = 0
 
-    private val _selectedSeasonId = MutableStateFlow<String?>(null)
-    private val _refreshTrigger = MutableStateFlow(0)
+    private val _window = MutableStateFlow<EpisodeWindow?>(null)
     private val _visibleSeasonIndices = MutableStateFlow<List<Int>>(emptyList())
 
     private val episodeMutations = MutableStateFlow<Map<String, (BaseItemDto) -> BaseItemDto>>(emptyMap())
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    val episodes: Flow<PagingData<BaseItemDto>> = combine(
-        _selectedSeasonId.filterNotNull().distinctUntilChanged().collapseBursts(SeasonSettleMs),
-        _refreshTrigger
-    ) { seasonId, _ -> seasonId }
-        .flatMapLatest { seasonId ->
+    val episodes: Flow<PagingData<BaseItemDto>> = _window
+        .filterNotNull()
+        .collapseBursts(SeasonSettleMs)
+        .flatMapLatest { window ->
             val currentSession = session
             val seriesId = currentSeriesId
             if (currentSession == null || seriesId == null) {
                 flowOf(PagingData.empty())
             } else {
+                val startKey = alignedPageStart(window.startIndex, EpisodePageSize)
+                val firstGeneration = sourceGeneration + 1
                 Pager(
-                    config = PagingConfig(pageSize = 50, enablePlaceholders = false, initialLoadSize = 50),
+                    config = PagingConfig(
+                        pageSize = EpisodePageSize,
+                        initialLoadSize = EpisodePageSize,
+                        enablePlaceholders = true
+                    ),
+                    initialKey = startKey,
                     pagingSourceFactory = {
                         val api = jellyfin.api(currentSession.server.baseUrl, currentSession.accessToken)
+                        sourceGeneration++
                         EpisodePagingSource(
                             api = api,
                             ioDispatcher = ioDispatcher,
+                            initialKey = startKey,
+                            firstLoad = sourceGeneration == firstGeneration,
                             seriesId = seriesId,
-                            seasonId = seasonId,
+                            seasonId = window.seasonId,
                             userId = currentSession.userUuid,
                             onTotalRecordCount = { count ->
                                 val currentSeasons = seasons
-                                val seasonIndex = currentSeasons.indexOfFirst { it.id.toString() == seasonId }
+                                val seasonIndex = currentSeasons.indexOfFirst { it.id.toString() == window.seasonId }
                                 if (seasonIndex != -1 && currentSeasons[seasonIndex].childCount != count) {
                                     val updatedSeasons = currentSeasons.toMutableList()
                                     updatedSeasons[seasonIndex] = updatedSeasons[seasonIndex].copy(childCount = count)
                                     seasons = updatedSeasons
                                 }
                             }
-                        )
+                        ).also { episodeSource = it }
                     }
                 ).flow.cachedIn(viewModelScope).combine(episodeMutations) { pagingData, mutations ->
                     if (mutations.isEmpty()) {
@@ -149,7 +177,7 @@ class SeriesEpisodesViewModel @Inject constructor(
             changeBus.batches().collect { batch ->
                 val seriesId = currentSeriesId ?: return@collect
                 if (batch.contentChanged || seriesId in batch.itemIds) {
-                    _refreshTrigger.value++
+                    episodeSource?.invalidate()
                     loadSeasons(seriesId)
                 }
             }
@@ -224,10 +252,25 @@ class SeriesEpisodesViewModel @Inject constructor(
         }
     }
 
-    fun loadEpisodes(seriesId: String, seasonId: String) {
+    fun loadEpisodes(seriesId: String, seasonId: String, start: EpisodeStart) {
+        episodeLookup?.cancel()
         if (session == null) return
+        if (_window.value?.seasonId == seasonId) return
         currentSeriesId = seriesId
-        _selectedSeasonId.value = seasonId
+        when (start) {
+            EpisodeStart.Top -> _window.value = EpisodeWindow(seasonId, 0)
+            is EpisodeStart.Resolve -> episodeLookup = viewModelScope.launch {
+                try {
+                    val episodes = mediaRepository.seasonEpisodeStates(UUID.fromString(seriesId), UUID.fromString(seasonId))
+                    _window.value = EpisodeWindow(seasonId, episodeStartIndex(episodes, start.targetEpisodeId))
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (failure: Exception) {
+                    Log.w(TAG, "Episode start lookup failed (series=$seriesId season=$seasonId)", failure)
+                    _window.value = EpisodeWindow(seasonId, 0)
+                }
+            }
+        }
     }
 
     fun markWatched(episodeId: String, played: Boolean) {
@@ -273,7 +316,7 @@ class SeriesEpisodesViewModel @Inject constructor(
                 userDataRepository.setWatched(UUID.fromString(seasonId), played, series)
             }
             episodeMutations.value = emptyMap()
-            _refreshTrigger.value++
+            episodeSource?.invalidate()
             currentSeriesId?.let { loadSeasons(it) }
         }
     }

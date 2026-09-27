@@ -377,6 +377,16 @@ class MediaRepository @Inject constructor(
         }.getOrDefault(emptyMap())
     }
 
+    suspend fun seasonEpisodeStates(seriesId: UUID, seasonId: UUID): List<BaseItemDto> = onIo {
+        api().tvShowsApi.getEpisodes(
+            seriesId = seriesId,
+            seasonId = seasonId,
+            userId = session().userUuid,
+            fields = emptyList(),
+            enableImages = false
+        ).content.items.orEmpty()
+    }
+
     suspend fun episodeNumbersBySeason(seriesId: UUID): Map<Int, List<Int>> = onIo {
         runCatching {
             api().tvShowsApi.getEpisodes(

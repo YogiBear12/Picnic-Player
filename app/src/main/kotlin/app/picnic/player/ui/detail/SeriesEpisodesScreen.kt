@@ -130,11 +130,6 @@ fun SeriesEpisodesScreen(
         }
     }
 
-    LaunchedEffect(selectedSeasonId, viewModel.session) {
-        val sid = selectedSeasonId ?: return@LaunchedEffect
-        viewModel.loadEpisodes(seriesId, sid)
-    }
-
     val selectedSeasonIndex = viewModel.seasons.indexOfFirst { it.id.toString() == selectedSeasonId }.coerceAtLeast(0)
     val selectedSeason = viewModel.seasons.getOrNull(selectedSeasonIndex)
 
@@ -148,6 +143,11 @@ fun SeriesEpisodesScreen(
     val episodeFocus = rememberEpisodeFocus()
     val listFocus = rememberEpisodeListFocus(episodeFocus, initialFocusEpisodeId, initialSeasonId)
     val episodes = viewModel.episodes.collectAsLazyPagingItems()
+
+    LaunchedEffect(selectedSeasonId, viewModel.session) {
+        val sid = selectedSeasonId ?: return@LaunchedEffect
+        viewModel.loadEpisodes(seriesId, sid, listFocus.startRequest(sid))
+    }
 
     var contextMenuEpisode by remember { mutableStateOf<BaseItemDto?>(null) }
     var contextMenuSeason by remember { mutableStateOf<BaseItemDto?>(null) }
@@ -182,28 +182,22 @@ fun SeriesEpisodesScreen(
             EpisodeListState(
                 loadComplete = initialLoadComplete.value,
                 seasonId = selectedSeasonId,
+                loadedSeasonId = episodes.itemSnapshotList.firstNotNullOfOrNull { it }?.seasonId?.toString(),
                 itemCount = episodes.itemCount,
                 refreshSettled = episodes.loadState.refresh is LoadState.NotLoading,
-                appendState = episodes.loadState.append,
                 listShowing = episodesFailure == null && !seasonsFailed
             )
         }
             .collect { state ->
                 if (!state.loadComplete || state.itemCount == 0 || !state.refreshSettled) return@collect
                 if (!state.listShowing) return@collect
+                if (state.loadedSeasonId != null && state.loadedSeasonId != state.seasonId) return@collect
                 val restoreId = listFocus.restoreEpisodeId
                 val restoreIndex = restoreId
                     ?.let { id -> episodes.itemSnapshotList.indexOfFirst { it?.id?.toString() == id } }
                     ?.takeIf { it >= 0 }
                 if (restoreId != null && restoreIndex == null) {
-                    val append = state.appendState
-                    val pageable = append is LoadState.NotLoading && !append.endOfPaginationReached
-                    when {
-                        !listFocus.restoreLivesIn(state.seasonId) -> listFocus.onRestoreUnavailable()
-                        pageable -> episodes.loadNextPage()
-                        append is LoadState.Loading -> Unit
-                        else -> listFocus.onRestoreUnavailable()
-                    }
+                    listFocus.onRestoreUnavailable()
                 }
                 listFocus.settle(
                     seasonId = state.seasonId,
@@ -276,6 +270,7 @@ fun SeriesEpisodesScreen(
                         retrying = episodes.loadState.refresh is LoadState.Loading
                     )
                 } else {
+                    val episodePulse = rememberSkeletonPulse()
                     LazyColumn(
                         state = episodeFocus.listState,
                         modifier = Modifier
@@ -301,6 +296,8 @@ fun SeriesEpisodesScreen(
                                     },
                                     onLongClick = { contextMenuEpisode = episode }
                                 )
+                            } else {
+                                EpisodeRowSkeleton(Modifier.skeletonPulse(episodePulse))
                             }
                         }
                     }
@@ -363,16 +360,12 @@ fun SeriesEpisodesScreen(
     }
 }
 
-private fun LazyPagingItems<BaseItemDto>.loadNextPage() {
-    get(itemCount - 1)
-}
-
 private data class EpisodeListState(
     val loadComplete: Boolean,
     val seasonId: String?,
+    val loadedSeasonId: String?,
     val itemCount: Int,
     val refreshSettled: Boolean,
-    val appendState: LoadState,
     val listShowing: Boolean
 )
 
@@ -473,16 +466,25 @@ private fun EpisodeListSkeleton() {
             .skeletonPulse(rememberSkeletonPulse())
     ) {
         repeat(SkeletonEpisodeCount) {
-            Row(horizontalArrangement = Arrangement.spacedBy(EpisodeThumbGap), verticalAlignment = Alignment.CenterVertically) {
-                SkeletonBar(width = EpisodeThumbWidth, height = EpisodeThumbHeight, corner = EpisodeThumbCorner)
-                BoxWithConstraints {
-                    val width = maxWidth
-                    Column(verticalArrangement = Arrangement.spacedBy(SkeletonEpisodeTextGap)) {
-                        SkeletonBar(width = width * SkeletonEpisodeTitleWidth, height = SkeletonTitleHeight, corner = SkeletonTextCorner)
-                        SkeletonTextBar(width = width * SkeletonEpisodeMetaWidth)
-                        SkeletonTextBar(width = width * SkeletonEpisodeOverviewWidth)
-                    }
-                }
+            EpisodeRowSkeleton()
+        }
+    }
+}
+
+@Composable
+private fun EpisodeRowSkeleton(modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier.fillMaxWidth().height(EpisodeThumbHeight),
+        horizontalArrangement = Arrangement.spacedBy(EpisodeThumbGap),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        SkeletonBar(width = EpisodeThumbWidth, height = EpisodeThumbHeight, corner = EpisodeThumbCorner)
+        BoxWithConstraints(Modifier.weight(1f)) {
+            val width = maxWidth
+            Column(verticalArrangement = Arrangement.spacedBy(SkeletonEpisodeTextGap)) {
+                SkeletonBar(width = width * SkeletonEpisodeTitleWidth, height = SkeletonTitleHeight, corner = SkeletonTextCorner)
+                SkeletonTextBar(width = width * SkeletonEpisodeMetaWidth)
+                SkeletonTextBar(width = width * SkeletonEpisodeOverviewWidth)
             }
         }
     }
