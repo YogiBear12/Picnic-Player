@@ -101,6 +101,8 @@ class SeriesEpisodesViewModel @Inject constructor(
 
     var seasonsLoading by mutableStateOf(false)
         private set
+    var seasonsLoaded by mutableStateOf(false)
+        private set
 
     private var currentSeriesId: String? = null
     private var episodeLookup: Job? = null
@@ -213,6 +215,7 @@ class SeriesEpisodesViewModel @Inject constructor(
 
                 seasons = mergedSeasons.sortedWith(compareBy({ it.indexNumber == 0 }, { it.indexNumber }))
                 seasonsError = null
+                seasonsLoaded = true
             } catch (e: Exception) {
                 Log.e(TAG, "Season list load failed (series=$seriesId)", e)
                 seasonsError = e

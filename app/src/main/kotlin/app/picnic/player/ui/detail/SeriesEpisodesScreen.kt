@@ -74,6 +74,7 @@ import app.picnic.player.ui.browse.minutesLeft
 import app.picnic.player.ui.browse.runtimeMinutes
 import app.picnic.player.ui.common.ArtworkImage
 import app.picnic.player.ui.common.ArtworkPlaceholder
+import app.picnic.player.ui.common.CenteredMessage
 import app.picnic.player.ui.common.EpisodeContextMenu
 import app.picnic.player.ui.common.LoadFailedState
 import app.picnic.player.ui.common.LocalImageUrls
@@ -89,7 +90,6 @@ import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.common.resumeTicks
 import app.picnic.player.ui.common.skeletonPulse
 import java.util.UUID
-import kotlinx.coroutines.delay
 import org.jellyfin.sdk.model.api.BaseItemDto
 
 private val SeriesHeaderArtHeight = 80.dp
@@ -152,10 +152,10 @@ fun SeriesEpisodesScreen(
     var contextMenuEpisode by remember { mutableStateOf<BaseItemDto?>(null) }
     var contextMenuSeason by remember { mutableStateOf<BaseItemDto?>(null) }
 
+    val noSeasons = viewModel.seasonsLoaded && viewModel.seasons.isEmpty()
     val initialLoadComplete = rememberInitialLoadComplete(
-        seasons = viewModel.seasons,
+        noSeasons = noSeasons,
         seasonsError = viewModel.seasonsError,
-        selectedSeasonId = selectedSeasonId,
         episodes = episodes
     )
 
@@ -223,6 +223,18 @@ fun SeriesEpisodesScreen(
         if (!seasonsFailed && episodesFailure != null) episodes.retry()
     }
 
+    val noEpisodes = initialLoadComplete.value &&
+        !seasonsFailed &&
+        episodesFailure == null &&
+        (noSeasons || episodes.settledEmpty)
+
+    LaunchedEffect(noEpisodes, selectedSeasonId) {
+        if (noEpisodes && selectedSeason != null) {
+            seasonRail.bringIntoView(selectedSeasonIndex)
+            selectedSeasonFr?.requestFocusWhenAttached()
+        }
+    }
+
     Box(Modifier.fillMaxSize()) {
         if (seasonsFailed) {
             val retryFocus = remember { FocusRequester() }
@@ -248,7 +260,13 @@ fun SeriesEpisodesScreen(
                         selectedSeasonId = selectedSeasonId,
                         rail = seasonRail,
                         rightTarget = {
-                            if (episodesFailure != null) episodeRetryFocus else episodeFocus.targetRequester
+                            when {
+                                episodesFailure != null -> episodeRetryFocus
+                                noEpisodes -> FocusRequester.Cancel
+                                episodeFocus.targetIndex < episodes.itemCount &&
+                                    episodes.peek(episodeFocus.targetIndex) == null -> FocusRequester.Cancel
+                                else -> episodeFocus.targetRequester
+                            }
                         },
                         onRightPressed = {
                             episodesFailure == null && episodeFocus.rightConsumed(episodes.itemCount)
@@ -269,6 +287,8 @@ fun SeriesEpisodesScreen(
                         detail = episodesFailure,
                         retrying = episodes.loadState.refresh is LoadState.Loading
                     )
+                } else if (noEpisodes) {
+                    CenteredMessage(message = "No episodes")
                 } else {
                     val episodePulse = rememberSkeletonPulse()
                     LazyColumn(
@@ -360,6 +380,11 @@ fun SeriesEpisodesScreen(
     }
 }
 
+private val LazyPagingItems<BaseItemDto>.settledEmpty: Boolean
+    get() = itemCount == 0 &&
+        loadState.source.refresh is LoadState.NotLoading &&
+        loadState.source.append.endOfPaginationReached
+
 private data class EpisodeListState(
     val loadComplete: Boolean,
     val seasonId: String?,
@@ -371,31 +396,17 @@ private data class EpisodeListState(
 
 @Composable
 private fun rememberInitialLoadComplete(
-    seasons: List<BaseItemDto>,
+    noSeasons: Boolean,
     seasonsError: Throwable?,
-    selectedSeasonId: String?,
     episodes: LazyPagingItems<BaseItemDto>
 ): State<Boolean> {
     val complete = rememberSaveable { mutableStateOf(false) }
-    LaunchedEffect(seasons, selectedSeasonId) {
-        snapshotFlow { episodes.itemCount }.collect { count ->
-            val selectedSeasonCountReady = seasons.find { it.id.toString() == selectedSeasonId }?.childCount != null
-            if (seasons.isNotEmpty() && count > 0 && selectedSeasonCountReady) {
-                complete.value = true
-            }
-        }
-    }
-    LaunchedEffect(Unit) {
-        delay(5000)
-        complete.value = true
-    }
-    LaunchedEffect(Unit) {
-        snapshotFlow { episodes.loadState.refresh }.collect {
-            if (it is LoadState.Error) complete.value = true
-        }
-    }
-    LaunchedEffect(seasonsError) {
-        if (seasonsError != null) complete.value = true
+    LaunchedEffect(noSeasons, seasonsError) {
+        snapshotFlow {
+            val loadState = episodes.loadState
+            val pageShown = loadState.source.refresh is LoadState.NotLoading && episodes.itemCount > 0
+            seasonsError != null || noSeasons || loadState.refresh is LoadState.Error || pageShown || episodes.settledEmpty
+        }.collect { if (it) complete.value = true }
     }
     return complete
 }
