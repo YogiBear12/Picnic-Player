@@ -65,7 +65,7 @@ fun BrowseShellHost(
     onServerUnreachable: (String, String) -> Unit,
     onSettings: () -> Unit,
     onSwapUser: () -> Unit,
-    drawerDim: State<Float>,
+    navDim: State<Float>,
     homeViewModel: HomeViewModel = hiltViewModel(),
     searchViewModel: SearchViewModel = hiltViewModel(),
     discoverViewModel: DiscoverViewModel = hiltViewModel(),
@@ -89,8 +89,8 @@ fun BrowseShellHost(
 
     val session = homeState.session
 
-    val destinations by rail.drawerDestinations.collectAsStateWithLifecycle()
-    val drawerPage by rail.drawerPage.collectAsStateWithLifecycle()
+    val destinations by rail.panelDestinations.collectAsStateWithLifecycle()
+    val panelPage by rail.panelPage.collectAsStateWithLifecycle()
     val moreVisible by rail.moreVisible.collectAsStateWithLifecycle()
     val layout by rail.layout.collectAsStateWithLifecycle()
     val reorderKey by rail.reorderKey.collectAsStateWithLifecycle()
@@ -134,7 +134,7 @@ fun BrowseShellHost(
         when {
             !navChromeFocused ->
                 runCatching { rail.requesterFor(selectedKey).requestFocus() }
-            drawerPage == NavDrawerPage.More ->
+            panelPage == NavPanelPage.More ->
                 rail.openPrimaryPage()
             selectedKey != BrowseDest.Home.key ->
                 rail.select(BrowseDest.Home)
@@ -217,7 +217,7 @@ fun BrowseShellHost(
 
             val onPaneSeeded = { paneFocusRequest = PaneFocusRequest.None }
             val paneInset = BrowsePaneStartInset
-            val railRequesters = remember(destinations, drawerPage) {
+            val railRequesters = remember(destinations, panelPage) {
                 destinations.associate { it.key to rail.requesterFor(it.key) }
             }
             val updateViewModel: app.picnic.player.ui.settings.UpdateViewModel = hiltViewModel()
@@ -251,7 +251,7 @@ fun BrowseShellHost(
                     selectedKey = selectedKey,
                     selectedDest = selected,
                     itemFocusRequesters = railRequesters,
-                    drawerPage = drawerPage,
+                    panelPage = panelPage,
                     moreVisible = moreVisible,
                     reorderKey = reorderKey,
                     layout = layout,
@@ -259,7 +259,7 @@ fun BrowseShellHost(
                 ),
                 actions = navActions,
                 focusSettingsOnEntry = returningFromSettings,
-                drawerDim = drawerDim
+                navDim = navDim
             ) {
                 BrowseShellScaffold {
                     AnimatedContent(

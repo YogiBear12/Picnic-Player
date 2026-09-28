@@ -78,7 +78,7 @@ fun DimBackdrop(dimmed: () -> Boolean) {
 }
 
 @Composable
-fun BackdropHostLayer(drawerAlpha: State<Float>, modifier: Modifier = Modifier) {
+fun BackdropHostLayer(navDim: State<Float>, modifier: Modifier = Modifier) {
     val controller = LocalBackdropController.current
     val spec = controller.spec
     val contentAlpha = animateFloatAsState(
@@ -86,8 +86,8 @@ fun BackdropHostLayer(drawerAlpha: State<Float>, modifier: Modifier = Modifier) 
         animationSpec = tween(TvBrowseMotion.DIM_FADE_MS),
         label = "contentAlpha"
     )
-    val alpha = remember(drawerAlpha, contentAlpha) {
-        derivedStateOf { drawerAlpha.value * contentAlpha.value }
+    val alpha = remember(navDim, contentAlpha) {
+        derivedStateOf { navDim.value * contentAlpha.value }
     }
     if (spec == null) return
     app.picnic.player.ui.browse.BrowseBackdrop(

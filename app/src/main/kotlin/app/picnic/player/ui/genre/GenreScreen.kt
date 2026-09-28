@@ -16,7 +16,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import app.picnic.player.ui.ambient.PublishBackdrop
-import app.picnic.player.ui.browse.DrawerCollapsedWidth
+import app.picnic.player.ui.browse.NavGutterWidth
 import app.picnic.player.ui.browse.browseLayoutMetrics
 import app.picnic.player.ui.grid.GridFilterSection
 import app.picnic.player.ui.grid.GridStartInset
@@ -67,7 +67,7 @@ fun GenreScreen(
             onChromeVisibleChange = {},
             offeredFilters = setOf(GridFilterSection.CONTENT_TYPE),
             title = libraryName?.let { "$title · $it" },
-            startInset = DrawerCollapsedWidth + GridStartInset
+            startInset = NavGutterWidth + GridStartInset
         )
     }
 }

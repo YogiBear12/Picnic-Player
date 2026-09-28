@@ -93,7 +93,7 @@ internal data class NavChromeState(
     val selectedKey: String,
     val selectedDest: BrowseDest,
     val itemFocusRequesters: Map<String, FocusRequester>,
-    val drawerPage: NavDrawerPage,
+    val panelPage: NavPanelPage,
     val moreVisible: Boolean,
     val reorderKey: String?,
     val layout: NavLayout,
@@ -126,7 +126,7 @@ internal fun BrowseFloatingNav(
     chrome: NavChromeState,
     actions: NavChromeActions,
     focusSettingsOnEntry: Boolean,
-    drawerDim: State<Float>,
+    navDim: State<Float>,
     content: @Composable () -> Unit
 ) {
     var actionsDest by remember { mutableStateOf<BrowseDest?>(null) }
@@ -134,20 +134,20 @@ internal fun BrowseFloatingNav(
     LaunchedEffect(focusSettingsOnEntry) {
         if (focusSettingsOnEntry) chromeFocus.settings.requestFocusWhenAttached()
     }
-    var previousPage by remember { mutableStateOf(chrome.drawerPage) }
+    var previousPage by remember { mutableStateOf(chrome.panelPage) }
 
     if (chrome.reorderKey != null) {
         BackHandler { actions.onExitReorder() }
     }
 
-    LaunchedEffect(chrome.drawerPage) {
+    LaunchedEffect(chrome.panelPage) {
         val from = previousPage
-        previousPage = chrome.drawerPage
-        if (from == chrome.drawerPage) return@LaunchedEffect
+        previousPage = chrome.panelPage
+        if (from == chrome.panelPage) return@LaunchedEffect
         yield()
-        when (chrome.drawerPage) {
-            NavDrawerPage.More -> runCatching { chromeFocus.moreBack.requestFocus() }
-            NavDrawerPage.Primary -> {
+        when (chrome.panelPage) {
+            NavPanelPage.More -> runCatching { chromeFocus.moreBack.requestFocus() }
+            NavPanelPage.Primary -> {
                 if (chrome.moreVisible) {
                     runCatching { chromeFocus.moreItem.requestFocus() }
                 } else {
@@ -187,7 +187,7 @@ internal fun BrowseFloatingNav(
         chromeFocus = chromeFocus,
         actions = actions,
         onOpenActions = { actionsDest = it },
-        drawerDim = drawerDim,
+        navDim = navDim,
         content = content
     )
 }
@@ -229,7 +229,7 @@ private fun FloatingNavBody(
     chromeFocus: NavChromeFocus,
     actions: NavChromeActions,
     onOpenActions: (BrowseDest) -> Unit,
-    drawerDim: State<Float>,
+    navDim: State<Float>,
     content: @Composable () -> Unit
 ) {
     var panelFocused by remember { mutableStateOf(false) }
@@ -237,7 +237,7 @@ private fun FloatingNavBody(
         onDispose { actions.onChromeFocusedChange(false) }
     }
 
-    val onPrimaryPage = chrome.drawerPage == NavDrawerPage.Primary
+    val onPrimaryPage = chrome.panelPage == NavPanelPage.Primary
     val libraryScroll = rememberLibraryScroll(panelFocused, chrome.selectedDest)
 
     val openProgress by animateFloatAsState(
@@ -252,8 +252,8 @@ private fun FloatingNavBody(
             Modifier
                 .align(Alignment.CenterEnd)
                 .fillMaxHeight()
-                .width(maxWidth - DrawerCollapsedWidth)
-                .graphicsLayer { alpha = drawerDim.value }
+                .width(maxWidth - NavGutterWidth)
+                .graphicsLayer { alpha = navDim.value }
         ) { content() }
 
         NavDock(
@@ -262,7 +262,7 @@ private fun FloatingNavBody(
             selected = chrome.selectedDest,
             modifier = Modifier
                 .align(Alignment.CenterStart)
-                .width(DrawerCollapsedWidth)
+                .width(NavGutterWidth)
                 .graphicsLayer { alpha = 1f - openProgress }
         )
 
@@ -296,8 +296,8 @@ private fun FloatingNavBody(
                 .focusGroup(),
             verticalArrangement = Arrangement.spacedBy(PanelRowSpacing)
         ) {
-            when (chrome.drawerPage) {
-                NavDrawerPage.Primary -> {
+            when (chrome.panelPage) {
+                NavPanelPage.Primary -> {
                     val fixed = chrome.destinations.filterNot { it.isCustomizable() }
                     val rearrangeable = chrome.destinations.filter { it.isCustomizable() }
 
@@ -367,7 +367,7 @@ private fun FloatingNavBody(
                         }
                     )
                 }
-                NavDrawerPage.More -> {
+                NavPanelPage.More -> {
                     NavPanelRow(
                         label = "Back",
                         onActivate = actions.onBackFromMore,

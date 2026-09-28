@@ -79,14 +79,14 @@ fun PicnicNavHost(
     val rail = railViewModel.rail
 
     val navChromeFocused by rail.chromeFocused.collectAsStateWithLifecycle()
-    val drawerDim = animateFloatAsState(
+    val navDim = animateFloatAsState(
         targetValue = if (navChromeFocused) {
             TvBrowseMotion.DIM_ALPHA
         } else {
             1f
         },
         animationSpec = tween(TvBrowseMotion.DIM_FADE_MS),
-        label = "drawerDim"
+        label = "navDim"
     )
 
     fun resetShellTo(key: NavKey) {
@@ -135,7 +135,7 @@ fun PicnicNavHost(
         LocalImageUrls provides imageUrls
     ) {
         Box(Modifier.fillMaxSize()) {
-            BackdropHostLayer(drawerDim, Modifier.fillMaxSize())
+            BackdropHostLayer(navDim, Modifier.fillMaxSize())
 
             NavDisplay(
                 backStack = backStack,
@@ -263,7 +263,7 @@ fun PicnicNavHost(
                             onServerUnreachable = { serverId, msg -> goServerPicker(serverId, msg) },
                             onSettings = { navViewModel.push(SettingsKey) },
                             onSwapUser = onSwapUser,
-                            drawerDim = drawerDim
+                            navDim = navDim
                         )
                     }
                     entry<GenreKey> { key ->

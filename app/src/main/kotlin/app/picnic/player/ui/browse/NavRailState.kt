@@ -29,7 +29,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
-enum class NavDrawerPage { Primary, More }
+enum class NavPanelPage { Primary, More }
 
 @Singleton
 class NavRailState @Inject constructor(
@@ -40,10 +40,10 @@ class NavRailState @Inject constructor(
     private val _session = MutableStateFlow<UserSession?>(null)
     val session = _session.asStateFlow()
 
-    private val _drawerDestinations = MutableStateFlow<List<BrowseDest>>(
+    private val _panelDestinations = MutableStateFlow<List<BrowseDest>>(
         listOf(BrowseDest.Search, BrowseDest.Home)
     )
-    val drawerDestinations = _drawerDestinations.asStateFlow()
+    val panelDestinations = _panelDestinations.asStateFlow()
 
     private val _allDestinations = MutableStateFlow<List<BrowseDest>>(
         listOf(BrowseDest.Search, BrowseDest.Home)
@@ -53,8 +53,8 @@ class NavRailState @Inject constructor(
     private val _layout = MutableStateFlow(NavLayout())
     val layout = _layout.asStateFlow()
 
-    private val _drawerPage = MutableStateFlow(NavDrawerPage.Primary)
-    val drawerPage = _drawerPage.asStateFlow()
+    private val _panelPage = MutableStateFlow(NavPanelPage.Primary)
+    val panelPage = _panelPage.asStateFlow()
 
     private val _moreVisible = MutableStateFlow(false)
     val moreVisible = _moreVisible.asStateFlow()
@@ -143,8 +143,8 @@ class NavRailState @Inject constructor(
     private fun applyLayout(layout: NavLayout) {
         _layout.value = layout
         rebuildDestinations()
-        if (_drawerPage.value == NavDrawerPage.More && !_moreVisible.value) {
-            _drawerPage.value = NavDrawerPage.Primary
+        if (_panelPage.value == NavPanelPage.More && !_moreVisible.value) {
+            _panelPage.value = NavPanelPage.Primary
             rebuildDestinations()
         }
         ensureSelectionValid()
@@ -153,13 +153,13 @@ class NavRailState @Inject constructor(
 
     fun openMorePage() {
         if (!_moreVisible.value) return
-        _drawerPage.value = NavDrawerPage.More
+        _panelPage.value = NavPanelPage.More
         _reorderKey.value = null
         rebuildDestinations()
     }
 
     fun openPrimaryPage() {
-        _drawerPage.value = NavDrawerPage.Primary
+        _panelPage.value = NavPanelPage.Primary
         _reorderKey.value = null
         rebuildDestinations()
     }
@@ -177,8 +177,8 @@ class NavRailState @Inject constructor(
         _pendingCommit.value = true
         val onUnpinnedPage = dest.key in _layout.value.unpinnedIds
         if (onUnpinnedPage) {
-            if (_drawerPage.value != NavDrawerPage.More) openMorePage()
-        } else if (_drawerPage.value != NavDrawerPage.Primary) {
+            if (_panelPage.value != NavPanelPage.More) openMorePage()
+        } else if (_panelPage.value != NavPanelPage.Primary) {
             openPrimaryPage()
         }
     }
@@ -200,10 +200,10 @@ class NavRailState @Inject constructor(
         playlistsAvailable = false
         customById = emptyMap()
         _layout.value = NavLayout()
-        _drawerDestinations.value = listOf(BrowseDest.Search, BrowseDest.Home)
+        _panelDestinations.value = listOf(BrowseDest.Search, BrowseDest.Home)
         _allDestinations.value = listOf(BrowseDest.Search, BrowseDest.Home)
         _moreVisible.value = false
-        _drawerPage.value = NavDrawerPage.Primary
+        _panelPage.value = NavPanelPage.Primary
         _reorderKey.value = null
         _selectedKey.value = BrowseDest.Home.key
         _pendingCommit.value = false
@@ -217,8 +217,8 @@ class NavRailState @Inject constructor(
         if (!gone) return
         _selectedKey.value = BrowseDest.Home.key
         _pendingCommit.value = true
-        if (_drawerPage.value == NavDrawerPage.More) {
-            _drawerPage.value = NavDrawerPage.Primary
+        if (_panelPage.value == NavPanelPage.More) {
+            _panelPage.value = NavPanelPage.Primary
             rebuildDestinations()
         }
     }
@@ -234,13 +234,13 @@ class NavRailState @Inject constructor(
             addAll(pinned)
             addAll(unpinned)
         }
-        _drawerDestinations.value = when (_drawerPage.value) {
-            NavDrawerPage.Primary -> buildList {
+        _panelDestinations.value = when (_panelPage.value) {
+            NavPanelPage.Primary -> buildList {
                 add(BrowseDest.Search)
                 add(BrowseDest.Home)
                 addAll(pinned)
             }
-            NavDrawerPage.More -> unpinned
+            NavPanelPage.More -> unpinned
         }
     }
 

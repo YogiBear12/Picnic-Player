@@ -27,16 +27,16 @@ internal data class BrowseLayoutMetrics(
  */
 internal val BrowsePaneStartInset = 16.dp
 
-internal val DrawerCollapsedWidth = 80.dp
+internal val NavGutterWidth = 80.dp
 
 /**
- * Resting left inset for detail-style pages (Detail, Person, Seerr Detail). These pages have
- * no nav drawer, so they add the collapsed-drawer gutter to [BrowsePaneStartInset] to keep one
- * horizontal origin with Home. Hero/buttons/text carry it as a plain modifier inset; the rows
+ * Resting left inset for detail-style pages (Detail, Person, Seerr Detail). These pages render
+ * without the browse panel, so they reserve its [NavGutterWidth] plus [BrowsePaneStartInset] to
+ * keep one horizontal origin with Home. Hero/buttons/text carry it as a plain modifier inset; the rows
  * carry the same value as LazyRow `contentPadding` so their cards scroll under it to the true
  * screen edge instead of being clipped by a column-level start padding.
  */
-internal val DetailContentStartInset = DrawerCollapsedWidth + BrowsePaneStartInset
+internal val DetailContentStartInset = NavGutterWidth + BrowsePaneStartInset
 
 internal fun browseLayoutMetrics(screenWidth: Dp, screenHeight: Dp): BrowseLayoutMetrics {
     val sx: (Float) -> Dp = { d -> screenWidth * (d / 960f) }

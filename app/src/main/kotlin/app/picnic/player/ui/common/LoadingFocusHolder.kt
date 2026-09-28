@@ -24,7 +24,7 @@ class LoadingFocusHolder {
 
     /**
      * Stays true while the holder has focus after loading ends, so the seed into real content moves
-     * focus off it before it leaves; removing a focused node hands focus to the drawer.
+     * focus off it before it leaves; removing a focused node drops focus to an arbitrary fallback.
      */
     fun holds(loading: Boolean): Boolean = loading || focused
 }

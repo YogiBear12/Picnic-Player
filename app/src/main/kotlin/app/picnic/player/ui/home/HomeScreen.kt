@@ -19,7 +19,7 @@ fun HomeScreen(
     onServerUnreachable: (String, String) -> Unit,
     onSettings: () -> Unit,
     onSwapUser: () -> Unit,
-    drawerDim: State<Float>
+    navDim: State<Float>
 ) = BrowseShellHost(
     onItem = onItem,
     onSeerrItem = onSeerrItem,
@@ -32,5 +32,5 @@ fun HomeScreen(
     onServerUnreachable = onServerUnreachable,
     onSettings = onSettings,
     onSwapUser = onSwapUser,
-    drawerDim = drawerDim
+    navDim = navDim
 )
