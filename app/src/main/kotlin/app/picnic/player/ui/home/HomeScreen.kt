@@ -2,13 +2,10 @@ package app.picnic.player.ui.home
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
-import androidx.tv.material3.DrawerState
-import androidx.tv.material3.ExperimentalTvMaterial3Api
 import app.picnic.player.ui.browse.BrowseDest
 import app.picnic.player.ui.browse.BrowseShellHost
 import org.jellyfin.sdk.model.api.BaseItemDto
 
-@OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 fun HomeScreen(
     onItem: (BaseItemDto, String?, String?) -> Unit,
@@ -22,7 +19,6 @@ fun HomeScreen(
     onServerUnreachable: (String, String) -> Unit,
     onSettings: () -> Unit,
     onSwapUser: () -> Unit,
-    drawerState: DrawerState,
     drawerDim: State<Float>
 ) = BrowseShellHost(
     onItem = onItem,
@@ -36,6 +32,5 @@ fun HomeScreen(
     onServerUnreachable = onServerUnreachable,
     onSettings = onSettings,
     onSwapUser = onSwapUser,
-    drawerState = drawerState,
     drawerDim = drawerDim
 )

@@ -94,10 +94,6 @@ class HomeViewModel @Inject constructor(
         .map { it.capBadgeCount }
         .stateIn(viewModelScope, SharingStarted.Eagerly, true)
 
-    val alternateNavigation = settingsStore.settings
-        .map { it.alternateNavigation }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
-
     private val focusChangedFlow = MutableSharedFlow<Unit>(
         extraBufferCapacity = 1,
         onBufferOverflow = kotlinx.coroutines.channels.BufferOverflow.DROP_OLDEST

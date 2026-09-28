@@ -238,14 +238,6 @@ private fun experienceSections(
             add(
                 viewModel.toggleItem(
                     settings,
-                    "Alternate navigation",
-                    SettingKeys.AlternateNavigation,
-                    "Replace the navigation drawer with a floating panel"
-                )
-            )
-            add(
-                viewModel.toggleItem(
-                    settings,
                     "Limit episode badges",
                     SettingKeys.CapBadgeCount,
                     "Unwatched episode counts are displayed as 99+ when the count exceeds 100"

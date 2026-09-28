@@ -1,4 +1,4 @@
-@file:OptIn(ExperimentalTvMaterial3Api::class, ExperimentalComposeUiApi::class)
+@file:OptIn(ExperimentalComposeUiApi::class)
 
 package app.picnic.player.ui.browse
 
@@ -27,8 +27,6 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.tv.material3.DrawerState
-import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Text
 import app.picnic.player.data.seerr.SeerrCatalogItem
 import app.picnic.player.data.seerr.SeerrImages
@@ -67,7 +65,6 @@ fun BrowseShellHost(
     onServerUnreachable: (String, String) -> Unit,
     onSettings: () -> Unit,
     onSwapUser: () -> Unit,
-    drawerState: DrawerState,
     drawerDim: State<Float>,
     homeViewModel: HomeViewModel = hiltViewModel(),
     searchViewModel: SearchViewModel = hiltViewModel(),
@@ -89,7 +86,6 @@ fun BrowseShellHost(
     val discoverState by discoverViewModel.state.collectAsStateWithLifecycle()
     val colouredFocus by homeViewModel.colouredFocus.collectAsStateWithLifecycle()
     val capBadgeCount by homeViewModel.capBadgeCount.collectAsStateWithLifecycle()
-    val alternateNavigation by homeViewModel.alternateNavigation.collectAsStateWithLifecycle()
 
     val session = homeState.session
 
@@ -133,7 +129,7 @@ fun BrowseShellHost(
 
     val activity = LocalActivity.current
 
-    // Reorder never reaches this: NavShell registers its own BackHandler later, so it takes Back first.
+    // Reorder never reaches this: BrowseFloatingNav registers its own BackHandler later, so it takes Back first.
     BackHandler {
         when {
             !navChromeFocused ->
@@ -247,8 +243,7 @@ fun BrowseShellHost(
                     onMoveReorder = railViewModel::moveReorder
                 )
             }
-            NavShell(
-                alternate = alternateNavigation,
+            BrowseFloatingNav(
                 chrome = NavChromeState(
                     session = session,
                     avatarUrl = avatarUrl,
@@ -264,7 +259,6 @@ fun BrowseShellHost(
                 ),
                 actions = navActions,
                 focusSettingsOnEntry = returningFromSettings,
-                drawerState = drawerState,
                 drawerDim = drawerDim
             ) {
                 BrowseShellScaffold {

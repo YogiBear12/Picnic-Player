@@ -13,7 +13,6 @@ object SettingKeys {
     val ColouredFocus = SettingKey({ it.colouredFocus }, SettingsStore::setColouredFocus)
     val PulseFocusGlow = SettingKey({ it.pulseFocusGlow }, SettingsStore::setPulseFocusGlow)
     val CapBadgeCount = SettingKey({ it.capBadgeCount }, SettingsStore::setCapBadgeCount)
-    val AlternateNavigation = SettingKey({ it.alternateNavigation }, SettingsStore::setAlternateNavigation)
     val ThemeMusicVolume = SettingKey({ it.themeMusicVolume }, SettingsStore::setThemeMusicVolume)
 
     val SkipForwardSeconds = SettingKey({ it.skipForwardSeconds }, SettingsStore::setSkipForwardSeconds)

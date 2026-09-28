@@ -17,7 +17,6 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -27,9 +26,6 @@ import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
-import androidx.tv.material3.DrawerState
-import androidx.tv.material3.DrawerValue
-import androidx.tv.material3.ExperimentalTvMaterial3Api
 import app.picnic.player.data.media.ItemQueue
 import app.picnic.player.data.media.QueueKind
 import app.picnic.player.data.seerr.SeerrCatalogItem
@@ -71,7 +67,7 @@ private const val ExitDurationMs = 300
 private val EnterEasing = CubicBezierEasing(0.05f, 0.7f, 0.1f, 1.0f)
 private val ExitEasing = CubicBezierEasing(0.3f, 0.0f, 0.8f, 0.15f)
 
-@OptIn(ExperimentalSharedTransitionApi::class, ExperimentalTvMaterial3Api::class)
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 fun PicnicNavHost(
     railViewModel: NavRailViewModel = hiltViewModel(),
@@ -82,9 +78,9 @@ fun PicnicNavHost(
     val backdropController = LocalBackdropController.current
     val rail = railViewModel.rail
 
-    val drawerState = rememberSaveable(saver = DrawerState.Saver) { DrawerState(DrawerValue.Closed) }
+    val navChromeFocused by rail.chromeFocused.collectAsStateWithLifecycle()
     val drawerDim = animateFloatAsState(
-        targetValue = if (drawerState.currentValue == DrawerValue.Open) {
+        targetValue = if (navChromeFocused) {
             TvBrowseMotion.DIM_ALPHA
         } else {
             1f
@@ -267,7 +263,6 @@ fun PicnicNavHost(
                             onServerUnreachable = { serverId, msg -> goServerPicker(serverId, msg) },
                             onSettings = { navViewModel.push(SettingsKey) },
                             onSwapUser = onSwapUser,
-                            drawerState = drawerState,
                             drawerDim = drawerDim
                         )
                     }

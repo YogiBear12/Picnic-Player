@@ -27,6 +27,8 @@ internal data class BrowseLayoutMetrics(
  */
 internal val BrowsePaneStartInset = 16.dp
 
+internal val DrawerCollapsedWidth = 80.dp
+
 /**
  * Resting left inset for detail-style pages (Detail, Person, Seerr Detail). These pages have
  * no nav drawer, so they add the collapsed-drawer gutter to [BrowsePaneStartInset] to keep one

@@ -53,7 +53,6 @@ data class PlaybackSettings(
     val pulseFocusGlow: Boolean = true,
     val ambientBackgrounds: Boolean = true,
     val capBadgeCount: Boolean = true,
-    val alternateNavigation: Boolean = false,
     val themeMusicVolume: ThemeMusicVolume = ThemeMusicVolume.DISABLED,
     val introAction: SegmentAction = SegmentAction.ASK_TO_SKIP,
     val recapAction: SegmentAction = SegmentAction.ASK_TO_SKIP,
@@ -95,7 +94,6 @@ class SettingsStore @Inject constructor(
             pulseFocusGlow = p[PULSE_FOCUS_GLOW] ?: true,
             ambientBackgrounds = p[AMBIENT_BACKGROUNDS] ?: true,
             capBadgeCount = p[CAP_BADGE_COUNT] ?: true,
-            alternateNavigation = p[ALTERNATE_NAVIGATION] ?: false,
             themeMusicVolume = p[THEME_MUSIC_VOLUME]?.let { enumOrNull<ThemeMusicVolume>(it) }
                 ?: ThemeMusicVolume.DISABLED,
             introAction = p[INTRO_ACTION]?.let { enumOrNull<SegmentAction>(it) } ?: SegmentAction.ASK_TO_SKIP,
@@ -147,7 +145,6 @@ class SettingsStore @Inject constructor(
     suspend fun setPulseFocusGlow(value: Boolean) = put { it[PULSE_FOCUS_GLOW] = value }
     suspend fun setAmbientBackgrounds(value: Boolean) = put { it[AMBIENT_BACKGROUNDS] = value }
     suspend fun setCapBadgeCount(value: Boolean) = put { it[CAP_BADGE_COUNT] = value }
-    suspend fun setAlternateNavigation(value: Boolean) = put { it[ALTERNATE_NAVIGATION] = value }
     suspend fun setThemeMusicVolume(value: ThemeMusicVolume) = put { it[THEME_MUSIC_VOLUME] = value.name }
     suspend fun setIntroAction(value: SegmentAction) = put { it[INTRO_ACTION] = value.name }
     suspend fun setRecapAction(value: SegmentAction) = put { it[RECAP_ACTION] = value.name }
@@ -239,7 +236,6 @@ class SettingsStore @Inject constructor(
         val PULSE_FOCUS_GLOW = booleanPreferencesKey("experience.pulseFocusGlow")
         val AMBIENT_BACKGROUNDS = booleanPreferencesKey("experience.ambientBackgrounds")
         val CAP_BADGE_COUNT = booleanPreferencesKey("experience.capBadgeCount")
-        val ALTERNATE_NAVIGATION = booleanPreferencesKey("experience.alternateNavigation")
         val THEME_MUSIC_VOLUME = stringPreferencesKey("experience.themeMusicVolume")
 
         val PICTURE_IN_PICTURE = booleanPreferencesKey("advanced.pictureInPicture")
