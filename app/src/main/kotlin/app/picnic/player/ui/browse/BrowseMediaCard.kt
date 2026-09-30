@@ -17,6 +17,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Photo
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -31,6 +34,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -56,6 +60,7 @@ import app.picnic.player.ui.common.LogoOrFallback
 import app.picnic.player.ui.common.PosterPlaceholderLabel
 import app.picnic.player.ui.common.watchProgress
 import org.jellyfin.sdk.model.api.BaseItemDto
+import org.jellyfin.sdk.model.api.BaseItemKind
 
 internal val CardCornerRadius = 12.dp
 private const val CardFocusedScale = 1.1f
@@ -84,7 +89,8 @@ internal fun BrowsePosterCard(
         null
     }
     val imageUrl = overrideImageUrl ?: cardArtworkUrl(images, item, style.landscape, widthPx)
-    val showOverlay = style.landscape && overrideImageUrl == null && thumbUrl == null
+    val kindIcon = personalKindIcon(item)
+    val showOverlay = style.landscape && overrideImageUrl == null && thumbUrl == null && kindIcon == null
     val progress = item.watchProgress()
     val accentUrl = overrideImageUrl ?: cardArtworkUrl(images, item, style.landscape, AccentSourceWidth)
     val accentBlurHash = if (overrideImageUrl == null) cardArtworkBlurHash(item, style.landscape) else null
@@ -180,6 +186,28 @@ internal fun BrowsePosterCard(
         }
 
         if (showStatus) CardBadge(item, progress)
+        kindIcon?.let { CardKindBadge(it, aboveProgress = showStatus && progress > 0f) }
+    }
+}
+
+private fun personalKindIcon(item: BaseItemDto): ImageVector? = when (item.type) {
+    BaseItemKind.FOLDER, BaseItemKind.PHOTO_ALBUM -> Icons.Filled.Folder
+    BaseItemKind.VIDEO -> Icons.Filled.PlayArrow
+    BaseItemKind.PHOTO -> Icons.Filled.Photo
+    else -> null
+}
+
+@Composable
+private fun BoxScope.CardKindBadge(icon: ImageVector, aboveProgress: Boolean) {
+    Box(
+        Modifier
+            .align(Alignment.BottomStart)
+            .padding(start = 6.dp, bottom = if (aboveProgress) 16.dp else 6.dp)
+            .size(22.dp)
+            .background(Color.Black.copy(alpha = 0.55f), CircleShape),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(imageVector = icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
     }
 }
 

@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import app.picnic.player.data.auth.AuthRepository
 import app.picnic.player.data.auth.UserSession
 import app.picnic.player.data.jellyfin.isAuthFailure
+import app.picnic.player.data.media.FOLDER_CHILD_KINDS
 import app.picnic.player.data.media.GridFilterFacets
 import app.picnic.player.data.media.GridSortSpec
 import app.picnic.player.data.media.LibraryChangeBatch
@@ -79,6 +80,17 @@ class LibraryGridViewModel @Inject constructor(
         this.title = title
         _state.update {
             it.copy(filter = it.filter.copy(genreId = genreId, libraryId = libraryId))
+        }
+        load()
+    }
+
+    fun bindFolder(libraryId: UUID, folderId: UUID, title: String) {
+        if (bound) return
+        bound = true
+        kinds = FOLDER_CHILD_KINDS
+        this.title = title
+        _state.update {
+            it.copy(filter = it.filter.copy(libraryId = libraryId, folderId = folderId))
         }
         load()
     }

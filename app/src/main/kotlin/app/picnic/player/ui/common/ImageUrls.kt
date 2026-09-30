@@ -20,6 +20,8 @@ import org.jellyfin.sdk.model.api.BaseItemDto
 class ImageUrls internal constructor(private val session: UserSession?) {
     fun primary(item: BaseItemDto, fillWidth: Int = 480): String? = session?.let { JellyfinImages.primary(it, item, fillWidth) }
 
+    fun containedPrimary(itemId: String, tag: String?, maxWidth: Int, maxHeight: Int): String? = session?.let { JellyfinImages.containedPrimary(it, itemId, tag, maxWidth, maxHeight) }
+
     fun personPrimary(personId: String, tag: String?, fillWidth: Int = 480): String? = session?.let { JellyfinImages.personPrimary(it, personId, tag, fillWidth) }
 
     fun rowPoster(item: BaseItemDto, fillWidth: Int = 480): String? = session?.let { JellyfinImages.rowPoster(it, item, fillWidth) }

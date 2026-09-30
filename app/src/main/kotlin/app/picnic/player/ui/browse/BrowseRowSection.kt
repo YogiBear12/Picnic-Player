@@ -34,9 +34,11 @@ import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import app.picnic.player.data.media.HomeRow
+import app.picnic.player.data.media.PersonalLibrary
 import app.picnic.player.ui.ambient.LocalAmbientPrewarmer
 import app.picnic.player.ui.common.LocalContextMenuHandler
 import app.picnic.player.ui.common.LocalImageUrls
+import app.picnic.player.ui.common.PersonalMenuRequest
 import java.util.UUID
 import org.jellyfin.sdk.model.api.BaseItemDto
 
@@ -53,6 +55,7 @@ internal fun BrowseRowSection(
     focusedItemId: UUID?,
     rowBringIntoView: BringIntoViewSpec,
     onItem: (BaseItemDto, String?, String?) -> Unit,
+    onPersonalItem: (PersonalLibrary, BaseItemDto) -> Unit,
     onFocusItem: (Int, BaseItemDto) -> Unit
 ) {
     val slot = focusedItemId?.let { id -> row.items.indexOfFirst { it.id == id }.takeIf { it >= 0 } }
@@ -93,17 +96,28 @@ internal fun BrowseRowSection(
                     key = { _, item -> item.id },
                     contentType = { _, _ -> "BrowseMediaCard" }
                 ) { index, item ->
+                    val personal = row.personalLibrary
                     BrowseMediaCard(
                         item = item,
                         style = style,
                         focusRequester = if (index == focusIndex) rowCardFocus else null,
                         onClick = {
-                            val nav = images.navImages(item)
-                            ambientPrewarmer.warm(nav.ambUrl)
-                            onItem(item, nav.bgUrl, nav.ambUrl)
+                            if (personal != null) {
+                                onPersonalItem(personal, item)
+                            } else {
+                                val nav = images.navImages(item)
+                                ambientPrewarmer.warm(nav.ambUrl)
+                                onItem(item, nav.bgUrl, nav.ambUrl)
+                            }
                         },
                         onFocused = { focusItem(item) },
-                        onLongClick = { contextMenu.show(item, row.continueWatching) }
+                        onLongClick = {
+                            if (personal != null) {
+                                contextMenu.showPersonal(PersonalMenuRequest(item, personal, from = null))
+                            } else {
+                                contextMenu.show(item, row.continueWatching)
+                            }
+                        }
                     )
                 }
             }

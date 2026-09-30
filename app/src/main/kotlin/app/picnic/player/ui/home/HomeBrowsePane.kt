@@ -8,6 +8,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Dp
 import androidx.tv.material3.Text
 import app.picnic.player.data.media.HomeSlot
+import app.picnic.player.data.media.PersonalLibrary
 import app.picnic.player.ui.browse.BrowseLayoutMetrics
 import app.picnic.player.ui.browse.ImmersiveBrowseFocus
 import app.picnic.player.ui.browse.ImmersiveBrowseScaffold
@@ -24,7 +25,8 @@ internal fun HomeBrowsePane(
     focus: ImmersiveBrowseFocus,
     seedContentFocus: Boolean,
     onContentFocusSeeded: () -> Unit,
-    onItem: (BaseItemDto, String?, String?) -> Unit
+    onItem: (BaseItemDto, String?, String?) -> Unit,
+    onPersonalItem: (PersonalLibrary, BaseItemDto) -> Unit
 ) {
     when {
         !state.loading && state.rows.isEmpty() ->
@@ -44,6 +46,7 @@ internal fun HomeBrowsePane(
             onContentFocusSeeded = onContentFocusSeeded,
             onBrowseItemFocused = viewModel::onBrowseItemFocused,
             onItem = onItem,
+            onPersonalItem = onPersonalItem,
             horizontalInset = horizontalInset,
             metrics = metrics,
             skeletonRows = if (state.loading) skeletonRows(state.pendingSlots) else emptyList()

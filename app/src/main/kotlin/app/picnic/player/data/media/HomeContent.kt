@@ -6,6 +6,7 @@ import java.time.ZoneId
 import java.util.UUID
 import kotlinx.serialization.Serializable
 import org.jellyfin.sdk.model.api.BaseItemDto
+import org.jellyfin.sdk.model.api.CollectionType
 
 @Serializable
 @Immutable
@@ -13,15 +14,20 @@ data class HomeRow(
     val title: String,
     val items: List<BaseItemDto>,
     val continueWatching: Boolean,
-    val key: String
+    val key: String,
+    val personalLibrary: PersonalLibrary? = null
 )
 
 @Immutable
-data class HomeSlot(val title: String, val libraryId: UUID?) {
+data class HomeSlot(
+    val title: String,
+    val libraryId: UUID?,
+    val personalLibrary: PersonalLibrary? = null
+) {
     val continueWatching: Boolean get() = libraryId == null
     val key: String get() = libraryId?.let { "library-$it" } ?: "continue-watching"
 
-    fun row(items: List<BaseItemDto>): HomeRow? = items.takeIf { it.isNotEmpty() }?.let { HomeRow(title, it, continueWatching, key) }
+    fun row(items: List<BaseItemDto>): HomeRow? = items.takeIf { it.isNotEmpty() }?.let { HomeRow(title, it, continueWatching, key, personalLibrary) }
 }
 
 data class RevealedRows(val rows: List<HomeRow>, val pending: List<HomeSlot>)
@@ -90,7 +96,14 @@ object HomeContent {
     }
 
     fun homeSlots(views: List<BaseItemDto>): List<HomeSlot> = listOf(HomeSlot("Continue watching", libraryId = null)) +
-        views.map { view -> HomeSlot("Recently added in ${view.name.orEmpty()}", view.id) }
+        views.map { view ->
+            HomeSlot(
+                title = "Recently added in ${view.name.orEmpty()}",
+                libraryId = view.id,
+                personalLibrary = PersonalLibrary(view.id, view.name.orEmpty())
+                    .takeIf { view.collectionType == CollectionType.HOMEVIDEOS }
+            )
+        }
 
     fun visibleSlots(slots: List<HomeSlot>, pinnedLibraryIds: List<UUID>): List<HomeSlot> {
         val byId = slots.associateBy { it.libraryId }

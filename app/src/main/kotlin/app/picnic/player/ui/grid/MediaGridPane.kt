@@ -13,6 +13,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.gestures.BringIntoViewSpec
 import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
@@ -55,6 +56,7 @@ import androidx.compose.ui.unit.dp
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Text
 import app.picnic.player.ui.ambient.LocalAmbientPrewarmer
+import app.picnic.player.ui.browse.BrowseCardStyle
 import app.picnic.player.ui.browse.BrowseLayoutMetrics
 import app.picnic.player.ui.browse.DeclarePaneEntry
 import app.picnic.player.ui.browse.posterCardStyle
@@ -93,7 +95,8 @@ internal fun MediaGridPane(
     startInset: androidx.compose.ui.unit.Dp = GridStartInset,
     upExitFocus: FocusRequester? = null,
     emptyStateFocus: FocusRequester? = null,
-    onEmptyFilteredChange: (Boolean) -> Unit = {}
+    onEmptyFilteredChange: (Boolean) -> Unit = {},
+    cardStyle: BrowseCardStyle = posterCardStyle(sy = metrics.sy)
 ) {
     val retrySeed = rememberRetrySeed()
     when {
@@ -143,7 +146,8 @@ internal fun MediaGridPane(
             startInset = startInset,
             upExitFocus = upExitFocus,
             emptyStateFocus = emptyStateFocus,
-            onEmptyFilteredChange = onEmptyFilteredChange
+            onEmptyFilteredChange = onEmptyFilteredChange,
+            cardStyle = cardStyle
         )
     }
 }
@@ -180,7 +184,8 @@ private fun MediaGridBody(
     startInset: androidx.compose.ui.unit.Dp,
     upExitFocus: FocusRequester?,
     emptyStateFocus: FocusRequester?,
-    onEmptyFilteredChange: (Boolean) -> Unit
+    onEmptyFilteredChange: (Boolean) -> Unit,
+    cardStyle: BrowseCardStyle
 ) {
     val gridState = rememberLazyGridState(cacheWindow = GridCacheWindow)
     val firstFocus = remember { FocusRequester() }
@@ -267,7 +272,6 @@ private fun MediaGridBody(
             .collect { onVisibleIndex(it) }
     }
 
-    val cardStyle = remember(metrics) { posterCardStyle(sy = metrics.sy) }
     val cellHeight = remember(cardStyle) { gridCellHeight(cardStyle) }
 
     val activeLetter by remember(revision) {
@@ -391,7 +395,11 @@ private fun MediaGridBody(
                     text = text,
                     color = PicnicColors.OnDark,
                     style = androidx.tv.material3.MaterialTheme.typography.headlineMedium,
-                    modifier = Modifier.padding(start = startInset, top = 18.dp)
+                    maxLines = 1,
+                    softWrap = false,
+                    modifier = Modifier
+                        .padding(start = startInset, top = 18.dp, end = GridSideInset + GridEdgeControlWidth)
+                        .basicMarquee()
                 )
             }
         }

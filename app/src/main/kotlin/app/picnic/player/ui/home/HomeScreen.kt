@@ -2,6 +2,8 @@ package app.picnic.player.ui.home
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
+import app.picnic.player.data.media.FolderContext
+import app.picnic.player.data.media.PersonalLibrary
 import app.picnic.player.ui.browse.BrowseDest
 import app.picnic.player.ui.browse.BrowseShellHost
 import org.jellyfin.sdk.model.api.BaseItemDto
@@ -15,6 +17,7 @@ fun HomeScreen(
     onCollection: (BaseItemDto) -> Unit,
     onPlaylist: (BaseItemDto) -> Unit,
     onPerson: (BaseItemDto) -> Unit,
+    onPersonalItem: (PersonalLibrary, BaseItemDto, FolderContext?) -> Unit,
     onSessionExpired: (String) -> Unit,
     onServerUnreachable: (String, String) -> Unit,
     onSettings: () -> Unit,
@@ -28,6 +31,7 @@ fun HomeScreen(
     onCollection = onCollection,
     onPlaylist = onPlaylist,
     onPerson = onPerson,
+    onPersonalItem = onPersonalItem,
     onSessionExpired = onSessionExpired,
     onServerUnreachable = onServerUnreachable,
     onSettings = onSettings,

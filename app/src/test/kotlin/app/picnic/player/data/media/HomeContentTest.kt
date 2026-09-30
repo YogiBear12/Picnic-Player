@@ -5,6 +5,7 @@ import java.time.ZoneId
 import java.util.UUID
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
+import org.jellyfin.sdk.model.api.CollectionType
 import org.jellyfin.sdk.model.api.UserItemDataDto
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -357,5 +358,16 @@ class HomeContentTest {
         val revealed = HomeContent.reveal(slots, slots.associate { it.key to null })
         assertEquals(emptyList<HomeRow>(), revealed.rows)
         assertEquals(emptyList<HomeSlot>(), revealed.pending)
+    }
+
+    @Test
+    fun homeSlots_carryPersonalLibraryOnlyForHomeVideos() {
+        val movies = BaseItemDto(id = UUID.randomUUID(), name = "Movies", type = BaseItemKind.COLLECTION_FOLDER, collectionType = CollectionType.MOVIES)
+        val family = BaseItemDto(id = UUID.randomUUID(), name = "Family", type = BaseItemKind.COLLECTION_FOLDER, collectionType = CollectionType.HOMEVIDEOS)
+
+        val slots = HomeContent.homeSlots(listOf(movies, family))
+
+        assertEquals(listOf(null, null, PersonalLibrary(family.id, "Family")), slots.map { it.personalLibrary })
+        assertEquals(PersonalLibrary(family.id, "Family"), slots.last().row(listOf(family))?.personalLibrary)
     }
 }

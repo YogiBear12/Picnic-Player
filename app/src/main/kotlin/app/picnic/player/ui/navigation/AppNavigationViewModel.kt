@@ -3,10 +3,15 @@ package app.picnic.player.ui.navigation
 import androidx.lifecycle.ViewModel
 import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavKey
+import app.picnic.player.data.media.FolderContext
+import app.picnic.player.data.media.PersonalLibrary
+import app.picnic.player.data.media.isFolderContainer
+import app.picnic.player.ui.common.resumeTicks
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
+import org.jellyfin.sdk.model.api.ImageType
 
 @HiltViewModel
 class AppNavigationViewModel @Inject constructor() : ViewModel() {
@@ -53,9 +58,28 @@ class AppNavigationViewModel @Inject constructor() : ViewModel() {
             )
             item.type == BaseItemKind.BOX_SET -> push(CollectionKey(item.id.toString()))
             item.type == BaseItemKind.PLAYLIST -> push(PlaylistKey(item.id.toString(), item.name))
+            item.type == BaseItemKind.VIDEO -> playVideo(item)
             else -> push(DetailKey(item.id.toString(), bgUrl, ambUrl))
         }
     }
+
+    fun openPersonal(library: PersonalLibrary, item: BaseItemDto, from: FolderContext?) {
+        when {
+            item.isFolderContainer() -> push(FolderKey(library, item.id.toString(), item.name.orEmpty()))
+            item.type == BaseItemKind.PHOTO -> push(
+                PhotoKey(
+                    library = library,
+                    photoId = item.id.toString(),
+                    photoName = item.name.orEmpty(),
+                    imageTag = item.imageTags?.get(ImageType.PRIMARY),
+                    folder = from
+                )
+            )
+            item.type == BaseItemKind.VIDEO -> playVideo(item)
+        }
+    }
+
+    private fun playVideo(item: BaseItemDto) = push(PlayerKey(item.id.toString(), startTicks = item.resumeTicks()))
 
     fun replaceTop(key: NavKey) {
         if (backStack.isNotEmpty()) {

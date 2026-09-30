@@ -33,6 +33,7 @@ import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemDtoQueryResult
 import org.jellyfin.sdk.model.api.BaseItemKind
 import org.jellyfin.sdk.model.api.CultureDto
+import org.jellyfin.sdk.model.api.ImageType
 import org.jellyfin.sdk.model.api.ItemFields
 import org.jellyfin.sdk.model.api.ItemSortBy
 import org.jellyfin.sdk.model.api.MediaStream
@@ -325,6 +326,26 @@ class MediaRepository @Inject constructor(
         )
     }
 
+    // Unbounded on purpose: IDs, names and Primary tags only. Page it if a folder ever holds tens of thousands of photos.
+    suspend fun folderPhotos(parentId: UUID, sort: GridSortSpec): List<BaseItemDto> = onIo {
+        val (sortBy, sortOrder) = sort.itemOrder()
+        api().itemsApi.getItems(
+            userId = session().userUuid,
+            parentId = parentId,
+            recursive = false,
+            includeItemTypes = listOf(BaseItemKind.PHOTO),
+            sortBy = sortBy,
+            sortOrder = sortOrder,
+            enableImageTypes = listOf(ImageType.PRIMARY),
+            imageTypeLimit = 1,
+            enableTotalRecordCount = false
+        ).content.items.orEmpty()
+    }
+
+    suspend fun folderAncestors(itemId: UUID): List<BaseItemDto> = onIo {
+        api().libraryApi.getAncestors(itemId = itemId, userId = session().userUuid).content
+    }
+
     suspend fun getPerson(personId: UUID): BaseItemDto = onIo {
         api().userLibraryApi.getItem(itemId = personId).content
     }
@@ -511,18 +532,12 @@ class MediaRepository @Inject constructor(
         limit: Int = MEDIA_GRID_PAGE_SIZE,
         nameLessThan: String? = null
     ): MediaGridPage = onIo {
-        val direction = if (sort.ascending) SortOrder.ASCENDING else SortOrder.DESCENDING
-        val (sortBy, sortOrder) = when (sort.field) {
-            GridSortField.NAME -> listOf(ItemSortBy.SORT_NAME) to listOf(direction)
-            GridSortField.RANDOM -> listOf(ItemSortBy.RANDOM) to listOf(direction)
-            else -> listOf(sort.field.sortBy, ItemSortBy.SORT_NAME) to
-                listOf(direction, SortOrder.ASCENDING)
-        }
+        val (sortBy, sortOrder) = sort.itemOrder()
         val response = api().itemsApi.getItems(
             userId = session().userUuid,
             includeItemTypes = filter.contentType.itemKinds(kinds),
-            recursive = true,
-            parentId = filter.libraryId,
+            recursive = filter.folderId == null,
+            parentId = filter.folderId ?: filter.libraryId,
             startIndex = startIndex,
             limit = limit,
             nameLessThan = nameLessThan,
@@ -561,7 +576,7 @@ class MediaRepository @Inject constructor(
         if (BuildConfig.DEBUG) {
             Log.d(
                 LIBRARY_LOG_TAG,
-                "grid parent=${filter.libraryId} " +
+                "grid parent=${filter.folderId ?: filter.libraryId} " +
                     "kinds=${filter.contentType.itemKinds(kinds)} " +
                     "sort=${sortBy.firstOrNull()} start=$startIndex limit=$limit " +
                     "got=${response.items.orEmpty().size} total=${response.totalRecordCount}"
@@ -580,6 +595,7 @@ class MediaRepository @Inject constructor(
     ): Int {
         if (filter.libraryId == null &&
             filter.genreId == null &&
+            filter.folderId == null &&
             kinds != listOf(BaseItemKind.BOX_SET)
         ) {
             return 0
@@ -592,6 +608,16 @@ class MediaRepository @Inject constructor(
             limit = 0,
             nameLessThan = letter.toString()
         ).totalCount
+    }
+
+    private fun GridSortSpec.itemOrder(): Pair<List<ItemSortBy>, List<SortOrder>> {
+        val direction = if (ascending) SortOrder.ASCENDING else SortOrder.DESCENDING
+        return when (field) {
+            GridSortField.NAME -> listOf(ItemSortBy.SORT_NAME) to listOf(direction)
+            GridSortField.RANDOM -> listOf(ItemSortBy.RANDOM) to listOf(direction)
+            else -> listOf(field.sortBy, ItemSortBy.SORT_NAME) to
+                listOf(direction, SortOrder.ASCENDING)
+        }
     }
 
     private fun GridContentType.itemKinds(defaultKinds: List<BaseItemKind>): List<BaseItemKind> = when (this) {
@@ -651,13 +677,15 @@ class MediaRepository @Inject constructor(
 
     suspend fun search(
         query: String,
-        kind: BaseItemKind,
+        kinds: List<BaseItemKind>,
+        parentId: UUID? = null,
         limit: Int = SEARCH_ROW_LIMIT
     ): List<BaseItemDto> = onIo {
         api().itemsApi.getItems(
             userId = session().userUuid,
+            parentId = parentId,
             searchTerm = query,
-            includeItemTypes = listOf(kind),
+            includeItemTypes = kinds,
             recursive = true,
             limit = limit,
             fields = GRID_FIELDS,

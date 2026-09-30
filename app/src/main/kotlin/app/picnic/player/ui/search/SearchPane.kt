@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import app.picnic.player.data.media.PersonalLibrary
 import app.picnic.player.ui.ambient.LocalAmbientPrewarmer
 import app.picnic.player.ui.browse.BrowseLayoutMetrics
 import app.picnic.player.ui.browse.DeclarePaneEntry
@@ -48,6 +49,7 @@ import app.picnic.player.ui.browse.posterCardStyle
 import app.picnic.player.ui.common.CircularPersonCard
 import app.picnic.player.ui.common.LocalContextMenuHandler
 import app.picnic.player.ui.common.LocalImageUrls
+import app.picnic.player.ui.common.PersonalMenuRequest
 import app.picnic.player.ui.common.SkeletonCardRow
 import app.picnic.player.ui.common.rememberRowFocusRequesters
 import app.picnic.player.ui.common.requestFocusWhenAttached
@@ -68,6 +70,7 @@ internal fun SearchPane(
     seedContentFocus: Boolean,
     onContentFocusSeeded: () -> Unit,
     onItem: (BaseItemDto, String?, String?) -> Unit,
+    onPersonalItem: (PersonalLibrary, BaseItemDto) -> Unit,
     onSeerrItem: (app.picnic.player.data.seerr.SeerrCatalogItem, String?, String?) -> Unit,
     onGenre: (BaseItemDto) -> Unit,
     onCollection: (BaseItemDto) -> Unit,
@@ -165,6 +168,7 @@ internal fun SearchPane(
                 onResultFocused = viewModel::onResultFocused,
                 onDiscoverFocused = viewModel::onDiscoverFocused,
                 onItem = onItem,
+                onPersonalItem = onPersonalItem,
                 onSeerrItem = onSeerrItem,
                 onCollection = onCollection,
                 onPerson = onPerson
@@ -186,6 +190,7 @@ private fun ResultRowsSection(
     onResultFocused: (Int, BaseItemDto) -> Unit,
     onDiscoverFocused: (Int, app.picnic.player.data.seerr.SeerrCatalogItem) -> Unit,
     onItem: (BaseItemDto, String?, String?) -> Unit,
+    onPersonalItem: (PersonalLibrary, BaseItemDto) -> Unit,
     onSeerrItem: (app.picnic.player.data.seerr.SeerrCatalogItem, String?, String?) -> Unit,
     onCollection: (BaseItemDto) -> Unit,
     onPerson: (BaseItemDto) -> Unit
@@ -204,8 +209,9 @@ private fun ResultRowsSection(
         verticalArrangement = Arrangement.spacedBy(metrics.rowSpacing),
         modifier = Modifier.fillMaxSize()
     ) {
-        itemsIndexed(state.results, key = { _, row -> row.kind.name }) { rowIndex, row ->
-            val cardStyle = cardStyleFor(row.kind)
+        itemsIndexed(state.results, key = { _, row -> row.key }) { rowIndex, row ->
+            val personal = row.personalLibrary
+            val cardStyle = if (personal != null) landscapeStyle else cardStyleFor(row.kind)
             val focusIndex = state.rowFocusedItemIds[rowIndex]
                 ?.let { id -> row.items.indexOfFirst { it.id == id }.takeIf { it >= 0 } }
                 ?: 0
@@ -246,8 +252,9 @@ private fun ResultRowsSection(
                                 style = cardStyle,
                                 focusRequester = requester,
                                 onClick = {
-                                    when (row.kind) {
-                                        BaseItemKind.BOX_SET -> onCollection(item)
+                                    when {
+                                        personal != null -> onPersonalItem(personal, item)
+                                        row.kind == BaseItemKind.BOX_SET -> onCollection(item)
                                         else -> {
                                             val nav = images.navImages(item)
                                             ambientPrewarmer.warm(nav.ambUrl)
@@ -255,7 +262,13 @@ private fun ResultRowsSection(
                                         }
                                     }
                                 },
-                                onLongClick = { contextMenu.show(item) },
+                                onLongClick = {
+                                    if (personal != null) {
+                                        contextMenu.showPersonal(PersonalMenuRequest(item, personal, from = null))
+                                    } else {
+                                        contextMenu.show(item)
+                                    }
+                                },
                                 onFocused = { onResultFocused(rowIndex, item) }
                             )
                         }

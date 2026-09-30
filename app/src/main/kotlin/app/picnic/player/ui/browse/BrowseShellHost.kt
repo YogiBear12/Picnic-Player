@@ -28,6 +28,8 @@ import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.Text
+import app.picnic.player.data.media.FolderContext
+import app.picnic.player.data.media.PersonalLibrary
 import app.picnic.player.data.seerr.SeerrCatalogItem
 import app.picnic.player.data.seerr.SeerrImages
 import app.picnic.player.ui.ambient.BackdropSpec
@@ -40,6 +42,7 @@ import app.picnic.player.ui.discover.DiscoverPane
 import app.picnic.player.ui.discover.DiscoverViewModel
 import app.picnic.player.ui.home.HomeBrowsePane
 import app.picnic.player.ui.home.HomeViewModel
+import app.picnic.player.ui.library.FolderGridPane
 import app.picnic.player.ui.library.ForYouViewModel
 import app.picnic.player.ui.library.LibraryPane
 import app.picnic.player.ui.library.LibraryPaneViewModel
@@ -61,6 +64,7 @@ fun BrowseShellHost(
     onCollection: (BaseItemDto) -> Unit,
     onPlaylist: (BaseItemDto) -> Unit,
     onPerson: (BaseItemDto) -> Unit,
+    onPersonalItem: (PersonalLibrary, BaseItemDto, FolderContext?) -> Unit,
     onSessionExpired: (String) -> Unit,
     onServerUnreachable: (String, String) -> Unit,
     onSettings: () -> Unit,
@@ -183,7 +187,7 @@ fun BrowseShellHost(
             val discoverFocused = discoverViewModel.focusedItem(discoverState)
             val seerr = discoverState.seerr
             val selectedLibrary = selected as? BrowseDest.Library
-            val forYouFocused: BaseItemDto? = if (selectedLibrary != null) {
+            val forYouFocused: BaseItemDto? = if (selectedLibrary != null && selectedLibrary.personalLibrary == null) {
                 val paneViewModel: LibraryPaneViewModel =
                     hiltViewModel(key = libraryPaneVmKey(selectedLibrary.key))
                 val forYouViewModel: ForYouViewModel =
@@ -283,6 +287,7 @@ fun BrowseShellHost(
                                     seedContentFocus = seedPaneFocus,
                                     onContentFocusSeeded = onPaneSeeded,
                                     onItem = onItem,
+                                    onPersonalItem = { library, item -> onPersonalItem(library, item, null) },
                                     onSeerrItem = onSeerrItem,
                                     onGenre = onGenre,
                                     onCollection = onCollection,
@@ -296,7 +301,8 @@ fun BrowseShellHost(
                                     focus = homeFocus,
                                     seedContentFocus = seedPaneFocus,
                                     onContentFocusSeeded = onPaneSeeded,
-                                    onItem = onItem
+                                    onItem = onItem,
+                                    onPersonalItem = { library, item -> onPersonalItem(library, item, null) }
                                 )
                                 BrowseDest.Discover -> DiscoverPane(
                                     state = discoverState,
@@ -315,17 +321,33 @@ fun BrowseShellHost(
                                     onContentFocusSeeded = onPaneSeeded,
                                     onPlaylist = onPlaylist
                                 )
-                                is BrowseDest.Library -> LibraryPane(
-                                    dest = dest,
-                                    metrics = metrics,
-                                    horizontalInset = paneInset,
-                                    seedContentFocus = seedPaneFocus,
-                                    onContentFocusSeeded = onPaneSeeded,
-                                    onItem = onItem,
-                                    onGenre = { genre -> onLibraryGenre(genre, dest) },
-                                    onCollection = onCollection,
-                                    onSessionExpired = onSessionExpired
-                                )
+                                is BrowseDest.Library -> {
+                                    val personal = dest.personalLibrary
+                                    if (personal != null) {
+                                        FolderGridPane(
+                                            library = personal,
+                                            folderId = personal.id,
+                                            title = "",
+                                            metrics = metrics,
+                                            seedContentFocus = seedPaneFocus,
+                                            onContentFocusSeeded = onPaneSeeded,
+                                            onOpen = { item, from -> onPersonalItem(personal, item, from) },
+                                            onSessionExpired = onSessionExpired
+                                        )
+                                    } else {
+                                        LibraryPane(
+                                            dest = dest,
+                                            metrics = metrics,
+                                            horizontalInset = paneInset,
+                                            seedContentFocus = seedPaneFocus,
+                                            onContentFocusSeeded = onPaneSeeded,
+                                            onItem = onItem,
+                                            onGenre = { genre -> onLibraryGenre(genre, dest) },
+                                            onCollection = onCollection,
+                                            onSessionExpired = onSessionExpired
+                                        )
+                                    }
+                                }
                             }
                         }
                     }

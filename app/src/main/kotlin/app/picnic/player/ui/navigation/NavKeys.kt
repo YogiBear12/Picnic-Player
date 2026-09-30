@@ -1,7 +1,9 @@
 package app.picnic.player.ui.navigation
 
 import androidx.navigation3.runtime.NavKey
+import app.picnic.player.data.media.FolderContext
 import app.picnic.player.data.media.ItemQueue
+import app.picnic.player.data.media.PersonalLibrary
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -89,4 +91,21 @@ data class FilmographyKey(
     val tmdbId: Int,
     val personName: String,
     val knownForDepartment: String? = null
+) : NavKey
+
+@Serializable
+data class FolderKey(
+    val library: PersonalLibrary,
+    val folderId: String,
+    val folderName: String,
+    val instanceId: String = java.util.UUID.randomUUID().toString()
+) : NavKey
+
+@Serializable
+data class PhotoKey(
+    val library: PersonalLibrary,
+    val photoId: String,
+    val photoName: String,
+    val imageTag: String?,
+    val folder: FolderContext? = null
 ) : NavKey

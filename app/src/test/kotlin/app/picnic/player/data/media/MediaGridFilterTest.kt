@@ -34,4 +34,13 @@ class MediaGridFilterTest {
         assertTrue(cleared.contentType == GridContentType.ALL)
         assertFalse(cleared.isActive)
     }
+
+    @Test
+    fun clearUserFilters_preservesFolderScope() {
+        val folderId = UUID.randomUUID()
+        val cleared = MediaGridFilter(folderId = folderId, favoritesOnly = true).clearUserFilters()
+
+        assertTrue(cleared.folderId == folderId)
+        assertFalse(cleared.isActive)
+    }
 }

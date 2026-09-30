@@ -41,16 +41,20 @@ import app.picnic.player.ui.common.ImageUrlsViewModel
 import app.picnic.player.ui.common.LocalContextMenuHandler
 import app.picnic.player.ui.common.LocalImageUrls
 import app.picnic.player.ui.common.LocalSeerrCardMenu
+import app.picnic.player.ui.common.PersonalMediaContextMenu
+import app.picnic.player.ui.common.PersonalMenuRequest
 import app.picnic.player.ui.detail.DetailScreen
 import app.picnic.player.ui.detail.SeriesEpisodesScreen
 import app.picnic.player.ui.genre.GenreScreen
 import app.picnic.player.ui.home.HomeScreen
+import app.picnic.player.ui.library.FolderScreen
 import app.picnic.player.ui.onboarding.LoginScreen
 import app.picnic.player.ui.onboarding.ProfilePickerScreen
 import app.picnic.player.ui.onboarding.ServerEntryScreen
 import app.picnic.player.ui.onboarding.ServerPickerScreen
 import app.picnic.player.ui.person.FilmographyScreen
 import app.picnic.player.ui.person.PersonScreen
+import app.picnic.player.ui.photo.PhotoScreen
 import app.picnic.player.ui.player.PlayerScreen
 import app.picnic.player.ui.playlist.PlaylistScreen
 import app.picnic.player.ui.seerr.IssueReportViewModel
@@ -111,13 +115,22 @@ fun PicnicNavHost(
     var contextMenuItem by remember { mutableStateOf<BaseItemDto?>(null) }
     var contextMenuFromContinueWatching by remember { mutableStateOf(false) }
     var seerrMenuItem by remember { mutableStateOf<SeerrCatalogItem?>(null) }
+    var personalMenu by remember { mutableStateOf<PersonalMenuRequest?>(null) }
     val contextMenuViewModel: GlobalContextMenuViewModel = hiltViewModel()
 
     val contextMenuHandler = remember {
         object : ContextMenuHandler {
             override fun show(item: BaseItemDto, fromContinueWatching: Boolean) {
-                contextMenuItem = item
-                contextMenuFromContinueWatching = fromContinueWatching
+                if (item.type == BaseItemKind.VIDEO) {
+                    personalMenu = PersonalMenuRequest(item, library = null, from = null, fromContinueWatching = fromContinueWatching)
+                } else {
+                    contextMenuItem = item
+                    contextMenuFromContinueWatching = fromContinueWatching
+                }
+            }
+
+            override fun showPersonal(request: PersonalMenuRequest) {
+                personalMenu = request
             }
         }
     }
@@ -259,11 +272,27 @@ fun PicnicNavHost(
                             onPerson = { person ->
                                 navViewModel.push(PersonKey(jellyfinPersonId = person.id.toString()))
                             },
+                            onPersonalItem = navViewModel::openPersonal,
                             onSessionExpired = { serverId -> goProfilePicker(serverId) },
                             onServerUnreachable = { serverId, msg -> goServerPicker(serverId, msg) },
                             onSettings = { navViewModel.push(SettingsKey) },
                             onSwapUser = onSwapUser,
                             navDim = navDim
+                        )
+                    }
+                    entry<FolderKey> { key ->
+                        FolderScreen(
+                            key = key,
+                            onOpen = { item, from -> navViewModel.openPersonal(key.library, item, from) },
+                            onBack = { navViewModel.pop() },
+                            onSessionExpired = { serverId -> goProfilePicker(serverId) }
+                        )
+                    }
+                    entry<PhotoKey> { key ->
+                        PhotoScreen(
+                            photoKey = key,
+                            onBack = { navViewModel.pop() },
+                            onSessionExpired = { serverId -> goProfilePicker(serverId) }
                         )
                     }
                     entry<GenreKey> { key ->
@@ -428,6 +457,18 @@ fun PicnicNavHost(
                 )
             }
 
+            personalMenu?.let { request ->
+                PersonalMediaContextMenu(
+                    item = request.item,
+                    onDismiss = { personalMenu = null },
+                    onOpen = { request.library?.let { navViewModel.openPersonal(it, request.item, request.from) } },
+                    onPlay = { ticks -> navViewModel.push(PlayerKey(request.item.id.toString(), ticks)) },
+                    onMarkWatched = { played -> contextMenuViewModel.setWatched(request.item, played) },
+                    onToggleFavorite = { favorite -> contextMenuViewModel.setFavorite(request.item, favorite) },
+                    extraActions = continueWatchingActions(request.item, request.fromContinueWatching, contextMenuViewModel::hideFromContinueWatching)
+                )
+            }
+
             contextMenuItem?.let { item ->
                 GlobalContextMenuDialog(
                     item = item,
@@ -447,17 +488,19 @@ fun PicnicNavHost(
                     } else {
                         null
                     },
-                    extraActions = if (contextMenuFromContinueWatching) {
-                        listOf(
-                            ContextMenuAction("Remove from Continue watching", Icons.Default.Close) {
-                                contextMenuViewModel.hideFromContinueWatching(item)
-                            }
-                        )
-                    } else {
-                        emptyList()
-                    }
+                    extraActions = continueWatchingActions(item, contextMenuFromContinueWatching, contextMenuViewModel::hideFromContinueWatching)
                 )
             }
         }
     }
+}
+
+private fun continueWatchingActions(
+    item: BaseItemDto,
+    fromContinueWatching: Boolean,
+    hide: (BaseItemDto) -> Unit
+): List<ContextMenuAction> = if (fromContinueWatching) {
+    listOf(ContextMenuAction("Remove from Continue watching", Icons.Default.Close) { hide(item) })
+} else {
+    emptyList()
 }

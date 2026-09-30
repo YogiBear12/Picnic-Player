@@ -8,6 +8,18 @@ import org.jellyfin.sdk.model.api.BaseItemKind
 import org.jellyfin.sdk.model.api.ImageType
 
 object JellyfinImages {
+    fun containedPrimary(
+        session: UserSession,
+        itemId: String,
+        tag: String?,
+        maxWidth: Int,
+        maxHeight: Int
+    ): String? {
+        if (tag == null || maxWidth <= 0 || maxHeight <= 0) return null
+        val base = session.server.baseUrl.trimEnd('/')
+        return "$base/Items/$itemId/Images/${ImageType.PRIMARY.serialName}?maxWidth=$maxWidth&maxHeight=$maxHeight&quality=90&tag=$tag"
+    }
+
     fun primary(session: UserSession, item: BaseItemDto, fillWidth: Int = 480): String? {
         val tag = item.imageTags?.get(ImageType.PRIMARY)
         return if (tag != null) {

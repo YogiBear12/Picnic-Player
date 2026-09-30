@@ -4,8 +4,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.picnic.player.data.auth.AuthRepository
 import app.picnic.player.data.auth.UserSession
+import app.picnic.player.data.media.FOLDER_CHILD_KINDS
 import app.picnic.player.data.media.LibraryChangeBus
 import app.picnic.player.data.media.MediaRepository
+import app.picnic.player.data.media.PersonalLibrary
 import app.picnic.player.data.media.batches
 import app.picnic.player.data.seerr.SeerrCatalogItem
 import app.picnic.player.data.seerr.SeerrLinkState
@@ -14,6 +16,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import java.util.UUID
 import javax.inject.Inject
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,6 +27,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
+import org.jellyfin.sdk.model.api.CollectionType
 
 @HiltViewModel
 class SearchViewModel @Inject constructor(
@@ -36,7 +40,14 @@ class SearchViewModel @Inject constructor(
 
     data class ResultKind(val itemKind: BaseItemKind, val title: String)
 
-    data class ResultRow(val kind: BaseItemKind, val title: String, val items: List<BaseItemDto>)
+    data class ResultRow(
+        val kind: BaseItemKind,
+        val title: String,
+        val items: List<BaseItemDto>,
+        val personalLibrary: PersonalLibrary? = null
+    ) {
+        val key: String get() = personalLibrary?.id?.toString() ?: kind.name
+    }
 
     data class DiscoverResultRow(val title: String, val items: List<SeerrCatalogItem>)
 
@@ -110,7 +121,16 @@ class SearchViewModel @Inject constructor(
                 }
                 val (rows, discover) = coroutineScope {
                     val searches = ResultKinds.associate { (kind) ->
-                        kind to async { if (kind == BaseItemKind.PERSON) searchPeople(query) else search(query, kind) }
+                        kind to async { if (kind == BaseItemKind.PERSON) searchPeople(query) else search(query, listOf(kind)) }
+                    }
+                    val personal = async {
+                        runCatching { mediaRepository.userViews() }.getOrDefault(emptyList())
+                            .filter { it.collectionType == CollectionType.HOMEVIDEOS }
+                            .map { view ->
+                                val library = PersonalLibrary(view.id, view.name.orEmpty())
+                                async { ResultRow(BaseItemKind.FOLDER, library.name, search(query, FOLDER_CHILD_KINDS, library.id), library) }
+                            }
+                            .awaitAll()
                     }
                     val seerr = async {
                         if (_state.value.seerrLinked) {
@@ -121,6 +141,7 @@ class SearchViewModel @Inject constructor(
                     }
                     val libraryRows = ResultKinds
                         .map { (kind, title) -> ResultRow(kind, title, searches.getValue(kind).await()) }
+                        .plus(personal.await())
                         .filter { it.items.isNotEmpty() }
                     val seerrItems = seerr.await()
                     val discoverRows = if (seerrItems.isEmpty()) {
@@ -157,7 +178,7 @@ class SearchViewModel @Inject constructor(
         }
     }
 
-    private suspend fun search(query: String, kind: BaseItemKind): List<BaseItemDto> = runCatching { mediaRepository.search(query, kind) }
+    private suspend fun search(query: String, kinds: List<BaseItemKind>, parentId: UUID? = null): List<BaseItemDto> = runCatching { mediaRepository.search(query, kinds, parentId) }
         .getOrDefault(emptyList())
         .sortedWith(compareBy({ relevance(it, query) }, { it.sortName ?: it.name ?: "" }))
 

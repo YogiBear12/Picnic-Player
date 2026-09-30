@@ -89,10 +89,11 @@ class HomeContentLoader @Inject constructor(
             val kinds = when (view.collectionType) {
                 CollectionType.MOVIES -> listOf(BaseItemKind.MOVIE)
                 CollectionType.TVSHOWS -> listOf(BaseItemKind.SERIES)
+                CollectionType.HOMEVIDEOS -> FOLDER_CHILD_KINDS
                 null, CollectionType.UNKNOWN -> listOf(BaseItemKind.MOVIE, BaseItemKind.SERIES)
                 else -> return@mapNotNull null
             }
-            BrowseDest.Library(view.id, view.name.orEmpty(), kinds)
+            BrowseDest.Library(view.id, view.name.orEmpty(), kinds, view.collectionType)
         }
         navRail.publish(session, libraries, playlistsAvailable)
         val slots = HomeContent.homeSlots(views)

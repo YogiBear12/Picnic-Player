@@ -6,6 +6,8 @@ import org.jellyfin.sdk.model.api.BaseItemDto
 
 interface ContextMenuHandler {
     fun show(item: BaseItemDto, fromContinueWatching: Boolean = false)
+
+    fun showPersonal(request: PersonalMenuRequest)
 }
 
 val LocalContextMenuHandler = staticCompositionLocalOf<ContextMenuHandler> {

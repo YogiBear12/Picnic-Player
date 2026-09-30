@@ -30,9 +30,15 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.tv.material3.MaterialTheme
+import androidx.tv.material3.Text
 import app.picnic.player.data.media.HomeRow
+import app.picnic.player.data.media.PersonalLibrary
 import app.picnic.player.ui.ambient.AmbientPaletteLoader
 import app.picnic.player.ui.ambient.LocalAmbientPaletteLoader
 import app.picnic.player.ui.common.LoadingFocusTarget
@@ -58,6 +64,7 @@ internal fun ImmersiveBrowseScaffold(
     onContentFocusSeeded: () -> Unit,
     onBrowseItemFocused: (rowIndex: Int, item: BaseItemDto) -> Unit,
     onItem: (BaseItemDto, String?, String?) -> Unit,
+    onPersonalItem: (PersonalLibrary, BaseItemDto) -> Unit = { _, _ -> },
     horizontalInset: Dp,
     metrics: BrowseLayoutMetrics,
     skeletonRows: List<SkeletonRow> = emptyList()
@@ -147,6 +154,12 @@ internal fun ImmersiveBrowseScaffold(
                         width = metrics.heroContentWidth,
                         modifier = heroModifier
                     )
+                } else if (rows.getOrNull(restoreRow)?.personalLibrary != null) {
+                    PersonalHomeHero(
+                        name = focusedItem?.name.orEmpty(),
+                        logoHeight = metrics.logoHeight,
+                        modifier = heroModifier
+                    )
                 } else {
                     BrowseHero(
                         item = focusedItem,
@@ -176,7 +189,7 @@ internal fun ImmersiveBrowseScaffold(
                         BrowseRowSection(
                             row = row,
                             hInset = horizontalInset,
-                            style = browseCardStyle(row.continueWatching, metrics.sy),
+                            style = browseCardStyle(row.continueWatching || row.personalLibrary != null, metrics.sy),
                             spacing = metrics.cardSpacing,
                             rowListState = focus.rowListStates[rowIndex],
                             rowFocus = focus.rowFocusRequesters[rowIndex],
@@ -185,6 +198,7 @@ internal fun ImmersiveBrowseScaffold(
                             rowBringIntoView = focus.defaultRowBringIntoView,
                             rowIndex = rowIndex,
                             onItem = onItem,
+                            onPersonalItem = onPersonalItem,
                             onFocusItem = { _, item -> onBrowseItemFocused(rowIndex, item) }
                         )
                     }
@@ -199,6 +213,25 @@ internal fun ImmersiveBrowseScaffold(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun PersonalHomeHero(name: String, logoHeight: Dp, modifier: Modifier) {
+    Column(modifier.height(heroBlockHeight(logoHeight))) {
+        Box(
+            Modifier.height(logoHeight).fillMaxWidth(),
+            contentAlignment = Alignment.BottomStart
+        ) {
+            Text(
+                text = name,
+                color = Color.White,
+                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.headlineLarge,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
         }
     }
 }

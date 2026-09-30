@@ -1,12 +1,14 @@
 package app.picnic.player.data.media
 
 import java.util.UUID
+import kotlinx.serialization.Serializable
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.ItemSortBy
 
 data class MediaGridFilter(
     val libraryId: UUID? = null,
     val genreId: UUID? = null,
+    val folderId: UUID? = null,
     val contentType: GridContentType = GridContentType.ALL,
     val watched: WatchedFilter = WatchedFilter.ALL,
     val favoritesOnly: Boolean = false,
@@ -35,7 +37,8 @@ data class MediaGridFilter(
 
     fun clearUserFilters(): MediaGridFilter = MediaGridFilter(
         libraryId = libraryId,
-        genreId = genreId
+        genreId = genreId,
+        folderId = folderId
     )
 }
 
@@ -59,6 +62,7 @@ enum class ResolutionFilter(val label: String) {
     SD("SD")
 }
 
+@Serializable
 data class GridSortSpec(
     val field: GridSortField = GridSortField.NAME,
     val ascending: Boolean = true
