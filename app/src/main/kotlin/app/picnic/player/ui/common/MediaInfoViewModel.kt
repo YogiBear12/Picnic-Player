@@ -11,6 +11,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import org.jellyfin.sdk.model.api.BaseItemDto
+import org.jellyfin.sdk.model.api.BaseItemKind
 import org.jellyfin.sdk.model.api.ChapterInfo
 import org.jellyfin.sdk.model.api.MediaSourceInfo
 
@@ -25,6 +27,7 @@ class MediaInfoViewModel @Inject constructor(
             val sources: List<MediaSourceInfo>,
             val chapters: List<ChapterInfo>
         ) : State
+        data class Photo(val item: BaseItemDto) : State
         data object Error : State
     }
 
@@ -46,10 +49,10 @@ class MediaInfoViewModel @Inject constructor(
             runCatching { mediaRepository.item(itemId) }
                 .onSuccess { item ->
                     val sources = item.mediaSources.orEmpty()
-                    _state.value = if (sources.isEmpty()) {
-                        State.Error
-                    } else {
-                        State.Loaded(sources, item.chapters.orEmpty())
+                    _state.value = when {
+                        sources.isNotEmpty() -> State.Loaded(sources, item.chapters.orEmpty())
+                        item.type == BaseItemKind.PHOTO -> State.Photo(item)
+                        else -> State.Error
                     }
                 }
                 .onFailure { _state.value = State.Error }

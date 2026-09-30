@@ -95,6 +95,12 @@ fun MediaInfoPanel(
 
                 is MediaInfoViewModel.State.Loaded ->
                     MediaInfoContent(sources = s.sources, chapters = s.chapters)
+
+                is MediaInfoViewModel.State.Photo -> {
+                    val firstFocus = remember { FocusRequester() }
+                    SectionList(remember(s.item) { photoSections(s.item) }, firstFocus, focusFirstRow = true)
+                    LaunchedEffect(Unit) { firstFocus.requestFocusWhenAttached(maxFrames = 30) }
+                }
             }
         }
     }
@@ -107,7 +113,6 @@ private fun MediaInfoContent(sources: List<MediaSourceInfo>, chapters: List<Chap
     val sections = remember(source, chapters) { buildSections(source, chapters) }
     val hasPicker = sources.size > 1
     val firstFocus = remember { FocusRequester() }
-    val listState = rememberLazyListState()
 
     Column(modifier = Modifier.fillMaxWidth()) {
         if (hasPicker) {
@@ -120,29 +125,35 @@ private fun MediaInfoContent(sources: List<MediaSourceInfo>, chapters: List<Chap
             Spacer(Modifier.height(16.dp))
         }
 
-        LazyColumn(
-            state = listState,
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier
-                .fillMaxWidth()
-                .verticalFadingEdges(
-                    topFade = listState.canScrollBackward,
-                    bottomFade = listState.canScrollForward,
-                    length = PanelFadeLength
-                )
-        ) {
-            itemsIndexed(sections) { index, section ->
-                SectionCard(
-                    section = section,
-                    rowFocus = if (index == 0 && !hasPicker) firstFocus else null,
-                    blockUp = index == 0 && !hasPicker,
-                    blockDown = index == sections.lastIndex
-                )
-            }
-        }
+        SectionList(sections, firstFocus, focusFirstRow = !hasPicker)
     }
 
     LaunchedEffect(source) { firstFocus.requestFocusWhenAttached(maxFrames = 30) }
+}
+
+@Composable
+private fun SectionList(sections: List<InfoSection>, firstFocus: FocusRequester, focusFirstRow: Boolean) {
+    val listState = rememberLazyListState()
+    LazyColumn(
+        state = listState,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .verticalFadingEdges(
+                topFade = listState.canScrollBackward,
+                bottomFade = listState.canScrollForward,
+                length = PanelFadeLength
+            )
+    ) {
+        itemsIndexed(sections) { index, section ->
+            SectionCard(
+                section = section,
+                rowFocus = if (index == 0 && focusFirstRow) firstFocus else null,
+                blockUp = index == 0 && focusFirstRow,
+                blockDown = index == sections.lastIndex
+            )
+        }
+    }
 }
 
 @Composable
@@ -326,6 +337,47 @@ private fun buildSections(source: MediaSourceInfo, chapters: List<ChapterInfo>):
     }
 
     return sections
+}
+
+private fun photoSections(item: BaseItemDto): List<InfoSection> = listOf(
+    InfoSection(
+        "File information",
+        null,
+        buildRows {
+            row("Path", item.path)
+            if (item.width != null && item.height != null) row("Resolution", "${item.width} × ${item.height}")
+            row("Date taken", item.premiereDate?.toLocalDate()?.toString())
+        }
+    ),
+    InfoSection(
+        "Camera",
+        null,
+        buildRows {
+            row("Make", item.cameraMake)
+            row("Model", item.cameraModel)
+            row("Software", item.software)
+            row("Aperture", item.aperture?.let { String.format(Locale.US, "f/%.1f", it) })
+            row("Exposure", item.exposureTime?.let(::formatExposure))
+            row("Focal length", item.focalLength?.let { String.format(Locale.US, "%.0f mm", it) })
+            row("ISO", item.isoSpeedRating?.toString())
+        }
+    ),
+    InfoSection(
+        "Location",
+        null,
+        buildRows {
+            val lat = item.latitude
+            val lon = item.longitude
+            if (lat != null && lon != null) row("Coordinates", String.format(Locale.US, "%.5f, %.5f", lat, lon))
+            row("Altitude", item.altitude?.let { String.format(Locale.US, "%.0f m", it) })
+        }
+    )
+).filter { it.rows.isNotEmpty() }
+
+private fun formatExposure(seconds: Double): String = if (seconds < 1.0) {
+    "1/${Math.round(1.0 / seconds)} s"
+} else {
+    String.format(Locale.US, "%.1f s", seconds)
 }
 
 private fun fileRows(source: MediaSourceInfo): List<Pair<String, String>> = buildRows {
