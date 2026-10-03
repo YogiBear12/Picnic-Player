@@ -43,6 +43,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.picnic.player.data.media.ItemQueue
+import app.picnic.player.data.playback.enteredAtStart
 import app.picnic.player.playback.videoDisplayHints
 import app.picnic.player.ui.ambient.PublishBackdrop
 import app.picnic.player.ui.common.SilentNavigationSounds
@@ -55,8 +56,6 @@ import app.picnic.player.ui.player.osd.SkipSegmentButton
 import app.picnic.player.ui.player.osd.StatsForNerdsPanel
 import app.picnic.player.ui.seerr.ReportIssuePanel
 import app.picnic.player.ui.seerr.rememberIssueReporter
-
-private const val SkipPillEntryWindowMs = 2_000L
 
 @Composable
 fun PlayerScreen(
@@ -179,7 +178,7 @@ fun PlayerScreen(
         if (segment != null) {
             chrome.onSegmentChanged(
                 segmentActive = true,
-                enteredAtStart = state.positionMs - segment.startMs <= SkipPillEntryWindowMs
+                enteredAtStart = segment.enteredAtStart(state.positionMs)
             )
         } else {
             chrome.onSegmentChanged(segmentActive = false, enteredAtStart = false)

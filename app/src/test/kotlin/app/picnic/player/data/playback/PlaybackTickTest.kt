@@ -138,6 +138,16 @@ class PlaybackTickTest {
     }
 
     @Test
+    fun outroLandedDeepBySeeking_doesNotTrigger() {
+        val outro = seg(SegmentKind.OUTRO, 60_000, 100_000)
+        val d = playbackTick(
+            input(positionMs = 99_800, durationMs = 100_000, segments = listOf(outro), hasNextUp = true)
+        )
+        assertFalse(d.setOutroNextUpShown)
+        assertFalse(d.endedAwaitingNext)
+    }
+
+    @Test
     fun outroWithAfterCredits_doesNotTrigger() {
         // endMs well short of duration => post-outro content => no trigger.
         val outro = seg(SegmentKind.OUTRO, 80_000, 85_000)

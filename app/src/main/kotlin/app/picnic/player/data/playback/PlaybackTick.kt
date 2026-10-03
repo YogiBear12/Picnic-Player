@@ -50,6 +50,9 @@ data class PlaybackTickDecision(
 )
 
 const val OUTRO_END_TOLERANCE_MS = 3_000L
+private const val SEGMENT_ENTRY_WINDOW_MS = 2_000L
+
+fun MediaSegment.enteredAtStart(positionMs: Long): Boolean = positionMs - startMs <= SEGMENT_ENTRY_WINDOW_MS
 
 fun playbackTick(input: PlaybackTickInput): PlaybackTickDecision {
     val presentFirstFrame = !input.hasPresentedFirstFrame &&
@@ -91,6 +94,7 @@ fun playbackTick(input: PlaybackTickInput): PlaybackTickDecision {
         !input.outroNextUpShown &&
         input.settings.displayNextUpDuringOutro &&
         outroRunsToEnd &&
+        active.enteredAtStart(pos) &&
         input.hasNextUp
 
     val videoStillNow = when {
