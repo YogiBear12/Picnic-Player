@@ -110,6 +110,12 @@ private const val LAST_FRAME_MS = 200L
 private const val TRANSCODING_INFO_ATTEMPTS = 5
 private const val AUDIO_ROUTE_SETTLE_MS = 1_500L
 
+internal fun seekByTarget(positionMs: Long, deltaMs: Long, durationMs: Long): Long {
+    // Never below the current position: a forward press inside the last frame applies 0 instead of seeking back.
+    val ceiling = if (durationMs > 0) maxOf(positionMs, durationMs - LAST_FRAME_MS) else Long.MAX_VALUE
+    return (positionMs + deltaMs).coerceIn(0, ceiling)
+}
+
 @OptIn(FlowPreview::class)
 @HiltViewModel
 class PlayerViewModel @Inject constructor(
@@ -493,7 +499,12 @@ class PlayerViewModel @Inject constructor(
 
     fun seekTo(positionMs: Long) = player.seekTo(positionMs.coerceAtLeast(0))
 
-    fun seekBy(deltaMs: Long) = player.seekTo((player.currentPosition + deltaMs).coerceAtLeast(0))
+    fun seekBy(deltaMs: Long): Long {
+        val position = player.currentPosition
+        val target = seekByTarget(position, deltaMs, player.duration)
+        player.seekTo(target)
+        return target - position
+    }
 
     fun setSubtitleDelayMs(ms: Long) {
         engine.setSubtitleDelayMs(ms)

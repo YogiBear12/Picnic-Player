@@ -229,15 +229,11 @@ fun PlayerScreen(
                         true
                     }
                     Key.DirectionLeft, Key.MediaRewind -> {
-                        val d = -settings.skipBackwardSeconds * 1000L
-                        viewModel.seekBy(d)
-                        chrome.onQuickSkip(d)
+                        chrome.onQuickSkip(viewModel.seekBy(-settings.skipBackwardSeconds * 1000L))
                         true
                     }
                     Key.DirectionRight, Key.MediaFastForward -> {
-                        val d = settings.skipForwardSeconds * 1000L
-                        viewModel.seekBy(d)
-                        chrome.onQuickSkip(d)
+                        chrome.onQuickSkip(viewModel.seekBy(settings.skipForwardSeconds * 1000L))
                         true
                     }
                     Key.DirectionUp, Key.DirectionDown -> {

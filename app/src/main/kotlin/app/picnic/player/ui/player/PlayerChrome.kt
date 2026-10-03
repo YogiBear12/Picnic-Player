@@ -142,6 +142,7 @@ class PlayerChrome {
     }
 
     fun onQuickSkip(deltaMs: Long) {
+        if (deltaMs == 0L && !quickSkipVisible) return
         quickSkipMs = if (quickSkipVisible) quickSkipMs + deltaMs else deltaMs
         quickSkipVisible = true
         quickSkipTick++

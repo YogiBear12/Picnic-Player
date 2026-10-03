@@ -202,6 +202,22 @@ class PlayerChromeTest {
     }
 
     @Test
+    fun aSkipThatMovedNothingDoesNotOpenTheIndicator() {
+        chrome.onQuickSkip(0)
+        assertFalse(chrome.quickSkipVisible)
+    }
+
+    @Test
+    fun aSkipThatMovedNothingHoldsTheOpenIndicator() {
+        chrome.onQuickSkip(-10_000)
+        val tick = chrome.quickSkipTick
+        chrome.onQuickSkip(0)
+        assertEquals(-10_000L, chrome.quickSkipMs)
+        assertTrue(chrome.quickSkipVisible)
+        assertEquals(tick + 1, chrome.quickSkipTick)
+    }
+
+    @Test
     fun openingTheOsdEndsTheBurst() {
         chrome.onQuickSkip(10_000)
         chrome.reveal()
