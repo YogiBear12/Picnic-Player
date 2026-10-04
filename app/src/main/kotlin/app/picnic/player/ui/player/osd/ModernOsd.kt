@@ -62,6 +62,10 @@ import app.picnic.player.ui.player.PlayerUiState
 import app.picnic.player.ui.player.TrickplayPreview
 
 private const val SCRUB_STEP_MS = 10_000L
+private const val SCRUB_STEPS_PER_SPEED = 60
+private const val SCRUB_SPEEDS = 3
+
+internal fun scrubStepMs(repeatCount: Int): Long = SCRUB_STEP_MS * (repeatCount / SCRUB_STEPS_PER_SPEED + 1).coerceAtMost(SCRUB_SPEEDS)
 
 @Composable
 fun ModernOsd(
@@ -112,13 +116,13 @@ fun ModernOsd(
         onScrubPreviewChange(TrickplayPreview(frame, fraction))
     }
 
-    fun scrubBy(direction: Int) {
+    fun scrubBy(direction: Int, repeatCount: Int) {
         if (duration <= 0) return
         if (!scrubbing) {
             scrubbing = true
             scrubTarget = state.positionMs
         }
-        scrubTarget = (scrubTarget + direction * SCRUB_STEP_MS).coerceIn(0, duration)
+        scrubTarget = (scrubTarget + direction * scrubStepMs(repeatCount)).coerceIn(0, duration)
     }
 
     Column(
@@ -216,17 +220,18 @@ fun ModernOsd(
                         if (!focusEnabled) return@onKeyEvent false
                         if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
                         onInteract()
+                        val repeatCount = event.nativeKeyEvent.repeatCount
                         when (event.key) {
                             Key.DirectionLeft -> {
-                                scrubBy(-1)
+                                scrubBy(-1, repeatCount)
                                 true
                             }
                             Key.DirectionRight -> {
-                                scrubBy(1)
+                                scrubBy(1, repeatCount)
                                 true
                             }
                             Key.DirectionCenter, Key.Enter -> {
-                                if (event.nativeKeyEvent.repeatCount == 0) {
+                                if (repeatCount == 0) {
                                     if (scrubbing) {
                                         onSeek(scrubTarget)
                                         scrubbing = false
