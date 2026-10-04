@@ -274,8 +274,6 @@ fun PlayerScreen(
                 onSubtitles = { chrome.openPanel(Panel.SUBTITLE) },
                 onSettings = { chrome.openPanel(Panel.SETTINGS) },
                 onChapters = { if (state.chapters.isNotEmpty()) chrome.openPanel(Panel.CHAPTERS) },
-                skipForwardSeconds = settings.skipForwardSeconds,
-                skipBackwardSeconds = settings.skipBackwardSeconds,
                 onDismiss = {
                     chrome.hideOsd()
                     scrub.clearPreview()

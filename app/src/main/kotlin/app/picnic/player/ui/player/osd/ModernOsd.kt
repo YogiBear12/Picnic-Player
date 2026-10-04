@@ -61,6 +61,8 @@ import app.picnic.player.ui.common.formatClock
 import app.picnic.player.ui.player.PlayerUiState
 import app.picnic.player.ui.player.TrickplayPreview
 
+private const val SCRUB_STEP_MS = 10_000L
+
 @Composable
 fun ModernOsd(
     state: PlayerUiState,
@@ -70,8 +72,6 @@ fun ModernOsd(
     onSubtitles: () -> Unit,
     onSettings: () -> Unit,
     onChapters: () -> Unit,
-    skipForwardSeconds: Int,
-    skipBackwardSeconds: Int,
     onDismiss: () -> Unit,
     onInteract: () -> Unit,
     onScrubPreviewChange: (TrickplayPreview?) -> Unit,
@@ -118,8 +118,7 @@ fun ModernOsd(
             scrubbing = true
             scrubTarget = state.positionMs
         }
-        val magnitude = (if (direction > 0) skipForwardSeconds else skipBackwardSeconds) * 1000L
-        scrubTarget = (scrubTarget + direction * magnitude).coerceIn(0, duration)
+        scrubTarget = (scrubTarget + direction * SCRUB_STEP_MS).coerceIn(0, duration)
     }
 
     Column(
