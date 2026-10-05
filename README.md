@@ -31,6 +31,7 @@ AI is used heavily in the development of this client. This is slop.
 
 ### Plus some extra goodies
 
+- On the fly conversion of Dolby Vision Profile 7 to Profile 8
 - Picture-in-Picture (on supported devices)
 - Choose your preferred app for opening external trailers
 
