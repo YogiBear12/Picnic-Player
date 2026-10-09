@@ -37,6 +37,7 @@ import app.picnic.player.ui.common.SkeletonTitleHeight
 import app.picnic.player.ui.common.SpecPillHeight
 import app.picnic.player.ui.common.rememberSkeletonPulse
 import app.picnic.player.ui.common.skeletonPulse
+import app.picnic.player.ui.theme.PicnicColors
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
 
@@ -202,7 +203,7 @@ internal fun BrowseHero(
             val summaryText: @Composable (Modifier) -> Unit = { textModifier ->
                 Text(
                     overview,
-                    color = Color.White.copy(alpha = 0.7f),
+                    color = PicnicColors.TextSecondary,
                     style = MaterialTheme.typography.bodyMedium,
                     lineHeight = BrowseHeroSummaryLineHeight,
                     maxLines = overviewLines,
@@ -247,7 +248,7 @@ internal fun BrowseHero(
             if (genres.isNotEmpty()) {
                 Text(
                     genres,
-                    color = Color.White.copy(alpha = 0.55f),
+                    color = PicnicColors.TextTertiary,
                     style = MaterialTheme.typography.bodySmall,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,

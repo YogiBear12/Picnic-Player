@@ -33,6 +33,9 @@ object PicnicColors {
     val OnDark = Color(0xFFE8EEF2)
     val OnDarkMuted = Color(0xFF9DAFBC)
 
+    val TextSecondary = Color(0xFFD5DADE)
+    val TextTertiary = Color(0xFFADB5BB)
+
     val Error = Color(0xFFFF6B6B)
 
     val Success = Color(0xFF6BCB8B)

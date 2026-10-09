@@ -28,6 +28,7 @@ import app.picnic.player.R
 import app.picnic.player.ui.common.SpecPill
 import app.picnic.player.ui.common.SpecPillHeight
 import app.picnic.player.ui.common.SpecPillInk
+import app.picnic.player.ui.theme.PicnicColors
 import app.picnic.player.util.AudioFormat
 import app.picnic.player.util.LanguageDisplay
 import java.util.Locale
@@ -179,7 +180,7 @@ internal fun HeroInfoLine(
         if (meta.isNotEmpty()) {
             Text(
                 meta,
-                color = Color.White.copy(alpha = 0.6f),
+                color = PicnicColors.TextTertiary,
                 style = MaterialTheme.typography.bodySmall,
                 lineHeight = 16.sp,
                 maxLines = 1,
@@ -196,7 +197,7 @@ internal fun HeroInfoLine(
                 )
                 Text(
                     text = String.format(Locale.US, "%.1f", community),
-                    color = Color.White.copy(alpha = 0.92f),
+                    color = Color.White,
                     style = MaterialTheme.typography.bodySmall,
                     fontWeight = FontWeight.SemiBold
                 )
@@ -219,7 +220,7 @@ internal fun HeroInfoLine(
                 )
                 Text(
                     text = "${critic.roundToInt()}%",
-                    color = Color.White.copy(alpha = 0.92f),
+                    color = Color.White,
                     style = MaterialTheme.typography.bodySmall,
                     fontWeight = FontWeight.SemiBold
                 )

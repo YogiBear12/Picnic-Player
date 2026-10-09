@@ -24,7 +24,7 @@ import java.util.Locale
 internal val SpecPillHeight = 20.dp
 private val SpecPillBg = Color.White.copy(alpha = 0.09f)
 private val SpecPillLine = Color.White.copy(alpha = 0.16f)
-internal val SpecPillInk = Color.White.copy(alpha = 0.88f)
+internal val SpecPillInk = Color(0xFFE6E9EC)
 
 private val TrackChipBg = Color.White.copy(alpha = 0.07f)
 private val TrackChipLine = Color.White.copy(alpha = 0.12f)
