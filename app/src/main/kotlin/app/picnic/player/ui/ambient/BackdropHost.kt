@@ -14,6 +14,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
+import app.picnic.player.ui.browse.BrowseBackdrop
 import app.picnic.player.ui.theme.TvBrowseMotion
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -90,11 +91,9 @@ fun BackdropHostLayer(navDim: State<Float>, modifier: Modifier = Modifier) {
         derivedStateOf { navDim.value * contentAlpha.value }
     }
     if (spec == null) return
-    app.picnic.player.ui.browse.BrowseBackdrop(
-        backdropUrl = spec.backdropUrl,
-        ambientUrl = spec.ambientUrl,
-        ambientLoader = LocalAmbientPaletteLoader.current,
-        alphaScale = alpha,
-        modifier = modifier
-    )
+    val ambientOn = LocalAmbientBackgrounds.current
+    val palette = if (ambientOn) rememberAmbientPalette(spec.ambientUrl, LocalAmbientPaletteLoader.current) else null
+    val wash = rememberAmbientWash(palette)
+    val image = rememberBackdropImage(spec.backdropUrl)
+    BrowseBackdrop(image, wash, ambientOn, alpha, modifier)
 }

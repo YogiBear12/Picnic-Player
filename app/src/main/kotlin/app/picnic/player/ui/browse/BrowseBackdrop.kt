@@ -1,20 +1,11 @@
 package app.picnic.player.ui.browse
 
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.EaseOut
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
@@ -27,48 +18,22 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import app.picnic.player.ui.ambient.AmbientBackground
-import app.picnic.player.ui.ambient.AmbientPaletteLoader
-import app.picnic.player.ui.ambient.LocalAmbientBackgrounds
+import app.picnic.player.ui.ambient.AmbientWash
+import app.picnic.player.ui.ambient.BackdropImage
 import app.picnic.player.ui.ambient.bakeGradient
 import app.picnic.player.ui.ambient.drawBakedGradient
-import app.picnic.player.ui.ambient.rememberAmbientPalette
-import app.picnic.player.ui.ambient.rememberAmbientWash
-import app.picnic.player.ui.theme.TvBrowseMotion
 import coil3.compose.AsyncImage
-import coil3.compose.AsyncImagePainter
-import kotlinx.coroutines.flow.first
 
 private const val BACKDROP_WIDTH_FRACTION = 0.78f
 
 @Composable
 internal fun BrowseBackdrop(
-    backdropUrl: String?,
-    ambientUrl: String?,
-    ambientLoader: AmbientPaletteLoader,
+    image: BackdropImage,
+    wash: AmbientWash,
+    ambientOn: Boolean,
     alphaScale: State<Float>,
     modifier: Modifier = Modifier
 ) {
-    var displayedUrl by remember { mutableStateOf<String?>(null) }
-    var imageLoaded by remember { mutableStateOf(false) }
-    val layerAlpha = remember { Animatable(0f) }
-
-    LaunchedEffect(backdropUrl) {
-        if (backdropUrl == displayedUrl) return@LaunchedEffect
-        if (displayedUrl != null) {
-            layerAlpha.animateTo(0f, tween(TvBrowseMotion.BACKDROP_FADE_OUT_MS, easing = EaseOut))
-        }
-        imageLoaded = false
-        layerAlpha.snapTo(0f)
-        displayedUrl = backdropUrl
-        if (backdropUrl == null) return@LaunchedEffect
-        snapshotFlow { imageLoaded }.first { it }
-        layerAlpha.animateTo(1f, tween(TvBrowseMotion.ARTWORK_FADE_IN_MS, easing = EaseOut))
-    }
-
-    val ambientOn = LocalAmbientBackgrounds.current
-    val palette = if (ambientOn) rememberAmbientPalette(ambientUrl, ambientLoader) else null
-    val wash = rememberAmbientWash(palette)
-
     Box(modifier) {
         if (ambientOn) {
             AmbientBackground(wash, Modifier.fillMaxSize())
@@ -79,7 +44,7 @@ internal fun BrowseBackdrop(
                 .fillMaxSize()
                 .graphicsLayer {
                     compositingStrategy = CompositingStrategy.Offscreen
-                    alpha = layerAlpha.value * alphaScale.value
+                    alpha = image.alpha.value * alphaScale.value
                 }
                 .drawWithCache {
                     val imgW = size.width * BACKDROP_WIDTH_FRACTION
@@ -103,17 +68,11 @@ internal fun BrowseBackdrop(
                 }
         ) {
             AsyncImage(
-                model = displayedUrl,
+                model = image.url,
                 contentDescription = null,
                 contentScale = ContentScale.Fit,
                 alignment = Alignment.TopEnd,
-                onState = { st ->
-                    if (st is AsyncImagePainter.State.Success &&
-                        st.result.request.data == displayedUrl
-                    ) {
-                        imageLoaded = true
-                    }
-                },
+                onState = image::onState,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .fillMaxWidth(BACKDROP_WIDTH_FRACTION)
