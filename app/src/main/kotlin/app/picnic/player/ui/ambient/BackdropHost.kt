@@ -15,13 +15,17 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import app.picnic.player.ui.browse.BrowseBackdrop
+import app.picnic.player.ui.detail.DetailBackdrop
 import app.picnic.player.ui.theme.TvBrowseMotion
 import javax.inject.Inject
 import javax.inject.Singleton
 
+enum class BackdropPresentation { BrowseInset, DetailFullscreen }
+
 data class BackdropSpec(
     val backdropUrl: String?,
-    val ambientUrl: String?
+    val ambientUrl: String?,
+    val presentation: BackdropPresentation = BackdropPresentation.BrowseInset
 )
 
 @Singleton
@@ -95,5 +99,8 @@ fun BackdropHostLayer(navDim: State<Float>, modifier: Modifier = Modifier) {
     val palette = if (ambientOn) rememberAmbientPalette(spec.ambientUrl, LocalAmbientPaletteLoader.current) else null
     val wash = rememberAmbientWash(palette)
     val image = rememberBackdropImage(spec.backdropUrl)
-    BrowseBackdrop(image, wash, ambientOn, alpha, modifier)
+    when (spec.presentation) {
+        BackdropPresentation.BrowseInset -> BrowseBackdrop(image, wash, ambientOn, alpha, modifier)
+        BackdropPresentation.DetailFullscreen -> DetailBackdrop(image, alpha, modifier)
+    }
 }

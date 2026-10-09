@@ -6,9 +6,11 @@
 package app.picnic.player.ui.detail
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.gestures.BringIntoViewSpec
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material3.CircularProgressIndicator
@@ -21,10 +23,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.Text
 import app.picnic.player.playback.LocalThemeMusicPlayer
+import app.picnic.player.ui.ambient.BackdropPresentation
 import app.picnic.player.ui.ambient.BackdropSpec
 import app.picnic.player.ui.ambient.DimBackdrop
 import app.picnic.player.ui.ambient.LocalAmbientPrewarmer
@@ -56,6 +60,9 @@ import org.jellyfin.sdk.model.api.BaseItemKind
 private const val ROW_CAST = "cast"
 private const val ROW_COLLECTIONS = "collections"
 private const val ROW_SIMILAR = "similar"
+private const val NAV_BACKDROP_WIDTH = 1280
+
+private fun BaseItemKind?.isFullscreenDetail() = this == BaseItemKind.MOVIE || this == BaseItemKind.SERIES
 
 @Composable
 fun DetailScreen(
@@ -85,10 +92,19 @@ fun DetailScreen(
     }
 
     val derivedNav = item?.let { images.navImages(it) }
-    val backdrop = BackdropSpec(
-        backdropUrl = bgUrl ?: derivedNav?.bgUrl,
-        ambientUrl = ambUrl ?: derivedNav?.ambUrl
-    )
+    val windowWidth = LocalWindowInfo.current.containerSize.width
+    val backdrop = if (item != null && item.type.isFullscreenDetail()) {
+        BackdropSpec(
+            backdropUrl = images.backdrop(item, fillWidth = windowWidth.coerceAtLeast(NAV_BACKDROP_WIDTH)),
+            ambientUrl = ambUrl ?: derivedNav?.ambUrl,
+            presentation = BackdropPresentation.DetailFullscreen
+        )
+    } else {
+        BackdropSpec(
+            backdropUrl = bgUrl ?: derivedNav?.bgUrl,
+            ambientUrl = ambUrl ?: derivedNav?.ambUrl
+        )
+    }
     PublishBackdrop(backdrop)
 
     Box(Modifier.fillMaxSize()) {
@@ -189,28 +205,20 @@ private fun DetailContent(
 
     val blockHeight = heroBlockHeight(metrics.logoHeight)
 
-    DetailPageScaffold(
-        focus = focus,
-        metrics = metrics,
-        heroRegionHeight = heroRegionHeight(metrics, maxHeight, blockHeight),
-        rowSpacing = metrics.rowSpacing + metrics.sy(12f),
-        restoring = restoring,
-        actions = actions,
-        notice = state.requestMoreError,
-        hero = { heroModifier ->
-            BrowseHero(
-                item = item,
-                logoHeight = metrics.logoHeight,
-                continueWatching = false,
-                streamsOverride = state.leadStreams,
-                seasonCount = if (item.type == BaseItemKind.SERIES) item.childCount else null,
-                onSummaryClick = { showSummaryDialog = true },
-                summaryDown = { focus.lastFocusedButton },
-                blockHeight = blockHeight,
-                modifier = heroModifier
-            )
-        }
-    ) { horizontalRowSpec ->
+    val hero: @Composable (Modifier) -> Unit = { heroModifier ->
+        BrowseHero(
+            item = item,
+            logoHeight = metrics.logoHeight,
+            continueWatching = false,
+            streamsOverride = state.leadStreams,
+            seasonCount = if (item.type == BaseItemKind.SERIES) item.childCount else null,
+            onSummaryClick = { showSummaryDialog = true },
+            summaryDown = { focus.lastFocusedButton },
+            blockHeight = blockHeight,
+            modifier = heroModifier
+        )
+    }
+    val rows: LazyListScope.(BringIntoViewSpec) -> Unit = { horizontalRowSpec ->
         if (people.isNotEmpty()) {
             item(key = ROW_CAST) {
                 DetailCastRow(
@@ -267,6 +275,31 @@ private fun DetailContent(
                 )
             }
         }
+    }
+
+    if (item.type.isFullscreenDetail()) {
+        DetailFullscreenScaffold(
+            focus = focus,
+            metrics = metrics,
+            screenHeight = maxHeight,
+            restoring = restoring,
+            actions = actions,
+            notice = state.requestMoreError,
+            hero = hero,
+            rows = rows
+        )
+    } else {
+        DetailPageScaffold(
+            focus = focus,
+            metrics = metrics,
+            heroRegionHeight = heroRegionHeight(metrics, maxHeight, blockHeight),
+            rowSpacing = metrics.rowSpacing + metrics.sy(12f),
+            restoring = restoring,
+            actions = actions,
+            notice = state.requestMoreError,
+            hero = hero,
+            rows = rows
+        )
     }
 
     if (showSummaryDialog) {
