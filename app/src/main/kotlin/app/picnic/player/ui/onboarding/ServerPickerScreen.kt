@@ -25,7 +25,6 @@ fun ServerPickerScreen(
     errorText: String? = null,
     viewModel: ServerPickerViewModel = hiltViewModel()
 ) {
-    app.picnic.player.ui.ambient.PublishBackdrop(null)
     val state by viewModel.state.collectAsStateWithLifecycle()
     LaunchedEffect(state.goAddServer) {
         if (state.goAddServer) {

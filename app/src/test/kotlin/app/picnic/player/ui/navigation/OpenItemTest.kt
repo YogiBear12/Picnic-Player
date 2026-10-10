@@ -1,9 +1,11 @@
 package app.picnic.player.ui.navigation
 
 import java.util.UUID
+import kotlinx.serialization.json.Json
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class OpenItemTest {
@@ -39,6 +41,22 @@ class OpenItemTest {
     @Test
     fun `a series opens its detail screen`() {
         assertDetailKey(openedKey(item(BaseItemKind.SERIES)))
+    }
+
+    @Test
+    fun `detail routes carry the opened item kind`() {
+        for (kind in listOf(BaseItemKind.MOVIE, BaseItemKind.SERIES, BaseItemKind.EPISODE, BaseItemKind.SEASON)) {
+            val key = openedKey(item(kind)) as DetailKey
+            assertEquals(kind, key.kind)
+        }
+    }
+
+    @Test
+    fun `detail kind survives serialization and defaults to null for older routes`() {
+        val key = DetailKey(itemId.toString(), kind = BaseItemKind.SERIES)
+        val encoded = Json.encodeToString(DetailKey.serializer(), key)
+        assertEquals(key, Json.decodeFromString(DetailKey.serializer(), encoded))
+        assertNull(Json.decodeFromString(DetailKey.serializer(), """{"itemId":"$itemId"}""").kind)
     }
 
     @Test

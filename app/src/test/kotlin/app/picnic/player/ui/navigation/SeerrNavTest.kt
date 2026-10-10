@@ -5,6 +5,7 @@ import app.picnic.player.data.seerr.SeerrMediaRequest
 import app.picnic.player.data.seerr.SeerrMediaStatus
 import app.picnic.player.data.seerr.SeerrMediaType
 import app.picnic.player.data.seerr.SeerrRequestMediaRef
+import org.jellyfin.sdk.model.api.BaseItemKind
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -13,6 +14,13 @@ import org.junit.Test
 class SeerrNavTest {
     private val jellyfinId = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
     private val undashedJellyfinId = "a1b2c3d4e5f67890abcdef1234567890"
+
+    @Test
+    fun seerrLibraryKind_mapsKnownTypesCaseInsensitively() {
+        assertEquals(BaseItemKind.MOVIE, seerrLibraryKind("MoViE"))
+        assertEquals(BaseItemKind.SERIES, seerrLibraryKind("TV"))
+        assertNull(seerrLibraryKind("unknown"))
+    }
 
     @Test
     fun resolveSeerrNavKey_availableCatalog_opensJellyfinDetail() {
@@ -27,29 +35,55 @@ class SeerrNavTest {
         assertTrue(key is DetailKey)
         key as DetailKey
         assertEquals(jellyfinId, key.itemId)
-        assertEquals("bg", key.bgUrl)
-        assertEquals("amb", key.ambUrl)
+        assertNull(key.bgUrl)
+        assertNull(key.ambUrl)
+        assertEquals(BaseItemKind.MOVIE, key.kind)
     }
 
     @Test
     fun resolveSeerrNavKey_partialCatalogWithId_opensJellyfinDetail() {
         val key = resolveSeerrNavKey(
-            catalog(
+            item = catalog(
                 mediaStatus = SeerrMediaStatus.PARTIALLY_AVAILABLE,
                 jellyfinMediaId = jellyfinId,
                 mediaType = SeerrMediaType.TV
-            )
+            ),
+            bgUrl = "seerr-bg",
+            ambUrl = "seerr-amb"
         )
         assertTrue(key is DetailKey)
-        assertEquals(jellyfinId, (key as DetailKey).itemId)
+        key as DetailKey
+        assertEquals(jellyfinId, key.itemId)
+        assertNull(key.bgUrl)
+        assertNull(key.ambUrl)
+        assertEquals(BaseItemKind.SERIES, key.kind)
     }
 
     @Test
     fun resolveSeerrNavKey_availableWithoutId_opensSeerrDetail() {
         val key = resolveSeerrNavKey(
-            catalog(mediaStatus = SeerrMediaStatus.AVAILABLE, jellyfinMediaId = null)
+            item = catalog(mediaStatus = SeerrMediaStatus.AVAILABLE, jellyfinMediaId = null),
+            bgUrl = "bg",
+            ambUrl = "amb"
         )
         assertTrue(key is SeerrDetailKey)
+        key as SeerrDetailKey
+        assertEquals("bg", key.bgUrl)
+        assertEquals("amb", key.ambUrl)
+    }
+
+    @Test
+    fun resolveSeerrNavKey_unknownMediaType_keepsKindUnknownWithoutSeeds() {
+        val key = resolveSeerrNavKey(
+            tmdbId = 42,
+            mediaType = "unknown",
+            jellyfinMediaId = jellyfinId,
+            bgUrl = "seerr-bg",
+            ambUrl = "seerr-amb"
+        ) as DetailKey
+        assertNull(key.kind)
+        assertNull(key.bgUrl)
+        assertNull(key.ambUrl)
     }
 
     // 4K-only library copy still opens Jellyfin Detail (CONTEXT: never treat 4K

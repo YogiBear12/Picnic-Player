@@ -71,7 +71,6 @@ import app.picnic.player.data.seerr.SeerrMediaType
 import app.picnic.player.data.seerr.SeerrPersonDetails
 import app.picnic.player.data.seerr.catalogKey
 import app.picnic.player.ui.ambient.LocalAmbientPrewarmer
-import app.picnic.player.ui.ambient.PublishBackdrop
 import app.picnic.player.ui.browse.BrowseCardStyle
 import app.picnic.player.ui.browse.BrowseHeroSummaryLineHeight
 import app.picnic.player.ui.browse.BrowseLayoutMetrics
@@ -160,8 +159,6 @@ fun PersonScreen(
         creationCallback = { factory -> factory.create(jellyfinPersonId, tmdbId) }
     )
 ) = BoxWithConstraints(Modifier.fillMaxSize()) {
-    PublishBackdrop(null)
-
     val state by viewModel.state.collectAsStateWithLifecycle()
     if (state.loading) {
         val metrics = browseLayoutMetrics(maxWidth, maxHeight)

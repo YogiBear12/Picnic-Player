@@ -61,8 +61,6 @@ fun LoginScreen(
     onBack: () -> Unit,
     viewModel: LoginViewModel = hiltViewModel()
 ) {
-    // Onboarding shows the plain ocean wash — drop any backdrop left by a media screen.
-    app.picnic.player.ui.ambient.PublishBackdrop(null)
     val state by viewModel.state.collectAsStateWithLifecycle()
     LaunchedEffect(state.loggedIn) { if (state.loggedIn) onLoggedIn() }
     BackHandler(onBack = onBack)
@@ -75,7 +73,6 @@ fun LoginScreen(
     LaunchedEffect(Unit) { runCatching { quickConnectFocus.requestFocus() } }
 
     Column(modifier = Modifier.fillMaxSize().imePadding().padding(48.dp)) {
-        // Heading / subheading pinned to the top-left of the page.
         Text("Sign in", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
         Text(
             "Choose how to connect to your server",

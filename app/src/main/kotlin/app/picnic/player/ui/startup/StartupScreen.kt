@@ -88,14 +88,11 @@ class StartupViewModel @Inject constructor(
     }
 }
 
-/** Decides the start destination from the stored session, then routes once. */
 @Composable
 fun StartupScreen(
     onResolved: (NavKey) -> Unit,
     viewModel: StartupViewModel = hiltViewModel()
 ) {
-    // Startup shows the plain ocean wash — drop any backdrop left by a media screen.
-    app.picnic.player.ui.ambient.PublishBackdrop(null)
     val destination by viewModel.destination.collectAsStateWithLifecycle()
     LaunchedEffect(destination) { destination?.let(onResolved) }
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {

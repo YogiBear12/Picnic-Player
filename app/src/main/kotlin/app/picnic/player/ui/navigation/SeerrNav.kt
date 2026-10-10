@@ -5,6 +5,13 @@ import app.picnic.player.data.seerr.DetailTarget
 import app.picnic.player.data.seerr.SeerrCatalogItem
 import app.picnic.player.data.seerr.SeerrMediaRequest
 import app.picnic.player.data.seerr.seerrDetailTarget
+import org.jellyfin.sdk.model.api.BaseItemKind
+
+fun seerrLibraryKind(mediaType: String): BaseItemKind? = when (mediaType.lowercase()) {
+    "movie" -> BaseItemKind.MOVIE
+    "tv" -> BaseItemKind.SERIES
+    else -> null
+}
 
 fun resolveSeerrNavKey(
     tmdbId: Int,
@@ -14,7 +21,10 @@ fun resolveSeerrNavKey(
     bgUrl: String? = null,
     ambUrl: String? = null
 ): NavKey = when (val target = seerrDetailTarget(jellyfinMediaId, jellyfinMediaId4k)) {
-    is DetailTarget.Jellyfin -> DetailKey(itemId = target.itemId, bgUrl = bgUrl, ambUrl = ambUrl)
+    is DetailTarget.Jellyfin -> DetailKey(
+        itemId = target.itemId,
+        kind = seerrLibraryKind(mediaType)
+    )
     DetailTarget.Seerr -> SeerrDetailKey(
         tmdbId = tmdbId,
         mediaType = mediaType.lowercase(),

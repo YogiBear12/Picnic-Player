@@ -56,9 +56,9 @@ import app.picnic.player.data.seerr.SeerrImages
 import app.picnic.player.data.seerr.SeerrMediaType
 import app.picnic.player.data.seerr.jellyfinDetailIdOrNull
 import app.picnic.player.ui.ambient.BackdropSpec
-import app.picnic.player.ui.ambient.DimBackdrop
 import app.picnic.player.ui.ambient.LocalAmbientPrewarmer
-import app.picnic.player.ui.ambient.PublishBackdrop
+import app.picnic.player.ui.ambient.rememberBackdrop
+import app.picnic.player.ui.browse.BrowseBackdrop
 import app.picnic.player.ui.browse.DetailContentStartInset
 import app.picnic.player.ui.browse.DetailMediaRow
 import app.picnic.player.ui.browse.ScrollToTopBringIntoView
@@ -89,6 +89,7 @@ fun SeerrDetailScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val catalog = state.catalog
+    var rowDimmed by rememberSaveable { mutableStateOf(false) }
 
     val redirectId = jellyfinDetailIdOrNull(catalog?.jellyfinMediaId, catalog?.jellyfinMediaId4k)
     LaunchedEffect(redirectId) {
@@ -105,10 +106,10 @@ fun SeerrDetailScreen(
         )
 
     val backdrop = BackdropSpec(backdropUrl = resolvedBg, ambientUrl = resolvedAmb)
-    PublishBackdrop(backdrop)
     BackHandler { onBack() }
 
     Box(Modifier.fillMaxSize()) {
+        BrowseBackdrop(rememberBackdrop(backdrop, { rowDimmed }), Modifier.fillMaxSize())
         when {
             state.loading -> Box(Modifier.fillMaxSize(), Alignment.Center) {
                 CircularProgressIndicator(color = PicnicColors.Accent)
@@ -125,6 +126,7 @@ fun SeerrDetailScreen(
                 onPlayLibraryItem = onPlayLibraryItem,
                 onRecommendedItem = onRecommendedItem,
                 onPersonClick = onPersonClick,
+                onRowDimmed = { rowDimmed = it },
                 onRequest = viewModel::onRequestClicked,
                 onCancel = viewModel::cancelRequest
             )
@@ -148,6 +150,7 @@ private fun SeerrDetailContent(
     onPlayLibraryItem: (String) -> Unit,
     onRecommendedItem: (SeerrCatalogItem, String?, String?) -> Unit,
     onPersonClick: (tmdbPersonId: Int) -> Unit,
+    onRowDimmed: (Boolean) -> Unit,
     onRequest: () -> Unit,
     onCancel: () -> Unit
 ) = BoxWithConstraints(Modifier.fillMaxSize()) {
@@ -172,7 +175,7 @@ private fun SeerrDetailContent(
 
     var lastActionFocus by rememberSaveable { mutableStateOf(SeerrActionFocusTarget.Primary) }
     var lastSection by rememberSaveable { mutableStateOf(SeerrDetailSection.Actions) }
-    DimBackdrop { lastSection != SeerrDetailSection.Actions }
+    LaunchedEffect(lastSection) { onRowDimmed(lastSection != SeerrDetailSection.Actions) }
 
     fun actionFocusRequester(): FocusRequester = when (lastActionFocus) {
         SeerrActionFocusTarget.Cancel -> if (actionRow.showCancel) cancelFocus else primaryFocus

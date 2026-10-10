@@ -5,6 +5,7 @@ import app.picnic.player.data.media.FolderContext
 import app.picnic.player.data.media.ItemQueue
 import app.picnic.player.data.media.PersonalLibrary
 import kotlinx.serialization.Serializable
+import org.jellyfin.sdk.model.api.BaseItemKind
 
 @Serializable
 data object StartupKey : NavKey
@@ -35,6 +36,7 @@ data class DetailKey(
     val itemId: String,
     val bgUrl: String? = null,
     val ambUrl: String? = null,
+    val kind: BaseItemKind? = null,
     val instanceId: String = java.util.UUID.randomUUID().toString()
 ) : NavKey
 

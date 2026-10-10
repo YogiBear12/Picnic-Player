@@ -35,7 +35,7 @@ import app.picnic.player.data.seerr.SeerrImages
 import app.picnic.player.ui.ambient.BackdropSpec
 import app.picnic.player.ui.ambient.LocalCapBadgeCount
 import app.picnic.player.ui.ambient.LocalColouredFocus
-import app.picnic.player.ui.ambient.PublishBackdrop
+import app.picnic.player.ui.ambient.rememberBackdrop
 import app.picnic.player.ui.common.LocalImageUrls
 import app.picnic.player.ui.common.RefreshOnResume
 import app.picnic.player.ui.discover.DiscoverPane
@@ -202,22 +202,21 @@ fun BrowseShellHost(
             } else {
                 null
             }
-            PublishBackdrop(
-                when {
-                    onHome ->
-                        homeFocused
-                            ?.let { images.navImages(it) }
-                            .let { BackdropSpec(backdropUrl = it?.bgUrl, ambientUrl = it?.ambUrl) }
-                    onDiscover ->
-                        discoverFocused
-                            ?.let { SeerrImages.navImages(seerr.serverUrl, it, seerr.cacheImages) }
-                            .let { BackdropSpec(backdropUrl = it?.bgUrl, ambientUrl = it?.ambUrl) }
-                    forYouFocused != null ->
-                        images.navImages(forYouFocused)
-                            .let { BackdropSpec(backdropUrl = it.bgUrl, ambientUrl = it.ambUrl) }
-                    else -> null
-                }
-            )
+            val backdrop = when {
+                onHome ->
+                    homeFocused
+                        ?.let { images.navImages(it) }
+                        .let { BackdropSpec(backdropUrl = it?.bgUrl, ambientUrl = it?.ambUrl) }
+                onDiscover ->
+                    discoverFocused
+                        ?.let { SeerrImages.navImages(seerr.serverUrl, it, seerr.cacheImages) }
+                        .let { BackdropSpec(backdropUrl = it?.bgUrl, ambientUrl = it?.ambUrl) }
+                forYouFocused != null ->
+                    images.navImages(forYouFocused)
+                        .let { BackdropSpec(backdropUrl = it.bgUrl, ambientUrl = it.ambUrl) }
+                else -> null
+            }
+            backdrop?.let { BrowseBackdrop(rememberBackdrop(it), Modifier.fillMaxSize()) }
 
             val onPaneSeeded = { paneFocusRequest = PaneFocusRequest.None }
             val paneInset = BrowsePaneStartInset

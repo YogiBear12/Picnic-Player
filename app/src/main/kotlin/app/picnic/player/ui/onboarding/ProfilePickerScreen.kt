@@ -31,7 +31,6 @@ fun ProfilePickerScreen(
         creationCallback = { factory -> factory.create(serverId) }
     )
 ) {
-    app.picnic.player.ui.ambient.PublishBackdrop(null)
     val state by viewModel.state.collectAsStateWithLifecycle()
     LaunchedEffect(state.goReady) {
         if (state.goReady) {

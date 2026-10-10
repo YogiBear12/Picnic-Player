@@ -16,24 +16,25 @@ import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.unit.Dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.Text
+import app.picnic.player.data.media.NavImages
 import app.picnic.player.playback.LocalThemeMusicPlayer
-import app.picnic.player.ui.ambient.BackdropPresentation
 import app.picnic.player.ui.ambient.BackdropSpec
-import app.picnic.player.ui.ambient.DimBackdrop
 import app.picnic.player.ui.ambient.LocalAmbientPrewarmer
-import app.picnic.player.ui.ambient.PublishBackdrop
+import app.picnic.player.ui.ambient.rememberBackdrop
+import app.picnic.player.ui.browse.BrowseBackdrop
 import app.picnic.player.ui.browse.BrowseHero
 import app.picnic.player.ui.browse.DetailContentStartInset
 import app.picnic.player.ui.browse.DetailPageScaffold
@@ -62,7 +63,6 @@ import org.jellyfin.sdk.model.api.BaseItemKind
 private const val ROW_CAST = "cast"
 private const val ROW_COLLECTIONS = "collections"
 private const val ROW_SIMILAR = "similar"
-private const val NAV_BACKDROP_WIDTH = 1280
 
 private fun BaseItemKind?.isFullscreenDetail() = this == BaseItemKind.MOVIE || this == BaseItemKind.SERIES
 
@@ -71,6 +71,7 @@ fun DetailScreen(
     itemId: String,
     bgUrl: String?,
     ambUrl: String?,
+    kind: BaseItemKind? = null,
     onPlay: (itemId: String, startTicks: Long?, sourceId: String?) -> Unit,
     onItem: (item: BaseItemDto, bgUrl: String?, ambUrl: String?) -> Unit,
     onBack: () -> Unit,
@@ -84,6 +85,7 @@ fun DetailScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val item = state.item
     val session = state.session
+    var rowDimmed by rememberSaveable { mutableStateOf(false) }
 
     val themeMusic = LocalThemeMusicPlayer.current
     val images = LocalImageUrls.current
@@ -93,23 +95,16 @@ fun DetailScreen(
         onDispose { ownerId?.let(themeMusic::release) }
     }
 
-    val derivedNav = item?.let { images.navImages(it) }
-    val windowWidth = LocalWindowInfo.current.containerSize.width
-    val backdrop = if (item != null && item.type.isFullscreenDetail()) {
-        BackdropSpec(
-            backdropUrl = images.backdrop(item, fillWidth = windowWidth.coerceAtLeast(NAV_BACKDROP_WIDTH)),
-            ambientUrl = ambUrl ?: derivedNav?.ambUrl,
-            presentation = BackdropPresentation.DetailFullscreen
-        )
-    } else {
-        BackdropSpec(
-            backdropUrl = bgUrl ?: derivedNav?.bgUrl,
-            ambientUrl = ambUrl ?: derivedNav?.ambUrl
-        )
-    }
-    PublishBackdrop(backdrop)
-
+    val nav = item?.let { images.navImages(it) } ?: NavImages(bgUrl, ambUrl)
+    val fullscreen = (item?.type ?: kind).isFullscreenDetail()
+    val backdrop = BackdropSpec(backdropUrl = nav.bgUrl, ambientUrl = nav.ambUrl)
+    val frame = rememberBackdrop(backdrop, { rowDimmed })
     Box(Modifier.fillMaxSize()) {
+        if (fullscreen) {
+            DetailBackdrop(frame, Modifier.fillMaxSize())
+        } else {
+            BrowseBackdrop(frame, Modifier.fillMaxSize())
+        }
         when {
             state.loading -> Box(Modifier.fillMaxSize(), Alignment.Center) {
                 CircularProgressIndicator(color = PicnicColors.Accent)
@@ -128,6 +123,7 @@ fun DetailScreen(
                 onEpisodes = onEpisodes,
                 onCollection = onCollection,
                 onPersonClick = onPersonClick,
+                onRowDimmed = { rowDimmed = it },
                 viewModel = viewModel
             )
         }
@@ -143,6 +139,7 @@ private fun DetailContent(
     onEpisodes: (String, String?, String?, String?) -> Unit,
     onCollection: (BaseItemDto) -> Unit,
     onPersonClick: (PersonKey) -> Unit,
+    onRowDimmed: (Boolean) -> Unit,
     viewModel: DetailViewModel
 ) = BoxWithConstraints(Modifier.fillMaxSize()) {
     val images = LocalImageUrls.current
@@ -173,7 +170,7 @@ private fun DetailContent(
         if (similarItems.isNotEmpty()) add(PageRow(ROW_SIMILAR, similarItems.map { it.id.toString() }))
     }
     val focus = rememberRowPageFocus(pageRows) { restoring = false }
-    DimBackdrop { focus.lastRowKey != null }
+    LaunchedEffect(focus.lastRowKey) { onRowDimmed(focus.lastRowKey != null) }
 
     val actions = detailActions(
         item = item,

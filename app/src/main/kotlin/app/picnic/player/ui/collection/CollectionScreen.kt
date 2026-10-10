@@ -23,9 +23,9 @@ import androidx.tv.material3.Text
 import app.picnic.player.data.media.ItemQueue
 import app.picnic.player.data.media.QueueKind
 import app.picnic.player.ui.ambient.BackdropSpec
-import app.picnic.player.ui.ambient.DimBackdrop
 import app.picnic.player.ui.ambient.LocalAmbientPrewarmer
-import app.picnic.player.ui.ambient.PublishBackdrop
+import app.picnic.player.ui.ambient.rememberBackdrop
+import app.picnic.player.ui.browse.BrowseBackdrop
 import app.picnic.player.ui.browse.BrowseHero
 import app.picnic.player.ui.browse.DetailPageScaffold
 import app.picnic.player.ui.browse.DetailPosterRow
@@ -125,8 +125,13 @@ private fun CollectionContent(
         onSettled = { restoring = false }
     )
 
-    PublishBackdrop(BackdropSpec(backdropUrl = nav.bgUrl, ambientUrl = nav.ambUrl))
-    DimBackdrop { focus.lastRowKey != null }
+    BrowseBackdrop(
+        rememberBackdrop(
+            BackdropSpec(backdropUrl = nav.bgUrl, ambientUrl = nav.ambUrl),
+            { focus.lastRowKey != null }
+        ),
+        Modifier.fillMaxSize()
+    )
 
     val blockHeight = heroBlockHeight(metrics.logoHeight, reserveBadgeRail = false)
 

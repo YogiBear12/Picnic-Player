@@ -54,7 +54,6 @@ fun ServerEntryScreen(
     onServerResolved: () -> Unit,
     viewModel: ServerEntryViewModel = hiltViewModel()
 ) {
-    app.picnic.player.ui.ambient.PublishBackdrop(null)
     val state by viewModel.state.collectAsStateWithLifecycle()
     LaunchedEffect(state.resolved) {
         if (state.resolved) {

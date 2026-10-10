@@ -51,7 +51,6 @@ import app.picnic.player.data.seerr.SeerrCatalogItem
 import app.picnic.player.data.seerr.SeerrImages
 import app.picnic.player.data.seerr.catalogKey
 import app.picnic.player.ui.ambient.LocalAmbientPrewarmer
-import app.picnic.player.ui.ambient.PublishBackdrop
 import app.picnic.player.ui.browse.DetailContentStartInset
 import app.picnic.player.ui.browse.browseLayoutMetrics
 import app.picnic.player.ui.common.CenteredMessage
@@ -92,7 +91,6 @@ fun FilmographyScreen(
         creationCallback = { factory -> factory.create(tmdbId, knownForDepartment) }
     )
 ) = BoxWithConstraints(Modifier.fillMaxSize()) {
-    PublishBackdrop(null)
     val state by viewModel.state.collectAsStateWithLifecycle()
     val metrics = browseLayoutMetrics(maxWidth, maxHeight)
     val retryFr = remember { FocusRequester() }

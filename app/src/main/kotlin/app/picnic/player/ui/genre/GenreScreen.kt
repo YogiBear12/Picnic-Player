@@ -15,7 +15,6 @@ import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.ExperimentalTvMaterial3Api
-import app.picnic.player.ui.ambient.PublishBackdrop
 import app.picnic.player.ui.browse.NavGutterWidth
 import app.picnic.player.ui.browse.browseLayoutMetrics
 import app.picnic.player.ui.grid.GridFilterSection
@@ -36,7 +35,6 @@ fun GenreScreen(
     libraryName: String? = null,
     viewModel: LibraryGridViewModel = hiltViewModel(key = "grid:genre:$genreId:${libraryId.orEmpty()}")
 ) {
-    PublishBackdrop(null)
     BackHandler(onBack = onBack)
     val state by viewModel.state.collectAsStateWithLifecycle()
     var seedContentFocus by remember { mutableStateOf(true) }

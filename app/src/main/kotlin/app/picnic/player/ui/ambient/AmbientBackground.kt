@@ -16,39 +16,17 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
-import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
 
 private const val PALETTE_FADE_MS = 1250
-private const val FOCUS_DEBOUNCE_MS = 250L
 private const val WASH_RADIUS = 0.85f
 
 private const val WASH_BITMAP_W = 192
 private const val WASH_BITMAP_H = 108
 
-@Composable
-fun rememberAmbientPalette(url: String?, loader: AmbientPaletteLoader): AmbientPalette? {
-    var palette by remember { mutableStateOf<AmbientPalette?>(null) }
-    LaunchedEffect(url) {
-        if (url == null) {
-            palette = null
-            return@LaunchedEffect
-        }
-        loader.cached(url)?.let {
-            palette = it
-            return@LaunchedEffect
-        }
-        delay(FOCUS_DEBOUNCE_MS)
-        if (!currentCoroutineContext().isActive) return@LaunchedEffect
-        palette = loader.load(url)
-    }
-    return palette
-}
-
 @Stable
-class AmbientWash internal constructor() {
-    internal var current by mutableStateOf<ImageBitmap?>(null)
+class AmbientWash internal constructor(initial: AmbientPalette? = null) {
+    internal var currentPalette = initial
+    internal var current by mutableStateOf(initial?.let(::renderWash))
     internal var previous by mutableStateOf<ImageBitmap?>(null)
     internal val progress = Animatable(1f)
 
@@ -62,12 +40,13 @@ class AmbientWash internal constructor() {
 }
 
 @Composable
-fun rememberAmbientWash(palette: AmbientPalette?): AmbientWash {
-    val wash = remember { AmbientWash() }
-    val washBitmap = remember(palette) { palette?.let(::renderWash) }
-    LaunchedEffect(washBitmap) {
+fun rememberAmbientWash(palette: AmbientPalette?, initial: AmbientPalette? = null): AmbientWash {
+    val wash = remember { AmbientWash(initial) }
+    LaunchedEffect(palette) {
+        if (palette == wash.currentPalette) return@LaunchedEffect
+        wash.currentPalette = palette
         wash.previous = wash.current
-        wash.current = washBitmap
+        wash.current = palette?.let(::renderWash)
         wash.progress.snapTo(0f)
         wash.progress.animateTo(1f, tween(PALETTE_FADE_MS))
     }

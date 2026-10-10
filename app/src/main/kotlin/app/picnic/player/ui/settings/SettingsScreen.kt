@@ -66,7 +66,6 @@ fun SettingsScreen(
     onOpenItem: (BaseItemDto, String?, String?) -> Unit,
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
-    app.picnic.player.ui.ambient.PublishBackdrop(null)
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val selected by viewModel.selectedCategory.collectAsStateWithLifecycle()
 

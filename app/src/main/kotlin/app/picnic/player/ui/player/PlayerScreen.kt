@@ -45,7 +45,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.picnic.player.data.media.ItemQueue
 import app.picnic.player.data.playback.enteredAtStart
 import app.picnic.player.playback.videoDisplayHints
-import app.picnic.player.ui.ambient.PublishBackdrop
 import app.picnic.player.ui.common.SilentNavigationSounds
 import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.player.osd.ChaptersPanel
@@ -67,8 +66,6 @@ fun PlayerScreen(
     onPlayNext: (nextItemId: String) -> Unit = {},
     viewModel: PlayerViewModel = hiltViewModel()
 ) {
-    PublishBackdrop(null)
-
     val state by viewModel.state.collectAsStateWithLifecycle()
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     LaunchedEffect(itemId) { viewModel.load(itemId, startTicks, mediaSourceId, queue) }

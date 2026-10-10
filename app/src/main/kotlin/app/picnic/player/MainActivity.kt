@@ -28,11 +28,9 @@ import app.picnic.player.playback.LocalThemeMusicPlayer
 import app.picnic.player.playback.ThemeMusicPlayer
 import app.picnic.player.ui.ambient.AmbientPaletteLoader
 import app.picnic.player.ui.ambient.AmbientPrewarmer
-import app.picnic.player.ui.ambient.BackdropController
 import app.picnic.player.ui.ambient.LocalAmbientBackgrounds
 import app.picnic.player.ui.ambient.LocalAmbientPaletteLoader
 import app.picnic.player.ui.ambient.LocalAmbientPrewarmer
-import app.picnic.player.ui.ambient.LocalBackdropController
 import app.picnic.player.ui.ambient.LocalPulseFocusGlow
 import app.picnic.player.ui.common.ServerNoticeHost
 import app.picnic.player.ui.navigation.AppNavigationViewModel
@@ -48,6 +46,7 @@ import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import org.jellyfin.sdk.model.api.BaseItemKind
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -56,8 +55,6 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var ambientLoader: AmbientPaletteLoader
 
     @Inject lateinit var ambientPrewarmer: AmbientPrewarmer
-
-    @Inject lateinit var backdropController: BackdropController
 
     @Inject lateinit var settingsStore: SettingsStore
 
@@ -93,7 +90,6 @@ class MainActivity : ComponentActivity() {
                     LocalAmbientPrewarmer provides ambientPrewarmer,
                     LocalAmbientBackgrounds provides ambientBackgrounds,
                     LocalPulseFocusGlow provides pulseFocusGlow,
-                    LocalBackdropController provides backdropController,
                     LocalThemeMusicPlayer provides themeMusicPlayer
                 ) {
                     Box {
@@ -123,7 +119,7 @@ class MainActivity : ComponentActivity() {
                         RemoteControlAction.GoHome -> navViewModel.resetTo(BrowseKey)
                         RemoteControlAction.GoToSettings -> navViewModel.push(SettingsKey)
                         is RemoteControlAction.ShowItem ->
-                            navViewModel.push(DetailKey(action.itemId, null, null))
+                            navViewModel.push(DetailKey(action.itemId, kind = null))
                         is RemoteControlAction.Play ->
                             navViewModel.push(
                                 PlayerKey(action.itemId, action.startPositionMs?.let { it.msToTicks() })
@@ -169,7 +165,7 @@ class MainActivity : ComponentActivity() {
         fun deepLinkKey(uri: Uri?): NavKey? {
             if (uri == null || uri.scheme != "picnic") return null
             return when (uri.host) {
-                "item" -> uri.lastPathSegment?.let { DetailKey(it, null, null) }
+                "item" -> uri.lastPathSegment?.let { DetailKey(it, kind = null) }
                 "series" -> {
                     val segments = uri.pathSegments
                     if (segments.size >= 3 && segments[1] == "episode") {
@@ -179,7 +175,7 @@ class MainActivity : ComponentActivity() {
                             seasonId = uri.getQueryParameter("seasonId")
                         )
                     } else {
-                        segments.firstOrNull()?.let { DetailKey(it, null, null) }
+                        segments.firstOrNull()?.let { DetailKey(it, kind = BaseItemKind.SERIES) }
                     }
                 }
                 else -> null

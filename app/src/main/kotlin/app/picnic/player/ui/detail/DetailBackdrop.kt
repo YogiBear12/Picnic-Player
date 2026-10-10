@@ -1,10 +1,10 @@
 package app.picnic.player.ui.detail
 
-import androidx.compose.foundation.background
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.State
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Brush
@@ -12,31 +12,39 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
-import app.picnic.player.ui.ambient.BackdropImage
+import androidx.compose.ui.platform.LocalContext
+import app.picnic.player.ui.ambient.AmbientBackground
+import app.picnic.player.ui.ambient.BackdropFrame
 import app.picnic.player.ui.ambient.bakeGradient
 import app.picnic.player.ui.ambient.drawBakedGradient
 import app.picnic.player.ui.theme.PicnicColors
-import coil3.compose.AsyncImage
+import coil3.compose.asPainter
 
 @Composable
-internal fun DetailBackdrop(image: BackdropImage, alphaScale: State<Float>, modifier: Modifier = Modifier) {
+internal fun DetailBackdrop(
+    frame: BackdropFrame,
+    modifier: Modifier = Modifier
+) {
+    val (art, artAlpha, wash, _, dim) = frame
+    val context = LocalContext.current
+    val painter = remember(art) { art?.image?.asPainter(context) }
     Box(
-        modifier
-            .background(PicnicColors.Background)
-            .drawWithContent {
-                drawContent()
-                drawBakedGradient(detailMask)
-            }
+        modifier.drawWithContent {
+            drawContent()
+            drawBakedGradient(detailMask)
+        }
     ) {
-        AsyncImage(
-            model = image.url,
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            onState = image::onState,
-            modifier = Modifier
-                .fillMaxSize()
-                .graphicsLayer { alpha = image.alpha.value * alphaScale.value }
-        )
+        AmbientBackground(wash, Modifier.fillMaxSize())
+        if (painter != null) {
+            Image(
+                painter = painter,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer { alpha = artAlpha.value * dim.value }
+            )
+        }
     }
 }
 

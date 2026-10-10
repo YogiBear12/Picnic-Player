@@ -61,9 +61,10 @@ import androidx.tv.material3.Text
 import app.picnic.player.playback.LocalThemeMusicPlayer
 import app.picnic.player.ui.ambient.BackdropSpec
 import app.picnic.player.ui.ambient.CardFocusBorderWidth
-import app.picnic.player.ui.ambient.PublishBackdrop
 import app.picnic.player.ui.ambient.cardFocusGlow
+import app.picnic.player.ui.ambient.rememberBackdrop
 import app.picnic.player.ui.ambient.rememberCardFocusGlow
+import app.picnic.player.ui.browse.BrowseBackdrop
 import app.picnic.player.ui.browse.CardTimeLeftBadge
 import app.picnic.player.ui.browse.CardWatchedBadge
 import app.picnic.player.ui.browse.HeroDetailsRowHeight
@@ -121,7 +122,6 @@ fun SeriesEpisodesScreen(
 
     val paletteUrl = ambUrl
         ?: viewModel.seriesItem?.let { images.primary(it, fillWidth = 240) }
-    PublishBackdrop(BackdropSpec(backdropUrl = null, ambientUrl = paletteUrl))
     var selectedSeasonId by rememberSaveable { mutableStateOf(initialSeasonId) }
 
     LaunchedEffect(viewModel.seasons) {
@@ -236,6 +236,10 @@ fun SeriesEpisodesScreen(
     }
 
     Box(Modifier.fillMaxSize()) {
+        BrowseBackdrop(
+            rememberBackdrop(BackdropSpec(backdropUrl = null, ambientUrl = paletteUrl)),
+            Modifier.fillMaxSize()
+        )
         if (seasonsFailed) {
             val retryFocus = remember { FocusRequester() }
             LaunchedEffect(Unit) { retryFocus.requestFocusWhenAttached() }

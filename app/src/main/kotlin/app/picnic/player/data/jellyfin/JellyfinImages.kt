@@ -8,6 +8,9 @@ import org.jellyfin.sdk.model.api.BaseItemKind
 import org.jellyfin.sdk.model.api.ImageType
 
 object JellyfinImages {
+    // Home and full-screen Details must request the same URL so an opened card's art is already decoded.
+    const val BACKDROP_WIDTH = 1920
+
     fun containedPrimary(
         session: UserSession,
         itemId: String,
@@ -119,7 +122,7 @@ object JellyfinImages {
     fun ambient(session: UserSession, item: BaseItemDto): String? = backdrop(session, item, fillWidth = 240) ?: primary(session, item, fillWidth = 240)
 
     fun navImages(session: UserSession, item: BaseItemDto): NavImages = NavImages(
-        bgUrl = backdrop(session, item, fillWidth = 1280),
+        bgUrl = backdrop(session, item, fillWidth = BACKDROP_WIDTH),
         ambUrl = ambient(session, item)
     )
 

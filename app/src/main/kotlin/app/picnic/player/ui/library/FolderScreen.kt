@@ -13,7 +13,6 @@ import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.picnic.player.data.media.FolderContext
-import app.picnic.player.ui.ambient.PublishBackdrop
 import app.picnic.player.ui.browse.NavGutterWidth
 import app.picnic.player.ui.browse.browseLayoutMetrics
 import app.picnic.player.ui.grid.GridStartInset
@@ -29,7 +28,6 @@ fun FolderScreen(
     onSessionExpired: (String) -> Unit,
     pathViewModel: FolderPathViewModel = hiltViewModel()
 ) {
-    PublishBackdrop(null)
     BackHandler(onBack = onBack)
     val path by pathViewModel.path.collectAsStateWithLifecycle()
     LaunchedEffect(key) { pathViewModel.bind(key) }

@@ -81,7 +81,8 @@ import app.picnic.player.data.media.QueueKind
 import app.picnic.player.data.media.seedId
 import app.picnic.player.text.countLabel
 import app.picnic.player.ui.ambient.BackdropSpec
-import app.picnic.player.ui.ambient.PublishBackdrop
+import app.picnic.player.ui.ambient.rememberBackdrop
+import app.picnic.player.ui.browse.BrowseBackdrop
 import app.picnic.player.ui.browse.CardTimeLeftBadge
 import app.picnic.player.ui.browse.CardWatchedBadge
 import app.picnic.player.ui.browse.minutesLeft
@@ -134,7 +135,10 @@ fun PlaylistScreen(
     val title = playlistName ?: "Playlist"
 
     Box(Modifier.fillMaxSize()) {
-        PublishBackdrop(BackdropSpec(backdropUrl = null, ambientUrl = null))
+        BrowseBackdrop(
+            rememberBackdrop(BackdropSpec(backdropUrl = null, ambientUrl = null)),
+            Modifier.fillMaxSize()
+        )
 
         when {
             state.loading -> PlaylistSkeleton(title)

@@ -29,8 +29,7 @@ import androidx.navigation3.ui.NavDisplay
 import app.picnic.player.data.media.ItemQueue
 import app.picnic.player.data.media.QueueKind
 import app.picnic.player.data.seerr.SeerrCatalogItem
-import app.picnic.player.ui.ambient.BackdropHostLayer
-import app.picnic.player.ui.ambient.LocalBackdropController
+import app.picnic.player.ui.ambient.LocalNavDim
 import app.picnic.player.ui.browse.NavRailViewModel
 import app.picnic.player.ui.collection.CollectionScreen
 import app.picnic.player.ui.common.ContextMenuAction
@@ -79,7 +78,6 @@ fun PicnicNavHost(
     imageUrlsViewModel: ImageUrlsViewModel = hiltViewModel()
 ) {
     val backStack = navViewModel.backStack
-    val backdropController = LocalBackdropController.current
     val rail = railViewModel.rail
 
     val navChromeFocused by rail.chromeFocused.collectAsStateWithLifecycle()
@@ -94,7 +92,6 @@ fun PicnicNavHost(
     )
 
     fun resetShellTo(key: NavKey) {
-        backdropController.clear()
         rail.clear()
         navViewModel.resetTo(key)
     }
@@ -145,11 +142,10 @@ fun PicnicNavHost(
         LocalContextMenuHandler provides contextMenuHandler,
         LocalSeerrCardMenu provides seerrCardMenu,
         LocalIssueReporter provides issueReporter,
-        LocalImageUrls provides imageUrls
+        LocalImageUrls provides imageUrls,
+        LocalNavDim provides navDim
     ) {
         Box(Modifier.fillMaxSize()) {
-            BackdropHostLayer(navDim, Modifier.fillMaxSize())
-
             NavDisplay(
                 backStack = backStack,
                 onBack = { navViewModel.pop() },
@@ -321,6 +317,7 @@ fun PicnicNavHost(
                             itemId = key.itemId,
                             bgUrl = key.bgUrl,
                             ambUrl = key.ambUrl,
+                            kind = key.kind,
                             onPlay = { id, ticks, sourceId -> navViewModel.push(PlayerKey(id, ticks, sourceId)) },
                             onItem = navViewModel::openItem,
                             onEpisodes = { id, ambUrl, seasonId, focusId -> navViewModel.push(EpisodesKey(id, ambUrl, focusId, seasonId)) },
@@ -344,7 +341,12 @@ fun PicnicNavHost(
                             bgUrl = key.bgUrl,
                             ambUrl = key.ambUrl,
                             onPlayLibraryItem = { jellyfinId ->
-                                navViewModel.replaceTop(DetailKey(jellyfinId, key.bgUrl, key.ambUrl))
+                                navViewModel.replaceTop(
+                                    DetailKey(
+                                        jellyfinId,
+                                        kind = seerrLibraryKind(key.mediaType)
+                                    )
+                                )
                             },
                             onRecommendedItem = { item, bg, amb ->
                                 navViewModel.push(resolveSeerrNavKey(item, bg, amb))
@@ -375,7 +377,7 @@ fun PicnicNavHost(
                             onBack = { navViewModel.pop() },
                             initialSeasonId = key.seasonId,
                             initialFocusEpisodeId = key.focusEpisodeId,
-                            onGoToSeries = { seriesId -> navViewModel.push(DetailKey(seriesId)) }
+                            onGoToSeries = { seriesId -> navViewModel.push(DetailKey(seriesId, kind = BaseItemKind.SERIES)) }
                         )
                     }
                     entry<CollectionKey> { key ->
@@ -409,7 +411,7 @@ fun PicnicNavHost(
                                     PlayerKey(id, queue = ItemQueue(key.playlistId, QueueKind.PLAYLIST, shuffleSeed = seed))
                                 )
                             },
-                            onGoToSeries = { seriesId -> navViewModel.push(DetailKey(seriesId)) },
+                            onGoToSeries = { seriesId -> navViewModel.push(DetailKey(seriesId, kind = BaseItemKind.SERIES)) },
                             onBack = { navViewModel.pop() }
                         )
                     }
@@ -482,8 +484,7 @@ fun PicnicNavHost(
                     onGoToSeries = if (item.type == BaseItemKind.EPISODE && item.seriesId != null) {
                         { seriesId ->
                             contextMenuItem = null
-                            val nav = imageUrls.navImages(item)
-                            navViewModel.push(DetailKey(seriesId, nav.bgUrl, nav.ambUrl))
+                            navViewModel.push(DetailKey(seriesId, kind = BaseItemKind.SERIES))
                         }
                     } else {
                         null
