@@ -6,6 +6,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -35,6 +36,9 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -59,6 +63,7 @@ import app.picnic.player.ui.common.LocalImageUrls
 import app.picnic.player.ui.common.LogoOrFallback
 import app.picnic.player.ui.common.PosterPlaceholderLabel
 import app.picnic.player.ui.common.watchProgress
+import app.picnic.player.ui.navigation.LocalCardOpenBounds
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
 
@@ -82,6 +87,8 @@ internal fun BrowsePosterCard(
     showStatus: Boolean = true
 ) {
     val images = LocalImageUrls.current
+    val reportOpenBounds = LocalCardOpenBounds.current
+    var artworkCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
     val widthPx = with(LocalDensity.current) { style.width.roundToPx() }
     val thumbUrl = if (style.landscape && overrideImageUrl == null) {
         images.thumb(item, fillWidth = widthPx)
@@ -104,13 +111,19 @@ internal fun BrowsePosterCard(
         downFocus = downFocus,
         leftFocus = leftFocus,
         rightFocus = rightFocus,
-        onClick = onClick,
+        onClick = {
+            if (item.type == BaseItemKind.MOVIE || item.type == BaseItemKind.SERIES) {
+                artworkCoordinates?.let { reportOpenBounds(item.id.toString(), it.boundsInRoot()) }
+            }
+            onClick()
+        },
         onLongClick = onLongClick,
         onFocused = onFocused,
         modifier = modifier
     ) {
         var artworkFailed by remember(imageUrl) { mutableStateOf(false) }
         ArtworkPlaceholder()
+        Spacer(Modifier.fillMaxSize().onPlaced { artworkCoordinates = it })
         if (imageUrl == null) {
             androidx.compose.runtime.LaunchedEffect(item.id) {
                 android.util.Log.w(

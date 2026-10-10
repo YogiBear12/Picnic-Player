@@ -1,30 +1,40 @@
 package app.picnic.player.ui.navigation
 
+import androidx.compose.animation.EnterExitState
+import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.MotionScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
+import androidx.navigation3.ui.LocalNavAnimatedContentScope
 import androidx.navigation3.ui.NavDisplay
 import app.picnic.player.data.media.ItemQueue
 import app.picnic.player.data.media.QueueKind
@@ -61,6 +71,7 @@ import app.picnic.player.ui.seerr.LocalIssueReporter
 import app.picnic.player.ui.seerr.SeerrCardContextMenu
 import app.picnic.player.ui.settings.SettingsScreen
 import app.picnic.player.ui.startup.StartupScreen
+import app.picnic.player.ui.theme.PicnicColors
 import app.picnic.player.ui.theme.TvBrowseMotion
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
@@ -69,6 +80,8 @@ private const val EnterDurationMs = 400
 private const val ExitDurationMs = 300
 private val EnterEasing = CubicBezierEasing(0.05f, 0.7f, 0.1f, 1.0f)
 private val ExitEasing = CubicBezierEasing(0.3f, 0.0f, 0.8f, 0.15f)
+
+internal val LocalCardOpenBounds = staticCompositionLocalOf<(String, Rect) -> Unit> { { _, _ -> } }
 
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
@@ -79,6 +92,8 @@ fun PicnicNavHost(
 ) {
     val backStack = navViewModel.backStack
     val rail = railViewModel.rail
+    // shortcut: retain only the latest click; add per-entry origins when extending beyond the opening proof.
+    var selectedCardBounds by remember { mutableStateOf<Pair<String, Rect>?>(null) }
 
     val navChromeFocused by rail.chromeFocused.collectAsStateWithLifecycle()
     val navDim = animateFloatAsState(
@@ -143,7 +158,8 @@ fun PicnicNavHost(
         LocalSeerrCardMenu provides seerrCardMenu,
         LocalIssueReporter provides issueReporter,
         LocalImageUrls provides imageUrls,
-        LocalNavDim provides navDim
+        LocalNavDim provides navDim,
+        LocalCardOpenBounds provides { itemId, bounds -> selectedCardBounds = itemId to bounds }
     ) {
         Box(Modifier.fillMaxSize()) {
             NavDisplay(
@@ -312,22 +328,57 @@ fun PicnicNavHost(
                             onOpenItem = navViewModel::openItem
                         )
                     }
-                    entry<DetailKey> { key ->
-                        DetailScreen(
-                            itemId = key.itemId,
-                            ambUrl = key.ambUrl,
-                            kind = key.kind,
-                            onPlay = { id, ticks, sourceId -> navViewModel.push(PlayerKey(id, ticks, sourceId)) },
-                            onItem = navViewModel::openItem,
-                            onEpisodes = { id, ambUrl, seasonId, focusId -> navViewModel.push(EpisodesKey(id, ambUrl, focusId, seasonId)) },
-                            onCollection = { collection ->
-                                navViewModel.push(
-                                    CollectionKey(collection.id.toString())
-                                )
-                            },
-                            onPersonClick = { key -> navViewModel.push(key) },
-                            onBack = { navViewModel.pop() }
-                        )
+                    entry<DetailKey>(
+                        metadata = { key ->
+                            NavDisplay.transitionSpec {
+                                if (selectedCardBounds?.first == key.itemId) {
+                                    (EnterTransition.None togetherWith ExitTransition.None).apply {
+                                        targetContentZIndex = 1f
+                                    }
+                                } else {
+                                    fadeIn(tween(EnterDurationMs, easing = EnterEasing)) togetherWith
+                                        fadeOut(tween(ExitDurationMs, easing = ExitEasing))
+                                }
+                            }
+                        }
+                    ) { key ->
+                        val origin = remember(key) { selectedCardBounds?.takeIf { it.first == key.itemId }?.second }
+                        val opening = LocalNavAnimatedContentScope.current.transition.animateFloat(
+                            transitionSpec = { MotionScheme.standard().defaultSpatialSpec() },
+                            label = "detailsOpening"
+                        ) { state -> if (state == EnterExitState.PreEnter) 0f else 1f }
+                        Box(
+                            Modifier
+                                .fillMaxSize()
+                                .graphicsLayer {
+                                    origin?.let { bounds ->
+                                        val remaining = 1f - opening.value
+                                        transformOrigin = TransformOrigin(0f, 0f)
+                                        scaleX = 1f + (bounds.width / size.width - 1f) * remaining
+                                        scaleY = 1f + (bounds.height / size.height - 1f) * remaining
+                                        translationX = bounds.left * remaining
+                                        translationY = bounds.top * remaining
+                                        clip = true
+                                    }
+                                }
+                                .background(PicnicColors.Background)
+                        ) {
+                            DetailScreen(
+                                itemId = key.itemId,
+                                ambUrl = key.ambUrl,
+                                kind = key.kind,
+                                onPlay = { id, ticks, sourceId -> navViewModel.push(PlayerKey(id, ticks, sourceId)) },
+                                onItem = navViewModel::openItem,
+                                onEpisodes = { id, ambUrl, seasonId, focusId -> navViewModel.push(EpisodesKey(id, ambUrl, focusId, seasonId)) },
+                                onCollection = { collection ->
+                                    navViewModel.push(
+                                        CollectionKey(collection.id.toString())
+                                    )
+                                },
+                                onPersonClick = { key -> navViewModel.push(key) },
+                                onBack = { navViewModel.pop() }
+                            )
+                        }
                     }
                     entry<SeerrDetailKey> { key ->
                         val mediaType = when (key.mediaType.lowercase()) {
