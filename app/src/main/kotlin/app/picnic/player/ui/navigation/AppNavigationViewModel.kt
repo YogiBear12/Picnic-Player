@@ -38,7 +38,7 @@ class AppNavigationViewModel @Inject constructor() : ViewModel() {
         backStack.removeLastOrNull()
     }
 
-    fun openItem(item: BaseItemDto, bgUrl: String?, ambUrl: String?) {
+    fun openItem(item: BaseItemDto, ambUrl: String?) {
         val seriesId = item.seriesId
         when {
             item.type == BaseItemKind.EPISODE && seriesId != null -> push(
@@ -59,7 +59,7 @@ class AppNavigationViewModel @Inject constructor() : ViewModel() {
             item.type == BaseItemKind.BOX_SET -> push(CollectionKey(item.id.toString()))
             item.type == BaseItemKind.PLAYLIST -> push(PlaylistKey(item.id.toString(), item.name))
             item.type == BaseItemKind.VIDEO -> playVideo(item)
-            else -> push(DetailKey(item.id.toString(), bgUrl, ambUrl, kind = item.type))
+            else -> push(DetailKey(item.id.toString(), ambUrl = ambUrl, kind = item.type))
         }
     }
 

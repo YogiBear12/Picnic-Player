@@ -25,7 +25,7 @@ internal fun HomeBrowsePane(
     focus: ImmersiveBrowseFocus,
     seedContentFocus: Boolean,
     onContentFocusSeeded: () -> Unit,
-    onItem: (BaseItemDto, String?, String?) -> Unit,
+    onItem: (BaseItemDto, String?) -> Unit,
     onPersonalItem: (PersonalLibrary, BaseItemDto) -> Unit
 ) {
     when {

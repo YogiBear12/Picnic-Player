@@ -63,7 +63,7 @@ internal fun ImmersiveBrowseScaffold(
     seedContentFocus: Boolean,
     onContentFocusSeeded: () -> Unit,
     onBrowseItemFocused: (rowIndex: Int, item: BaseItemDto) -> Unit,
-    onItem: (BaseItemDto, String?, String?) -> Unit,
+    onItem: (BaseItemDto, String?) -> Unit,
     onPersonalItem: (PersonalLibrary, BaseItemDto) -> Unit = { _, _ -> },
     horizontalInset: Dp,
     metrics: BrowseLayoutMetrics,

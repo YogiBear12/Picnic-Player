@@ -54,7 +54,7 @@ internal fun BrowseRowSection(
     rowCardFocus: FocusRequester,
     focusedItemId: UUID?,
     rowBringIntoView: BringIntoViewSpec,
-    onItem: (BaseItemDto, String?, String?) -> Unit,
+    onItem: (BaseItemDto, String?) -> Unit,
     onPersonalItem: (PersonalLibrary, BaseItemDto) -> Unit,
     onFocusItem: (Int, BaseItemDto) -> Unit
 ) {
@@ -107,7 +107,7 @@ internal fun BrowseRowSection(
                             } else {
                                 val nav = images.navImages(item)
                                 ambientPrewarmer.warm(nav.ambUrl)
-                                onItem(item, nav.bgUrl, nav.ambUrl)
+                                onItem(item, nav.ambUrl)
                             }
                         },
                         onFocused = { focusItem(item) },

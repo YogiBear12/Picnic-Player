@@ -35,7 +35,6 @@ class SeerrNavTest {
         assertTrue(key is DetailKey)
         key as DetailKey
         assertEquals(jellyfinId, key.itemId)
-        assertNull(key.bgUrl)
         assertNull(key.ambUrl)
         assertEquals(BaseItemKind.MOVIE, key.kind)
     }
@@ -54,7 +53,6 @@ class SeerrNavTest {
         assertTrue(key is DetailKey)
         key as DetailKey
         assertEquals(jellyfinId, key.itemId)
-        assertNull(key.bgUrl)
         assertNull(key.ambUrl)
         assertEquals(BaseItemKind.SERIES, key.kind)
     }
@@ -82,7 +80,6 @@ class SeerrNavTest {
             ambUrl = "seerr-amb"
         ) as DetailKey
         assertNull(key.kind)
-        assertNull(key.bgUrl)
         assertNull(key.ambUrl)
     }
 

@@ -88,7 +88,7 @@ internal fun MediaGridPane(
     metrics: BrowseLayoutMetrics,
     seedContentFocus: Boolean,
     onContentFocusSeeded: () -> Unit,
-    onItem: (BaseItemDto, String?, String?) -> Unit,
+    onItem: (BaseItemDto, String?) -> Unit,
     onChromeVisibleChange: (Boolean) -> Unit,
     offeredFilters: Set<GridFilterSection> = setOf(GridFilterSection.GENRES),
     title: String? = null,
@@ -173,7 +173,7 @@ private fun MediaGridBody(
     refreshing: Boolean,
     isJumpingToLetter: Boolean,
     onApplyFilterSort: (app.picnic.player.data.media.MediaGridFilter, app.picnic.player.data.media.GridSortSpec) -> Unit,
-    onItem: (BaseItemDto, String?, String?) -> Unit,
+    onItem: (BaseItemDto, String?) -> Unit,
     onLetter: (String) -> Unit,
     itemAt: (Int) -> org.jellyfin.sdk.model.api.BaseItemDto?,
     onVisibleIndex: (Int) -> Unit,
@@ -360,7 +360,7 @@ private fun MediaGridBody(
                                 onClick = {
                                     val nav = images.navImages(item)
                                     ambientPrewarmer.warm(nav.ambUrl)
-                                    onItem(item, nav.bgUrl, nav.ambUrl)
+                                    onItem(item, nav.ambUrl)
                                 },
                                 onFocused = { focusOn(index) },
                                 onLongClick = { contextMenu.show(item) }

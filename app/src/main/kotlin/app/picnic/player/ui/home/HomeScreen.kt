@@ -10,7 +10,7 @@ import org.jellyfin.sdk.model.api.BaseItemDto
 
 @Composable
 fun HomeScreen(
-    onItem: (BaseItemDto, String?, String?) -> Unit,
+    onItem: (BaseItemDto, String?) -> Unit,
     onSeerrItem: (app.picnic.player.data.seerr.SeerrCatalogItem, String?, String?) -> Unit,
     onGenre: (BaseItemDto) -> Unit,
     onLibraryGenre: (BaseItemDto, BrowseDest.Library) -> Unit,

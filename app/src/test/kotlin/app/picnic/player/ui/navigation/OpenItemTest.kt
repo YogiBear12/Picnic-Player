@@ -22,14 +22,13 @@ class OpenItemTest {
 
     private fun openedKey(item: BaseItemDto): Any? {
         val viewModel = AppNavigationViewModel()
-        viewModel.openItem(item, bgUrl = "bg", ambUrl = "amb")
+        viewModel.openItem(item, ambUrl = "amb")
         return viewModel.backStack.lastOrNull()
     }
 
     private fun assertDetailKey(key: Any?) {
         val detail = key as DetailKey
         assertEquals(itemId.toString(), detail.itemId)
-        assertEquals("bg", detail.bgUrl)
         assertEquals("amb", detail.ambUrl)
     }
 

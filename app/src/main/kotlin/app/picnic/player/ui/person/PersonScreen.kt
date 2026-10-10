@@ -151,7 +151,7 @@ private const val ROW_KNOWN_FOR = "known-for"
 fun PersonScreen(
     jellyfinPersonId: String?,
     tmdbId: Int?,
-    onItem: (item: BaseItemDto, bgUrl: String?, ambUrl: String?) -> Unit,
+    onItem: (item: BaseItemDto, ambUrl: String?) -> Unit,
     onSeerrItem: (SeerrCatalogItem, String?, String?) -> Unit,
     onFilmography: (tmdbId: Int, name: String, knownForDepartment: String?) -> Unit,
     onBack: () -> Unit,
@@ -378,7 +378,7 @@ fun PersonScreen(
                         cardSpacing = metrics.cardSpacing,
                         onItemClick = { item ->
                             val nav = images.navImages(item)
-                            onItem(item, nav.bgUrl, nav.ambUrl)
+                            onItem(item, nav.ambUrl)
                         },
                         onSeerrClick = ::openSeerrItem,
                         onFocused = { lastSection = PersonSection.Movies }
@@ -405,7 +405,7 @@ fun PersonScreen(
                         cardSpacing = metrics.cardSpacing,
                         onItemClick = { item ->
                             val nav = images.navImages(item)
-                            onItem(item, nav.bgUrl, nav.ambUrl)
+                            onItem(item, nav.ambUrl)
                         },
                         onSeerrClick = ::openSeerrItem,
                         onFocused = { lastSection = PersonSection.Shows }

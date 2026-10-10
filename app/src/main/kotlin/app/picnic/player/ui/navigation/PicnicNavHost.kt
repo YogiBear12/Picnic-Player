@@ -315,7 +315,6 @@ fun PicnicNavHost(
                     entry<DetailKey> { key ->
                         DetailScreen(
                             itemId = key.itemId,
-                            bgUrl = key.bgUrl,
                             ambUrl = key.ambUrl,
                             kind = key.kind,
                             onPlay = { id, ticks, sourceId -> navViewModel.push(PlayerKey(id, ticks, sourceId)) },

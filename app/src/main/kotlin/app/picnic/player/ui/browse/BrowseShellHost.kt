@@ -57,7 +57,7 @@ import org.jellyfin.sdk.model.api.BaseItemDto
 
 @Composable
 fun BrowseShellHost(
-    onItem: (BaseItemDto, String?, String?) -> Unit,
+    onItem: (BaseItemDto, String?) -> Unit,
     onSeerrItem: (SeerrCatalogItem, String?, String?) -> Unit,
     onGenre: (BaseItemDto) -> Unit,
     onLibraryGenre: (BaseItemDto, BrowseDest.Library) -> Unit,

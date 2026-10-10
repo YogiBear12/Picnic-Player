@@ -34,7 +34,6 @@ data object SettingsKey : NavKey
 @Serializable
 data class DetailKey(
     val itemId: String,
-    val bgUrl: String? = null,
     val ambUrl: String? = null,
     val kind: BaseItemKind? = null,
     val instanceId: String = java.util.UUID.randomUUID().toString()

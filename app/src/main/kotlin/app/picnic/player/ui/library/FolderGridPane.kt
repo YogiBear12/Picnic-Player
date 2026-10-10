@@ -58,7 +58,7 @@ internal fun FolderGridPane(
             metrics = metrics,
             seedContentFocus = seedContentFocus,
             onContentFocusSeeded = onContentFocusSeeded,
-            onItem = { item, _, _ -> onOpen(item, from) },
+            onItem = { item, _ -> onOpen(item, from) },
             onChromeVisibleChange = {},
             offeredFilters = emptySet(),
             title = title,

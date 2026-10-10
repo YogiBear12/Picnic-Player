@@ -28,7 +28,7 @@ import org.jellyfin.sdk.model.api.BaseItemDto
 fun GenreScreen(
     genreId: String,
     genreName: String?,
-    onItem: (BaseItemDto, String?, String?) -> Unit,
+    onItem: (BaseItemDto, String?) -> Unit,
     onBack: () -> Unit,
     onSessionExpired: (String) -> Unit,
     libraryId: String? = null,

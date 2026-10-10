@@ -132,7 +132,7 @@ private fun Modifier.blockTop(block: AccountBlock, tops: MutableMap<AccountBlock
 internal fun AccountSettingsPanel(
     viewModel: SettingsViewModel,
     onSignedOut: () -> Unit,
-    onOpenItem: (BaseItemDto, String?, String?) -> Unit,
+    onOpenItem: (BaseItemDto, String?) -> Unit,
     onOpenSeerrDetail: ((SeerrMediaRequest) -> Unit)?,
     onOpenIssues: () -> Unit,
     restoreRow: SubPageRow?,
@@ -334,7 +334,7 @@ internal fun AccountSettingsPanel(
                                     rightFocus = cardFocus.right,
                                     onClick = {
                                         val nav = images.navImages(item)
-                                        onOpenItem(item, nav.bgUrl, nav.ambUrl)
+                                        onOpenItem(item, nav.ambUrl)
                                     },
                                     onLongClick = { contextMenu.show(item) },
                                     onFocused = cardFocus.onFocused,

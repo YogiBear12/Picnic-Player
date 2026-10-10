@@ -69,7 +69,7 @@ internal fun SearchPane(
     horizontalInset: Dp,
     seedContentFocus: Boolean,
     onContentFocusSeeded: () -> Unit,
-    onItem: (BaseItemDto, String?, String?) -> Unit,
+    onItem: (BaseItemDto, String?) -> Unit,
     onPersonalItem: (PersonalLibrary, BaseItemDto) -> Unit,
     onSeerrItem: (app.picnic.player.data.seerr.SeerrCatalogItem, String?, String?) -> Unit,
     onGenre: (BaseItemDto) -> Unit,
@@ -189,7 +189,7 @@ private fun ResultRowsSection(
     metrics: BrowseLayoutMetrics,
     onResultFocused: (Int, BaseItemDto) -> Unit,
     onDiscoverFocused: (Int, app.picnic.player.data.seerr.SeerrCatalogItem) -> Unit,
-    onItem: (BaseItemDto, String?, String?) -> Unit,
+    onItem: (BaseItemDto, String?) -> Unit,
     onPersonalItem: (PersonalLibrary, BaseItemDto) -> Unit,
     onSeerrItem: (app.picnic.player.data.seerr.SeerrCatalogItem, String?, String?) -> Unit,
     onCollection: (BaseItemDto) -> Unit,
@@ -258,7 +258,7 @@ private fun ResultRowsSection(
                                         else -> {
                                             val nav = images.navImages(item)
                                             ambientPrewarmer.warm(nav.ambUrl)
-                                            onItem(item, nav.bgUrl, nav.ambUrl)
+                                            onItem(item, nav.ambUrl)
                                         }
                                     }
                                 },

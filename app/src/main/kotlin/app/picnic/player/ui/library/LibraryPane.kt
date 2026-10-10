@@ -65,7 +65,7 @@ internal fun LibraryPane(
     horizontalInset: Dp,
     seedContentFocus: Boolean,
     onContentFocusSeeded: () -> Unit,
-    onItem: (BaseItemDto, String?, String?) -> Unit,
+    onItem: (BaseItemDto, String?) -> Unit,
     onGenre: (BaseItemDto) -> Unit,
     onCollection: (BaseItemDto) -> Unit,
     onSessionExpired: (String) -> Unit
@@ -202,11 +202,11 @@ internal fun LibraryPane(
                                 metrics = metrics,
                                 seedContentFocus = seedContentFocus && tab == selectedTab,
                                 onContentFocusSeeded = onContentFocusSeeded,
-                                onItem = { item, bg, amb ->
+                                onItem = { item, amb ->
                                     if (item.type == BaseItemKind.BOX_SET) {
                                         onCollection(item)
                                     } else {
-                                        onItem(item, bg, amb)
+                                        onItem(item, amb)
                                     }
                                 },
                                 onChromeVisibleChange = { collectionsChromeVisible = it },
@@ -237,7 +237,7 @@ private fun ForYouTabContent(
     active: Boolean,
     seedContentFocus: Boolean,
     onContentFocusSeeded: () -> Unit,
-    onItem: (BaseItemDto, String?, String?) -> Unit
+    onItem: (BaseItemDto, String?) -> Unit
 ) {
     LaunchedEffect(dest) { viewModel.bind(dest.id, dest.kinds) }
     val focus = rememberHomeBrowseFocus(

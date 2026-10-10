@@ -63,7 +63,7 @@ fun SettingsScreen(
     onBack: () -> Unit,
     onSignedOut: () -> Unit,
     onOpenSeerrDetail: ((app.picnic.player.data.seerr.SeerrMediaRequest) -> Unit)? = null,
-    onOpenItem: (BaseItemDto, String?, String?) -> Unit,
+    onOpenItem: (BaseItemDto, String?) -> Unit,
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
     val settings by viewModel.settings.collectAsStateWithLifecycle()
@@ -338,7 +338,7 @@ private fun DetailPanel(
     onShowSubtitleLanguagePicker: () -> Unit,
     onOpenSubtitleAppearance: () -> Unit,
     onOpenSeerrDetail: ((app.picnic.player.data.seerr.SeerrMediaRequest) -> Unit)?,
-    onOpenItem: (BaseItemDto, String?, String?) -> Unit,
+    onOpenItem: (BaseItemDto, String?) -> Unit,
     onOpenLicenses: () -> Unit,
     onOpenIssues: () -> Unit,
     restoreRow: SubPageRow?,

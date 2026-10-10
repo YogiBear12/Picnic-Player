@@ -49,7 +49,7 @@ fun CollectionScreen(
     collectionId: String,
     onPlay: (itemId: String) -> Unit,
     onShuffle: (itemId: String, queueSeed: Long) -> Unit,
-    onItem: (BaseItemDto, String?, String?) -> Unit,
+    onItem: (BaseItemDto, String?) -> Unit,
     onBack: () -> Unit,
     viewModel: CollectionViewModel = hiltViewModel<CollectionViewModel, CollectionViewModel.Factory>(
         creationCallback = { factory -> factory.create(collectionId) }
@@ -83,7 +83,7 @@ private fun CollectionContent(
     state: CollectionViewModel.UiState,
     onPlay: (String) -> Unit,
     onShuffle: (String, Long) -> Unit,
-    onItem: (BaseItemDto, String?, String?) -> Unit,
+    onItem: (BaseItemDto, String?) -> Unit,
     viewModel: CollectionViewModel
 ) = BoxWithConstraints(Modifier.fillMaxSize()) {
     val images = LocalImageUrls.current
@@ -168,7 +168,7 @@ private fun CollectionContent(
                 onClick = { rowItem ->
                     val rowNav = images.navImages(rowItem)
                     ambientPrewarmer.warm(rowNav.ambUrl)
-                    onItem(rowItem, rowNav.bgUrl, rowNav.ambUrl)
+                    onItem(rowItem, rowNav.ambUrl)
                 },
                 onLongClick = { contextMenu.show(it) },
                 onFocused = { cardIndex, rowItem ->

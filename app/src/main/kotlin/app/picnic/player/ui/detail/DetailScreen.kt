@@ -69,11 +69,10 @@ private fun BaseItemKind?.isFullscreenDetail() = this == BaseItemKind.MOVIE || t
 @Composable
 fun DetailScreen(
     itemId: String,
-    bgUrl: String?,
     ambUrl: String?,
     kind: BaseItemKind? = null,
     onPlay: (itemId: String, startTicks: Long?, sourceId: String?) -> Unit,
-    onItem: (item: BaseItemDto, bgUrl: String?, ambUrl: String?) -> Unit,
+    onItem: (item: BaseItemDto, ambUrl: String?) -> Unit,
     onBack: () -> Unit,
     onEpisodes: (String, String?, String?, String?) -> Unit = { _, _, _, _ -> },
     onCollection: (BaseItemDto) -> Unit = {},
@@ -95,7 +94,7 @@ fun DetailScreen(
         onDispose { ownerId?.let(themeMusic::release) }
     }
 
-    val nav = item?.let { images.navImages(it) } ?: NavImages(bgUrl, ambUrl)
+    val nav = item?.let { images.navImages(it) } ?: NavImages(bgUrl = null, ambUrl = ambUrl)
     val fullscreen = (item?.type ?: kind).isFullscreenDetail()
     val backdrop = BackdropSpec(backdropUrl = nav.bgUrl, ambientUrl = nav.ambUrl)
     val frame = rememberBackdrop(backdrop, { rowDimmed })
@@ -135,7 +134,7 @@ private fun DetailContent(
     item: BaseItemDto,
     state: DetailViewModel.UiState,
     onPlay: (String, Long?, String?) -> Unit,
-    onItem: (BaseItemDto, String?, String?) -> Unit,
+    onItem: (BaseItemDto, String?) -> Unit,
     onEpisodes: (String, String?, String?, String?) -> Unit,
     onCollection: (BaseItemDto) -> Unit,
     onPersonClick: (PersonKey) -> Unit,
@@ -267,7 +266,7 @@ private fun DetailContent(
                     onClick = { similarItem ->
                         val nav = images.navImages(similarItem)
                         ambientPrewarmer.warm(nav.ambUrl)
-                        onItem(similarItem, nav.bgUrl, nav.ambUrl)
+                        onItem(similarItem, nav.ambUrl)
                     },
                     onLongClick = { contextMenu.show(it) },
                     onFocused = { index, similarItem ->
