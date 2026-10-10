@@ -24,6 +24,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.unit.Dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.Text
@@ -34,6 +35,7 @@ import app.picnic.player.ui.ambient.DimBackdrop
 import app.picnic.player.ui.ambient.LocalAmbientPrewarmer
 import app.picnic.player.ui.ambient.PublishBackdrop
 import app.picnic.player.ui.browse.BrowseHero
+import app.picnic.player.ui.browse.DetailContentStartInset
 import app.picnic.player.ui.browse.DetailPageScaffold
 import app.picnic.player.ui.browse.DetailPosterRow
 import app.picnic.player.ui.browse.browseLayoutMetrics
@@ -218,13 +220,14 @@ private fun DetailContent(
             modifier = heroModifier
         )
     }
-    val rows: LazyListScope.(BringIntoViewSpec) -> Unit = { horizontalRowSpec ->
+    val rows: LazyListScope.(BringIntoViewSpec, Dp) -> Unit = { horizontalRowSpec, startInset ->
         if (people.isNotEmpty()) {
             item(key = ROW_CAST) {
                 DetailCastRow(
                     people = people,
                     metrics = metrics,
                     horizontalRowSpec = horizontalRowSpec,
+                    startInset = startInset,
                     rowFocus = focus.rowFocus(ROW_CAST),
                     upFocus = { focus.lastFocusedButton },
                     onFocused = { index, person -> focus.onRowFocused(ROW_CAST, index, person.id.toString()) },
@@ -241,6 +244,7 @@ private fun DetailContent(
                     metrics = metrics,
                     cardStyle = cardStyle,
                     horizontalRowSpec = horizontalRowSpec,
+                    startInset = startInset,
                     rowFocus = focus.rowFocus(ROW_COLLECTIONS),
                     onClick = { onCollection(it) },
                     onLongClick = { contextMenu.show(it) },
@@ -261,6 +265,7 @@ private fun DetailContent(
                     metrics = metrics,
                     cardStyle = cardStyle,
                     horizontalRowSpec = horizontalRowSpec,
+                    startInset = startInset,
                     rowFocus = focus.rowFocus(ROW_SIMILAR),
                     onClick = { similarItem ->
                         val nav = images.navImages(similarItem)
@@ -298,7 +303,7 @@ private fun DetailContent(
             actions = actions,
             notice = state.requestMoreError,
             hero = hero,
-            rows = rows
+            rows = { horizontalRowSpec -> rows(horizontalRowSpec, DetailContentStartInset) }
         )
     }
 

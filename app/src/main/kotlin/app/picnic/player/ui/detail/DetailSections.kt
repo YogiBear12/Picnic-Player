@@ -19,6 +19,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.unit.Dp
 import app.picnic.player.ui.browse.BrowseLayoutMetrics
 import app.picnic.player.ui.browse.DetailMediaRow
 import app.picnic.player.ui.common.CircularPersonCard
@@ -72,6 +73,7 @@ internal fun DetailCastRow(
     people: List<BaseItemPerson>,
     metrics: BrowseLayoutMetrics,
     horizontalRowSpec: BringIntoViewSpec,
+    startInset: Dp,
     rowFocus: RowFocusState,
     upFocus: () -> FocusRequester,
     onFocused: (Int, BaseItemPerson) -> Unit,
@@ -80,6 +82,7 @@ internal fun DetailCastRow(
     DetailMediaRow(
         title = "Cast & crew",
         items = people,
+        startInset = startInset,
         endInset = metrics.hInset,
         cardSpacing = metrics.cardSpacing,
         horizontalRowSpec = horizontalRowSpec,

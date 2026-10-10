@@ -10,6 +10,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.unit.Dp
 import app.picnic.player.ui.common.RowFocusState
 import app.picnic.player.ui.grid.MediaGridCard
 import app.picnic.player.ui.grid.gridCellSlot
@@ -24,6 +25,7 @@ internal fun DetailPosterRow(
     metrics: BrowseLayoutMetrics,
     cardStyle: BrowseCardStyle,
     horizontalRowSpec: BringIntoViewSpec,
+    startInset: Dp = DetailContentStartInset,
     rowFocus: RowFocusState,
     onClick: (BaseItemDto) -> Unit,
     onLongClick: (BaseItemDto) -> Unit,
@@ -36,6 +38,7 @@ internal fun DetailPosterRow(
     DetailMediaRow(
         title = title,
         items = items,
+        startInset = startInset,
         endInset = metrics.hInset,
         cardSpacing = metrics.cardSpacing,
         horizontalRowSpec = horizontalRowSpec,

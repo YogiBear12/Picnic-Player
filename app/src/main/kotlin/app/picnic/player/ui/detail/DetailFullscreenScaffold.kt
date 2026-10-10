@@ -33,7 +33,6 @@ import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import app.picnic.player.ui.browse.BrowseLayoutMetrics
-import app.picnic.player.ui.browse.DetailContentStartInset
 import app.picnic.player.ui.browse.ScrollToTopBringIntoView
 import app.picnic.player.ui.common.ActionButtonRow
 import app.picnic.player.ui.common.PageAction
@@ -41,7 +40,7 @@ import app.picnic.player.ui.common.RowPageFocus
 import app.picnic.player.ui.theme.PicnicColors
 
 // Design-canvas units above the bottom edge at rest; derivation in docs/guides/browse-backdrop.md.
-private const val RESTING_ACTIONS_BOTTOM = 77f
+private const val RESTING_ACTIONS_BOTTOM = 112f
 private const val RESTING_ROW_PEEK = 41f
 
 @Composable
@@ -53,7 +52,7 @@ internal fun DetailFullscreenScaffold(
     actions: List<PageAction>,
     notice: String?,
     hero: @Composable (Modifier) -> Unit,
-    rows: LazyListScope.(BringIntoViewSpec) -> Unit
+    rows: LazyListScope.(BringIntoViewSpec, Dp) -> Unit
 ) {
     val rowSpacing = metrics.rowSpacing + metrics.sy(12f)
     val rowPinTop = screenHeight - metrics.rowsRegionHeight + (metrics.rowsViewportOffset + metrics.rowTitleHeight) / 3
@@ -79,7 +78,7 @@ internal fun DetailFullscreenScaffold(
                         .fillMaxWidth()
                         .heightIn(min = heroMinHeight)
                         .then(HeroTopBringIntoViewElement(viewportHeightPx))
-                        .padding(start = DetailContentStartInset, end = metrics.hInset, bottom = heroBottomGap),
+                        .padding(start = metrics.hInset, end = metrics.hInset, bottom = heroBottomGap),
                     verticalArrangement = Arrangement.Bottom
                 ) {
                     hero(Modifier.width(metrics.heroContentWidth))
@@ -99,7 +98,7 @@ internal fun DetailFullscreenScaffold(
                     }
                 }
             }
-            rows(horizontalRowSpec)
+            rows(horizontalRowSpec, metrics.hInset)
         }
     }
 }
