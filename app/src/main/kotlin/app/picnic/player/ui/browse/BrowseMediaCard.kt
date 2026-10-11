@@ -115,7 +115,7 @@ internal fun BrowsePosterCard(
         onClick = {
             if (item.type == BaseItemKind.MOVIE || item.type == BaseItemKind.SERIES) {
                 artworkCoordinates?.let {
-                    reportOrigin(CardOrigin(item.id.toString(), it.boundsInRoot(), images.navImages(item).bgUrl))
+                    reportOrigin(CardOrigin(item.id.toString(), it.boundsInRoot(), images.navImages(item).bgUrl, imageUrl))
                 }
             }
             onClick()

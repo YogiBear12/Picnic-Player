@@ -14,6 +14,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.MotionScheme
@@ -25,16 +26,19 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.geometry.lerp
 import androidx.compose.ui.graphics.GraphicsLayerScope
 import androidx.compose.ui.graphics.Outline
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -49,8 +53,10 @@ import app.picnic.player.data.media.ItemQueue
 import app.picnic.player.data.media.QueueKind
 import app.picnic.player.data.seerr.SeerrCatalogItem
 import app.picnic.player.ui.ambient.LocalNavDim
+import app.picnic.player.ui.browse.CardCornerRadius
 import app.picnic.player.ui.browse.NavRailViewModel
 import app.picnic.player.ui.collection.CollectionScreen
+import app.picnic.player.ui.common.ArtworkImage
 import app.picnic.player.ui.common.ContextMenuAction
 import app.picnic.player.ui.common.ContextMenuHandler
 import app.picnic.player.ui.common.GlobalContextMenuDialog
@@ -84,6 +90,7 @@ import app.picnic.player.ui.startup.StartupScreen
 import app.picnic.player.ui.theme.PicnicColors
 import app.picnic.player.ui.theme.TvBrowseMotion
 import kotlin.math.max
+import kotlin.math.roundToInt
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
 
@@ -92,7 +99,7 @@ private const val ExitDurationMs = 300
 private val EnterEasing = CubicBezierEasing(0.05f, 0.7f, 0.1f, 1.0f)
 private val ExitEasing = CubicBezierEasing(0.3f, 0.0f, 0.8f, 0.15f)
 
-internal data class CardOrigin(val itemId: String, val bounds: Rect, val backdropUrl: String?)
+internal data class CardOrigin(val itemId: String, val bounds: Rect, val backdropUrl: String?, val cardImageUrl: String?)
 
 internal val LocalCardOrigin = staticCompositionLocalOf<(CardOrigin) -> Unit> { {} }
 
@@ -370,37 +377,61 @@ fun PicnicNavHost(
                         val cardOpen = origin?.let {
                             if (transition.currentState == EnterExitState.Visible) CardOpenPhase.Settled else CardOpenPhase.Growing
                         }
-                        Box(
-                            Modifier
-                                .fillMaxSize()
-                                .graphicsLayer {
-                                    origin?.let {
-                                        if (transition.targetState == EnterExitState.Visible) {
-                                            growFromCard(it.bounds, expansion.value)
-                                        } else {
-                                            shrinkToCard(it.bounds, expansion.value)
+                        Box(Modifier.fillMaxSize()) {
+                            Box(
+                                Modifier
+                                    .fillMaxSize()
+                                    .graphicsLayer {
+                                        origin?.let {
+                                            if (transition.targetState == EnterExitState.Visible) {
+                                                growFromCard(it.bounds, expansion.value)
+                                            } else {
+                                                shrinkToCard(it.bounds, expansion.value)
+                                            }
                                         }
                                     }
-                                }
-                                .background(PicnicColors.Background)
-                        ) {
-                            DetailScreen(
-                                itemId = key.itemId,
-                                ambUrl = key.ambUrl,
-                                kind = key.kind,
-                                seedBackdropUrl = origin?.backdropUrl,
-                                cardOpen = cardOpen,
-                                onPlay = { id, ticks, sourceId -> navViewModel.push(PlayerKey(id, ticks, sourceId)) },
-                                onItem = navViewModel::openItem,
-                                onEpisodes = { id, ambUrl, seasonId, focusId -> navViewModel.push(EpisodesKey(id, ambUrl, focusId, seasonId)) },
-                                onCollection = { collection ->
-                                    navViewModel.push(
-                                        CollectionKey(collection.id.toString())
-                                    )
-                                },
-                                onPersonClick = { key -> navViewModel.push(key) },
-                                onBack = { navViewModel.pop() }
-                            )
+                                    .background(PicnicColors.Background)
+                            ) {
+                                DetailScreen(
+                                    itemId = key.itemId,
+                                    ambUrl = key.ambUrl,
+                                    kind = key.kind,
+                                    seedBackdropUrl = origin?.backdropUrl,
+                                    cardOpen = cardOpen,
+                                    onPlay = { id, ticks, sourceId -> navViewModel.push(PlayerKey(id, ticks, sourceId)) },
+                                    onItem = navViewModel::openItem,
+                                    onEpisodes = { id, ambUrl, seasonId, focusId -> navViewModel.push(EpisodesKey(id, ambUrl, focusId, seasonId)) },
+                                    onCollection = { collection ->
+                                        navViewModel.push(
+                                            CollectionKey(collection.id.toString())
+                                        )
+                                    },
+                                    onPersonClick = { key -> navViewModel.push(key) },
+                                    onBack = { navViewModel.pop() }
+                                )
+                            }
+                            origin?.cardImageUrl?.let { url ->
+                                ArtworkImage(
+                                    url = url,
+                                    contentDescription = null,
+                                    modifier = Modifier
+                                        .layout { measurable, constraints ->
+                                            val full = Rect(0f, 0f, constraints.maxWidth.toFloat(), constraints.maxHeight.toFloat())
+                                            val window = lerp(origin.bounds, full, expansion.value)
+                                            val placeable = measurable.measure(
+                                                Constraints.fixed(window.width.roundToInt(), window.height.roundToInt())
+                                            )
+                                            layout(constraints.maxWidth, constraints.maxHeight) {
+                                                placeable.place(window.left.roundToInt(), window.top.roundToInt())
+                                            }
+                                        }
+                                        .graphicsLayer {
+                                            alpha = 1f - (expansion.value / CARD_CROSSFADE_PROGRESS).coerceIn(0f, 1f)
+                                            shape = RoundedCornerShape(CardCornerRadius)
+                                            clip = true
+                                        }
+                                )
+                            }
                         }
                     }
                     entry<SeerrDetailKey> { key ->
@@ -579,6 +610,8 @@ private fun continueWatchingActions(
     emptyList()
 }
 
+private const val CARD_CROSSFADE_PROGRESS = 0.15f
+
 private fun GraphicsLayerScope.growFromCard(card: Rect, progress: Float) {
     val window = lerp(card, Rect(Offset.Zero, size), progress)
     val scale = max(window.width / size.width, window.height / size.height)
@@ -593,7 +626,8 @@ private fun GraphicsLayerScope.growFromCard(card: Rect, progress: Float) {
         Rect(
             offset = Offset((window.left - left) / scale, (window.top - top) / scale),
             size = Size(window.width / scale, window.height / scale)
-        )
+        ),
+        cornerRadius = if (progress < 1f) CardCornerRadius.toPx() / scale else 0f
     )
     clip = true
 }
@@ -605,10 +639,13 @@ private fun GraphicsLayerScope.shrinkToCard(card: Rect, progress: Float) {
     scaleY = 1f + (card.height / size.height - 1f) * remaining
     translationX = card.left * remaining
     translationY = card.top * remaining
-    shape = RectangleShape
+    shape = ClipRectShape(
+        Rect(Offset.Zero, size),
+        cornerRadius = if (progress < 1f) CardCornerRadius.toPx() / max(scaleX, scaleY) else 0f
+    )
     clip = true
 }
 
-private class ClipRectShape(private val rect: Rect) : Shape {
-    override fun createOutline(size: Size, layoutDirection: LayoutDirection, density: Density): Outline = Outline.Rectangle(rect)
+private class ClipRectShape(private val rect: Rect, private val cornerRadius: Float) : Shape {
+    override fun createOutline(size: Size, layoutDirection: LayoutDirection, density: Density): Outline = Outline.Rounded(RoundRect(rect, CornerRadius(cornerRadius)))
 }
