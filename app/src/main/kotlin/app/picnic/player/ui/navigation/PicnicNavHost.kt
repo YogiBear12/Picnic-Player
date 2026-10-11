@@ -11,7 +11,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -87,7 +86,6 @@ import app.picnic.player.ui.seerr.LocalIssueReporter
 import app.picnic.player.ui.seerr.SeerrCardContextMenu
 import app.picnic.player.ui.settings.SettingsScreen
 import app.picnic.player.ui.startup.StartupScreen
-import app.picnic.player.ui.theme.PicnicColors
 import app.picnic.player.ui.theme.TvBrowseMotion
 import kotlin.math.max
 import kotlin.math.roundToInt
@@ -390,7 +388,6 @@ fun PicnicNavHost(
                                             }
                                         }
                                     }
-                                    .background(PicnicColors.Background)
                             ) {
                                 DetailScreen(
                                     itemId = key.itemId,

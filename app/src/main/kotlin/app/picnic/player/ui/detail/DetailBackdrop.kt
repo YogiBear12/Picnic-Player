@@ -29,14 +29,16 @@ internal fun DetailBackdrop(
     val (art, artAlpha, wash, _, dim) = frame
     val context = LocalContext.current
     val painter = remember(art) { art?.image?.asPainter(context) }
+    val artOpaque = { painter != null && artAlpha.value * dim.value >= 1f }
     Box(
         modifier.drawWithContent {
+            if (!artOpaque()) drawRect(PicnicColors.Background)
             drawContent()
             val mask = maskAlpha()
             if (mask > 0f) drawBakedGradient(detailMask, mask)
         }
     ) {
-        AmbientBackground(wash, Modifier.fillMaxSize())
+        AmbientBackground(wash, Modifier.fillMaxSize().drawWithContent { if (!artOpaque()) drawContent() })
         if (painter != null) {
             Image(
                 painter = painter,
