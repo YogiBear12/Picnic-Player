@@ -22,6 +22,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
@@ -110,8 +111,8 @@ internal fun LibraryPane(
         LibraryTab.COLLECTIONS -> collectionsEmptyFocus.takeIf { collectionsEmptyFiltered }
         else -> null
     }
-    var libraryChromeVisible by remember { mutableStateOf(true) }
-    var collectionsChromeVisible by remember { mutableStateOf(true) }
+    var libraryChromeVisible by rememberSaveable { mutableStateOf(true) }
+    var collectionsChromeVisible by rememberSaveable { mutableStateOf(true) }
     val contentChromeVisible = when (selectedTab) {
         LibraryTab.LIBRARY -> libraryChromeVisible
         LibraryTab.FOR_YOU -> forYouState.focusedRowIndex == 0
