@@ -77,9 +77,8 @@ fun PicnicNavHost(
 ) {
     val backStack = navViewModel.backStack
     val rail = railViewModel.rail
-    val cardOrigins = remember { CardOrigins() }
-    cardOrigins.sync(backStack)
-    val reportCardOrigin = remember(cardOrigins) { cardOrigins::report }
+    val cardOrigins = navViewModel.cardOrigins
+    val cardClick = remember(cardOrigins) { cardOrigins::click }
 
     val navChromeFocused by rail.chromeFocused.collectAsStateWithLifecycle()
     val navDim = animateFloatAsState(
@@ -145,7 +144,7 @@ fun PicnicNavHost(
         LocalIssueReporter provides issueReporter,
         LocalImageUrls provides imageUrls,
         LocalNavDim provides navDim,
-        LocalCardOrigin provides reportCardOrigin
+        LocalCardClick provides cardClick
     ) {
         Box(Modifier.fillMaxSize()) {
             NavDisplay(

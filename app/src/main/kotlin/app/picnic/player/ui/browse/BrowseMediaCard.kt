@@ -63,9 +63,8 @@ import app.picnic.player.ui.common.LocalImageUrls
 import app.picnic.player.ui.common.LogoOrFallback
 import app.picnic.player.ui.common.PosterPlaceholderLabel
 import app.picnic.player.ui.common.watchProgress
-import app.picnic.player.ui.detail.isFullscreenDetail
 import app.picnic.player.ui.navigation.CardOrigin
-import app.picnic.player.ui.navigation.LocalCardOrigin
+import app.picnic.player.ui.navigation.LocalCardClick
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
 
@@ -89,7 +88,7 @@ internal fun BrowsePosterCard(
     showStatus: Boolean = true
 ) {
     val images = LocalImageUrls.current
-    val reportOrigin = LocalCardOrigin.current
+    val cardClick = LocalCardClick.current
     var artworkCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
     val widthPx = with(LocalDensity.current) { style.width.roundToPx() }
     val thumbUrl = if (style.landscape && overrideImageUrl == null) {
@@ -114,12 +113,8 @@ internal fun BrowsePosterCard(
         leftFocus = leftFocus,
         rightFocus = rightFocus,
         onClick = {
-            if (item.type.isFullscreenDetail()) {
-                artworkCoordinates?.let {
-                    reportOrigin(CardOrigin(item.id.toString(), it.boundsInRoot(), images.navImages(item).bgUrl, imageUrl))
-                }
-            }
-            onClick()
+            val origin = artworkCoordinates?.let { CardOrigin(it.boundsInRoot(), images.navImages(item).bgUrl, imageUrl) }
+            cardClick(origin, onClick)
         },
         onLongClick = onLongClick,
         onFocused = onFocused,

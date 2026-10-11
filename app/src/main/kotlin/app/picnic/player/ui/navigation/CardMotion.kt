@@ -39,40 +39,41 @@ import androidx.navigation3.ui.NavDisplay
 import app.picnic.player.ui.browse.CardCornerRadius
 import app.picnic.player.ui.common.ArtworkImage
 import app.picnic.player.ui.detail.CardOpenPhase
+import app.picnic.player.ui.detail.isFullscreenDetail
 import kotlin.math.max
 import kotlin.math.roundToInt
 
 private const val CARD_CROSSFADE_PROGRESS = 0.15f
 
-internal data class CardOrigin(val itemId: String, val bounds: Rect, val backdropUrl: String?, val cardImageUrl: String?)
+internal data class CardOrigin(val bounds: Rect, val backdropUrl: String?, val cardImageUrl: String?)
 
-internal val LocalCardOrigin = staticCompositionLocalOf<(CardOrigin) -> Unit> { {} }
+internal val LocalCardClick = staticCompositionLocalOf<(CardOrigin?, () -> Unit) -> Unit> { { _, click -> click() } }
 
 /**
  * Binds a card click to the Details entry it pushes, so only that entry grows from the card and
- * shrinks back into it. Plain fields: written while the back stack is composed, never observed.
+ * shrinks back into it. Plain fields: written on click and push, never observed.
  */
 internal class CardOrigins {
-    private var pending: CardOrigin? = null
-    private var top: NavKey? = null
+    private var clicked: CardOrigin? = null
     private val byInstance = HashMap<String, CardOrigin>()
     private val shown = HashSet<String>()
 
-    fun report(origin: CardOrigin) {
-        pending = origin
+    /** [origin] is held only while [click] runs, so only a push made by that click can take it. */
+    fun click(origin: CardOrigin?, click: () -> Unit) {
+        clicked = origin
+        try {
+            click()
+        } finally {
+            clicked = null
+        }
     }
 
-    fun sync(backStack: List<NavKey>) {
-        val newTop = backStack.lastOrNull()
-        if (newTop != top) {
-            val claimed = pending?.takeIf { newTop is DetailKey && it.itemId == newTop.itemId }
-            if (claimed != null && newTop is DetailKey) byInstance.putIfAbsent(newTop.instanceId, claimed)
-            pending = null
-            top = newTop
-        }
+    fun bind(key: DetailKey, backStack: List<NavKey>) {
         val live = backStack.mapNotNullTo(HashSet()) { (it as? DetailKey)?.instanceId }
         byInstance.keys.retainAll(live)
         shown.retainAll(live)
+        val origin = clicked?.takeIf { key.kind.isFullscreenDetail() } ?: return
+        byInstance[key.instanceId] = origin
     }
 
     fun originOf(key: DetailKey): CardOrigin? = byInstance[key.instanceId]

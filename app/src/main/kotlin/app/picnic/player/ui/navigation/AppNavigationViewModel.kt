@@ -17,6 +17,8 @@ import org.jellyfin.sdk.model.api.ImageType
 class AppNavigationViewModel @Inject constructor() : ViewModel() {
     val backStack = NavBackStack<NavKey>(StartupKey)
 
+    internal val cardOrigins = CardOrigins()
+
     var pendingDeepLink: NavKey? = null
 
     fun consumePendingDeepLink(): NavKey? {
@@ -59,7 +61,11 @@ class AppNavigationViewModel @Inject constructor() : ViewModel() {
             item.type == BaseItemKind.BOX_SET -> push(CollectionKey(item.id.toString()))
             item.type == BaseItemKind.PLAYLIST -> push(PlaylistKey(item.id.toString(), item.name))
             item.type == BaseItemKind.VIDEO -> playVideo(item)
-            else -> push(DetailKey(item.id.toString(), ambUrl = ambUrl, kind = item.type))
+            else -> {
+                val key = DetailKey(item.id.toString(), ambUrl = ambUrl, kind = item.type)
+                cardOrigins.bind(key, backStack)
+                push(key)
+            }
         }
     }
 
