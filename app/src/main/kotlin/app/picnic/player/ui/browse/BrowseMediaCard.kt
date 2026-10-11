@@ -63,6 +63,7 @@ import app.picnic.player.ui.common.LocalImageUrls
 import app.picnic.player.ui.common.LogoOrFallback
 import app.picnic.player.ui.common.PosterPlaceholderLabel
 import app.picnic.player.ui.common.watchProgress
+import app.picnic.player.ui.detail.isFullscreenDetail
 import app.picnic.player.ui.navigation.CardOrigin
 import app.picnic.player.ui.navigation.LocalCardOrigin
 import org.jellyfin.sdk.model.api.BaseItemDto
@@ -113,7 +114,7 @@ internal fun BrowsePosterCard(
         leftFocus = leftFocus,
         rightFocus = rightFocus,
         onClick = {
-            if (item.type == BaseItemKind.MOVIE || item.type == BaseItemKind.SERIES) {
+            if (item.type.isFullscreenDetail()) {
                 artworkCoordinates?.let {
                     reportOrigin(CardOrigin(item.id.toString(), it.boundsInRoot(), images.navImages(item).bgUrl, imageUrl))
                 }

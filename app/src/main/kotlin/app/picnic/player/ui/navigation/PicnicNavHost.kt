@@ -1,11 +1,7 @@
 package app.picnic.player.ui.navigation
 
-import androidx.compose.animation.EnterExitState
-import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
-import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.core.CubicBezierEasing
-import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -13,49 +9,28 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material3.MotionScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.geometry.RoundRect
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.geometry.lerp
-import androidx.compose.ui.graphics.GraphicsLayerScope
-import androidx.compose.ui.graphics.Outline
-import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.graphics.TransformOrigin
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.layout.layout
-import androidx.compose.ui.unit.Constraints
-import androidx.compose.ui.unit.Density
-import androidx.compose.ui.unit.LayoutDirection
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
-import androidx.navigation3.ui.LocalNavAnimatedContentScope
 import androidx.navigation3.ui.NavDisplay
 import app.picnic.player.data.media.ItemQueue
 import app.picnic.player.data.media.QueueKind
 import app.picnic.player.data.seerr.SeerrCatalogItem
 import app.picnic.player.ui.ambient.LocalNavDim
-import app.picnic.player.ui.browse.CardCornerRadius
 import app.picnic.player.ui.browse.NavRailViewModel
 import app.picnic.player.ui.collection.CollectionScreen
-import app.picnic.player.ui.common.ArtworkImage
 import app.picnic.player.ui.common.ContextMenuAction
 import app.picnic.player.ui.common.ContextMenuHandler
 import app.picnic.player.ui.common.GlobalContextMenuDialog
@@ -66,7 +41,6 @@ import app.picnic.player.ui.common.LocalImageUrls
 import app.picnic.player.ui.common.LocalSeerrCardMenu
 import app.picnic.player.ui.common.PersonalMediaContextMenu
 import app.picnic.player.ui.common.PersonalMenuRequest
-import app.picnic.player.ui.detail.CardOpenPhase
 import app.picnic.player.ui.detail.DetailScreen
 import app.picnic.player.ui.detail.SeriesEpisodesScreen
 import app.picnic.player.ui.genre.GenreScreen
@@ -87,8 +61,6 @@ import app.picnic.player.ui.seerr.SeerrCardContextMenu
 import app.picnic.player.ui.settings.SettingsScreen
 import app.picnic.player.ui.startup.StartupScreen
 import app.picnic.player.ui.theme.TvBrowseMotion
-import kotlin.math.max
-import kotlin.math.roundToInt
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
 
@@ -97,11 +69,6 @@ private const val ExitDurationMs = 300
 private val EnterEasing = CubicBezierEasing(0.05f, 0.7f, 0.1f, 1.0f)
 private val ExitEasing = CubicBezierEasing(0.3f, 0.0f, 0.8f, 0.15f)
 
-internal data class CardOrigin(val itemId: String, val bounds: Rect, val backdropUrl: String?, val cardImageUrl: String?)
-
-internal val LocalCardOrigin = staticCompositionLocalOf<(CardOrigin) -> Unit> { {} }
-
-@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 fun PicnicNavHost(
     railViewModel: NavRailViewModel = hiltViewModel(),
@@ -110,8 +77,9 @@ fun PicnicNavHost(
 ) {
     val backStack = navViewModel.backStack
     val rail = railViewModel.rail
-    // shortcut: retain only the latest click; add per-entry origins when extending beyond direct card/Details round trips.
-    var selectedCardOrigin by remember { mutableStateOf<CardOrigin?>(null) }
+    val cardOrigins = remember { CardOrigins() }
+    cardOrigins.sync(backStack)
+    val reportCardOrigin = remember(cardOrigins) { cardOrigins::report }
 
     val navChromeFocused by rail.chromeFocused.collectAsStateWithLifecycle()
     val navDim = animateFloatAsState(
@@ -177,7 +145,7 @@ fun PicnicNavHost(
         LocalIssueReporter provides issueReporter,
         LocalImageUrls provides imageUrls,
         LocalNavDim provides navDim,
-        LocalCardOrigin provides { selectedCardOrigin = it }
+        LocalCardOrigin provides reportCardOrigin
     ) {
         Box(Modifier.fillMaxSize()) {
             NavDisplay(
@@ -346,89 +314,25 @@ fun PicnicNavHost(
                             onOpenItem = navViewModel::openItem
                         )
                     }
-                    entry<DetailKey>(
-                        metadata = { key ->
-                            val cardExit = if (selectedCardOrigin?.itemId == key.itemId) {
-                                EnterTransition.None togetherWith ExitTransition.None
-                            } else {
-                                null
-                            }
-                            NavDisplay.transitionSpec {
-                                if (selectedCardOrigin?.itemId == key.itemId) {
-                                    (EnterTransition.None togetherWith ExitTransition.KeepUntilTransitionsFinished).apply {
-                                        targetContentZIndex = 1f
-                                    }
-                                } else {
-                                    fadeIn(tween(EnterDurationMs, easing = EnterEasing)) togetherWith
-                                        fadeOut(tween(ExitDurationMs, easing = ExitEasing))
-                                }
-                            } + NavDisplay.popTransitionSpec { cardExit } +
-                                NavDisplay.predictivePopTransitionSpec { cardExit }
-                        }
-                    ) { key ->
-                        val origin = remember(key) { selectedCardOrigin?.takeIf { it.itemId == key.itemId } }
-                        val transition = LocalNavAnimatedContentScope.current.transition
-                        val expansion = transition.animateFloat(
-                            transitionSpec = { MotionScheme.standard().slowSpatialSpec() },
-                            label = "detailsExpansion"
-                        ) { state -> if (state == EnterExitState.Visible) 1f else 0f }
-                        val cardOpen = origin?.let {
-                            if (transition.currentState == EnterExitState.Visible) CardOpenPhase.Settled else CardOpenPhase.Growing
-                        }
-                        Box(Modifier.fillMaxSize()) {
-                            Box(
-                                Modifier
-                                    .fillMaxSize()
-                                    .graphicsLayer {
-                                        origin?.let {
-                                            if (transition.targetState == EnterExitState.Visible) {
-                                                growFromCard(it.bounds, expansion.value)
-                                            } else {
-                                                shrinkToCard(it.bounds, expansion.value)
-                                            }
-                                        }
-                                    }
-                            ) {
-                                DetailScreen(
-                                    itemId = key.itemId,
-                                    ambUrl = key.ambUrl,
-                                    kind = key.kind,
-                                    seedBackdropUrl = origin?.backdropUrl,
-                                    cardOpen = cardOpen,
-                                    onPlay = { id, ticks, sourceId -> navViewModel.push(PlayerKey(id, ticks, sourceId)) },
-                                    onItem = navViewModel::openItem,
-                                    onEpisodes = { id, ambUrl, seasonId, focusId -> navViewModel.push(EpisodesKey(id, ambUrl, focusId, seasonId)) },
-                                    onCollection = { collection ->
-                                        navViewModel.push(
-                                            CollectionKey(collection.id.toString())
-                                        )
-                                    },
-                                    onPersonClick = { key -> navViewModel.push(key) },
-                                    onBack = { navViewModel.pop() }
-                                )
-                            }
-                            origin?.cardImageUrl?.let { url ->
-                                ArtworkImage(
-                                    url = url,
-                                    contentDescription = null,
-                                    modifier = Modifier
-                                        .layout { measurable, constraints ->
-                                            val full = Rect(0f, 0f, constraints.maxWidth.toFloat(), constraints.maxHeight.toFloat())
-                                            val window = lerp(origin.bounds, full, expansion.value)
-                                            val placeable = measurable.measure(
-                                                Constraints.fixed(window.width.roundToInt(), window.height.roundToInt())
-                                            )
-                                            layout(constraints.maxWidth, constraints.maxHeight) {
-                                                placeable.place(window.left.roundToInt(), window.top.roundToInt())
-                                            }
-                                        }
-                                        .graphicsLayer {
-                                            alpha = 1f - (expansion.value / CARD_CROSSFADE_PROGRESS).coerceIn(0f, 1f)
-                                            shape = RoundedCornerShape(CardCornerRadius)
-                                            clip = true
-                                        }
-                                )
-                            }
+                    entry<DetailKey>(metadata = { key -> cardOrigins.metadataFor(key) }) { key ->
+                        CardMotionEntry(key, cardOrigins, backStack) { seedBackdropUrl, cardOpen ->
+                            DetailScreen(
+                                itemId = key.itemId,
+                                ambUrl = key.ambUrl,
+                                kind = key.kind,
+                                seedBackdropUrl = seedBackdropUrl,
+                                cardOpen = cardOpen,
+                                onPlay = { id, ticks, sourceId -> navViewModel.push(PlayerKey(id, ticks, sourceId)) },
+                                onItem = navViewModel::openItem,
+                                onEpisodes = { id, ambUrl, seasonId, focusId -> navViewModel.push(EpisodesKey(id, ambUrl, focusId, seasonId)) },
+                                onCollection = { collection ->
+                                    navViewModel.push(
+                                        CollectionKey(collection.id.toString())
+                                    )
+                                },
+                                onPersonClick = { key -> navViewModel.push(key) },
+                                onBack = { navViewModel.pop() }
+                            )
                         }
                     }
                     entry<SeerrDetailKey> { key ->
@@ -605,44 +509,4 @@ private fun continueWatchingActions(
     listOf(ContextMenuAction("Remove from Continue watching", Icons.Default.Close) { hide(item) })
 } else {
     emptyList()
-}
-
-private const val CARD_CROSSFADE_PROGRESS = 0.15f
-
-private fun GraphicsLayerScope.growFromCard(card: Rect, progress: Float) {
-    val window = lerp(card, Rect(Offset.Zero, size), progress)
-    val scale = max(window.width / size.width, window.height / size.height)
-    val left = window.center.x - scale * size.width / 2f
-    val top = window.center.y - scale * size.height / 2f
-    transformOrigin = TransformOrigin(0f, 0f)
-    scaleX = scale
-    scaleY = scale
-    translationX = left
-    translationY = top
-    shape = ClipRectShape(
-        Rect(
-            offset = Offset((window.left - left) / scale, (window.top - top) / scale),
-            size = Size(window.width / scale, window.height / scale)
-        ),
-        cornerRadius = if (progress < 1f) CardCornerRadius.toPx() / scale else 0f
-    )
-    clip = true
-}
-
-private fun GraphicsLayerScope.shrinkToCard(card: Rect, progress: Float) {
-    val remaining = 1f - progress
-    transformOrigin = TransformOrigin(0f, 0f)
-    scaleX = 1f + (card.width / size.width - 1f) * remaining
-    scaleY = 1f + (card.height / size.height - 1f) * remaining
-    translationX = card.left * remaining
-    translationY = card.top * remaining
-    shape = ClipRectShape(
-        Rect(Offset.Zero, size),
-        cornerRadius = if (progress < 1f) CardCornerRadius.toPx() / max(scaleX, scaleY) else 0f
-    )
-    clip = true
-}
-
-private class ClipRectShape(private val rect: Rect, private val cornerRadius: Float) : Shape {
-    override fun createOutline(size: Size, layoutDirection: LayoutDirection, density: Density): Outline = Outline.Rounded(RoundRect(rect, CornerRadius(cornerRadius)))
 }

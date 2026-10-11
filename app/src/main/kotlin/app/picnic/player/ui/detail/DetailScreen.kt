@@ -6,9 +6,6 @@
 package app.picnic.player.ui.detail
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.EaseOut
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.gestures.BringIntoViewSpec
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -27,8 +24,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
@@ -50,7 +45,6 @@ import app.picnic.player.ui.browse.heroBlockHeight
 import app.picnic.player.ui.browse.heroRegionHeight
 import app.picnic.player.ui.browse.posterCardStyle
 import app.picnic.player.ui.common.ContextMenuAction
-import app.picnic.player.ui.common.LoadingFocusTarget
 import app.picnic.player.ui.common.LocalContextMenuHandler
 import app.picnic.player.ui.common.LocalImageUrls
 import app.picnic.player.ui.common.OverflowMenuDialog
@@ -59,14 +53,11 @@ import app.picnic.player.ui.common.PlayFromStartLabel
 import app.picnic.player.ui.common.RequestMoreSeasons
 import app.picnic.player.ui.common.ScrollableTextDialog
 import app.picnic.player.ui.common.playTarget
-import app.picnic.player.ui.common.rememberLoadingFocusHolder
 import app.picnic.player.ui.common.rememberRowPageFocus
-import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.common.resumeTicks
 import app.picnic.player.ui.navigation.PersonKey
 import app.picnic.player.ui.theme.PicnicColors
 import java.util.UUID
-import kotlinx.coroutines.delay
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
 
@@ -74,13 +65,7 @@ private const val ROW_CAST = "cast"
 private const val ROW_COLLECTIONS = "collections"
 private const val ROW_SIMILAR = "similar"
 
-private const val DETAIL_SKELETON_DELAY_MS = 300L
-private const val DETAIL_CONTENT_FADE_MS = 500
-
-/** How far a card-origin open has got; null on every other open. */
-enum class CardOpenPhase { Growing, Settled }
-
-private fun BaseItemKind?.isFullscreenDetail() = this == BaseItemKind.MOVIE || this == BaseItemKind.SERIES
+internal fun BaseItemKind?.isFullscreenDetail() = this == BaseItemKind.MOVIE || this == BaseItemKind.SERIES
 
 @Composable
 fun DetailScreen(
@@ -117,32 +102,11 @@ fun DetailScreen(
     val backdrop = BackdropSpec(backdropUrl = nav.bgUrl, ambientUrl = nav.ambUrl)
     val frame = rememberBackdrop(backdrop, { rowDimmed })
 
-    val contentReady = cardOpen != CardOpenPhase.Growing && !state.loading
-    var skeletonShown by remember { mutableStateOf(false) }
-    LaunchedEffect(cardOpen, state.loading) {
-        if (cardOpen == CardOpenPhase.Settled && state.loading) {
-            delay(DETAIL_SKELETON_DELAY_MS)
-            skeletonShown = true
-        }
-    }
-    val reveal = remember { Animatable(if (cardOpen == null) 1f else 0f) }
-    LaunchedEffect(contentReady) {
-        if (!contentReady) return@LaunchedEffect
-        if (skeletonShown) {
-            reveal.snapTo(1f)
-        } else {
-            reveal.animateTo(1f, tween(DETAIL_CONTENT_FADE_MS, easing = EaseOut))
-        }
-    }
-    val loadingFocus = rememberLoadingFocusHolder()
-    val holdFocus = cardOpen != null && loadingFocus.holds(!contentReady)
-    LaunchedEffect(holdFocus) {
-        if (holdFocus) loadingFocus.requester.requestFocusWhenAttached()
-    }
+    val reveal = rememberCardOpenReveal(cardOpen, state.loading)
 
     Box(Modifier.fillMaxSize()) {
         if (fullscreen) {
-            DetailBackdrop(frame, Modifier.fillMaxSize(), maskAlpha = { reveal.value })
+            DetailBackdrop(frame, Modifier.fillMaxSize(), maskAlpha = { reveal.alpha() })
         } else {
             BrowseBackdrop(frame, Modifier.fillMaxSize())
         }
@@ -151,7 +115,7 @@ fun DetailScreen(
                 cardOpen == null -> Box(Modifier.fillMaxSize(), Alignment.Center) {
                     CircularProgressIndicator(color = PicnicColors.Accent)
                 }
-                skeletonShown -> DetailSkeleton()
+                reveal.skeletonShown -> DetailSkeleton()
             }
             cardOpen == CardOpenPhase.Growing -> Unit
             item == null || session == null -> {
@@ -160,7 +124,7 @@ fun DetailScreen(
                     Text(state.error ?: "Not found", color = PicnicColors.OnDark)
                 }
             }
-            else -> Box(Modifier.fillMaxSize().graphicsLayer { alpha = reveal.value }) {
+            else -> Box(Modifier.fillMaxSize().graphicsLayer { alpha = reveal.alpha() }) {
                 DetailContent(
                     item = item,
                     state = state,
@@ -174,17 +138,7 @@ fun DetailScreen(
                 )
             }
         }
-        if (holdFocus) {
-            LoadingFocusTarget(
-                loadingFocus,
-                Modifier.focusProperties {
-                    left = FocusRequester.Cancel
-                    right = FocusRequester.Cancel
-                    up = FocusRequester.Cancel
-                    down = FocusRequester.Cancel
-                }
-            )
-        }
+        CardOpenFocusHold(reveal)
     }
 }
 
