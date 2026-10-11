@@ -40,8 +40,8 @@ import app.picnic.player.ui.common.RowPageFocus
 import app.picnic.player.ui.theme.PicnicColors
 
 // Design-canvas units above the bottom edge at rest; derivation in docs/guides/browse-backdrop.md.
-private const val RESTING_ACTIONS_BOTTOM = 112f
-private const val RESTING_ROW_PEEK = 41f
+internal const val RESTING_ACTIONS_BOTTOM = 112f
+internal const val RESTING_ROW_PEEK = 41f
 
 @Composable
 internal fun DetailFullscreenScaffold(

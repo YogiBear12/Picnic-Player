@@ -23,7 +23,8 @@ import coil3.compose.asPainter
 @Composable
 internal fun DetailBackdrop(
     frame: BackdropFrame,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    maskAlpha: () -> Float = { 1f }
 ) {
     val (art, artAlpha, wash, _, dim) = frame
     val context = LocalContext.current
@@ -31,7 +32,8 @@ internal fun DetailBackdrop(
     Box(
         modifier.drawWithContent {
             drawContent()
-            drawBakedGradient(detailMask)
+            val mask = maskAlpha()
+            if (mask > 0f) drawBakedGradient(detailMask, mask)
         }
     ) {
         AmbientBackground(wash, Modifier.fillMaxSize())

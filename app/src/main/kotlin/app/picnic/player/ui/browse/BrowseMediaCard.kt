@@ -63,7 +63,8 @@ import app.picnic.player.ui.common.LocalImageUrls
 import app.picnic.player.ui.common.LogoOrFallback
 import app.picnic.player.ui.common.PosterPlaceholderLabel
 import app.picnic.player.ui.common.watchProgress
-import app.picnic.player.ui.navigation.LocalCardOpenBounds
+import app.picnic.player.ui.navigation.CardOrigin
+import app.picnic.player.ui.navigation.LocalCardOrigin
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
 
@@ -87,7 +88,7 @@ internal fun BrowsePosterCard(
     showStatus: Boolean = true
 ) {
     val images = LocalImageUrls.current
-    val reportOpenBounds = LocalCardOpenBounds.current
+    val reportOrigin = LocalCardOrigin.current
     var artworkCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
     val widthPx = with(LocalDensity.current) { style.width.roundToPx() }
     val thumbUrl = if (style.landscape && overrideImageUrl == null) {
@@ -113,7 +114,9 @@ internal fun BrowsePosterCard(
         rightFocus = rightFocus,
         onClick = {
             if (item.type == BaseItemKind.MOVIE || item.type == BaseItemKind.SERIES) {
-                artworkCoordinates?.let { reportOpenBounds(item.id.toString(), it.boundsInRoot()) }
+                artworkCoordinates?.let {
+                    reportOrigin(CardOrigin(item.id.toString(), it.boundsInRoot(), images.navImages(item).bgUrl))
+                }
             }
             onClick()
         },
