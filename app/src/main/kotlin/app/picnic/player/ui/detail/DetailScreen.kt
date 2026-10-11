@@ -106,7 +106,7 @@ fun DetailScreen(
 
     Box(Modifier.fillMaxSize()) {
         if (fullscreen) {
-            DetailBackdrop(frame, Modifier.fillMaxSize(), maskAlpha = { reveal.alpha() })
+            DetailBackdrop(frame, Modifier.fillMaxSize())
         } else {
             BrowseBackdrop(frame, Modifier.fillMaxSize())
         }
