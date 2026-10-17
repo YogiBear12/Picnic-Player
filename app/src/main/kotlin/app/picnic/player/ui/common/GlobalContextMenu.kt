@@ -85,7 +85,7 @@ fun GlobalContextMenuDialog(
             add(ContextMenuAction("View synopsis", Icons.Default.Article) { panel = GlobalMenuPanel.SYNOPSIS })
         }
 
-        if (item.type == BaseItemKind.EPISODE && item.seriesId != null && onGoToSeries != null) {
+        if ((item.type == BaseItemKind.EPISODE || item.type == BaseItemKind.SEASON) && item.seriesId != null && onGoToSeries != null) {
             add(
                 ContextMenuAction("Go to show", Icons.Default.ArrowForward) {
                     onGoToSeries(item.seriesId.toString())

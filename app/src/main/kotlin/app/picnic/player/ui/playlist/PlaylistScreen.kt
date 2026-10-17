@@ -442,13 +442,9 @@ private fun PlaylistContent(
             },
             onMarkWatched = { played -> viewModel.markWatched(item.id.toString(), played, item.seriesId?.toString()) },
             onToggleFavorite = { fav -> viewModel.markFavorite(item.id.toString(), fav, item.seriesId?.toString()) },
-            onGoToSeries = if (item.type == BaseItemKind.EPISODE && item.seriesId != null) {
-                { seriesId ->
-                    contextMenuItem = null
-                    onGoToSeries(seriesId)
-                }
-            } else {
-                null
+            onGoToSeries = { seriesId ->
+                contextMenuItem = null
+                onGoToSeries(seriesId)
             },
             extraActions = buildList {
                 add(
