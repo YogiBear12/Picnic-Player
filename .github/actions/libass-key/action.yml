@@ -1,0 +1,18 @@
+name: libass AAR cache key
+description: Directory name under /cache/libass, covering the libass-android version and build script.
+
+outputs:
+  key:
+    description: Cache key for the libass AARs.
+    value: ${{ steps.key.outputs.key }}
+
+runs:
+  using: composite
+  steps:
+    - id: key
+      shell: bash
+      run: |
+        set -euo pipefail
+        VERSION="$(sed -n 's/^libassAndroid = "\(.*\)"$/\1/p' gradle/libs.versions.toml)"
+        SCRIPT="$(sha256sum tools/build-libass.sh | cut -c1-16)"
+        echo "key=libass-${VERSION}-${SCRIPT}" >> "${GITHUB_OUTPUT}"

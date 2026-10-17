@@ -35,6 +35,9 @@ jobs:
       - name: Restore FFmpeg decoder AAR
         uses: ./.github/actions/ffmpeg-decoder-restore
 
+      - name: Restore libass AARs
+        uses: ./.github/actions/libass-restore
+
       - name: Assemble + lint + unit tests + ktlint
         id: quality
         run: |

@@ -43,6 +43,9 @@ jobs:
       - name: Restore FFmpeg decoder AAR
         uses: ./.github/actions/ffmpeg-decoder-restore
 
+      - name: Restore libass AARs
+        uses: ./.github/actions/libass-restore
+
       - name: Restore debug signing key
         if: inputs.build_type == 'debug'
         env:
