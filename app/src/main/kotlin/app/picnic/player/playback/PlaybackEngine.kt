@@ -13,6 +13,7 @@ import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.DecoderCounters
 import androidx.media3.exoplayer.DecoderReuseEvaluation
+import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.analytics.AnalyticsListener
@@ -36,6 +37,15 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import okhttp3.OkHttpClient
+
+private const val MEDIA_BUFFER_HEAP_DIVISOR = 4
+
+// The allocator hands out Java heap byte arrays, and the default byte target ignores the heap limit.
+private fun heapBoundedLoadControl(): DefaultLoadControl {
+    val heapShare = Runtime.getRuntime().maxMemory() / MEDIA_BUFFER_HEAP_DIVISOR
+    val targetBytes = minOf(DefaultLoadControl.DEFAULT_MUXED_BUFFER_SIZE.toLong(), heapShare).toInt()
+    return DefaultLoadControl.Builder().setTargetBufferBytes(targetBytes).build()
+}
 
 class PlaybackEngine(private val context: Context, httpClient: OkHttpClient) {
     val assHandler: AssHandler
@@ -98,6 +108,7 @@ class PlaybackEngine(private val context: Context, httpClient: OkHttpClient) {
             .setTrackSelector(DefaultTrackSelector(context))
             .setRenderersFactory(renderersFactory)
             .setMediaSourceFactory(mediaSourceFactory)
+            .setLoadControl(heapBoundedLoadControl())
             .build()
         assHandler.init(player)
         player.addAnalyticsListener(object : AnalyticsListener {

@@ -43,6 +43,7 @@
         android:theme="@style/Theme.PicnicPlayer"
         android:supportsRtl="true"
         android:enableOnBackInvokedCallback="true"
+        android:largeHeap="true"
         android:usesCleartextTraffic="true">
 
         <activity
