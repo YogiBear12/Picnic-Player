@@ -196,21 +196,29 @@ kotlin {
 }
 
 val ffmpegDecoderAar = file("libs/media3-decoder-ffmpeg-${libs.versions.media3.get()}.aar")
+val libassVersion = libs.versions.libassAndroid.get()
+val assKtAar = file("libs/ass-kt-$libassVersion.aar")
+val assMediaAar = file("libs/ass-media-$libassVersion.aar")
 
 // A missing AAR otherwise surfaces as an unresolved-symbol wall in the Kotlin compiler.
-val checkFfmpegDecoderAar = tasks.register("checkFfmpegDecoderAar") {
+val checkLocalAars = tasks.register("checkLocalAars") {
+    val buildHints = mapOf(
+        ffmpegDecoderAar to "tools/build-ffmpeg-decoder.sh \$ANDROID_NDK_HOME",
+        assKtAar to "tools/build-libass.sh",
+        assMediaAar to "tools/build-libass.sh"
+    )
     doLast {
-        if (!ffmpegDecoderAar.exists()) {
+        val missing = buildHints.filterKeys { !it.exists() }
+        if (missing.isNotEmpty()) {
             throw GradleException(
-                "Missing ${ffmpegDecoderAar.name}. Build it with:\n" +
-                    "  tools/build-ffmpeg-decoder.sh \$ANDROID_NDK_HOME"
+                missing.entries.joinToString("\n") { (aar, hint) -> "Missing ${aar.name}. Build it with: $hint" }
             )
         }
     }
 }
 
 tasks.named("preBuild") {
-    dependsOn(checkFfmpegDecoderAar)
+    dependsOn(checkLocalAars)
 }
 
 aboutLibraries {
@@ -221,7 +229,7 @@ aboutLibraries {
         duplicationMode = DuplicateMode.MERGE
         duplicationRule = DuplicateRule.SIMPLE
     }
-    // A local AAR carries no POM, so the plugin cannot see FFmpeg. config/ declares it by hand.
+    // Local AARs carry no POM, so the plugin cannot see FFmpeg or libass. config/ declares them by hand.
     collect {
         configPath = file("config")
     }
@@ -278,8 +286,12 @@ dependencies {
     // discovery, image URLs, device profiles.
     implementation(libs.jellyfin.core)
 
-    // libass (peerless2012) — advanced ASS/SSA subtitle rendering for media3.
-    implementation(libs.ass.media)
+    // libass ASS/SSA rendering, built locally from our fork. File AARs carry no
+    // POM, so their transitive dependencies are listed by hand.
+    implementation(files(assKtAar, assMediaAar))
+    implementation(libs.media3.effect)
+    implementation(libs.androidx.annotation)
+    implementation(libs.androidx.annotation.experimental)
 
     implementation(libs.exoplayer.hdr.utils)
 

@@ -1,0 +1,20 @@
+{
+  "uniqueId": "io.github.peerless2012:ass-media",
+  "artifactVersion": "0.5.1-1",
+  "name": "ass-media",
+  "description": "A Androidx media extension for libass.",
+  "website": "https://github.com/peerless2012/libass-android",
+  "developers": [
+    {
+      "name": "peerless2012"
+    }
+  ],
+  "scm": {
+    "connection": "scm:git:git://github.com/peerless2012/libass-android.git",
+    "developerConnection": "scm:git:ssh://git@github.com/peerless2012/libass-android.git",
+    "url": "https://github.com/peerless2012/libass-android"
+  },
+  "licenses": [
+    "MIT"
+  ]
+}
