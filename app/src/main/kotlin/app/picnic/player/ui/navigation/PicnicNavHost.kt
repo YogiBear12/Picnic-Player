@@ -378,7 +378,6 @@ fun PicnicNavHost(
                             seriesId = key.seriesId,
                             ambUrl = key.ambUrl,
                             onPlay = { id, ticks -> navViewModel.push(PlayerKey(id, ticks)) },
-                            onBack = { navViewModel.pop() },
                             initialSeasonId = key.seasonId,
                             initialFocusEpisodeId = key.focusEpisodeId,
                             onGoToSeries = { seriesId -> navViewModel.push(DetailKey(seriesId, kind = BaseItemKind.SERIES)) }

@@ -2,7 +2,6 @@
 
 package app.picnic.player.ui.detail
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -100,7 +99,6 @@ fun SeriesEpisodesScreen(
     seriesId: String,
     ambUrl: String?,
     onPlay: (String, Long?) -> Unit,
-    onBack: () -> Unit,
     initialSeasonId: String? = null,
     initialFocusEpisodeId: String? = null,
     onGoToSeries: ((String) -> Unit)? = null,
@@ -209,14 +207,6 @@ fun SeriesEpisodesScreen(
                     }
                 )
             }
-    }
-
-    BackHandler(enabled = episodeFocus.hasFocus) {
-        if (selectedSeasonFr != null && viewModel.seasons.isNotEmpty()) {
-            selectedSeasonFr.requestFocus()
-        } else {
-            onBack()
-        }
     }
 
     LaunchedEffect(seasonsFailed) {
