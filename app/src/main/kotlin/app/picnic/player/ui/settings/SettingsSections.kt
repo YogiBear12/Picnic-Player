@@ -116,6 +116,27 @@ private fun burnInSubtitlesPicker(
     }
 )
 
+private const val AssSubtitleOffsetStepMs = 50
+
+internal fun assSubtitleOffsetLabel(ms: Int): String = when {
+    ms > 0 -> "+$ms ms"
+    else -> "$ms ms"
+}
+
+internal fun assSubtitleOffsetPicker(
+    current: Int,
+    onSelect: (Int) -> Unit
+) = ActivePicker(
+    title = "Default ASS subtitle offset",
+    options = (PlaybackSettings.MinAssSubtitleOffsetMs..PlaybackSettings.MaxAssSubtitleOffsetMs step AssSubtitleOffsetStepMs).map { ms ->
+        PickerOption(
+            label = assSubtitleOffsetLabel(ms),
+            selected = ms == current,
+            onSelect = { onSelect(ms) }
+        )
+    }
+)
+
 private fun segmentPicker(
     title: String,
     current: SegmentAction,
@@ -490,6 +511,19 @@ private fun advancedSections(
                         )
                     },
                     enabled = !settings.forceDirectPlay
+                )
+            )
+            add(
+                SettingItem(
+                    "Default ASS subtitle offset",
+                    assSubtitleOffsetLabel(settings.assSubtitleOffsetMs),
+                    onActivate = {
+                        showPicker(
+                            assSubtitleOffsetPicker(settings.assSubtitleOffsetMs) {
+                                viewModel.set(SettingKeys.AssSubtitleOffsetMs, it)
+                            }
+                        )
+                    }
                 )
             )
             add(

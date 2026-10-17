@@ -14,24 +14,27 @@ import java.util.concurrent.atomic.AtomicLong
  *
  * Positive [delayUs] → subtitles appear later; negative → earlier. Works for both the
  * media3 text renderer and libass (whose [AssRenderer] drives rendering off `render`).
+ * The optional [baseOffsetUs] applies only to libass, on top of the session delay.
  */
 class SubtitleDelayRenderer(
     private val delegate: Renderer,
-    private val delayUs: AtomicLong
+    private val delayUs: AtomicLong,
+    private val baseOffsetUs: AtomicLong? = null
 ) : Renderer by delegate {
     override fun render(positionUs: Long, elapsedRealtimeUs: Long) {
-        delegate.render(positionUs - delayUs.get(), elapsedRealtimeUs)
+        delegate.render(positionUs - delayUs.get() - (baseOffsetUs?.get() ?: 0L), elapsedRealtimeUs)
     }
 }
 
 /**
  * Wraps a [RenderersFactory] so every text/ASS subtitle renderer it produces is
- * decorated with [SubtitleDelayRenderer], sharing one [delayUs] holder. Keeps the
- * offset logic out of the renderer-construction code in [PlaybackEngine].
+ * decorated with [SubtitleDelayRenderer], sharing one [delayUs] holder. Only libass
+ * also receives [assOffsetUs], so device calibration never shifts text or bitmap cues.
  */
 class SubtitleDelayRenderersFactory(
     private val delegate: RenderersFactory,
-    private val delayUs: AtomicLong
+    private val delayUs: AtomicLong,
+    private val assOffsetUs: AtomicLong
 ) : RenderersFactory by delegate {
     override fun createRenderers(
         eventHandler: android.os.Handler,
@@ -46,10 +49,10 @@ class SubtitleDelayRenderersFactory(
         textRendererOutput,
         metadataRendererOutput
     ).map { renderer ->
-        if (renderer.trackType == androidx.media3.common.C.TRACK_TYPE_TEXT || renderer is AssRenderer) {
-            SubtitleDelayRenderer(renderer, delayUs)
-        } else {
-            renderer
+        when {
+            renderer is AssRenderer -> SubtitleDelayRenderer(renderer, delayUs, assOffsetUs)
+            renderer.trackType == androidx.media3.common.C.TRACK_TYPE_TEXT -> SubtitleDelayRenderer(renderer, delayUs)
+            else -> renderer
         }
     }.toTypedArray()
 }

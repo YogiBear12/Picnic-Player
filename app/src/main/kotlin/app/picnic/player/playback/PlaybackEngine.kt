@@ -54,6 +54,7 @@ class PlaybackEngine(private val context: Context, httpClient: OkHttpClient) {
     private var assOverlay: AssSubtitleView? = null
 
     private val subtitleDelayUs = AtomicLong(0L)
+    private val assOffsetUs = AtomicLong(0L)
 
     val audioEffects = AudioEffects()
 
@@ -92,7 +93,8 @@ class PlaybackEngine(private val context: Context, httpClient: OkHttpClient) {
                     .setEnableDecoderFallback(true)
                     .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
             ),
-            subtitleDelayUs
+            subtitleDelayUs,
+            assOffsetUs
         )
         val extractors = instrumentExtractors(
             DefaultExtractorsFactory()
@@ -163,6 +165,10 @@ class PlaybackEngine(private val context: Context, httpClient: OkHttpClient) {
     /** Positive = later, negative = earlier. Session-only, never persisted. */
     fun setSubtitleDelayMs(ms: Long) {
         subtitleDelayUs.set(ms * 1000)
+    }
+
+    fun setAssSubtitleOffsetMs(ms: Long) {
+        assOffsetUs.set(ms * 1000)
     }
 
     fun release() {

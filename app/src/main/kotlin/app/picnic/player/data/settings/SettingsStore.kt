@@ -77,8 +77,14 @@ data class PlaybackSettings(
     val preferredSubtitleLanguage: String? = null,
     val alwaysDisplaySubtitles: Boolean = false,
     val burnInSubtitles: BurnInSubtitles = BurnInSubtitles.OFF,
+    val assSubtitleOffsetMs: Int = 0,
     val subtitleAppearance: SubtitleAppearance = SubtitleAppearance()
-)
+) {
+    companion object {
+        const val MinAssSubtitleOffsetMs = -2000
+        const val MaxAssSubtitleOffsetMs = 2000
+    }
+}
 
 @Singleton
 class SettingsStore @Inject constructor(
@@ -120,6 +126,7 @@ class SettingsStore @Inject constructor(
             alwaysDisplaySubtitles = p.userBoolean(scope, ALWAYS_DISPLAY_SUBTITLES) ?: false,
             burnInSubtitles = p[BURN_IN_SUBTITLES]?.let { enumOrNull<BurnInSubtitles>(it) }
                 ?: BurnInSubtitles.OFF,
+            assSubtitleOffsetMs = p[ASS_SUBTITLE_OFFSET_MS] ?: 0,
             subtitleAppearance = SubtitleAppearance(
                 size = p.userString(scope, SUBTITLE_SIZE)?.let { enumOrNull<SubtitleSize>(it) }
                     ?: SubtitleSize.STANDARD,
@@ -179,6 +186,10 @@ class SettingsStore @Inject constructor(
     suspend fun setPreferredSubtitleLanguage(value: String?) = putUserString(PREFERRED_SUBTITLE_LANGUAGE, value)
 
     suspend fun setBurnInSubtitles(value: BurnInSubtitles) = put { it[BURN_IN_SUBTITLES] = value.name }
+
+    suspend fun setAssSubtitleOffsetMs(value: Int) = put {
+        it[ASS_SUBTITLE_OFFSET_MS] = value.coerceIn(PlaybackSettings.MinAssSubtitleOffsetMs, PlaybackSettings.MaxAssSubtitleOffsetMs)
+    }
 
     suspend fun setAlwaysDisplaySubtitles(value: Boolean) = putUserBoolean(ALWAYS_DISPLAY_SUBTITLES, value)
 
@@ -251,6 +262,7 @@ class SettingsStore @Inject constructor(
         const val PREFERRED_AUDIO_LANGUAGE = "playback.preferredAudioLanguage"
         const val PREFER_DEFAULT_AUDIO_TRACK = "playback.preferDefaultAudioTrack"
         const val PREFERRED_SUBTITLE_LANGUAGE = "playback.preferredSubtitleLanguage"
+        val ASS_SUBTITLE_OFFSET_MS = intPreferencesKey("advanced.assSubtitleOffsetMs")
         val BURN_IN_SUBTITLES = stringPreferencesKey("advanced.burnInSubtitles")
         const val ALWAYS_DISPLAY_SUBTITLES = "playback.alwaysDisplaySubtitles"
         const val SUBTITLE_SIZE = "playback.subtitleSize"
