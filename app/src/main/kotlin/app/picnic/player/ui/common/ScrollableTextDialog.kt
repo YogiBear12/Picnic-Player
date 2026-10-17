@@ -29,8 +29,7 @@ import androidx.tv.material3.Text
 import app.picnic.player.ui.theme.PicnicColors
 import kotlinx.coroutines.launch
 
-/** D-pad scroll step, in dp — roughly a few lines per press. */
-private val ScrollStep = 96.dp
+private val TextMaxHeight = 460.dp
 
 /**
  * The app's plain long-text dialog: summary/overview expansion, person biography,
@@ -43,40 +42,50 @@ fun ScrollableTextDialog(
     text: String,
     onDismiss: () -> Unit,
     width: Dp = PanelWidth.Reading,
-    textAlign: TextAlign? = null,
-    maxTextHeight: Dp? = null
+    textAlign: TextAlign? = null
+) {
+    PicnicDialog(onDismiss = onDismiss) {
+        ScrollableTextPanel(text = text, width = width, textAlign = textAlign)
+    }
+}
+
+/** For a dialog that is already open, such as the context menu: a second dialog window would carry its own Select guard. */
+@Composable
+fun ScrollableTextPanel(
+    text: String,
+    width: Dp = PanelWidth.Reading,
+    textAlign: TextAlign? = null
 ) {
     val scrollState = rememberScrollState()
     val scope = rememberCoroutineScope()
     val scrollFocus = remember { FocusRequester() }
-    val stepPx = with(LocalDensity.current) { ScrollStep.toPx() }
+    val textStyle = MaterialTheme.typography.bodyLarge
+    val stepPx = with(LocalDensity.current) { textStyle.lineHeight.toPx() }
 
-    PicnicDialog(onDismiss = onDismiss) {
-        Box(modifier = Modifier.panelSurface(width = width)) {
-            Text(
-                text = text,
-                color = PicnicColors.OnDarkMuted,
-                style = MaterialTheme.typography.bodyMedium,
-                textAlign = textAlign,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = PanelContentInset + PanelRowInnerPadding)
-                    .then(if (maxTextHeight != null) Modifier.heightIn(max = maxTextHeight) else Modifier)
-                    .verticalScroll(scrollState)
-                    .focusRequester(scrollFocus)
-                    .onKeyEvent { event ->
-                        if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
-                        val delta = when (event.key) {
-                            Key.DirectionDown -> stepPx
-                            Key.DirectionUp -> -stepPx
-                            else -> return@onKeyEvent false
-                        }
-                        scope.launch { scrollState.animateScrollBy(delta) }
-                        true
+    Box(modifier = Modifier.panelSurface(width = width)) {
+        Text(
+            text = text,
+            color = PicnicColors.OnDark,
+            style = textStyle,
+            textAlign = textAlign,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = PanelContentInset + PanelRowInnerPadding)
+                .heightIn(max = TextMaxHeight)
+                .verticalScroll(scrollState)
+                .focusRequester(scrollFocus)
+                .onKeyEvent { event ->
+                    if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
+                    val delta = when (event.key) {
+                        Key.DirectionDown -> stepPx
+                        Key.DirectionUp -> -stepPx
+                        else -> return@onKeyEvent false
                     }
-                    .focusable()
-            )
-        }
+                    scope.launch { scrollState.animateScrollBy(delta) }
+                    true
+                }
+                .focusable()
+        )
     }
     // The Dialog window can take a few frames to accept focus; retry generously so the
     // scroll container reliably ends up focused (D-pad scrolling depends on it).

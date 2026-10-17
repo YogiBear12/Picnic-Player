@@ -1,9 +1,6 @@
 package app.picnic.player.ui.common
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.ArrowForward
@@ -21,14 +18,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
-import androidx.tv.material3.MaterialTheme
-import androidx.tv.material3.Text
 import app.picnic.player.ui.playlist.AddToPlaylistPanel
 import app.picnic.player.ui.seerr.ReportIssuePanel
 import app.picnic.player.ui.seerr.rememberIssueReporter
-import app.picnic.player.ui.theme.PicnicColors
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
 
@@ -139,7 +131,7 @@ fun GlobalContextMenuDialog(
     PicnicDialog(onDismiss = onDismiss) {
         BackHandler(enabled = panel != null) { panel = null }
         when (panel) {
-            GlobalMenuPanel.SYNOPSIS -> SynopsisPanel(item.overview)
+            GlobalMenuPanel.SYNOPSIS -> ScrollableTextPanel(text = item.overview ?: "No synopsis available.")
             GlobalMenuPanel.PLAYLIST -> AddToPlaylistPanel(item = item, onDone = onDismiss)
             GlobalMenuPanel.MEDIA_INFO -> MediaInfoPanel(item = item)
             GlobalMenuPanel.REPORT -> if (reportTarget != null) {
@@ -160,20 +152,4 @@ private enum class GlobalMenuPanel {
     PLAYLIST,
     MEDIA_INFO,
     REPORT
-}
-
-@Composable
-private fun SynopsisPanel(overview: String?) {
-    Column(
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-        modifier = Modifier
-            .panelSurface(width = PanelWidth.Reading)
-            .padding(horizontal = PanelContentInset + PanelRowInnerPadding)
-    ) {
-        Text(
-            text = overview ?: "No synopsis available.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = PicnicColors.OnDarkMuted
-        )
-    }
 }

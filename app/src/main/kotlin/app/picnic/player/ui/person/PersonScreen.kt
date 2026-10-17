@@ -440,8 +440,7 @@ fun PersonScreen(
         summaryText?.takeIf { it.isNotBlank() }?.let { overview ->
             ScrollableTextDialog(
                 text = overview,
-                onDismiss = { showSummaryDialog = false },
-                maxTextHeight = 420.dp
+                onDismiss = { showSummaryDialog = false }
             )
         }
     }
