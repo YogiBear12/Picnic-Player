@@ -13,11 +13,8 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 
-private const val CoarseAfterMs = 600L
-private const val FineStepMs = 100L
-private const val CoarseStepMs = 1_000L
-private const val FineIntervalMs = 140L
-private const val CoarseIntervalMs = 90L
+private const val StepMs = 50L
+private const val RepeatIntervalMs = 140L
 private const val DelayLimitMs = 60_000L
 
 @Stable
@@ -41,15 +38,10 @@ class SubtitleDelayAdjust {
 
     internal suspend fun ramp(delayMs: () -> Long, onDelayChange: (Long) -> Unit) {
         if (heldDirection == 0) return
-        var elapsed = 0L
         while (currentCoroutineContext().isActive) {
-            val coarse = elapsed >= CoarseAfterMs
-            val step = if (coarse) CoarseStepMs else FineStepMs
-            val next = (delayMs() + heldDirection * step).coerceIn(-DelayLimitMs, DelayLimitMs)
+            val next = (delayMs() + heldDirection * StepMs).coerceIn(-DelayLimitMs, DelayLimitMs)
             if (next != delayMs()) onDelayChange(next)
-            val wait = if (coarse) CoarseIntervalMs else FineIntervalMs
-            delay(wait)
-            elapsed += wait
+            delay(RepeatIntervalMs)
         }
     }
 }

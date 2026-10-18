@@ -9,18 +9,8 @@ import app.picnic.player.playback.SleepMode
 import app.picnic.player.playback.SleepTimerState
 import app.picnic.player.ui.common.formatClock
 import java.util.Locale
-import kotlin.math.abs
 
-internal fun formatDelay(ms: Long): String {
-    val sign = if (ms > 0) {
-        "+"
-    } else if (ms < 0) {
-        "-"
-    } else {
-        ""
-    }
-    return "$sign%.1fs".format(abs(ms / 1000.0))
-}
+internal fun formatDelay(ms: Long): String = if (ms > 0) "+$ms ms" else "$ms ms"
 
 internal fun formatSpeed(speed: Float): String {
     val text = if (speed % 1f == 0f) speed.toInt().toString() else speed.toString()
