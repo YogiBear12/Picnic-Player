@@ -1,0 +1,10 @@
+{
+  "uniqueId": "native:libass",
+  "artifactVersion": "0.17.5",
+  "name": "libass",
+  "description": "Subtitle renderer for the ASS/SSA format, compiled into libass.so by the libass-android fork.",
+  "website": "https://github.com/libass/libass",
+  "licenses": [
+    "libass-isc"
+  ]
+}

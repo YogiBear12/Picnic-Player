@@ -1,0 +1,10 @@
+{
+  "uniqueId": "native:expat",
+  "artifactVersion": "2.7.1",
+  "name": "Expat",
+  "description": "XML parser used by Fontconfig, compiled into libass.so.",
+  "website": "https://libexpat.github.io",
+  "licenses": [
+    "expat-mit"
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "uniqueId": "native:harfbuzz",
+  "artifactVersion": "11.3.3",
+  "name": "HarfBuzz",
+  "description": "Text shaping engine, compiled into libass.so.",
+  "website": "https://harfbuzz.github.io",
+  "licenses": [
+    "harfbuzz-mit"
+  ]
+}

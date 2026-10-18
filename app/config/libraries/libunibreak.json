@@ -1,0 +1,10 @@
+{
+  "uniqueId": "native:libunibreak",
+  "artifactVersion": "6.1",
+  "name": "libunibreak",
+  "description": "Line and word breaking per the Unicode algorithms, compiled into libass.so.",
+  "website": "https://github.com/adah1972/libunibreak",
+  "licenses": [
+    "libunibreak-zlib"
+  ]
+}

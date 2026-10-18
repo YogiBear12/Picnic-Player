@@ -1,0 +1,10 @@
+{
+  "uniqueId": "native:fribidi",
+  "artifactVersion": "1.0.16",
+  "name": "FriBidi",
+  "description": "Unicode bidirectional algorithm, compiled into libass.so.",
+  "website": "https://github.com/fribidi/fribidi",
+  "licenses": [
+    "LGPL-2.1-or-later"
+  ]
+}

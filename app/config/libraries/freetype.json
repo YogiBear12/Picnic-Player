@@ -1,0 +1,10 @@
+{
+  "uniqueId": "native:freetype",
+  "artifactVersion": "2.13.3",
+  "name": "FreeType",
+  "description": "Font rasterizer, compiled into libass.so. Used under the FreeType License.",
+  "website": "https://freetype.org",
+  "licenses": [
+    "freetype-ftl"
+  ]
+}

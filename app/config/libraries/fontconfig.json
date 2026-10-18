@@ -1,0 +1,10 @@
+{
+  "uniqueId": "native:fontconfig",
+  "artifactVersion": "2.16.2",
+  "name": "Fontconfig",
+  "description": "Font discovery and configuration, compiled into libass.so.",
+  "website": "https://www.freedesktop.org/wiki/Software/fontconfig/",
+  "licenses": [
+    "fontconfig-hpnd"
+  ]
+}
