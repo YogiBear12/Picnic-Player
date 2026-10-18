@@ -17,6 +17,10 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        maven {
+            url = uri("app/libs/m2")
+            content { includeGroup("io.github.peerless2012") }
+        }
     }
 }
 

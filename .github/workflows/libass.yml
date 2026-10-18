@@ -71,6 +71,6 @@ jobs:
           STAGING="${TARGET}.incomplete"
           rm -rf "${STAGING}"
           mkdir -p "${STAGING}"
-          cp app/libs/ass-kt-*.aar app/libs/ass-media-*.aar "${STAGING}/"
+          cp -a app/libs/m2 "${STAGING}/"
           mv "${STAGING}" "${TARGET}"
           ls -l "${TARGET}"

@@ -169,16 +169,12 @@ kotlin {
 
 val ffmpegDecoderAar = file("libs/media3-decoder-ffmpeg-${libs.versions.media3.get()}.aar")
 val libassVersion = libs.versions.libassAndroid.get()
-val assKtAar = file("libs/ass-kt-$libassVersion.aar")
-val assMediaAar = file("libs/ass-media-$libassVersion.aar")
+val libassPoms = listOf("ass-kt", "ass-media").map { file("libs/m2/io/github/peerless2012/$it/$libassVersion/$it-$libassVersion.pom") }
 
-// A missing AAR otherwise surfaces as an unresolved-symbol wall in the Kotlin compiler.
+// A missing local build output otherwise surfaces as an unresolved-symbol wall in the Kotlin compiler.
 val checkLocalAars = tasks.register("checkLocalAars") {
-    val buildHints = mapOf(
-        ffmpegDecoderAar to "tools/build-ffmpeg-decoder.sh \$ANDROID_NDK_HOME",
-        assKtAar to "tools/build-libass.sh",
-        assMediaAar to "tools/build-libass.sh"
-    )
+    val buildHints = mapOf(ffmpegDecoderAar to "tools/build-ffmpeg-decoder.sh \$ANDROID_NDK_HOME") +
+        libassPoms.associateWith { "tools/build-libass.sh /path/to/libass-android" }
     doLast {
         val missing = buildHints.filterKeys { !it.exists() }
         if (missing.isNotEmpty()) {
@@ -199,7 +195,7 @@ aboutLibraries {
         duplicationMode = DuplicateMode.MERGE
         duplicationRule = DuplicateRule.SIMPLE
     }
-    // Local AARs carry no POM, so the plugin cannot see FFmpeg or libass. config/ declares them by hand.
+    // Neither the FFmpeg AAR nor the natives inside libass.so carry a POM, so config/ declares them by hand.
     collect {
         configPath = file("config")
     }
@@ -254,12 +250,8 @@ dependencies {
 
     implementation(libs.jellyfin.core)
 
-    // libass ASS/SSA rendering, built locally from our fork. File AARs carry no
-    // POM, so their transitive dependencies are listed by hand.
-    implementation(files(assKtAar, assMediaAar))
-    implementation(libs.media3.effect)
-    implementation(libs.androidx.annotation)
-    implementation(libs.androidx.annotation.experimental)
+    implementation(libs.ass.kt)
+    implementation(libs.ass.media)
 
     implementation(libs.exoplayer.hdr.utils)
 

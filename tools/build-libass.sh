@@ -9,7 +9,7 @@ fi
 REPO="$(git -C "$(dirname "${BASH_SOURCE[0]}")/.." rev-parse --show-toplevel)"
 STAGING="${REPO}/.libass-build"
 CHECKOUT="${STAGING}/libass-android"
-OUTPUT="${REPO}/app/libs"
+OUTPUT="${REPO}/app/libs/m2"
 VERSION="$(sed -n 's/^libassAndroid = "\(.*\)"$/\1/p' "${REPO}/gradle/libs.versions.toml")"
 if [ -z "${VERSION}" ]; then
   echo "could not read the libassAndroid version from gradle/libs.versions.toml" >&2
@@ -51,15 +51,15 @@ mkdir -p "${OUTPUT}"
   # Incremental Kotlin builds in a reused checkout have dropped file facades from the module index.
   rm -rf lib_ass_kt/build/kotlin lib_ass_media/build/kotlin
   ANDROID_HOME="${SDK}" PATH="${SDK}/cmake/3.22.1/bin:${PATH}" ./gradlew \
-    :lib_ass_kt:assembleRelease :lib_ass_media:assembleRelease
+    -Dmaven.repo.local="${OUTPUT}" -PVERSION_NAME="${VERSION}" \
+    :lib_ass_kt:publishToMavenLocal :lib_ass_media:publishToMavenLocal
 )
 
 for name in kt media; do
-  source="${LIBASS_DIR}/lib_ass_${name}/build/outputs/aar/lib_ass_${name}-release.aar"
-  if [ ! -f "${source}" ]; then
-    echo "missing build output: ${source}" >&2
+  pom="${OUTPUT}/io/github/peerless2012/ass-${name}/${VERSION}/ass-${name}-${VERSION}.pom"
+  if [ ! -f "${pom}" ]; then
+    echo "missing published POM: ${pom}" >&2
     exit 1
   fi
-  cp "${source}" "${OUTPUT}/ass-${name}-${VERSION}.aar"
-  echo "wrote ${OUTPUT}/ass-${name}-${VERSION}.aar"
+  echo "published ${pom%.pom}.aar"
 done
