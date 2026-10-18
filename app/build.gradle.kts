@@ -8,7 +8,7 @@ import java.util.Properties
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
-    // Kotlin Android support is built into AGP 9+ — no kotlin.android plugin needed.
+    // AGP 9 has built-in Kotlin support, so there is no kotlin.android plugin.
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
@@ -19,9 +19,7 @@ plugins {
     alias(libs.plugins.androidx.baselineprofile)
 }
 
-// Version name is derived from the latest git tag (e.g. `v0.1.0` -> `0.1.0`).
-// The build is triggered manually, but always stamps the most recent tag.
-// Falls back to a default when there are no tags / no git (e.g. source archive).
+// A source archive has no git, hence the fallback.
 val versionNameFromTag: String =
     runCatching {
         providers.exec {
@@ -34,11 +32,9 @@ val versionNameFromTag: String =
             .removePrefix("v")
     }.getOrNull()?.ifBlank { null } ?: "0.1.0"
 
-// Human-readable build date shown on the About page (e.g. "14 Jul 2026").
 val buildDate: String = SimpleDateFormat("d MMM yyyy", Locale.US).format(Date())
 
-// versionCode derived from the same tag so updates install as proper upgrades
-// (equal versionCode is a reinstall; downgrade protection needs it increasing).
+// Must increase with every tag, or an update installs as a reinstall or is refused as a downgrade.
 val versionCodeFromTag: Int = versionNameFromTag
     .split(".")
     .mapNotNull { it.takeWhile(Char::isDigit).toIntOrNull() }
@@ -46,11 +42,7 @@ val versionCodeFromTag: Int = versionNameFromTag
     ?.let { (major, minor, patch) -> major * 10000 + minor * 100 + patch }
     ?: 1
 
-// In-app updater release host (#111): a GitHub/Gitea releases API base URL, e.g.
-// "https://api.github.com/repos/<owner>/<repo>". Resolved from the UPDATE_REPO
-// environment variable (CI injects a repo secret), falling back to an
-// `updateRepo=` entry in local.properties (device testing; gitignored). Blank
-// disables the updater entirely, so ad-hoc builds never phone anywhere.
+// Releases API base URL for the in-app updater. Blank disables the updater, so ad-hoc builds never contact a server.
 val updateRepo: String = run {
     val fromEnv: String? = System.getenv("UPDATE_REPO")
     val fromLocal: String? = rootProject.file("local.properties")
@@ -75,8 +67,6 @@ android {
         versionName = versionNameFromTag
         buildConfigField("String", "BUILD_DATE", "\"$buildDate\"")
         buildConfigField("String", "UPDATE_REPO", "\"$updateRepo\"")
-        // Launcher label (product name for release; the debug build overrides it so
-        // both APKs are distinguishable side by side). About screen uses R.string.app_name.
         manifestPlaceholders["appLabel"] = "Picnic Player"
         // One ABI folder is installed per app, so a narrower set than libass ships would
         // leave arm64 devices with no decoder.
@@ -85,17 +75,9 @@ android {
         }
     }
 
-    // Release signing pulls the keystore + credentials from environment/secrets
-    // (see .github/workflows/build-android-tv.yml). A release build ALWAYS uses
-    // the release key — if the secrets are absent or incomplete it fails loudly,
-    // never silently falling back to the debug key (which would mask a broken
-    // release key). Debug builds are unaffected: the throw only fires when a
-    // release task is actually requested.
+    // A shipping release never falls back to the debug key: that would hide a broken release key.
     val releaseKeystoreBase64: String? = System.getenv("ANDROID_KEYSTORE_BASE64")
-    // Only a genuine shipping-release task must fail without the release key. The
-    // androidx.baselineprofile plugin builds throwaway release-type variants
-    // (nonMinifiedRelease / benchmarkRelease) to capture the profile on a local device —
-    // those are non-shipping and are debug-signed below, so they must not trip the guard.
+    // The baseline-profile plugin's release-type variants never ship, so they are exempt.
     val releaseBuildRequested = gradle.startParameter.taskNames.any { name ->
         name.contains("Release") &&
             !name.contains("NonMinified", ignoreCase = true) &&
@@ -133,9 +115,6 @@ android {
                         "signed with the release key; refusing to fall back to the debug key."
                 )
                 else -> {
-                    // No release secrets and no shipping-release task: the only release-type
-                    // build that can run here is the baseline-profile plugin's local variant.
-                    // Sign it with the standard debug key so it installs on the test device.
                     val debugStore = file("${System.getProperty("user.home")}/.android/debug.keystore")
                     if (debugStore.exists()) {
                         storeFile = debugStore
@@ -150,8 +129,6 @@ android {
 
     buildTypes {
         debug {
-            // Unique package so a debug build installs alongside a release build for
-            // testing (issue #108). Version + launcher label are suffixed to match.
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
             manifestPlaceholders["appLabel"] = "Picnic Player (Debug)"
@@ -162,12 +139,8 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            // Always the release key — never debug. Missing secrets fail above.
             signingConfig = signingConfigs.getByName("release")
         }
-        // The androidx.baselineprofile plugin creates the nonMinifiedRelease /
-        // benchmarkRelease variants it needs to capture the profile — no hand-rolled
-        // benchmark build type required.
     }
 
     compileOptions {
@@ -182,8 +155,7 @@ android {
 
     testOptions {
         unitTests {
-            // Let android.util.Log (and other stubbed framework calls) return defaults
-            // instead of throwing in JVM unit tests — WebSocketManager logs socket state.
+            // Stubbed framework calls such as android.util.Log would otherwise throw in JVM tests.
             isReturnDefaultValues = true
         }
     }
@@ -222,9 +194,7 @@ tasks.named("preBuild") {
 }
 
 aboutLibraries {
-    // Collapse per-variant/per-platform artifact rows (e.g. jellyfin-core +
-    // jellyfin-core-android-debug) into one entry each. The .android plugin
-    // generates R.raw.aboutlibraries automatically at build time.
+    // One row per library instead of one per variant artifact (jellyfin-core, jellyfin-core-android-debug).
     library {
         duplicationMode = DuplicateMode.MERGE
         duplicationRule = DuplicateRule.SIMPLE
@@ -282,8 +252,6 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.okhttp)
 
-    // Official Jellyfin Kotlin SDK (LGPL-3.0) — typed API, auth, Quick Connect,
-    // discovery, image URLs, device profiles.
     implementation(libs.jellyfin.core)
 
     // libass ASS/SSA rendering, built locally from our fork. File AARs carry no
@@ -295,20 +263,15 @@ dependencies {
 
     implementation(libs.exoplayer.hdr.utils)
 
-    // ZXing core (Apache-2.0) — QR generation for Quick Connect pairing.
     implementation(libs.zxing.core)
 
-    // AboutLibraries core (Apache-2.0) — parses the dependency/license metadata
-    // (R.raw.aboutlibraries, generated by the .android plugin at build time). The
-    // licenses UI is our own (see ui/settings), so the compose modules aren't used.
+    // The licenses screen is our own, so only the core is needed.
     implementation(libs.aboutlibraries.core)
 
     debugImplementation(libs.androidx.compose.ui.tooling)
 
     implementation(libs.androidx.profileinstaller)
 
-    // Merges the generated baseline profile (from the :baselineprofile module) into the
-    // release APK; profileinstaller above installs it at first run.
     baselineProfile(project(":baselineprofile"))
 
     testImplementation(libs.junit)
@@ -316,8 +279,7 @@ dependencies {
 }
 
 ktlint {
-    // Pin the ktlint engine so local checks match the CI gate exactly (the plugin's
-    // bundled default lagged behind CI, letting newer standard: rules slip through).
+    // The plugin's bundled engine lags, letting newer standard rules slip past the gate.
     version.set("1.5.0")
     android.set(true)
     ignoreFailures.set(false)
