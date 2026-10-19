@@ -68,6 +68,9 @@ private const val SCRUB_STEPS_PER_SPEED = 60
 private const val SCRUB_SPEEDS = 3
 private const val CHAPTER_GAP_MAX_SHARE = 4
 
+internal val OsdHorizontalPadding = 56.dp
+private val OsdTitleInset = 40.dp
+private val OsdScrimEdge = Color(0xCC000000)
 private val ScrubberFocusedHeight = 6.dp
 private val ScrubberRestingHeight = 4.dp
 private val ScrubberThumbSize = 14.dp
@@ -83,6 +86,31 @@ internal fun chapterBoundaries(chapters: List<ChapterMark>, durationMs: Long): L
 }
 
 internal fun scrubStepMs(repeatCount: Int): Long = SCRUB_STEP_MS * (repeatCount / SCRUB_STEPS_PER_SPEED + 1).coerceAtMost(SCRUB_SPEEDS)
+
+@Composable
+internal fun OsdTitle(title: String, subtitle: String, modifier: Modifier = Modifier) {
+    Column(
+        modifier
+            .fillMaxWidth()
+            .background(Brush.verticalGradient(listOf(OsdScrimEdge, Color.Transparent)))
+            .padding(horizontal = OsdHorizontalPadding, vertical = OsdTitleInset)
+    ) {
+        Text(
+            title,
+            style = MaterialTheme.typography.titleLarge,
+            color = Color.White,
+            maxLines = 1
+        )
+        if (subtitle.isNotEmpty()) {
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.titleSmall,
+                color = Color.White.copy(alpha = 0.7f),
+                maxLines = 1
+            )
+        }
+    }
+}
 
 @Composable
 fun ModernOsd(
@@ -146,26 +174,11 @@ fun ModernOsd(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xCC000000))))
-            .padding(horizontal = 56.dp, vertical = 36.dp)
+            .background(Brush.verticalGradient(listOf(Color.Transparent, OsdScrimEdge)))
+            .padding(horizontal = OsdHorizontalPadding, vertical = 36.dp)
     ) {
         Row(verticalAlignment = Alignment.Bottom) {
-            Column(Modifier.weight(1f)) {
-                Text(
-                    state.title,
-                    style = MaterialTheme.typography.titleLarge,
-                    color = Color.White,
-                    maxLines = 1
-                )
-                if (state.subtitle.isNotEmpty()) {
-                    Text(
-                        state.subtitle,
-                        style = MaterialTheme.typography.titleSmall,
-                        color = Color.White.copy(alpha = 0.7f),
-                        maxLines = 1
-                    )
-                }
-            }
+            Spacer(Modifier.weight(1f))
             AnimatedVisibility(visible = showSkipInOsd && state.currentSegment != null) {
                 state.currentSegment?.let { segment ->
                     Row {

@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import app.picnic.player.ui.player.osd.OsdHorizontalPadding
 import app.picnic.player.ui.player.osd.SubtitleDelayHud
 import app.picnic.player.ui.player.osd.TrickplayCell
 import app.picnic.player.ui.theme.PicnicColors
@@ -52,7 +53,6 @@ import kotlinx.coroutines.delay
 
 private const val NoticeVisibleMs = 3_000L
 
-private val OsdHorizontalPadding = 56.dp
 private val TrickplayPreviewWidth = 180.dp
 private val TrickplayPreviewHeight = 101.dp
 private val TrickplayGapAboveScrubBar = 10.dp

@@ -49,6 +49,7 @@ import app.picnic.player.ui.common.SilentNavigationSounds
 import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.player.osd.ChaptersPanel
 import app.picnic.player.ui.player.osd.ModernOsd
+import app.picnic.player.ui.player.osd.OsdTitle
 import app.picnic.player.ui.player.osd.SkipIndicator
 import app.picnic.player.ui.player.osd.SkipIndicatorState
 import app.picnic.player.ui.player.osd.SkipSegmentButton
@@ -255,8 +256,17 @@ fun PlayerScreen(
 
         state.error?.let { Text(it, color = Color.White, modifier = Modifier.align(Alignment.Center)) }
 
+        val osdVisible = chrome.osdVisible && state.error == null && !showNextUpOverlay && chrome.panel == Panel.NONE
         AnimatedVisibility(
-            visible = chrome.osdVisible && state.error == null && !showNextUpOverlay && chrome.panel == Panel.NONE,
+            visible = osdVisible,
+            modifier = Modifier.align(Alignment.TopStart).zIndex(1f),
+            enter = fadeIn(),
+            exit = fadeOut()
+        ) {
+            OsdTitle(title = state.title, subtitle = state.subtitle)
+        }
+        AnimatedVisibility(
+            visible = osdVisible,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .zIndex(1f),
