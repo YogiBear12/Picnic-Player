@@ -32,7 +32,8 @@ class PlaybackTickTest {
         outroNextUpShown: Boolean = false,
         prevEndedAwaitingNext: Boolean = false,
         prevVideoStillPlaying: Boolean = false,
-        hasError: Boolean = false
+        hasError: Boolean = false,
+        prevPositionMs: Long? = null
     ) = PlaybackTickInput(
         positionMs = positionMs,
         durationMs = durationMs,
@@ -48,12 +49,11 @@ class PlaybackTickTest {
         outroNextUpShown = outroNextUpShown,
         prevEndedAwaitingNext = prevEndedAwaitingNext,
         prevVideoStillPlaying = prevVideoStillPlaying,
-        hasError = hasError
+        hasError = hasError,
+        prevPositionMs = prevPositionMs
     )
 
     private fun seg(kind: SegmentKind, start: Long, end: Long, id: String = kind.name) = MediaSegment(id = id, kind = kind, startMs = start, endMs = end)
-
-    // --- segment auto-skip -----------------------------------------------------
 
     @Test
     fun autoSkip_seeksToEnd_andMarksOnce() {
@@ -67,7 +67,7 @@ class PlaybackTickTest {
         )
         assertEquals(5_000L, d.autoSkipToMs)
         assertEquals("INTRO", d.markSkippedId)
-        assertNull(d.currentSegment) // auto-skip does not show the button
+        assertNull(d.currentSegment)
     }
 
     @Test
@@ -124,13 +124,11 @@ class PlaybackTickTest {
         assertNull(d.currentSegment)
     }
 
-    // --- outro next-up ---------------------------------------------------------
-
     @Test
     fun outroRunsToEnd_triggersNextUp() {
         val outro = seg(SegmentKind.OUTRO, 95_000, 100_000)
         val d = playbackTick(
-            input(positionMs = 96_000, durationMs = 100_000, segments = listOf(outro), hasNextUp = true)
+            input(positionMs = 96_000, durationMs = 100_000, segments = listOf(outro), hasNextUp = true, prevPositionMs = 94_500)
         )
         assertTrue(d.setOutroNextUpShown)
         assertTrue(d.endedAwaitingNext)
@@ -138,21 +136,52 @@ class PlaybackTickTest {
     }
 
     @Test
-    fun outroLandedDeepBySeeking_doesNotTrigger() {
-        val outro = seg(SegmentKind.OUTRO, 60_000, 100_000)
+    fun outroStart_withoutPreviousPosition_doesNotTrigger() {
+        val outro = seg(SegmentKind.OUTRO, 95_000, 100_000)
         val d = playbackTick(
-            input(positionMs = 99_800, durationMs = 100_000, segments = listOf(outro), hasNextUp = true)
+            input(positionMs = 95_000, segments = listOf(outro), hasNextUp = true, prevPositionMs = null)
+        )
+        assertFalse(d.setOutroNextUpShown)
+        assertFalse(d.endedAwaitingNext)
+        assertFalse(d.videoStillPlaying)
+    }
+
+    @Test
+    fun outro_previousPositionInside_doesNotTrigger() {
+        val outro = seg(SegmentKind.OUTRO, 95_000, 100_000)
+        val d = playbackTick(
+            input(positionMs = 95_500, segments = listOf(outro), hasNextUp = true, prevPositionMs = 95_000)
         )
         assertFalse(d.setOutroNextUpShown)
         assertFalse(d.endedAwaitingNext)
     }
 
     @Test
+    fun autoSkipNeighbor_landingOnOutroStart_triggersNextUp() {
+        val recap = seg(SegmentKind.RECAP, 90_000, 95_000)
+        val outro = seg(SegmentKind.OUTRO, 95_000, 100_000)
+        val beforeSkip = input(
+            positionMs = 94_000,
+            prevPositionMs = 93_500,
+            segments = listOf(recap, outro),
+            settings = allAsk.copy(recapAction = SegmentAction.SKIP_AUTOMATICALLY),
+            hasNextUp = true
+        )
+        val skip = playbackTick(beforeSkip)
+        assertEquals(95_000L, skip.autoSkipToMs)
+        val d = playbackTick(
+            beforeSkip.copy(positionMs = requireNotNull(skip.autoSkipToMs), prevPositionMs = beforeSkip.positionMs)
+        )
+        assertTrue(d.setOutroNextUpShown)
+        assertTrue(d.endedAwaitingNext)
+        assertTrue(d.videoStillPlaying)
+    }
+
+    @Test
     fun outroWithAfterCredits_doesNotTrigger() {
-        // endMs well short of duration => post-outro content => no trigger.
         val outro = seg(SegmentKind.OUTRO, 80_000, 85_000)
         val d = playbackTick(
-            input(positionMs = 81_000, durationMs = 100_000, segments = listOf(outro), hasNextUp = true)
+            input(positionMs = 81_000, durationMs = 100_000, segments = listOf(outro), hasNextUp = true, prevPositionMs = 79_500)
         )
         assertFalse(d.setOutroNextUpShown)
         assertFalse(d.endedAwaitingNext)
@@ -164,6 +193,7 @@ class PlaybackTickTest {
         val d = playbackTick(
             input(
                 positionMs = 96_000,
+                prevPositionMs = 94_500,
                 segments = listOf(outro),
                 hasNextUp = true,
                 outroNextUpShown = true
@@ -175,7 +205,7 @@ class PlaybackTickTest {
     @Test
     fun outro_notTriggered_whenNoNextUp() {
         val outro = seg(SegmentKind.OUTRO, 95_000, 100_000)
-        val d = playbackTick(input(positionMs = 96_000, segments = listOf(outro), hasNextUp = false))
+        val d = playbackTick(input(positionMs = 96_000, segments = listOf(outro), hasNextUp = false, prevPositionMs = 94_500))
         assertFalse(d.setOutroNextUpShown)
     }
 
@@ -185,6 +215,7 @@ class PlaybackTickTest {
         val d = playbackTick(
             input(
                 positionMs = 96_000,
+                prevPositionMs = 94_500,
                 segments = listOf(outro),
                 settings = allAsk.copy(outroAction = SegmentAction.SKIP_AUTOMATICALLY),
                 hasNextUp = true
@@ -193,8 +224,6 @@ class PlaybackTickTest {
         assertFalse(d.setOutroNextUpShown)
         assertEquals(100_000L, d.autoSkipToMs)
     }
-
-    // --- ended / sleep ---------------------------------------------------------
 
     @Test
     fun endedDefault_latchesEndedAwaitingNext() {
@@ -227,13 +256,11 @@ class PlaybackTickTest {
         assertFalse(d.videoStillPlaying)
     }
 
-    // --- mirror fields ---------------------------------------------------------
-
     @Test
     fun firstFrame_presentedOnReady() {
         val d = playbackTick(input(phase = PlaybackPhase.READY, hasPresentedFirstFrame = false))
         assertTrue(d.presentFirstFrame)
-        assertFalse(d.isLoading) // presented this tick => not loading
+        assertFalse(d.isLoading)
     }
 
     @Test

@@ -197,6 +197,7 @@ class PlayerViewModel @Inject constructor(
             PlaybackDiagnostics.log("loading at resumeMs=$resumeMs directPlayAllowed=${directPlayVeto.allowsDirectPlay}")
             player.trackSelectionParameters =
                 player.trackSelectionParameters.withPreferredVideoMimeTypes(stream.mediaStreams)
+            lastTickPositionMs = null
             player.setMediaItem(mediaItemFor(stream), resumeMs)
             player.prepare()
         }
@@ -219,6 +220,7 @@ class PlayerViewModel @Inject constructor(
     private val autoSkipped = mutableSetOf<String>()
 
     private var outroNextUpShown = false
+    private var lastTickPositionMs: Long? = null
 
     private val listener = object : Player.Listener {
         override fun onPlaybackStateChanged(playbackState: Int) {
@@ -498,12 +500,15 @@ class PlayerViewModel @Inject constructor(
         player.playWhenReady = !player.playWhenReady
     }
 
-    fun seekTo(positionMs: Long) = player.seekTo(positionMs.coerceAtLeast(0))
+    fun seekTo(positionMs: Long) {
+        lastTickPositionMs = null
+        player.seekTo(positionMs.coerceAtLeast(0))
+    }
 
     fun seekBy(deltaMs: Long): Long {
         val position = player.currentPosition
         val target = seekByTarget(position, deltaMs, player.duration)
-        player.seekTo(target)
+        seekTo(target)
         return target - position
     }
 
@@ -758,9 +763,10 @@ class PlayerViewModel @Inject constructor(
 
     private fun pushState() {
         val current = _state.value
+        val positionMs = player.currentPosition
         val decision = playbackTick(
             PlaybackTickInput(
-                positionMs = player.currentPosition,
+                positionMs = positionMs,
                 durationMs = player.duration,
                 bufferedMs = player.bufferedPosition,
                 isPlaying = player.isPlaying,
@@ -783,12 +789,13 @@ class PlayerViewModel @Inject constructor(
                 outroNextUpShown = outroNextUpShown,
                 prevEndedAwaitingNext = current.endedAwaitingNext,
                 prevVideoStillPlaying = current.videoStillPlaying,
-                hasError = current.error != null
+                hasError = current.error != null,
+                prevPositionMs = lastTickPositionMs
             )
         )
 
         if (decision.presentFirstFrame) hasPresentedFirstFrame = true
-        decision.autoSkipToMs?.let { player.seekTo(it) }
+        decision.autoSkipToMs?.let(::skipSegmentTo)
         decision.markSkippedId?.let { autoSkipped += it }
         if (decision.setOutroNextUpShown) outroNextUpShown = true
         if (decision.pauseForSleep) {
@@ -810,6 +817,7 @@ class PlayerViewModel @Inject constructor(
                 stillWatching = it.stillWatching || decision.pauseForSleep
             )
         }
+        lastTickPositionMs = positionMs
     }
 
     private fun Int.toPlaybackPhase(): PlaybackPhase = when (this) {
@@ -827,11 +835,14 @@ class PlayerViewModel @Inject constructor(
             duration > 0 &&
             seg.endMs >= duration - OUTRO_END_TOLERANCE_MS
         ) {
-            player.seekTo((duration - LAST_FRAME_MS).coerceAtLeast(0))
+            skipSegmentTo((duration - LAST_FRAME_MS).coerceAtLeast(0))
         } else {
-            player.seekTo(seg.endMs)
+            skipSegmentTo(seg.endMs)
         }
     }
+
+    // Not seekTo: a segment skip keeps the crossing history, so skipping onto the outro start still counts as playback reaching it.
+    private fun skipSegmentTo(positionMs: Long) = player.seekTo(positionMs)
 
     fun nextItemId(): String? = _state.value.nextUp?.id
 

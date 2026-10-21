@@ -29,7 +29,8 @@ data class PlaybackTickInput(
     val outroNextUpShown: Boolean,
     val prevEndedAwaitingNext: Boolean,
     val prevVideoStillPlaying: Boolean,
-    val hasError: Boolean
+    val hasError: Boolean,
+    val prevPositionMs: Long?
 )
 
 data class PlaybackTickDecision(
@@ -94,7 +95,8 @@ fun playbackTick(input: PlaybackTickInput): PlaybackTickDecision {
         !input.outroNextUpShown &&
         input.settings.displayNextUpDuringOutro &&
         outroRunsToEnd &&
-        active.enteredAtStart(pos) &&
+        input.prevPositionMs != null &&
+        input.prevPositionMs < active.startMs &&
         input.hasNextUp
 
     val videoStillNow = when {
