@@ -13,7 +13,7 @@ import kotlinx.coroutines.delay
 
 enum class Panel { NONE, AUDIO, SUBTITLE, CHAPTERS, SETTINGS }
 
-enum class BackOutcome { Handled, ClosedOsd, NextUp, ExitPlayer }
+enum class BackOutcome { Handled, NextUp, ExitPlayer }
 
 enum class PlayerModal { SUBTITLE_ADJUST, REPORT_ISSUE }
 
@@ -24,7 +24,7 @@ private const val QuickSkipBurstMs = 1_000L
 private const val SkipPillVisibleMs = 10_000L
 
 @Stable
-class PlayerChrome {
+class PlayerChrome(private val scrub: PlayerScrub) {
     var osdVisible by mutableStateOf(false)
         private set
 
@@ -87,6 +87,7 @@ class PlayerChrome {
 
     fun hideOsd() {
         osdVisible = false
+        scrub.cancel()
     }
 
     fun openPanel(panel: Panel) {
@@ -109,7 +110,7 @@ class PlayerChrome {
 
     fun enterModal(target: PlayerModal) {
         modal = target
-        osdVisible = false
+        hideOsd()
         panel = Panel.NONE
     }
 
@@ -154,6 +155,8 @@ class PlayerChrome {
 
     fun onOverlayChanged(next: PlayerOverlay?) {
         overlay = next
+        // Still Watching has just paused playback itself; ending the scrub normally would resume behind it.
+        if (next == PlayerOverlay.STILL_WATCHING) scrub.abandon()
         if (next != null) clearOverlays()
     }
 
@@ -174,8 +177,8 @@ class PlayerChrome {
             BackOutcome.Handled
         }
         osdVisible -> {
-            osdVisible = false
-            BackOutcome.ClosedOsd
+            hideOsd()
+            BackOutcome.Handled
         }
         skipPillShowing -> {
             skipPillDismissed = true
@@ -185,12 +188,12 @@ class PlayerChrome {
     }
 
     private fun clearOverlays() {
-        osdVisible = false
+        hideOsd()
         panel = Panel.NONE
     }
 
-    internal suspend fun awaitOsdTimeout(osdHideSeconds: Int, scrubbing: Boolean) {
-        if (!osdVisible || panel != Panel.NONE || scrubbing) return
+    internal suspend fun awaitOsdTimeout(osdHideSeconds: Int) {
+        if (!osdVisible || panel != Panel.NONE || scrub.active) return
         delay(osdHideSeconds.toLong().coerceAtLeast(MinOsdHideSeconds) * 1000)
         hideOsd()
     }
@@ -211,13 +214,13 @@ class PlayerChrome {
 @Composable
 fun rememberPlayerChrome(
     osdHideSeconds: Int,
-    scrubbing: Boolean,
+    scrub: PlayerScrub,
     isPlaying: Boolean,
     segment: MediaSegment?
 ): PlayerChrome {
-    val chrome = remember { PlayerChrome() }
-    LaunchedEffect(chrome.revealTick, chrome.osdVisible, chrome.panel, isPlaying, scrubbing) {
-        chrome.awaitOsdTimeout(osdHideSeconds, scrubbing)
+    val chrome = remember { PlayerChrome(scrub) }
+    LaunchedEffect(chrome.revealTick, chrome.osdVisible, chrome.panel, isPlaying, scrub.active) {
+        chrome.awaitOsdTimeout(osdHideSeconds)
     }
     LaunchedEffect(chrome.quickSkipTick) {
         chrome.awaitQuickSkipEnd()

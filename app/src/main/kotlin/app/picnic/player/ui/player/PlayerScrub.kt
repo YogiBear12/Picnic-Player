@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -16,7 +17,7 @@ class PlayerScrub {
     var active by mutableStateOf(false)
         private set
 
-    var preview by mutableStateOf<TrickplayPreview?>(null)
+    var targetMs by mutableLongStateOf(0L)
         private set
 
     var barBottomInset by mutableStateOf(0.dp)
@@ -24,12 +25,17 @@ class PlayerScrub {
 
     private var resumeWhenDone = false
 
-    fun onActiveChange(scrubbing: Boolean) {
-        active = scrubbing
+    fun scrubBy(deltaMs: Long, fromMs: Long, durationMs: Long) {
+        if (!active) {
+            active = true
+            targetMs = fromMs
+        }
+        targetMs = (targetMs + deltaMs).coerceIn(0, durationMs)
     }
 
-    fun onPreviewChange(next: TrickplayPreview?) {
-        preview = next
+    fun commit(): Long {
+        active = false
+        return targetMs
     }
 
     fun onBarBottomInset(inset: Dp) {
@@ -38,11 +44,11 @@ class PlayerScrub {
 
     fun cancel() {
         active = false
-        preview = null
     }
 
-    fun clearPreview() {
-        preview = null
+    fun abandon() {
+        resumeWhenDone = false
+        active = false
     }
 
     internal fun syncPlayback(player: Player) {

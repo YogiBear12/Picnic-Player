@@ -1,5 +1,7 @@
 package app.picnic.player.ui.player
 
+import androidx.media3.common.Player
+import java.lang.reflect.Proxy
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -8,7 +10,8 @@ import org.junit.Test
 
 class PlayerChromeTest {
 
-    private val chrome = PlayerChrome()
+    private val scrub = PlayerScrub()
+    private val chrome = PlayerChrome(scrub)
 
     @Test
     fun startsClearOfTheVideo() {
@@ -100,8 +103,69 @@ class PlayerChromeTest {
     @Test
     fun backThenClosesTheOsd() {
         chrome.reveal()
-        assertEquals(BackOutcome.ClosedOsd, chrome.onBack())
+        assertEquals(BackOutcome.Handled, chrome.onBack())
         assertFalse(chrome.osdVisible)
+    }
+
+    @Test
+    fun backOrNextUpDuringAScrubResumesPlaybackButStillWatchingKeepsItsPause() {
+        val player = FakePlayer(playWhenReady = true)
+        chrome.reveal()
+        scrub.scrubBy(10_000, fromMs = 0, durationMs = 100_000)
+        scrub.syncPlayback(player.proxy)
+        assertFalse(player.playWhenReady)
+
+        chrome.onBack()
+        scrub.syncPlayback(player.proxy)
+        assertTrue(player.playWhenReady)
+
+        chrome.reveal()
+        scrub.scrubBy(10_000, fromMs = 0, durationMs = 100_000)
+        scrub.syncPlayback(player.proxy)
+        chrome.onOverlayChanged(PlayerOverlay.NEXT_UP)
+        scrub.syncPlayback(player.proxy)
+        assertTrue(player.playWhenReady)
+
+        chrome.onOverlayChanged(null)
+        chrome.reveal()
+        scrub.scrubBy(10_000, fromMs = 0, durationMs = 100_000)
+        scrub.syncPlayback(player.proxy)
+        chrome.onOverlayChanged(PlayerOverlay.STILL_WATCHING)
+        scrub.syncPlayback(player.proxy)
+        assertFalse(player.playWhenReady)
+    }
+
+    private class FakePlayer(var playWhenReady: Boolean) {
+        val proxy: Player = Proxy.newProxyInstance(Player::class.java.classLoader, arrayOf(Player::class.java)) { _, method, _ ->
+            when (method.name) {
+                "getPlayWhenReady" -> playWhenReady
+                "play" -> null.also { playWhenReady = true }
+                "pause" -> null.also { playWhenReady = false }
+                else -> error("unexpected ${method.name}")
+            }
+        } as Player
+    }
+
+    @Test
+    fun everyWayOfClosingTheOsdEndsAScrub() {
+        val closes = listOf<() -> Unit>(
+            { chrome.onBack() },
+            { chrome.hideOsd() },
+            { chrome.onPipModeChanged(true) },
+            { chrome.onOverlayChanged(PlayerOverlay.STILL_WATCHING) },
+            { chrome.enterModal(PlayerModal.REPORT_ISSUE) }
+        )
+        for (close in closes) {
+            chrome.onPipModeChanged(false)
+            chrome.onOverlayChanged(null)
+            chrome.reveal()
+            scrub.scrubBy(10_000, fromMs = 0, durationMs = 100_000)
+
+            close()
+
+            assertFalse(chrome.osdVisible)
+            assertFalse(scrub.active)
+        }
     }
 
     @Test

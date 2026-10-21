@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import app.picnic.player.data.playback.TrickplayFrame
 import app.picnic.player.ui.player.osd.FrameCaption
 import app.picnic.player.ui.player.osd.OsdHorizontalPadding
 import app.picnic.player.ui.player.osd.SubtitleDelayHud
@@ -203,7 +204,7 @@ fun BoxScope.PlayPausePulse(pulse: PlayerPulse) {
 }
 
 @Composable
-fun BoxScope.TrickplayPreviewOverlay(preview: TrickplayPreview, barBottomInset: Dp) {
+fun BoxScope.TrickplayPreviewOverlay(frame: TrickplayFrame, fraction: Float, title: String?, positionMs: Long, barBottomInset: Dp) {
     BoxWithConstraints(
         Modifier
             .fillMaxSize()
@@ -211,7 +212,7 @@ fun BoxScope.TrickplayPreviewOverlay(preview: TrickplayPreview, barBottomInset: 
     ) {
         val barWidth = maxWidth - OsdHorizontalPadding * 2
         val xOffset = OsdHorizontalPadding +
-            (barWidth * preview.fraction - TrickplayPreviewWidth / 2f)
+            (barWidth * fraction - TrickplayPreviewWidth / 2f)
                 .coerceIn(0.dp, barWidth - TrickplayPreviewWidth)
         Box(
             modifier = Modifier
@@ -225,8 +226,8 @@ fun BoxScope.TrickplayPreviewOverlay(preview: TrickplayPreview, barBottomInset: 
                     )
                 }
         ) {
-            TrickplayCell(frame = preview.frame, modifier = Modifier.fillMaxSize())
-            FrameCaption(preview.title, preview.positionMs)
+            TrickplayCell(frame = frame, modifier = Modifier.fillMaxSize())
+            FrameCaption(title, positionMs)
         }
     }
 }

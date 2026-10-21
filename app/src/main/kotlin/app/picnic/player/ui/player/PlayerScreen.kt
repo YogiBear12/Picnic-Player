@@ -54,6 +54,7 @@ import app.picnic.player.ui.player.osd.SkipIndicator
 import app.picnic.player.ui.player.osd.SkipIndicatorState
 import app.picnic.player.ui.player.osd.SkipSegmentButton
 import app.picnic.player.ui.player.osd.StatsForNerdsPanel
+import app.picnic.player.ui.player.osd.previewTitle
 import app.picnic.player.ui.seerr.ReportIssuePanel
 import app.picnic.player.ui.seerr.rememberIssueReporter
 
@@ -80,7 +81,7 @@ fun PlayerScreen(
     val scrub = rememberPlayerScrub(viewModel.player)
     val chrome = rememberPlayerChrome(
         osdHideSeconds = settings.osdHideSeconds,
-        scrubbing = scrub.active,
+        scrub = scrub,
         isPlaying = state.isPlaying,
         segment = state.currentSegment
     )
@@ -194,15 +195,15 @@ fun PlayerScreen(
         if (state.videoStillPlaying) viewModel.dismissNextUp() else exitPlayer()
     }
 
-    BackHandler {
+    val onBack: () -> Unit = {
         subtitleAdjust.release()
         when (chrome.onBack()) {
             BackOutcome.Handled -> Unit
-            BackOutcome.ClosedOsd -> scrub.cancel()
             BackOutcome.NextUp -> onNextUpBack()
             BackOutcome.ExitPlayer -> exitPlayer()
         }
     }
+    BackHandler(onBack = onBack)
 
     BoxWithConstraints(
         modifier = Modifier
@@ -281,15 +282,9 @@ fun PlayerScreen(
                 onSubtitles = { chrome.openPanel(Panel.SUBTITLE) },
                 onSettings = { chrome.openPanel(Panel.SETTINGS) },
                 onChapters = { if (state.chapters.isNotEmpty()) chrome.openPanel(Panel.CHAPTERS) },
-                onDismiss = {
-                    chrome.hideOsd()
-                    scrub.clearPreview()
-                },
+                onBack = onBack,
                 onInteract = { chrome.keepAlive() },
-                onScrubPreviewChange = scrub::onPreviewChange,
-                onScrubbingChange = scrub::onActiveChange,
-                onScrubBarBottomInset = scrub::onBarBottomInset,
-                trickplayFor = viewModel::trickplayFor,
+                scrub = scrub,
                 audioFocusRequester = osdFocus.audio,
                 subtitleFocusRequester = osdFocus.subtitle,
                 settingsFocusRequester = osdFocus.settings,
@@ -351,9 +346,17 @@ fun PlayerScreen(
             }
         }
 
-        val preview = scrub.preview
-        if (chrome.osdVisible && chrome.panel == Panel.NONE && preview != null && scrub.barBottomInset > 0.dp) {
-            TrickplayPreviewOverlay(preview, scrub.barBottomInset)
+        if (osdVisible && scrub.active && scrub.barBottomInset > 0.dp && state.durationMs > 0) {
+            val target = scrub.targetMs
+            viewModel.trickplayFor(target)?.let { frame ->
+                TrickplayPreviewOverlay(
+                    frame,
+                    fraction = target.toFloat() / state.durationMs,
+                    title = previewTitle(state.chapters, state.segments, target),
+                    positionMs = target,
+                    barBottomInset = scrub.barBottomInset
+                )
+            }
         }
 
         TrackSidePanel(

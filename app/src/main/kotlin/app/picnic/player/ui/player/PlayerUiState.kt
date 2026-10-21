@@ -5,7 +5,6 @@ import app.picnic.player.data.auth.UserSession
 import app.picnic.player.data.jellyfin.JellyfinImages
 import app.picnic.player.data.playback.MediaSegment
 import app.picnic.player.data.playback.PlayMethodKind
-import app.picnic.player.data.playback.TrickplayFrame
 import app.picnic.player.data.playback.quality.QualityOption
 import app.picnic.player.data.playback.quality.QualityRung
 import app.picnic.player.playback.AudioBoost
@@ -33,13 +32,6 @@ data class TrackOption(
     val displayLanguage: String,
     val chips: List<String> = emptyList(),
     val selected: Boolean
-)
-
-data class TrickplayPreview(
-    val frame: TrickplayFrame,
-    val fraction: Float,
-    val title: String?,
-    val positionMs: Long
 )
 
 data class ChapterMark(

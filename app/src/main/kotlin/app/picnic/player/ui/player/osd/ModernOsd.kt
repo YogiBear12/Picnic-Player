@@ -24,9 +24,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -51,18 +49,16 @@ import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.findRootCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import app.picnic.player.data.playback.MediaSegment
-import app.picnic.player.data.playback.TrickplayFrame
 import app.picnic.player.ui.common.flatSurfaceBorder
 import app.picnic.player.ui.common.formatClock
 import app.picnic.player.ui.player.ChapterMark
+import app.picnic.player.ui.player.PlayerScrub
 import app.picnic.player.ui.player.PlayerUiState
-import app.picnic.player.ui.player.TrickplayPreview
 
 private const val SCRUB_STEP_MS = 10_000L
 private const val SCRUB_STEPS_PER_SPEED = 60
@@ -127,12 +123,9 @@ fun ModernOsd(
     onSubtitles: () -> Unit,
     onSettings: () -> Unit,
     onChapters: () -> Unit,
-    onDismiss: () -> Unit,
+    onBack: () -> Unit,
     onInteract: () -> Unit,
-    onScrubPreviewChange: (TrickplayPreview?) -> Unit,
-    onScrubbingChange: (Boolean) -> Unit,
-    onScrubBarBottomInset: (Dp) -> Unit,
-    trickplayFor: (Long) -> TrickplayFrame?,
+    scrub: PlayerScrub,
     audioFocusRequester: FocusRequester,
     subtitleFocusRequester: FocusRequester,
     settingsFocusRequester: FocusRequester,
@@ -145,43 +138,16 @@ fun ModernOsd(
 ) {
     val scrubberFocus = scrubberFocusRequester
     var scrubFocused by remember { mutableStateOf(false) }
-    var scrubbing by remember { mutableStateOf(false) }
-    var scrubTarget by remember { mutableLongStateOf(0L) }
     val density = LocalDensity.current
 
     val duration = state.durationMs.coerceAtLeast(0)
-    val shown = if (scrubbing) scrubTarget else state.positionMs
+    val shown = if (scrub.active) scrub.targetMs else state.positionMs
     val fraction = if (duration > 0) (shown.toFloat() / duration) else 0f
     val boundaries = remember(state.chapters, duration) { chapterBoundaries(state.chapters, duration) }
 
-    LaunchedEffect(scrubbing) { onScrubbingChange(scrubbing) }
-
-    LaunchedEffect(scrubbing, scrubTarget, duration) {
-        if (!scrubbing || duration <= 0) {
-            onScrubPreviewChange(null)
-            return@LaunchedEffect
-        }
-        val frame = trickplayFor(scrubTarget) ?: run {
-            onScrubPreviewChange(null)
-            return@LaunchedEffect
-        }
-        onScrubPreviewChange(
-            TrickplayPreview(
-                frame = frame,
-                fraction = fraction,
-                title = previewTitle(state.chapters, state.segments, scrubTarget),
-                positionMs = scrubTarget
-            )
-        )
-    }
-
     fun scrubBy(direction: Int, repeatCount: Int) {
         if (duration <= 0) return
-        if (!scrubbing) {
-            scrubbing = true
-            scrubTarget = state.positionMs
-        }
-        scrubTarget = (scrubTarget + direction * scrubStepMs(repeatCount)).coerceIn(0, duration)
+        scrub.scrubBy(direction * scrubStepMs(repeatCount), state.positionMs, duration)
     }
 
     Column(
@@ -201,7 +167,7 @@ fun ModernOsd(
                             focusEnabled = focusEnabled,
                             onClick = onSkip,
                             onDown = { scrubberFocus.requestFocus() },
-                            onBack = onDismiss,
+                            onBack = onBack,
                             onInteract = onInteract
                         )
                         Spacer(Modifier.size(12.dp))
@@ -214,7 +180,7 @@ fun ModernOsd(
                 focusEnabled = focusEnabled,
                 onClick = onAudio,
                 onDown = { scrubberFocus.requestFocus() },
-                onBack = onDismiss,
+                onBack = onBack,
                 onInteract = onInteract
             )
             Spacer(Modifier.size(12.dp))
@@ -224,7 +190,7 @@ fun ModernOsd(
                 focusEnabled = focusEnabled,
                 onClick = onSubtitles,
                 onDown = { scrubberFocus.requestFocus() },
-                onBack = onDismiss,
+                onBack = onBack,
                 onInteract = onInteract
             )
             Spacer(Modifier.size(12.dp))
@@ -234,7 +200,7 @@ fun ModernOsd(
                 focusEnabled = focusEnabled,
                 onClick = onSettings,
                 onDown = { scrubberFocus.requestFocus() },
-                onBack = onDismiss,
+                onBack = onBack,
                 onInteract = onInteract
             )
         }
@@ -247,7 +213,7 @@ fun ModernOsd(
                 .onGloballyPositioned { coords ->
                     val rootHeight = coords.findRootCoordinates().size.height
                     val top = coords.boundsInRoot().top
-                    onScrubBarBottomInset(with(density) { (rootHeight - top).toDp() })
+                    scrub.onBarBottomInset(with(density) { (rootHeight - top).toDp() })
                 }
         ) {
             ScrubberBar(
@@ -277,10 +243,8 @@ fun ModernOsd(
                             }
                             Key.DirectionCenter, Key.Enter -> {
                                 if (repeatCount == 0) {
-                                    if (scrubbing) {
-                                        onSeek(scrubTarget)
-                                        scrubbing = false
-                                        onScrubPreviewChange(null)
+                                    if (scrub.active) {
+                                        onSeek(scrub.commit())
                                     } else {
                                         onPlayPause()
                                     }
@@ -288,15 +252,15 @@ fun ModernOsd(
                                 true
                             }
                             Key.DirectionUp -> {
-                                if (!scrubbing) audioFocusRequester.requestFocus()
+                                if (!scrub.active) audioFocusRequester.requestFocus()
                                 true
                             }
                             Key.DirectionDown -> {
-                                if (!scrubbing) onChapters()
+                                if (!scrub.active) onChapters()
                                 true
                             }
                             Key.Back -> {
-                                onDismiss()
+                                onBack()
                                 true
                             }
                             else -> false
