@@ -17,13 +17,15 @@ internal fun formatSpeed(speed: Float): String {
     return "$text×"
 }
 
-internal fun skipLabel(kind: SegmentKind): String = when (kind) {
-    SegmentKind.INTRO -> "Skip Intro"
-    SegmentKind.RECAP -> "Skip Recap"
-    SegmentKind.OUTRO -> "Skip Outro"
-    SegmentKind.PREVIEW -> "Skip Preview"
-    SegmentKind.COMMERCIAL -> "Skip Ad"
+internal fun segmentName(kind: SegmentKind): String = when (kind) {
+    SegmentKind.INTRO -> "Intro"
+    SegmentKind.RECAP -> "Recap"
+    SegmentKind.OUTRO -> "Outro"
+    SegmentKind.PREVIEW -> "Preview"
+    SegmentKind.COMMERCIAL -> "Ad"
 }
+
+internal fun skipLabel(kind: SegmentKind): String = "Skip ${segmentName(kind)}"
 
 internal fun audioBoostLabel(level: AudioBoost): String = when (level) {
     AudioBoost.OFF -> "Off"

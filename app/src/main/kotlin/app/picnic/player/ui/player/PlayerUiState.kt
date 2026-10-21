@@ -37,7 +37,9 @@ data class TrackOption(
 
 data class TrickplayPreview(
     val frame: TrickplayFrame,
-    val fraction: Float
+    val fraction: Float,
+    val title: String?,
+    val positionMs: Long
 )
 
 data class ChapterMark(
@@ -75,6 +77,7 @@ data class PlayerUiState(
     val selectedSubtitleId: String? = null,
     val subtitleCues: List<Cue> = emptyList(),
     val currentSegment: MediaSegment? = null,
+    val segments: List<MediaSegment> = emptyList(),
     val nextUp: NextUpItem? = null,
     val endedAwaitingNext: Boolean = false,
     val videoStillPlaying: Boolean = false,

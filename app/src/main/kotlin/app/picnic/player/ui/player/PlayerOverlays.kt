@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import app.picnic.player.ui.player.osd.FrameCaption
 import app.picnic.player.ui.player.osd.OsdHorizontalPadding
 import app.picnic.player.ui.player.osd.SubtitleDelayHud
 import app.picnic.player.ui.player.osd.TrickplayCell
@@ -212,8 +213,7 @@ fun BoxScope.TrickplayPreviewOverlay(preview: TrickplayPreview, barBottomInset: 
         val xOffset = OsdHorizontalPadding +
             (barWidth * preview.fraction - TrickplayPreviewWidth / 2f)
                 .coerceIn(0.dp, barWidth - TrickplayPreviewWidth)
-        TrickplayCell(
-            frame = preview.frame,
+        Box(
             modifier = Modifier
                 .align(Alignment.BottomStart)
                 .width(TrickplayPreviewWidth)
@@ -224,6 +224,9 @@ fun BoxScope.TrickplayPreviewOverlay(preview: TrickplayPreview, barBottomInset: 
                         y = -(barBottomInset + TrickplayGapAboveScrubBar).roundToPx()
                     )
                 }
-        )
+        ) {
+            TrickplayCell(frame = preview.frame, modifier = Modifier.fillMaxSize())
+            FrameCaption(preview.title, preview.positionMs)
+        }
     }
 }

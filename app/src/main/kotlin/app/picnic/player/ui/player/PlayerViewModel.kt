@@ -22,7 +22,6 @@ import app.picnic.player.data.media.PlaylistRepository
 import app.picnic.player.data.media.QueueKind
 import app.picnic.player.data.playback.BlackBarProbe
 import app.picnic.player.data.playback.DirectPlayVeto
-import app.picnic.player.data.playback.MediaSegment
 import app.picnic.player.data.playback.OUTRO_END_TOLERANCE_MS
 import app.picnic.player.data.playback.PlayMethodKind
 import app.picnic.player.data.playback.PlaybackPhase
@@ -217,7 +216,6 @@ class PlayerViewModel @Inject constructor(
     private var tornDown = false
     private var hasPresentedFirstFrame = false
 
-    private var segments: List<MediaSegment> = emptyList()
     private val autoSkipped = mutableSetOf<String>()
 
     private var outroNextUpShown = false
@@ -457,7 +455,8 @@ class PlayerViewModel @Inject constructor(
             }
 
             launch {
-                segments = runCatching { playbackRepository.mediaSegments(id) }.getOrDefault(emptyList())
+                val segments = runCatching { playbackRepository.mediaSegments(id) }.getOrDefault(emptyList())
+                _state.update { it.copy(segments = segments) }
                 autoSkipped.clear()
             }
 
@@ -766,7 +765,7 @@ class PlayerViewModel @Inject constructor(
                 bufferedMs = player.bufferedPosition,
                 isPlaying = player.isPlaying,
                 phase = player.playbackState.toPlaybackPhase(),
-                segments = segments,
+                segments = current.segments,
                 settings = settings.value.let {
                     PlaybackTickSettings(
                         introAction = it.introAction,

@@ -6,6 +6,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -57,6 +58,8 @@ private val LabelScrim = Brush.verticalGradient(
     1f to Color.Black.copy(alpha = 0.85f)
 )
 
+internal fun activeChapterIndex(chapters: List<ChapterMark>, positionMs: Long): Int = chapters.indexOfLast { positionMs >= it.startMs }.coerceAtLeast(0)
+
 @Composable
 fun ChapterRow(
     chapters: List<ChapterMark>,
@@ -65,7 +68,7 @@ fun ChapterRow(
     onSelect: (Long) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val activeIndex = chapters.indexOfLast { positionMs >= it.startMs }.coerceAtLeast(0)
+    val activeIndex = activeChapterIndex(chapters, positionMs)
     val listState = rememberLazyListState()
     val activeFocus = remember { FocusRequester() }
     LaunchedEffect(Unit) {
@@ -140,32 +143,39 @@ private fun ChapterCard(
                     TrickplayCell(frame = frame, modifier = Modifier.fillMaxSize())
                 }
             }
-            Box(
-                Modifier
-                    .matchParentSize()
-                    .background(LabelScrim)
-            )
-            Column(
-                Modifier
-                    .align(Alignment.BottomStart)
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 6.dp)
-            ) {
-                Text(
-                    text = chapter.title,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color.White,
-                    maxLines = 1,
-                    softWrap = false,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.marqueeWhenFocused(focused)
-                )
-                Text(
-                    text = formatClock(chapter.startMs),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Color.White.copy(alpha = 0.75f)
-                )
-            }
+            FrameCaption(chapter.title, chapter.startMs, titleModifier = Modifier.marqueeWhenFocused(focused))
         }
+    }
+}
+
+@Composable
+internal fun BoxScope.FrameCaption(title: String?, positionMs: Long, titleModifier: Modifier = Modifier) {
+    Box(
+        Modifier
+            .matchParentSize()
+            .background(LabelScrim)
+    )
+    Column(
+        Modifier
+            .align(Alignment.BottomStart)
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp, vertical = 6.dp)
+    ) {
+        if (title != null) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodySmall,
+                color = Color.White,
+                maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Ellipsis,
+                modifier = titleModifier
+            )
+        }
+        Text(
+            text = formatClock(positionMs),
+            style = MaterialTheme.typography.labelSmall,
+            color = Color.White.copy(alpha = 0.75f)
+        )
     }
 }

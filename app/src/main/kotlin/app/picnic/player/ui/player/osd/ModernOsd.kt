@@ -56,6 +56,7 @@ import androidx.compose.ui.unit.dp
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
+import app.picnic.player.data.playback.MediaSegment
 import app.picnic.player.data.playback.TrickplayFrame
 import app.picnic.player.ui.common.flatSurfaceBorder
 import app.picnic.player.ui.common.formatClock
@@ -83,6 +84,11 @@ internal fun chapterBoundaries(chapters: List<ChapterMark>, durationMs: Long): L
         .filter { it > 0 && it < durationMs }
         .map { it.toFloat() / durationMs }
     return (listOf(0f, 1f) + starts).distinct().sorted()
+}
+
+internal fun previewTitle(chapters: List<ChapterMark>, segments: List<MediaSegment>, positionMs: Long): String? {
+    if (chapters.isNotEmpty()) return chapters[activeChapterIndex(chapters, positionMs)].title
+    return segments.firstOrNull { positionMs in it.startMs until it.endMs }?.let { segmentName(it.kind) }
 }
 
 internal fun scrubStepMs(repeatCount: Int): Long = SCRUB_STEP_MS * (repeatCount / SCRUB_STEPS_PER_SPEED + 1).coerceAtMost(SCRUB_SPEEDS)
@@ -159,7 +165,14 @@ fun ModernOsd(
             onScrubPreviewChange(null)
             return@LaunchedEffect
         }
-        onScrubPreviewChange(TrickplayPreview(frame, fraction))
+        onScrubPreviewChange(
+            TrickplayPreview(
+                frame = frame,
+                fraction = fraction,
+                title = previewTitle(state.chapters, state.segments, scrubTarget),
+                positionMs = scrubTarget
+            )
+        )
     }
 
     fun scrubBy(direction: Int, repeatCount: Int) {
