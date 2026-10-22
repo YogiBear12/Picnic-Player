@@ -42,6 +42,7 @@ import app.picnic.player.data.playback.quality.QualityRung
 import app.picnic.player.data.playback.quality.SourceQuality
 import app.picnic.player.data.playback.quality.qualityOptions
 import app.picnic.player.data.playback.refinePlayMethod
+import app.picnic.player.data.playback.stopReportPositionMs
 import app.picnic.player.data.playback.ticksToMs
 import app.picnic.player.data.playback.trackMemoryKey
 import app.picnic.player.data.settings.PlaybackSettings
@@ -158,6 +159,7 @@ class PlayerViewModel @Inject constructor(
     private var seriesId: UUID? = null
     private val latchedBars = CueLatchedBars()
     private var loaded = false
+    private var leftFromOutroNextUp = false
 
     private val viewingJob = SupervisorJob(viewModelScope.coroutineContext[Job])
     private val viewingScope = CoroutineScope(viewModelScope.coroutineContext + viewingJob)
@@ -869,6 +871,7 @@ class PlayerViewModel @Inject constructor(
 
     fun playNext() {
         val next = nextItemId() ?: return
+        leftFromOutroNextUp = _state.value.videoStillPlaying
         sessionController.handOffToNextItem()
         _navEvents.tryEmit(PlayerNavEvent.PlayNext(next))
     }
@@ -883,7 +886,7 @@ class PlayerViewModel @Inject constructor(
         val info = stream
         val id = itemId
         val series = seriesId
-        val positionTicks = player.currentPosition.msToTicks()
+        val positionTicks = stopReportPositionMs(player.currentPosition, player.duration, leftFromOutroNextUp).msToTicks()
         player.removeListener(listener)
         engine.release()
         if (s != null && info != null && id != null) {

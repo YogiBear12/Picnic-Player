@@ -1,5 +1,6 @@
 package app.picnic.player.data.playback
 
+import androidx.media3.common.C
 import app.picnic.player.data.settings.SegmentAction
 import app.picnic.player.playback.SleepMode
 import org.junit.Assert.assertEquals
@@ -54,6 +55,21 @@ class PlaybackTickTest {
     )
 
     private fun seg(kind: SegmentKind, start: Long, end: Long, id: String = kind.name) = MediaSegment(id = id, kind = kind, startMs = start, endMs = end)
+
+    @Test
+    fun stopReportPositionMs_outroNextUp_withKnownDuration_returnsDuration() {
+        assertEquals(100_000L, stopReportPositionMs(positionMs = 80_000, durationMs = 100_000, leftFromOutroNextUp = true))
+    }
+
+    @Test
+    fun stopReportPositionMs_outroNextUp_withUnknownDuration_returnsPosition() {
+        assertEquals(80_000L, stopReportPositionMs(positionMs = 80_000, durationMs = C.TIME_UNSET, leftFromOutroNextUp = true))
+    }
+
+    @Test
+    fun stopReportPositionMs_withoutOutroNextUp_returnsPosition() {
+        assertEquals(80_000L, stopReportPositionMs(positionMs = 80_000, durationMs = 100_000, leftFromOutroNextUp = false))
+    }
 
     @Test
     fun autoSkip_seeksToEnd_andMarksOnce() {

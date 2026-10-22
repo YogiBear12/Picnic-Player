@@ -55,6 +55,8 @@ private const val SEGMENT_ENTRY_WINDOW_MS = 2_000L
 
 fun MediaSegment.enteredAtStart(positionMs: Long): Boolean = positionMs - startMs <= SEGMENT_ENTRY_WINDOW_MS
 
+fun stopReportPositionMs(positionMs: Long, durationMs: Long, leftFromOutroNextUp: Boolean): Long = if (leftFromOutroNextUp && durationMs > 0) durationMs else positionMs
+
 fun playbackTick(input: PlaybackTickInput): PlaybackTickDecision {
     val presentFirstFrame = !input.hasPresentedFirstFrame &&
         (input.phase == PlaybackPhase.READY || input.phase == PlaybackPhase.ENDED)
