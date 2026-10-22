@@ -328,6 +328,7 @@ fun PlayerScreen(
                 }
                 SkipSegmentButton(
                     kind = segment.kind,
+                    elapsed = { chrome.skipPillElapsed },
                     onClick = { viewModel.skipCurrentSegment() },
                     modifier = Modifier
                         .focusRequester(osdFocus.skipPill)

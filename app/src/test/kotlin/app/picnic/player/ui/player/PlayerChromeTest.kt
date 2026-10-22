@@ -1,12 +1,17 @@
 package app.picnic.player.ui.player
 
+import androidx.compose.runtime.MonotonicFrameClock
 import androidx.media3.common.Player
 import java.lang.reflect.Proxy
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+
+private const val FRAME_MS = 500L
 
 class PlayerChromeTest {
 
@@ -287,5 +292,25 @@ class PlayerChromeTest {
         chrome.reveal()
         assertFalse(chrome.quickSkipVisible)
         assertEquals(10_000L, chrome.quickSkipMs)
+    }
+
+    @Test
+    fun skipPillFillsOverItsTimeoutThenDismisses() = runTest {
+        chrome.onSegmentChanged(segmentActive = true, enteredAtStart = true)
+        val fillAt = mutableMapOf<Long, Float>()
+        val clock = object : MonotonicFrameClock {
+            var nowMs = 0L
+            override suspend fun <R> withFrameNanos(onFrame: (Long) -> R): R {
+                fillAt[nowMs - FRAME_MS] = chrome.skipPillElapsed
+                return onFrame(nowMs * 1_000_000).also { nowMs += FRAME_MS }
+            }
+        }
+
+        withContext(clock) { chrome.awaitSkipPillTimeout() }
+
+        assertEquals(0.5f, fillAt.getValue(5_000), 0.001f)
+        assertTrue(fillAt.getValue(9_500) < 1f)
+        assertEquals(1f, chrome.skipPillElapsed)
+        assertFalse(chrome.skipPillShowing)
     }
 }

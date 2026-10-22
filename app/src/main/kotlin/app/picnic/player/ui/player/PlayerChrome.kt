@@ -4,10 +4,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameMillis
 import app.picnic.player.data.playback.MediaSegment
 import kotlinx.coroutines.delay
 
@@ -50,6 +52,9 @@ class PlayerChrome(private val scrub: PlayerScrub) {
         private set
 
     var quickSkipTick by mutableIntStateOf(0)
+        private set
+
+    var skipPillElapsed by mutableFloatStateOf(0f)
         private set
 
     private var overlay by mutableStateOf<PlayerOverlay?>(null)
@@ -206,7 +211,12 @@ class PlayerChrome(private val scrub: PlayerScrub) {
 
     internal suspend fun awaitSkipPillTimeout() {
         if (!skipPillShowing) return
-        delay(SkipPillVisibleMs)
+        skipPillElapsed = 0f
+        val start = withFrameMillis { it }
+        do {
+            val elapsedMs = withFrameMillis { it } - start
+            skipPillElapsed = (elapsedMs.toFloat() / SkipPillVisibleMs).coerceAtMost(1f)
+        } while (elapsedMs < SkipPillVisibleMs)
         dismissSkipPill()
     }
 }
