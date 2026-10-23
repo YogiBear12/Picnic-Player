@@ -42,6 +42,7 @@ import app.picnic.player.ui.browse.HeroDetailsRowHeight
 import app.picnic.player.ui.browse.heroBlockHeight
 import app.picnic.player.ui.browse.runtimeLabel
 import app.picnic.player.ui.common.SpecPillHeight
+import app.picnic.player.ui.theme.PicnicColors
 import java.util.Locale
 
 private val HeroInfoTopGap = 14.dp
@@ -49,7 +50,7 @@ private val HeroSummaryTopGap = 6.dp
 private val HeroGenresTopGap = 10.dp
 private val StarGold = Color(0xFFF0B843)
 private val CertLine = Color.White.copy(alpha = 0.30f)
-private val CertInk = Color.White.copy(alpha = 0.88f)
+private val CertInk = PicnicColors.OnDark
 
 /**
  * Seerr immersive / detail hero — same fixed [heroBlockHeight] geometry as
@@ -92,7 +93,7 @@ fun SeerrHero(
             val summaryText: @Composable (Modifier) -> Unit = { textModifier ->
                 Text(
                     overview,
-                    color = Color.White.copy(alpha = 0.7f),
+                    color = PicnicColors.TextSecondary,
                     style = MaterialTheme.typography.bodyMedium,
                     lineHeight = BrowseHeroSummaryLineHeight,
                     maxLines = summaryLines,
@@ -138,7 +139,7 @@ fun SeerrHero(
         if (genres.isNotEmpty()) {
             Text(
                 genres,
-                color = Color.White.copy(alpha = 0.55f),
+                color = PicnicColors.TextTertiary,
                 style = MaterialTheme.typography.bodySmall,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -166,7 +167,7 @@ private fun SeerrHeroInfoLine(
         if (meta.isNotEmpty()) {
             Text(
                 meta,
-                color = Color.White.copy(alpha = 0.6f),
+                color = PicnicColors.TextTertiary,
                 style = MaterialTheme.typography.bodySmall,
                 lineHeight = 16.sp,
                 maxLines = 1,
@@ -186,7 +187,7 @@ private fun SeerrHeroInfoLine(
                 )
                 Text(
                     text = String.format(Locale.US, "%.1f", rating),
-                    color = Color.White.copy(alpha = 0.92f),
+                    color = Color.White,
                     style = MaterialTheme.typography.bodySmall,
                     fontWeight = FontWeight.SemiBold
                 )
