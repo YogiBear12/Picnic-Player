@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.picnic.player.data.auth.AuthRepository
 import app.picnic.player.data.auth.UserSession
+import app.picnic.player.data.media.BROWSE_FIELDS
 import app.picnic.player.data.media.LibraryChangeBus
 import app.picnic.player.data.media.MediaRepository
 import app.picnic.player.data.media.UserDataRepository
@@ -26,13 +27,17 @@ import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.util.UUID
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
@@ -57,8 +62,8 @@ class DetailViewModel @AssistedInject constructor(
     data class UiState(
         val loading: Boolean = true,
         val item: BaseItemDto? = null,
-        val similarItems: List<BaseItemDto> = emptyList(),
         val collections: List<BaseItemDto> = emptyList(),
+        val relatedRows: List<RelatedRow> = emptyList(),
         val session: UserSession? = null,
         val error: String? = null,
         val leadStreams: List<MediaStream>? = null,
@@ -76,6 +81,12 @@ class DetailViewModel @AssistedInject constructor(
     private val _state = MutableStateFlow(UiState())
     val state = _state.asStateFlow()
 
+    private var relatedSpecs = emptyList<RelatedRowSpec>()
+    private var lazySpecs = emptyList<RelatedRowSpec>()
+    private var relatedRowsJob: Job? = null
+    private val relatedPageJobs = mutableMapOf<String, Job>()
+    private val rowCursors = mutableMapOf<String, RowCursor>()
+
     init {
         viewModelScope.launch {
             val session = authRepository.activeSession()
@@ -85,14 +96,35 @@ class DetailViewModel @AssistedInject constructor(
             }
             runCatching { mediaRepository.item(UUID.fromString(itemId)) }
                 .onSuccess { item ->
-                    _state.update { it.copy(loading = false, item = item, session = session) }
-                    launch {
-                        runCatching { mediaRepository.similarItems(item.id) }
-                            .onSuccess { similar -> _state.update { it.copy(similarItems = similar) } }
+                    relatedSpecs = relatedRowSpecs(item)
+                    val (eagerSpecs, lazy) = relatedSpecs.partition { it.eager }
+                    lazySpecs = lazy
+                    _state.update {
+                        it.copy(
+                            loading = false,
+                            item = item,
+                            session = session,
+                            relatedRows = relatedSpecs.map { spec ->
+                                RelatedRow(spec.key, spec.title)
+                            }
+                        )
+                    }
+                    val eagerJob = launch {
+                        eagerSpecs.forEach { spec -> launch { loadRelatedPage(spec) } }
+                    }
+                    val collectionsJob = launch {
+                        runCatching { mediaRepository.collectionsContaining(item.id) }
+                            .onSuccess { collections -> _state.update { it.copy(collections = collections) } }
                     }
                     launch {
-                        val collections = mediaRepository.collectionsContaining(item.id)
-                        _state.update { it.copy(collections = collections) }
+                        joinAll(eagerJob, collectionsJob)
+                        val current = state.value
+                        val eagerRowsEmpty = eagerSpecs.all { spec ->
+                            current.relatedRows.first { it.key == spec.key }.items.isNullOrEmpty()
+                        }
+                        if (needsAutoLoad(hasPeople = !item.people.isNullOrEmpty(), eagerRowsEmpty = eagerRowsEmpty, hasCollections = current.collections.isNotEmpty())) {
+                            loadRelatedRows()
+                        }
                     }
                     launch {
                         settingsStore.settings.collect { settings ->
@@ -132,13 +164,93 @@ class DetailViewModel @AssistedInject constructor(
 
     private suspend fun patchRails(changedIds: Set<String>) {
         val current = state.value
-        val fresh = mediaRepository.refreshChanged(current.similarItems + current.collections, changedIds)
+        val shown = current.collections + current.relatedRows.flatMap { it.items.orEmpty() }
+        val fresh = mediaRepository.refreshChanged(shown, changedIds)
         if (fresh.isEmpty()) return
         _state.update { state ->
             state.copy(
-                similarItems = state.similarItems.map { fresh[it.id] ?: it },
-                collections = state.collections.map { fresh[it.id] ?: it }
+                collections = state.collections.map { fresh[it.id] ?: it },
+                relatedRows = state.relatedRows.map { row ->
+                    row.copy(items = row.items?.map { fresh[it.id] ?: it })
+                }
             )
+        }
+    }
+
+    fun loadRelatedRows() {
+        if (relatedRowsJob != null || lazySpecs.isEmpty()) return
+        relatedRowsJob = viewModelScope.launch {
+            lazySpecs.forEach { spec -> launch { loadRelatedPage(spec) } }
+        }
+    }
+
+    fun loadMoreRelated(key: String, focusedIndex: Int) {
+        val row = state.value.relatedRows.firstOrNull { it.key == key } ?: return
+        val items = row.items ?: return
+        if (!needsNextPage(focusedIndex, items.size, row.endReached, key in relatedPageJobs)) return
+        val job = viewModelScope.launch(start = CoroutineStart.LAZY) {
+            try {
+                relatedSpecs.firstOrNull { it.key == key }?.let { loadRelatedPage(it) }
+            } finally {
+                relatedPageJobs.remove(key)
+            }
+        }
+        relatedPageJobs[key] = job
+        job.start()
+    }
+
+    private suspend fun loadRelatedPage(spec: RelatedRowSpec) {
+        try {
+            val currentItemId = UUID.fromString(itemId)
+            val cursor = rowCursors.getOrPut(spec.key) { RowCursor() }
+            val page: List<BaseItemDto>
+            val endReached: Boolean
+            when (val query = spec.query) {
+                is RelatedRowQuery.Person -> {
+                    page = mediaRepository.getItemsByPerson(
+                        query.id,
+                        listOf(query.type),
+                        personType = query.kind,
+                        excludeId = currentItemId,
+                        startIndex = cursor.next,
+                        limit = RELATED_PAGE_SIZE,
+                        fields = BROWSE_FIELDS
+                    )
+                    cursor.next += page.size
+                    endReached = page.size < RELATED_PAGE_SIZE
+                }
+                RelatedRowQuery.Similar -> {
+                    val result = loadOrderedPage(
+                        cursor,
+                        { mediaRepository.similarItems(currentItemId, SIMILAR_ID_CAP, emptyList()).map { it.id } },
+                        mediaRepository::items
+                    )
+                    page = result.items
+                    endReached = result.endReached
+                }
+                is RelatedRowQuery.Genre -> {
+                    val result = loadOrderedPage(
+                        cursor,
+                        { mediaRepository.shuffledGenreIds(query.id, query.type, currentItemId, limit = RELATED_ID_CAP) },
+                        mediaRepository::items
+                    )
+                    page = result.items
+                    endReached = result.endReached
+                }
+            }
+            updateRow(spec.key) { row ->
+                row.copy(items = (row.items.orEmpty() + page).distinctBy { it.id }, endReached = endReached)
+            }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            updateRow(spec.key) { row -> row.copy(items = row.items.orEmpty(), endReached = true) }
+        }
+    }
+
+    private fun updateRow(key: String, transform: (RelatedRow) -> RelatedRow) {
+        _state.update { state ->
+            state.copy(relatedRows = state.relatedRows.map { row -> if (row.key == key) transform(row) else row })
         }
     }
 

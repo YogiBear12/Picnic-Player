@@ -9,7 +9,9 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.gestures.BringIntoViewSpec
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Replay
@@ -24,11 +26,13 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import app.picnic.player.data.media.NavImages
 import app.picnic.player.playback.LocalThemeMusicPlayer
@@ -36,10 +40,12 @@ import app.picnic.player.ui.ambient.BackdropSpec
 import app.picnic.player.ui.ambient.LocalAmbientPrewarmer
 import app.picnic.player.ui.ambient.rememberBackdrop
 import app.picnic.player.ui.browse.BrowseBackdrop
+import app.picnic.player.ui.browse.BrowseCardStyle
 import app.picnic.player.ui.browse.BrowseHero
 import app.picnic.player.ui.browse.DetailContentStartInset
 import app.picnic.player.ui.browse.DetailPageScaffold
 import app.picnic.player.ui.browse.DetailPosterRow
+import app.picnic.player.ui.browse.RowTitleBottomGap
 import app.picnic.player.ui.browse.browseLayoutMetrics
 import app.picnic.player.ui.browse.heroBlockHeight
 import app.picnic.player.ui.browse.heroRegionHeight
@@ -52,9 +58,11 @@ import app.picnic.player.ui.common.PageRow
 import app.picnic.player.ui.common.PlayFromStartLabel
 import app.picnic.player.ui.common.RequestMoreSeasons
 import app.picnic.player.ui.common.ScrollableTextDialog
+import app.picnic.player.ui.common.SkeletonCardRow
 import app.picnic.player.ui.common.playTarget
 import app.picnic.player.ui.common.rememberRowPageFocus
 import app.picnic.player.ui.common.resumeTicks
+import app.picnic.player.ui.grid.GridCardSkeleton
 import app.picnic.player.ui.navigation.PersonKey
 import app.picnic.player.ui.theme.PicnicColors
 import java.util.UUID
@@ -63,7 +71,6 @@ import org.jellyfin.sdk.model.api.BaseItemKind
 
 private const val ROW_CAST = "cast"
 private const val ROW_COLLECTIONS = "collections"
-private const val ROW_SIMILAR = "similar"
 
 internal fun BaseItemKind?.isFullscreenDetail() = this == BaseItemKind.MOVIE || this == BaseItemKind.SERIES
 
@@ -157,7 +164,6 @@ private fun DetailContent(
     val images = LocalImageUrls.current
     val people = item.people.orEmpty()
     val collections = state.collections
-    val similarItems = state.similarItems
     val localTrailers = state.localTrailers
     val remoteTrailers = item.remoteTrailers?.toList() ?: emptyList()
     val trailerCount = remoteTrailers.size + localTrailers.size
@@ -176,13 +182,18 @@ private fun DetailContent(
     val playTarget = playTarget(item, state.nextUpEpisode)
     val cardStyle = posterCardStyle(sy = metrics.sy)
 
+    val relatedRows = remember(state.relatedRows) { rowsInDisplayOrder(state.relatedRows) }
     val pageRows = buildList {
         if (people.isNotEmpty()) add(PageRow(ROW_CAST, people.map { it.id.toString() }))
         if (collections.isNotEmpty()) add(PageRow(ROW_COLLECTIONS, collections.map { it.id.toString() }))
-        if (similarItems.isNotEmpty()) add(PageRow(ROW_SIMILAR, similarItems.map { it.id.toString() }))
+        // A skeleton keeps its row key and no items in PageRow so LazyColumn indexes stay aligned.
+        relatedRows.forEach { row -> add(PageRow(row.key, row.items.orEmpty().map { it.id.toString() })) }
     }
     val focus = rememberRowPageFocus(pageRows) { restoring = false }
-    LaunchedEffect(focus.lastRowKey) { onRowDimmed(focus.lastRowKey != null) }
+    LaunchedEffect(focus.lastRowKey) {
+        onRowDimmed(focus.lastRowKey != null)
+        if (focus.lastRowKey != null) viewModel.loadRelatedRows()
+    }
 
     val actions = detailActions(
         item = item,
@@ -266,27 +277,35 @@ private fun DetailContent(
             }
         }
 
-        if (similarItems.isNotEmpty()) {
-            item(key = ROW_SIMILAR) {
-                DetailPosterRow(
-                    title = "More like this",
-                    items = similarItems,
-                    metrics = metrics,
-                    cardStyle = cardStyle,
-                    horizontalRowSpec = horizontalRowSpec,
-                    startInset = startInset,
-                    rowFocus = focus.rowFocus(ROW_SIMILAR),
-                    onClick = { similarItem ->
-                        val nav = images.navImages(similarItem)
-                        ambientPrewarmer.warm(nav.ambUrl)
-                        onItem(similarItem, nav.ambUrl)
-                    },
-                    onLongClick = { contextMenu.show(it) },
-                    onFocused = { index, similarItem ->
-                        focus.onRowFocused(ROW_SIMILAR, index, similarItem.id.toString())
-                    },
-                    building = focus.building.value
-                )
+        relatedRows.forEach { row ->
+            val items = row.items
+            if (items == null) {
+                item(key = row.key) {
+                    RelatedRowSkeleton(row.title, cardStyle, metrics.cardSpacing, startInset, metrics.hInset)
+                }
+            } else {
+                item(key = row.key) {
+                    DetailPosterRow(
+                        title = row.title,
+                        items = items,
+                        metrics = metrics,
+                        cardStyle = cardStyle,
+                        horizontalRowSpec = horizontalRowSpec,
+                        startInset = startInset,
+                        rowFocus = focus.rowFocus(row.key),
+                        onClick = { relatedItem ->
+                            val nav = images.navImages(relatedItem)
+                            ambientPrewarmer.warm(nav.ambUrl)
+                            onItem(relatedItem, nav.ambUrl)
+                        },
+                        onLongClick = { contextMenu.show(it) },
+                        onFocused = { index, relatedItem ->
+                            focus.onRowFocused(row.key, index, relatedItem.id.toString())
+                            viewModel.loadMoreRelated(row.key, index)
+                        },
+                        building = focus.building.value
+                    )
+                }
             }
         }
     }
@@ -364,5 +383,26 @@ private fun DetailContent(
                 null
             }
         )
+    }
+}
+
+@Composable
+private fun RelatedRowSkeleton(
+    title: String,
+    cardStyle: BrowseCardStyle,
+    spacing: Dp,
+    startInset: Dp,
+    endInset: Dp
+) {
+    Column {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleMedium,
+            color = Color.White,
+            modifier = Modifier.padding(start = startInset, end = endInset, bottom = RowTitleBottomGap)
+        )
+        SkeletonCardRow(cardWidth = cardStyle.width, spacing = spacing, startInset = startInset) {
+            GridCardSkeleton(cardStyle)
+        }
     }
 }

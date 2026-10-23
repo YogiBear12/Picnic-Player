@@ -38,6 +38,7 @@ import org.jellyfin.sdk.model.api.ItemFields
 import org.jellyfin.sdk.model.api.ItemSortBy
 import org.jellyfin.sdk.model.api.MediaStream
 import org.jellyfin.sdk.model.api.MediaType
+import org.jellyfin.sdk.model.api.PersonKind
 import org.jellyfin.sdk.model.api.SortOrder
 import org.jellyfin.sdk.model.api.UserConfiguration
 import org.jellyfin.sdk.model.api.request.GetSimilarItemsRequest
@@ -218,12 +219,12 @@ class MediaRepository @Inject constructor(
         ).content.items.orEmpty()
     }
 
-    suspend fun similarItems(itemId: UUID): List<BaseItemDto> = onIo {
+    suspend fun similarItems(itemId: UUID, limit: Int = 12, fields: List<ItemFields> = BROWSE_FIELDS): List<BaseItemDto> = onIo {
         api().libraryApi.getSimilarItems(
             GetSimilarItemsRequest(
                 itemId = itemId,
-                limit = 12,
-                fields = BROWSE_FIELDS,
+                limit = limit,
+                fields = fields,
                 userId = session().userUuid
             )
         ).content.items.orEmpty()
@@ -352,18 +353,45 @@ class MediaRepository @Inject constructor(
 
     suspend fun getItemsByPerson(
         personId: UUID,
-        types: List<BaseItemKind>
+        types: List<BaseItemKind>,
+        personType: PersonKind? = null,
+        excludeId: UUID? = null,
+        startIndex: Int? = null,
+        limit: Int? = null,
+        fields: List<ItemFields> = PERSON_ITEM_FIELDS
     ): List<BaseItemDto> = onIo {
         api().itemsApi.getItems(
             userId = session().userUuid,
             personIds = listOf(personId),
+            personTypes = personType?.let { listOf(it.serialName) },
+            excludeItemIds = excludeId?.let { listOf(it) },
+            startIndex = startIndex,
+            limit = limit,
             includeItemTypes = types,
-            fields = PERSON_ITEM_FIELDS,
+            fields = fields,
             enableImageTypes = IMAGE_TYPES,
             sortBy = listOf(ItemSortBy.PREMIERE_DATE, ItemSortBy.PRODUCTION_YEAR, ItemSortBy.SORT_NAME),
             sortOrder = listOf(SortOrder.DESCENDING, SortOrder.DESCENDING, SortOrder.ASCENDING),
-            recursive = true
+            recursive = true,
+            enableTotalRecordCount = false
         ).content.items.orEmpty()
+    }
+
+    suspend fun shuffledGenreIds(genreId: UUID, type: BaseItemKind, excludeId: UUID, limit: Int): List<UUID> = onIo {
+        api().itemsApi.getItems(
+            userId = session().userUuid,
+            genreIds = listOf(genreId),
+            includeItemTypes = listOf(type),
+            excludeItemIds = listOf(excludeId),
+            recursive = true,
+            limit = limit,
+            sortBy = listOf(ItemSortBy.RANDOM),
+            sortOrder = listOf(SortOrder.ASCENDING),
+            fields = emptyList(),
+            enableImages = false,
+            enableUserData = false,
+            enableTotalRecordCount = false
+        ).content.items.orEmpty().map { it.id }
     }
 
     suspend fun item(itemId: UUID): BaseItemDto = onIo {
