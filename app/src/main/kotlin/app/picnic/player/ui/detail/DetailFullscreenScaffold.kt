@@ -34,14 +34,19 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import app.picnic.player.ui.browse.BrowseLayoutMetrics
 import app.picnic.player.ui.browse.ScrollToTopBringIntoView
+import app.picnic.player.ui.browse.posterCardStyle
 import app.picnic.player.ui.common.ActionButtonRow
 import app.picnic.player.ui.common.PageAction
 import app.picnic.player.ui.common.RowPageFocus
+import app.picnic.player.ui.grid.gridCellHeight
 import app.picnic.player.ui.theme.PicnicColors
 
 // Design-canvas units above the bottom edge at rest; derivation in docs/guides/browse-backdrop.md.
 internal const val RESTING_ACTIONS_BOTTOM = 112f
 internal const val RESTING_ROW_PEEK = 41f
+
+// Design-canvas units of the next row left showing when a poster row is focused; derivation in docs/guides/browse-backdrop.md.
+internal const val FOCUSED_ROW_PEEK = 50f
 
 @Composable
 internal fun DetailFullscreenScaffold(
@@ -55,7 +60,7 @@ internal fun DetailFullscreenScaffold(
     rows: LazyListScope.(BringIntoViewSpec, Dp) -> Unit
 ) {
     val rowSpacing = metrics.rowSpacing + metrics.sy(12f)
-    val rowPinTop = screenHeight - metrics.rowsRegionHeight + (metrics.rowsViewportOffset + metrics.rowTitleHeight) / 3
+    val rowPinTop = screenHeight - metrics.sy(FOCUSED_ROW_PEEK) - gridCellHeight(posterCardStyle(metrics.sy)) - rowSpacing
     val pinSpec = with(LocalDensity.current) {
         remember(rowPinTop, restoring) { ScrollToTopBringIntoView(rowPinTop.toPx(), animated = !restoring) }
     }
