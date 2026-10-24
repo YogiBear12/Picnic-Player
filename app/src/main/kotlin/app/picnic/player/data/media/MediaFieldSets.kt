@@ -11,6 +11,7 @@ internal val BROWSE_FIELDS = listOf(
 )
 internal val CONTINUE_FIELDS = BROWSE_FIELDS
 internal val LATEST_FIELDS = BROWSE_FIELDS + ItemFields.CHILD_COUNT
+internal val DISCOVERY_FIELDS = BROWSE_FIELDS + ItemFields.PROVIDER_IDS
 
 internal val PERSON_ITEM_FIELDS = BROWSE_FIELDS +
     ItemFields.PEOPLE +

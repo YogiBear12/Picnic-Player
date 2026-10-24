@@ -358,7 +358,8 @@ class MediaRepository @Inject constructor(
         excludeId: UUID? = null,
         startIndex: Int? = null,
         limit: Int? = null,
-        fields: List<ItemFields> = PERSON_ITEM_FIELDS
+        fields: List<ItemFields> = PERSON_ITEM_FIELDS,
+        sortBy: List<ItemSortBy> = listOf(ItemSortBy.PREMIERE_DATE, ItemSortBy.PRODUCTION_YEAR, ItemSortBy.SORT_NAME)
     ): List<BaseItemDto> = onIo {
         api().itemsApi.getItems(
             userId = session().userUuid,
@@ -370,8 +371,8 @@ class MediaRepository @Inject constructor(
             includeItemTypes = types,
             fields = fields,
             enableImageTypes = IMAGE_TYPES,
-            sortBy = listOf(ItemSortBy.PREMIERE_DATE, ItemSortBy.PRODUCTION_YEAR, ItemSortBy.SORT_NAME),
-            sortOrder = listOf(SortOrder.DESCENDING, SortOrder.DESCENDING, SortOrder.ASCENDING),
+            sortBy = sortBy,
+            sortOrder = listOf(SortOrder.DESCENDING, SortOrder.DESCENDING, SortOrder.ASCENDING).take(sortBy.size),
             recursive = true,
             enableTotalRecordCount = false
         ).content.items.orEmpty()
@@ -468,36 +469,41 @@ class MediaRepository @Inject constructor(
 
     suspend fun seriesLeadStreams(seriesId: UUID): List<MediaStream> = leadEpisode(seriesId)?.mediaStreams.orEmpty()
 
-    suspend fun items(itemIds: List<UUID>): List<BaseItemDto> = onIo {
-        if (itemIds.isEmpty()) return@onIo emptyList()
-        try {
-            coroutineScope {
-                val gate = Semaphore(ITEM_FETCH_CONCURRENCY)
-                itemIds.chunked(ITEM_FETCH_CHUNK)
-                    .map { chunk -> async { gate.withPermit { itemPage(chunk) } } }
-                    .awaitAll()
-                    .flatten()
-            }
-        } catch (cancelled: CancellationException) {
-            throw cancelled
-        } catch (failure: Exception) {
-            Log.w(LIBRARY_LOG_TAG, "bulk item fetch failed", failure)
-            emptyList()
+    suspend fun items(itemIds: List<UUID>, fields: List<ItemFields> = LATEST_FIELDS): List<BaseItemDto> = try {
+        itemsOrThrow(itemIds, fields)
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (failure: Exception) {
+        Log.w(LIBRARY_LOG_TAG, "bulk item fetch failed", failure)
+        emptyList()
+    }
+
+    internal suspend fun itemsOrThrow(itemIds: List<UUID>, fields: List<ItemFields>): List<BaseItemDto> = onIo {
+        coroutineScope {
+            val gate = Semaphore(ITEM_FETCH_CONCURRENCY)
+            itemIds.chunked(ITEM_FETCH_CHUNK)
+                .map { chunk -> async { gate.withPermit { itemPage(chunk, fields) } } }
+                .awaitAll()
+                .flatten()
         }
     }
 
-    private suspend fun itemPage(ids: List<UUID>): List<BaseItemDto> = api().itemsApi.getItems(
+    private suspend fun itemPage(ids: List<UUID>, fields: List<ItemFields>): List<BaseItemDto> = api().itemsApi.getItems(
         userId = session().userUuid,
         ids = ids,
-        fields = LATEST_FIELDS,
+        fields = fields,
         enableImageTypes = IMAGE_TYPES
     ).content.items.orEmpty()
 
-    suspend fun refreshChanged(shown: List<BaseItemDto>, changedIds: Set<String>): Map<UUID, BaseItemDto> {
+    suspend fun refreshChanged(
+        shown: List<BaseItemDto>,
+        changedIds: Set<String>,
+        fields: List<ItemFields> = LATEST_FIELDS
+    ): Map<UUID, BaseItemDto> {
         if (changedIds.isEmpty()) return emptyMap()
         val stale = shown.filter { it.id.toString() in changedIds }.distinctBy { it.id }
         if (stale.isEmpty()) return emptyMap()
-        return items(stale.map { it.id }).associateBy { it.id }
+        return items(stale.map { it.id }, fields).associateBy { it.id }
     }
 
     suspend fun itemStreams(itemIds: List<UUID>): Map<UUID, List<MediaStream>> = onIo {
@@ -757,9 +763,10 @@ class MediaRepository @Inject constructor(
     }
 
     suspend fun recentlyWatched(
-        libraryId: UUID,
+        libraryId: UUID?,
         kinds: List<BaseItemKind>,
-        limit: Int
+        limit: Int,
+        fields: List<ItemFields> = emptyList()
     ): List<BaseItemDto> = onIo {
         api().itemsApi.getItems(
             userId = session().userUuid,
@@ -770,8 +777,30 @@ class MediaRepository @Inject constructor(
             sortBy = listOf(ItemSortBy.DATE_PLAYED),
             sortOrder = listOf(SortOrder.DESCENDING),
             limit = limit,
-            fields = emptyList(),
+            fields = fields,
             imageTypeLimit = 0,
+            enableTotalRecordCount = false
+        ).content.items.orEmpty()
+    }
+
+    suspend fun discoveryItems(
+        genres: List<String>,
+        kinds: List<BaseItemKind>,
+        sortBy: ItemSortBy,
+        limit: Int,
+        isFavorite: Boolean? = null
+    ): List<BaseItemDto> = onIo {
+        api().itemsApi.getItems(
+            userId = session().userUuid,
+            recursive = true,
+            genres = genres.takeIf { it.isNotEmpty() },
+            includeItemTypes = kinds,
+            isFavorite = isFavorite,
+            sortBy = listOf(sortBy),
+            sortOrder = listOf(SortOrder.DESCENDING),
+            limit = limit,
+            fields = DISCOVERY_FIELDS,
+            enableImageTypes = IMAGE_TYPES,
             enableTotalRecordCount = false
         ).content.items.orEmpty()
     }
@@ -879,7 +908,8 @@ class MediaRepository @Inject constructor(
 
         const val SERIES_PLAY_STATE_PAGE_SIZE = 2000
 
-        const val ITEM_FETCH_CHUNK = 100
         const val ITEM_FETCH_CONCURRENCY = 4
     }
 }
+
+internal const val ITEM_FETCH_CHUNK = 100
