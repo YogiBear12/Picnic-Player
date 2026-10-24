@@ -1,15 +1,21 @@
 package app.picnic.player.ui.home
 
 import android.content.Context
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.picnic.player.data.auth.AuthRepository
+import app.picnic.player.data.auth.UserScope
 import app.picnic.player.data.auth.UserSession
 import app.picnic.player.data.jellyfin.isAuthFailure
 import app.picnic.player.data.jellyfin.serverErrorMessage
+import app.picnic.player.data.media.DISCOVERY_FIELDS
+import app.picnic.player.data.media.DiscoveryCandidate
+import app.picnic.player.data.media.DiscoveryPlan
 import app.picnic.player.data.media.HiddenResumeStore
 import app.picnic.player.data.media.HomeContent
 import app.picnic.player.data.media.HomeContentLoader
+import app.picnic.player.data.media.HomeDiscovery
 import app.picnic.player.data.media.HomeLoad
 import app.picnic.player.data.media.HomeResult
 import app.picnic.player.data.media.HomeRow
@@ -18,8 +24,13 @@ import app.picnic.player.data.media.LibraryChangeBus
 import app.picnic.player.data.media.MediaRepository
 import app.picnic.player.data.media.batches
 import app.picnic.player.data.media.fetchHeroPrefetch
+import app.picnic.player.data.media.nextDiscoveryBatch
+import app.picnic.player.data.media.pendingDiscoveryCandidates
 import app.picnic.player.data.media.planHeroStreamPrefetch
+import app.picnic.player.data.media.retryDiscovery
 import app.picnic.player.data.media.seriesNeedingSeasonCount
+import app.picnic.player.data.media.shouldRenewDiscovery
+import app.picnic.player.data.media.shouldShow
 import app.picnic.player.data.media.withSeriesFallback
 import app.picnic.player.data.settings.SettingsStore
 import app.picnic.player.data.tvprovider.TvChannelReceiver
@@ -27,9 +38,13 @@ import app.picnic.player.ui.ambient.AmbientPaletteLoader
 import app.picnic.player.ui.browse.NavRailState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import java.time.LocalDate
 import java.util.UUID
 import javax.inject.Inject
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -55,21 +70,25 @@ import org.jellyfin.sdk.model.api.MediaStream
 
 @OptIn(FlowPreview::class)
 @HiltViewModel
-class HomeViewModel @Inject constructor(
+class HomeViewModel @Inject internal constructor(
     @ApplicationContext private val appContext: Context,
     private val authRepository: AuthRepository,
     private val mediaRepository: MediaRepository,
     private val homeLoader: HomeContentLoader,
+    private val homeDiscovery: HomeDiscovery,
     private val changeBus: LibraryChangeBus,
     private val hiddenResumeStore: HiddenResumeStore,
     settingsStore: SettingsStore,
     val ambientLoader: AmbientPaletteLoader,
     private val navRail: NavRailState
 ) : ViewModel() {
+    data class PendingDiscoveryRow(val key: String, val title: String)
+
     data class UiState(
         val loading: Boolean = true,
         val rows: List<HomeRow> = emptyList(),
         val pendingSlots: List<HomeSlot>? = null,
+        val pendingDiscoveryRows: List<PendingDiscoveryRow> = emptyList(),
         val session: UserSession? = null,
         val error: String? = null,
         val sessionExpiredServerId: String? = null,
@@ -100,13 +119,27 @@ class HomeViewModel @Inject constructor(
     )
 
     private var channelSyncRequested = false
+    private val seasonCountGate = Semaphore(SEASON_COUNT_CONCURRENCY)
 
     private var lastResult: HomeResult? = null
+    private var mainRows: List<HomeRow> = emptyList()
+    private var discoveryJob: Job? = null
+    private var discoveryPaused = false
+    private var discoveryPlan: DiscoveryPlan? = null
+    private var nextDiscoveryPlan: DiscoveryPlan? = null
+    private var discoveryRows: List<HomeRow> = emptyList()
+    private val discoveryShown = mutableListOf<DiscoveryCandidate>()
+    private val unpublishedDiscoveryChanges = mutableSetOf<String>()
+    private var discoveryPublishIndex = 0
 
     init {
         load()
         viewModelScope.launch {
-            changeBus.batches().collect { refresh() }
+            changeBus.batches().collect { batch ->
+                if (discoveryJob?.isActive == true) unpublishedDiscoveryChanges += batch.itemIds
+                refresh()
+                patchDiscoveryCards(batch.itemIds)
+            }
         }
         viewModelScope.launch {
             focusChangedFlow.debounce(200).collectLatest { prefetchStreamsAhead() }
@@ -122,6 +155,8 @@ class HomeViewModel @Inject constructor(
     fun refresh() {
         viewModelScope.launch {
             val session = _state.value.session ?: authRepository.activeSession() ?: return@launch
+            discoveryPaused = false
+            requestDiscovery()
             applyOrError(runCatching { homeLoader.fetch(session) }, session)
         }
     }
@@ -149,16 +184,16 @@ class HomeViewModel @Inject constructor(
             )
         }
         focusChangedFlow.tryEmit(Unit)
+        requestDiscovery()
     }
 
     private suspend fun resolveSeasonCounts(rows: List<HomeRow>) {
         val seriesIds = seriesNeedingSeasonCount(rows, _state.value.seasonCounts.keys)
         if (seriesIds.isEmpty()) return
-        val gate = Semaphore(SEASON_COUNT_CONCURRENCY)
         val counts = coroutineScope {
             seriesIds.map { id ->
                 async {
-                    id to runCatching { gate.withPermit { mediaRepository.seasonCount(id) } }
+                    id to runCatching { seasonCountGate.withPermit { mediaRepository.seasonCount(id) } }
                         .getOrDefault(0)
                 }
             }.awaitAll()
@@ -188,6 +223,7 @@ class HomeViewModel @Inject constructor(
                 return@launch
             }
             _state.update { it.copy(session = session) }
+            requestDiscovery()
             if (!channelSyncRequested) {
                 channelSyncRequested = true
                 TvChannelReceiver.enqueueImmediateSync(appContext)
@@ -249,39 +285,139 @@ class HomeViewModel @Inject constructor(
         val rows = rowsFor(result)
         lastResult = result
         _state.update { current ->
-            current.withRows(rows).copy(
+            current.copy(
                 loading = false,
                 pendingSlots = emptyList(),
-                session = result.session,
-                error = if (rows.isEmpty()) "Nothing to watch yet." else null
-            )
+                session = result.session
+            ).withRows(rows)
         }
+        requestDiscovery()
         resolveSeasonCounts(rows)
         focusChangedFlow.tryEmit(Unit)
     }
 
-    private fun UiState.withRows(rows: List<HomeRow>): UiState {
-        val firstItem = rows.firstOrNull()?.items?.firstOrNull()
+    private fun UiState.withRows(freshMainRows: List<HomeRow>): UiState {
+        mainRows = freshMainRows
+        val combined = mainRows + if (loading) emptyList() else discoveryRows
+        val indices = combined.withIndex().associate { it.value.key to it.index }
+        val focusedIndex = rows.getOrNull(focusedRowIndex)?.key?.let(indices::get)
+            ?: focusedRowIndex.coerceIn(0, maxOf(combined.lastIndex, 0))
+        val focusedItems = combined.getOrNull(focusedIndex)?.items.orEmpty()
+        val focusedRowKept = rows.getOrNull(focusedRowIndex)?.key in indices
+        // A card removed from a surviving row keeps its id so the scaffold recovers to the neighboring slot.
+        val focusedId = focusedItemId?.takeIf { id -> focusedRowKept || focusedItems.any { it.id == id } }
+            ?: focusedItems.firstOrNull()?.id
+        val remembered = rowFocusedItemIds.mapNotNull { (index, id) ->
+            val newIndex = rows.getOrNull(index)?.key?.let(indices::get) ?: return@mapNotNull null
+            (newIndex to id).takeIf { combined[newIndex].items.any { it.id == id } }
+        }.toMap()
         return copy(
-            rows = rows,
-            focusedItemId = focusedItemId ?: firstItem?.id,
-            focusedRowIndex = if (focusedItemId == null) 0 else focusedRowIndex,
-            rowFocusedItemIds = rowFocusedItemIds.ifEmpty {
-                firstItem?.let { mapOf(0 to it.id) } ?: emptyMap()
-            }
+            rows = combined,
+            pendingDiscoveryRows = if (loading || discoveryPaused) {
+                emptyList()
+            } else {
+                pendingDiscoveryCandidates(discoveryPlan?.candidates.orEmpty().drop(discoveryPublishIndex), discoveryShown)
+                    .map { PendingDiscoveryRow("discovery-" + it.key, it.title) }
+            },
+            focusedItemId = focusedId,
+            focusedRowIndex = focusedIndex,
+            rowFocusedItemIds = remembered.ifEmpty {
+                focusedId?.takeIf { id -> focusedItems.any { it.id == id } }?.let { mapOf(focusedIndex to it) } ?: emptyMap()
+            },
+            error = if (combined.isEmpty() && !loading) "Nothing to watch yet." else null
         )
     }
 
     private suspend fun rebuildRowsFromCache() {
         val rows = rowsFor(lastResult ?: return)
-        val visibleIds = rows.flatMap { row -> row.items.map { it.id } }.toSet()
-        _state.update { current ->
-            current.copy(
-                rows = rows,
-                focusedRowIndex = current.focusedRowIndex.coerceIn(0, maxOf(rows.lastIndex, 0)),
-                rowFocusedItemIds = current.rowFocusedItemIds.filterValues { it in visibleIds },
-                error = if (rows.isEmpty()) "Nothing to watch yet." else null
-            )
+        _state.update { it.withRows(rows) }
+        requestDiscovery()
+    }
+
+    private fun requestDiscovery() {
+        val session = _state.value.session ?: return
+        if (discoveryJob?.isActive == true || discoveryPaused) return
+        discoveryJob = viewModelScope.launch(start = CoroutineStart.LAZY) {
+            try {
+                val today = LocalDate.now()
+                val current = discoveryPlan
+                val focusedDiscovery = _state.value.focusedRowIndex >= mainRows.size && discoveryRows.isNotEmpty()
+                if (current == null || shouldRenewDiscovery(current, today, focusedDiscovery)) {
+                    val fresh = nextDiscoveryPlan?.takeIf { it.date == today.toString() } ?: retryDiscovery { homeDiscovery.plan(session.scope, session.userUuid, today) }
+                    if (current != null && _state.value.focusedRowIndex >= mainRows.size && discoveryRows.isNotEmpty()) {
+                        nextDiscoveryPlan = fresh
+                        return@launch
+                    }
+                    nextDiscoveryPlan = null
+                    discoveryPlan = fresh
+                    discoveryRows = emptyList()
+                    discoveryShown.clear()
+                    discoveryPublishIndex = 0
+                    _state.update { it.withRows(mainRows) }
+                }
+                if (nextDiscoveryPlan == null) fillDiscoveryRows(session.scope)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Exception) {
+                discoveryPaused = true
+                _state.update { it.withRows(mainRows) }
+                Log.w(TAG, "Discovery load failed; retry on resume", failure)
+            }
+        }.also { it.start() }
+    }
+
+    private suspend fun fillDiscoveryRows(scope: UserScope) = try {
+        publishDiscoveryRows(scope)
+    } finally {
+        unpublishedDiscoveryChanges.clear()
+    }
+
+    private suspend fun publishDiscoveryRows(scope: UserScope) = coroutineScope {
+        val initialPlan = discoveryPlan ?: return@coroutineScope
+        val remaining = initialPlan.candidates.drop(discoveryPublishIndex)
+        if (nextDiscoveryBatch(remaining, discoveryShown, DISCOVERY_BATCH_SIZE).isEmpty()) return@coroutineScope
+        val loader = homeDiscovery.loader(this, initialPlan, remaining) { _state.first { !it.loading } }
+        while (true) {
+            val plan = discoveryPlan ?: return@coroutineScope
+            val batch = nextDiscoveryBatch(plan.candidates.drop(discoveryPublishIndex), discoveryShown, DISCOVERY_BATCH_SIZE)
+            if (batch.isEmpty()) return@coroutineScope
+            val eligible = batch.filter { shouldShow(it, discoveryShown) }
+            val rows = if (eligible.isEmpty()) {
+                emptyList()
+            } else {
+                val (latest, filled) = homeDiscovery.fill(scope, plan, eligible, discoveryRows.map { it.items }, loader)
+                discoveryPlan = latest
+                filled
+            }
+            discoveryPublishIndex += batch.size
+            val added = eligible.zip(rows).mapNotNull { (candidate, items) ->
+                if (items.isEmpty()) return@mapNotNull null
+                discoveryShown += candidate
+                HomeRow(candidate.title, items, continueWatching = false, key = "discovery-" + candidate.key)
+            }
+            discoveryRows = discoveryRows + added
+            _state.update { it.withRows(mainRows) }
+            if (added.isNotEmpty()) {
+                focusChangedFlow.tryEmit(Unit)
+                viewModelScope.launch { resolveSeasonCounts(added) }
+                val stale = added.flatMap { row -> row.items.map { it.id.toString() } }.filter { it in unpublishedDiscoveryChanges }.toSet()
+                if (stale.isNotEmpty()) viewModelScope.launch { patchDiscoveryCards(stale) }
+            }
+        }
+    }
+
+    private suspend fun patchDiscoveryCards(changedIds: Set<String>) {
+        try {
+            val fresh = mediaRepository.refreshChanged(discoveryRows.flatMap { it.items }, changedIds, DISCOVERY_FIELDS)
+            if (fresh.isEmpty()) return
+            _state.update { current ->
+                discoveryRows = discoveryRows.map { row -> row.copy(items = row.items.map { fresh[it.id] ?: it }) }
+                current.withRows(mainRows)
+            }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failure: Exception) {
+            Log.w(TAG, "Discovery card refresh failed", failure)
         }
     }
 
@@ -310,6 +446,8 @@ class HomeViewModel @Inject constructor(
     }
 
     private companion object {
+        const val TAG = "HomeViewModel"
+        const val DISCOVERY_BATCH_SIZE = 4
         const val SEASON_COUNT_CONCURRENCY = 6
     }
 }

@@ -29,7 +29,7 @@ internal fun HomeBrowsePane(
     onPersonalItem: (PersonalLibrary, BaseItemDto) -> Unit
 ) {
     when {
-        !state.loading && state.rows.isEmpty() ->
+        !state.loading && state.rows.isEmpty() && state.pendingDiscoveryRows.isEmpty() ->
             Box(Modifier.fillMaxSize(), Alignment.Center) { Text(state.error ?: "Nothing here") }
         else -> ImmersiveBrowseScaffold(
             rows = state.rows,
@@ -49,7 +49,11 @@ internal fun HomeBrowsePane(
             onPersonalItem = onPersonalItem,
             horizontalInset = horizontalInset,
             metrics = metrics,
-            skeletonRows = if (state.loading) skeletonRows(state.pendingSlots) else emptyList()
+            skeletonRows = if (state.loading) {
+                skeletonRows(state.pendingSlots)
+            } else {
+                state.pendingDiscoveryRows.map { SkeletonRow(it.key, it.title, landscape = false) }
+            }
         )
     }
 }
