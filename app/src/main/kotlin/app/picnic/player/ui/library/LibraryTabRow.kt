@@ -38,9 +38,9 @@ internal fun LibraryTabRow(
     onSelect: (LibraryTab) -> Unit,
     /** Attached to the SELECTED tab — content's Up-exit lands on it. */
     selectedTabFocus: FocusRequester,
-    /** Where Down from the selected tab lands; null = default search (a populated grid enters
-     *  its first card spatially). Set to the zero-result Clear button so it stays reachable. */
-    contentDownFocus: FocusRequester? = null,
+    /** Where Down from the selected tab lands. Required: the row overlays the content, so a
+     *  geometric search skips the content and finds the navigation panel instead. */
+    contentDownFocus: FocusRequester,
     onFocusedChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -66,7 +66,7 @@ internal fun LibraryTabRow(
                         modifier = if (index == selectedIndex) {
                             Modifier
                                 .focusRequester(selectedTabFocus)
-                                .focusProperties { down = contentDownFocus ?: FocusRequester.Default }
+                                .focusProperties { down = contentDownFocus }
                         } else {
                             Modifier
                         }

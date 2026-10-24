@@ -96,7 +96,8 @@ internal fun MediaGridPane(
     upExitFocus: FocusRequester? = null,
     emptyStateFocus: FocusRequester? = null,
     onEmptyFilteredChange: (Boolean) -> Unit = {},
-    cardStyle: BrowseCardStyle = posterCardStyle(sy = metrics.sy)
+    cardStyle: BrowseCardStyle = posterCardStyle(sy = metrics.sy),
+    chromeInset: androidx.compose.ui.unit.Dp = 0.dp
 ) {
     val retrySeed = rememberRetrySeed()
     when {
@@ -147,7 +148,8 @@ internal fun MediaGridPane(
             upExitFocus = upExitFocus,
             emptyStateFocus = emptyStateFocus,
             onEmptyFilteredChange = onEmptyFilteredChange,
-            cardStyle = cardStyle
+            cardStyle = cardStyle,
+            chromeInset = chromeInset
         )
     }
 }
@@ -185,7 +187,8 @@ private fun MediaGridBody(
     upExitFocus: FocusRequester?,
     emptyStateFocus: FocusRequester?,
     onEmptyFilteredChange: (Boolean) -> Unit,
-    cardStyle: BrowseCardStyle
+    cardStyle: BrowseCardStyle,
+    chromeInset: androidx.compose.ui.unit.Dp
 ) {
     val gridState = rememberLazyGridState(cacheWindow = GridCacheWindow)
     val firstFocus = remember { FocusRequester() }
@@ -325,7 +328,7 @@ private fun MediaGridBody(
                     horizontalArrangement = Arrangement.spacedBy(spacing),
                     verticalArrangement = Arrangement.spacedBy(GridVerticalSpacing),
                     contentPadding = PaddingValues(
-                        top = if (title == null) 28.dp else 82.dp,
+                        top = chromeInset + if (title == null) 28.dp else 82.dp,
                         bottom = 16.dp
                     ),
                     modifier = Modifier

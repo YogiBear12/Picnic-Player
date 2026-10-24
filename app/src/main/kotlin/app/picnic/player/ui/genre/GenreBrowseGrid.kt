@@ -58,6 +58,7 @@ internal fun GenreBrowseGrid(
     onGenreFocused: (Int) -> Unit,
     onGenre: (BaseItemDto) -> Unit,
     header: String? = null,
+    chromeInset: Dp = 0.dp,
     modifier: Modifier = Modifier
 ) {
     if (genres.isEmpty()) return
@@ -67,6 +68,7 @@ internal fun GenreBrowseGrid(
         horizontalInset = horizontalInset,
         metrics = metrics,
         header = header,
+        chromeInset = chromeInset,
         modifier = modifier
             .focusGroup()
             .focusProperties {
@@ -98,6 +100,7 @@ internal fun GenreGridSkeleton(
     horizontalInset: Dp,
     metrics: BrowseLayoutMetrics,
     header: String? = null,
+    chromeInset: Dp = 0.dp,
     modifier: Modifier = Modifier
 ) {
     val pulse = rememberSkeletonPulse()
@@ -106,6 +109,7 @@ internal fun GenreGridSkeleton(
         horizontalInset = horizontalInset,
         metrics = metrics,
         header = header,
+        chromeInset = chromeInset,
         modifier = modifier
     ) {
         items(GenreSkeletonTiles) {
@@ -120,6 +124,7 @@ private fun GenreGridFrame(
     horizontalInset: Dp,
     metrics: BrowseLayoutMetrics,
     header: String?,
+    chromeInset: Dp,
     modifier: Modifier,
     tiles: LazyGridScope.() -> Unit
 ) {
@@ -134,7 +139,7 @@ private fun GenreGridFrame(
             // Top room INSIDE the viewport so a top-row tile's focus scale/glow renders
             // fully instead of clipping at the grid's own boundary (the same trick as
             // MediaGridPane's top padding).
-            top = 12.dp,
+            top = chromeInset + 12.dp,
             bottom = metrics.bottomInset
         ),
         modifier = modifier.fillMaxSize()

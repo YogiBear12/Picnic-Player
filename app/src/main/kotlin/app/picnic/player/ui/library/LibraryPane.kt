@@ -12,14 +12,13 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -30,6 +29,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -104,13 +106,14 @@ internal fun LibraryPane(
     var tabRowFocused by remember { mutableStateOf(false) }
     val libraryEmptyFocus = remember { FocusRequester() }
     val collectionsEmptyFocus = remember { FocusRequester() }
+    val contentFocus = remember { FocusRequester() }
     var libraryEmptyFiltered by remember { mutableStateOf(false) }
     var collectionsEmptyFiltered by remember { mutableStateOf(false) }
     val contentDownFocus = when (selectedTab) {
         LibraryTab.LIBRARY -> libraryEmptyFocus.takeIf { libraryEmptyFiltered }
         LibraryTab.COLLECTIONS -> collectionsEmptyFocus.takeIf { collectionsEmptyFiltered }
         else -> null
-    }
+    } ?: contentFocus
     var libraryChromeVisible by rememberSaveable { mutableStateOf(true) }
     var collectionsChromeVisible by rememberSaveable { mutableStateOf(true) }
     val contentChromeVisible = when (selectedTab) {
@@ -120,27 +123,14 @@ internal fun LibraryPane(
         LibraryTab.COLLECTIONS -> collectionsChromeVisible
     }
     val tabsVisible = tabRowFocused || contentChromeVisible
+    var tabRowHeightPx by rememberSaveable { mutableIntStateOf(0) }
+    val tabRowHeight = with(LocalDensity.current) { tabRowHeightPx.toDp() }
 
-    Column(Modifier.fillMaxSize()) {
-        AnimatedVisibility(
-            visible = tabsVisible,
-            enter = fadeIn(tween(220)) + slideInVertically(tween(220)) { -it },
-            exit = fadeOut(tween(180)) + slideOutVertically(tween(180)) { -it }
-        ) {
-            LibraryTabRow(
-                tabs = paneState.tabs,
-                selected = selectedTab,
-                onSelect = paneViewModel::selectTab,
-                selectedTabFocus = tabFocus,
-                contentDownFocus = contentDownFocus,
-                onFocusedChange = { tabRowFocused = it },
-                modifier = Modifier.padding(top = 14.dp, bottom = 6.dp)
-            )
-        }
+    Box(Modifier.fillMaxSize()) {
         Box(
             Modifier
-                .fillMaxWidth()
-                .weight(1f)
+                .fillMaxSize()
+                .focusRequester(contentFocus)
                 .focusGroup()
                 .focusProperties {
                     exit = { direction ->
@@ -169,7 +159,8 @@ internal fun LibraryPane(
                                 onChromeVisibleChange = { libraryChromeVisible = it },
                                 upExitFocus = tabFocus,
                                 emptyStateFocus = libraryEmptyFocus,
-                                onEmptyFilteredChange = { libraryEmptyFiltered = it }
+                                onEmptyFilteredChange = { libraryEmptyFiltered = it },
+                                chromeInset = tabRowHeight
                             )
                         }
                         LibraryTab.FOR_YOU -> ForYouTabContent(
@@ -188,6 +179,7 @@ internal fun LibraryPane(
                             paneState = paneState,
                             metrics = metrics,
                             horizontalInset = horizontalInset,
+                            chromeInset = tabRowHeight,
                             tabFocus = tabFocus,
                             seedContentFocus = seedContentFocus && tab == selectedTab,
                             onContentFocusSeeded = onContentFocusSeeded,
@@ -214,12 +206,30 @@ internal fun LibraryPane(
                                 offeredFilters = emptySet(),
                                 upExitFocus = tabFocus,
                                 emptyStateFocus = collectionsEmptyFocus,
-                                onEmptyFilteredChange = { collectionsEmptyFiltered = it }
+                                onEmptyFilteredChange = { collectionsEmptyFiltered = it },
+                                chromeInset = tabRowHeight
                             )
                         }
                     }
                 }
             }
+        }
+        AnimatedVisibility(
+            visible = tabsVisible,
+            enter = fadeIn(tween(220)) + slideInVertically(tween(220)) { -it },
+            exit = fadeOut(tween(180)) + slideOutVertically(tween(180)) { -it }
+        ) {
+            LibraryTabRow(
+                tabs = paneState.tabs,
+                selected = selectedTab,
+                onSelect = paneViewModel::selectTab,
+                selectedTabFocus = tabFocus,
+                contentDownFocus = contentDownFocus,
+                onFocusedChange = { tabRowFocused = it },
+                modifier = Modifier
+                    .onSizeChanged { if (it.height > 0) tabRowHeightPx = it.height }
+                    .padding(top = 14.dp, bottom = 6.dp)
+            )
         }
     }
 }
@@ -298,6 +308,7 @@ private fun GenresTabContent(
     paneState: LibraryPaneViewModel.UiState,
     metrics: BrowseLayoutMetrics,
     horizontalInset: Dp,
+    chromeInset: Dp,
     tabFocus: FocusRequester,
     seedContentFocus: Boolean,
     onContentFocusSeeded: () -> Unit,
@@ -339,7 +350,7 @@ private fun GenresTabContent(
         paneState.genresLoading -> GenreGridSkeleton(
             horizontalInset = horizontalInset,
             metrics = metrics,
-            modifier = Modifier.padding(top = GenreGridTopGap)
+            chromeInset = chromeInset + GenreGridTopGap
         )
         paneState.genres.isEmpty() ->
             Box(Modifier.fillMaxSize(), Alignment.Center) { Text("No genres in this library") }
@@ -355,7 +366,7 @@ private fun GenresTabContent(
                 metrics = metrics,
                 onGenreFocused = onGenreFocused,
                 onGenre = onGenre,
-                modifier = Modifier.padding(top = GenreGridTopGap)
+                chromeInset = chromeInset + GenreGridTopGap
             )
         }
     }
