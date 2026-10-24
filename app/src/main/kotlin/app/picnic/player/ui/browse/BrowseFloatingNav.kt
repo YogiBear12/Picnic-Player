@@ -43,6 +43,7 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.onFocusChanged
@@ -256,6 +257,16 @@ private fun FloatingNavBody(
                 .fillMaxHeight()
                 .width(maxWidth - NavGutterWidth)
                 .graphicsLayer { alpha = navDim.value }
+                .focusProperties {
+                    exit = { direction ->
+                        if (direction == FocusDirection.Up || direction == FocusDirection.Down) {
+                            FocusRequester.Cancel
+                        } else {
+                            FocusRequester.Default
+                        }
+                    }
+                }
+                .focusGroup()
         ) { content() }
 
         NavDock(
