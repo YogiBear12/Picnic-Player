@@ -51,11 +51,11 @@ private val HeroSummaryTopGap = 6.dp
 private val HeroRailTopGap = 10.dp
 private val HeroGenresTopGap = 10.dp
 private val HeroGenresLineHeight = 16.dp
-private val HeroSummaryFocusInset = 8.dp
+internal val HeroSummaryFocusInset = 8.dp
 
 internal val HeroBadgeRailReserve = HeroRailTopGap + SpecPillHeight
 
-private fun Modifier.outsetHorizontally(inset: Dp) = layout { measurable, constraints ->
+internal fun Modifier.outsetHorizontally(inset: Dp) = layout { measurable, constraints ->
     val extra = inset.roundToPx() * 2
     val placeable = measurable.measure(
         constraints.copy(

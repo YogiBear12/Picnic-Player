@@ -39,7 +39,9 @@ import app.picnic.player.data.seerr.SeerrMediaType
 import app.picnic.player.data.seerr.formatSeerrSeriesYears
 import app.picnic.player.ui.browse.BrowseHeroSummaryLineHeight
 import app.picnic.player.ui.browse.HeroDetailsRowHeight
+import app.picnic.player.ui.browse.HeroSummaryFocusInset
 import app.picnic.player.ui.browse.heroBlockHeight
+import app.picnic.player.ui.browse.outsetHorizontally
 import app.picnic.player.ui.browse.runtimeLabel
 import app.picnic.player.ui.common.SpecPillHeight
 import app.picnic.player.ui.theme.PicnicColors
@@ -114,6 +116,7 @@ fun SeerrHero(
                     ),
                     modifier = Modifier
                         .padding(top = HeroSummaryTopGap)
+                        .outsetHorizontally(HeroSummaryFocusInset)
                         .fillMaxWidth()
                         .then(
                             if (summaryFocusRequester != null) {
@@ -130,7 +133,7 @@ fun SeerrHero(
                             }
                         )
                 ) {
-                    summaryText(Modifier.fillMaxWidth())
+                    summaryText(Modifier.fillMaxWidth().padding(horizontal = HeroSummaryFocusInset))
                 }
             }
         }
