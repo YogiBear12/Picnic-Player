@@ -87,6 +87,8 @@ private val PanelIconSize = 18.dp
 private val PanelAvatarSize = 18.dp
 private val NavRowMetrics = PanelRowMetrics(innerPadding = 10.dp, verticalPadding = 7.dp)
 private const val PanelAnimMs = 220
+private const val ReorderFocusFrames = 2
+private const val NeighborRefocusMaxFrames = 20
 
 @Immutable
 internal data class NavChromeState(
@@ -99,12 +101,15 @@ internal data class NavChromeState(
     val panelPage: NavPanelPage,
     val moreVisible: Boolean,
     val reorderKey: String?,
+    val focusRequest: ChromeFocusRequest?,
     val layout: NavLayout,
     val settingsBadge: Boolean
 )
 
 internal class NavChromeActions(
     val paneEntryFocus: () -> FocusRequester,
+    val requesterFor: (String) -> FocusRequester,
+    val consumeEntryTarget: () -> ChromeFocusTarget?,
     val onSelect: (BrowseDest) -> Unit,
     val onOpenMore: () -> Unit,
     val onBackFromMore: () -> Unit,
@@ -128,58 +133,47 @@ internal class NavChromeFocus {
 internal fun BrowseFloatingNav(
     chrome: NavChromeState,
     actions: NavChromeActions,
-    focusSettingsOnEntry: Boolean,
     navDim: State<Float>,
     content: @Composable () -> Unit
 ) {
     var actionsDest by remember { mutableStateOf<BrowseDest?>(null) }
     val chromeFocus = remember { NavChromeFocus() }
-    LaunchedEffect(focusSettingsOnEntry) {
-        if (focusSettingsOnEntry) chromeFocus.settings.requestFocusWhenAttached()
+    fun resolve(target: ChromeFocusTarget): FocusRequester = when (target) {
+        ChromeFocusTarget.Settings -> chromeFocus.settings
+        ChromeFocusTarget.MoreItem -> chromeFocus.moreItem
+        ChromeFocusTarget.MoreBack -> chromeFocus.moreBack
+        is ChromeFocusTarget.Row -> actions.requesterFor(target.key)
     }
-    var previousPage by remember { mutableStateOf(chrome.panelPage) }
+
+    val mountSeq = remember { chrome.focusRequest?.seq ?: 0 }
+    LaunchedEffect(Unit) {
+        actions.consumeEntryTarget()?.let { resolve(it).requestFocusWhenAttached() }
+    }
+    LaunchedEffect(chrome.focusRequest) {
+        val request = chrome.focusRequest ?: return@LaunchedEffect
+        if (request.seq <= mountSeq) return@LaunchedEffect
+        when (request.cause) {
+            ChromeFocusCause.Neighbor -> Unit
+            ChromeFocusCause.PageSwap -> yield()
+            ChromeFocusCause.Reorder -> repeat(ReorderFocusFrames) { withFrameNanos { } }
+        }
+        val requester = resolve(request.target)
+        when (request.cause) {
+            ChromeFocusCause.Neighbor -> requester.requestFocusWhenAttached(maxFrames = NeighborRefocusMaxFrames)
+            ChromeFocusCause.PageSwap, ChromeFocusCause.Reorder -> runCatching { requester.requestFocus() }
+        }
+    }
 
     if (chrome.reorderKey != null) {
         BackHandler { actions.onExitReorder() }
     }
 
-    LaunchedEffect(chrome.panelPage) {
-        val from = previousPage
-        previousPage = chrome.panelPage
-        if (from == chrome.panelPage) return@LaunchedEffect
-        yield()
-        when (chrome.panelPage) {
-            NavPanelPage.More -> runCatching { chromeFocus.moreBack.requestFocus() }
-            NavPanelPage.Primary -> {
-                if (chrome.moreVisible) {
-                    runCatching { chromeFocus.moreItem.requestFocus() }
-                } else {
-                    chrome.itemFocusRequesters[chrome.selectedKey]?.let { runCatching { it.requestFocus() } }
-                }
-            }
-        }
-    }
-
-    LaunchedEffect(chrome.reorderKey, chrome.destinations) {
-        val key = chrome.reorderKey ?: return@LaunchedEffect
-        repeat(2) { withFrameNanos { } }
-        chrome.itemFocusRequesters[key]?.let { runCatching { it.requestFocus() } }
-    }
-
-    val refocusNeighbor = latchNeighborRefocus(chrome.destinations, chrome.layout, chrome.itemFocusRequesters)
-
     actionsDest?.let { dest ->
         NavDestActionsDialog(
             dest = dest,
             pinned = chrome.layout.isPinned(dest.key),
-            onPin = {
-                refocusNeighbor(dest)
-                actions.onPin(dest)
-            },
-            onUnpin = {
-                refocusNeighbor(dest)
-                actions.onUnpin(dest)
-            },
+            onPin = { actions.onPin(dest) },
+            onUnpin = { actions.onUnpin(dest) },
             onReorder = { actions.onEnterReorder(dest) },
             onDismiss = { actionsDest = null }
         )
@@ -193,37 +187,6 @@ internal fun BrowseFloatingNav(
         navDim = navDim,
         content = content
     )
-}
-
-private data class PendingRefocus(val key: String, val capturedLayout: NavLayout)
-
-/**
- * Pinning or unpinning drops the row out of the list it was focused in. Focus must land on its
- * neighbor, but only once the settings store has echoed the new [NavLayout] back, so the target is
- * latched against the layout it was captured under and fires on the first layout that differs.
- */
-@Composable
-private fun latchNeighborRefocus(
-    destinations: List<BrowseDest>,
-    layout: NavLayout,
-    itemFocusRequesters: Map<String, FocusRequester>
-): (BrowseDest) -> Unit {
-    var pending by remember { mutableStateOf<PendingRefocus?>(null) }
-    LaunchedEffect(layout) {
-        val target = pending ?: return@LaunchedEffect
-        if (layout == target.capturedLayout) return@LaunchedEffect
-        pending = null
-        itemFocusRequesters[target.key]?.requestFocusWhenAttached(maxFrames = 20)
-    }
-    return { dest ->
-        val index = destinations.indexOfFirst { it.key == dest.key }
-        val neighbor = if (index < 0) {
-            null
-        } else {
-            destinations.getOrNull(index - 1) ?: destinations.getOrNull(index + 1)
-        }
-        pending = neighbor?.let { PendingRefocus(it.key, layout) }
-    }
 }
 
 @Composable

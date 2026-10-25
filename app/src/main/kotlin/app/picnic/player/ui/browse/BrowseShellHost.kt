@@ -20,7 +20,6 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
@@ -78,12 +77,8 @@ fun BrowseShellHost(
     val rail = railViewModel.rail
     val selectedKey by rail.selectedKey.collectAsStateWithLifecycle()
     val navChromeFocused by rail.chromeFocused.collectAsStateWithLifecycle()
-    // Saved so it survives the Settings entry; snapshotted so clearing it cannot undo this return.
-    var returnToSettings by rememberSaveable { mutableStateOf(false) }
-    val returningFromSettings = remember { returnToSettings }
-    LaunchedEffect(Unit) { returnToSettings = false }
     var paneFocusRequest by remember {
-        mutableStateOf(if (returningFromSettings) PaneFocusRequest.None else PaneFocusRequest.WhenIdle)
+        mutableStateOf(if (rail.hasEntryTarget) PaneFocusRequest.None else PaneFocusRequest.WhenIdle)
     }
     val homeState by homeViewModel.state.collectAsStateWithLifecycle()
     val searchState by searchViewModel.state.collectAsStateWithLifecycle()
@@ -98,6 +93,7 @@ fun BrowseShellHost(
     val moreVisible by rail.moreVisible.collectAsStateWithLifecycle()
     val layout by rail.layout.collectAsStateWithLifecycle()
     val reorderKey by rail.reorderKey.collectAsStateWithLifecycle()
+    val focusRequest by rail.focusRequest.collectAsStateWithLifecycle()
     val selected = rail.destinationFor(selectedKey) ?: BrowseDest.Home
 
     val pendingCommit by rail.pendingCommit.collectAsStateWithLifecycle()
@@ -230,12 +226,14 @@ fun BrowseShellHost(
             val navActions = remember(onSwapUser, onSettings) {
                 NavChromeActions(
                     paneEntryFocus = paneEntry::requester,
+                    requesterFor = rail::requesterFor,
+                    consumeEntryTarget = rail::consumeEntryTarget,
                     onSelect = { dest -> rail.select(dest) },
                     onOpenMore = { rail.openMorePage() },
                     onBackFromMore = { rail.openPrimaryPage() },
                     onSwapUser = onSwapUser,
                     onSettings = {
-                        returnToSettings = true
+                        rail.requestSettingsReturn()
                         onSettings()
                     },
                     onChromeFocusedChange = rail::setChromeFocused,
@@ -257,11 +255,11 @@ fun BrowseShellHost(
                     panelPage = panelPage,
                     moreVisible = moreVisible,
                     reorderKey = reorderKey,
+                    focusRequest = focusRequest,
                     layout = layout,
                     settingsBadge = updateBadge
                 ),
                 actions = navActions,
-                focusSettingsOnEntry = returningFromSettings,
                 navDim = navDim
             ) {
                 BrowseShellScaffold {

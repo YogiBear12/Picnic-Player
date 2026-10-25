@@ -31,6 +31,28 @@ import kotlinx.coroutines.sync.withLock
 
 enum class NavPanelPage { Primary, More }
 
+sealed interface ChromeFocusTarget {
+    data object Settings : ChromeFocusTarget
+    data object MoreItem : ChromeFocusTarget
+    data object MoreBack : ChromeFocusTarget
+    data class Row(val key: String) : ChromeFocusTarget
+}
+
+enum class ChromeFocusCause { PageSwap, Reorder, Neighbor }
+
+data class ChromeFocusRequest(val seq: Int, val target: ChromeFocusTarget, val cause: ChromeFocusCause)
+
+internal fun panelNeighbor(destinations: List<BrowseDest>, key: String): String? {
+    val index = destinations.indexOfFirst { it.key == key }
+    if (index < 0) return null
+    return (destinations.getOrNull(index - 1) ?: destinations.getOrNull(index + 1))?.key
+}
+
+internal fun pageFocusTarget(page: NavPanelPage, moreVisible: Boolean, selectedKey: String): ChromeFocusTarget = when (page) {
+    NavPanelPage.More -> ChromeFocusTarget.MoreBack
+    NavPanelPage.Primary -> if (moreVisible) ChromeFocusTarget.MoreItem else ChromeFocusTarget.Row(selectedKey)
+}
+
 @Singleton
 class NavRailState @Inject constructor(
     private val navLayoutStore: NavLayoutStore,
@@ -86,6 +108,25 @@ class NavRailState @Inject constructor(
     private val _chromeFocused = MutableStateFlow(false)
     val chromeFocused = _chromeFocused.asStateFlow()
 
+    private val _focusRequest = MutableStateFlow<ChromeFocusRequest?>(null)
+    val focusRequest = _focusRequest.asStateFlow()
+    private var focusSeq = 0
+    private var lastPublishedPage = NavPanelPage.Primary
+    private var entryTarget: ChromeFocusTarget? = null
+    val hasEntryTarget: Boolean get() = entryTarget != null
+
+    fun requestSettingsReturn() {
+        entryTarget = ChromeFocusTarget.Settings
+    }
+
+    fun consumeEntryTarget(): ChromeFocusTarget? = entryTarget.also { entryTarget = null }
+
+    fun neighborOf(key: String): String? = panelNeighbor(_panelDestinations.value, key)
+
+    private fun publishFocus(target: ChromeFocusTarget, cause: ChromeFocusCause) {
+        _focusRequest.value = ChromeFocusRequest(++focusSeq, target, cause)
+    }
+
     private val requesters = mutableMapOf<String, FocusRequester>()
     fun requesterFor(key: String): FocusRequester = requesters.getOrPut(key) { FocusRequester() }
 
@@ -136,10 +177,15 @@ class NavRailState @Inject constructor(
         _layoutEpoch.update { it + 1 }
     }
 
-    suspend fun updateLayout(transform: (NavLayout) -> NavLayout) = publishLock.withLock {
+    suspend fun updateLayout(focusAfter: ChromeFocusTarget? = null, transform: (NavLayout) -> NavLayout) = publishLock.withLock {
         val session = _session.value ?: return@withLock
         val next = transform(_layout.value)
+        val page = _panelPage.value
         applyLayout(next)
+        if (focusAfter != null && page == _panelPage.value) {
+            publishFocus(focusAfter, ChromeFocusCause.Neighbor)
+        }
+        _reorderKey.value?.let { publishFocus(ChromeFocusTarget.Row(it), ChromeFocusCause.Reorder) }
         navLayoutStore.save(session.server.id, session.userId, next)
     }
 
@@ -164,10 +210,12 @@ class NavRailState @Inject constructor(
 
     fun enterReorder(key: String) {
         _reorderKey.value = key
+        publishFocus(ChromeFocusTarget.Row(key), ChromeFocusCause.Reorder)
     }
 
     fun exitReorder() {
         _reorderKey.value = null
+        if (_focusRequest.value?.cause == ChromeFocusCause.Reorder) _focusRequest.value = null
     }
 
     fun select(dest: BrowseDest) {
@@ -208,6 +256,10 @@ class NavRailState @Inject constructor(
         _selectedKey.value = BrowseDest.Home.key
         _pendingCommit.value = false
         _chromeFocused.value = false
+        _focusRequest.value = null
+        focusSeq = 0
+        lastPublishedPage = NavPanelPage.Primary
+        entryTarget = null
     }
 
     private fun resolveDestinations() {
@@ -227,9 +279,14 @@ class NavRailState @Inject constructor(
     }
 
     private fun showPage() {
-        _panelDestinations.value = when (_panelPage.value) {
+        val page = _panelPage.value
+        _panelDestinations.value = when (page) {
             NavPanelPage.Primary -> listOf(BrowseDest.Search, BrowseDest.Home) + pinnedDests
             NavPanelPage.More -> unpinnedDests
+        }
+        if (page != lastPublishedPage) {
+            lastPublishedPage = page
+            publishFocus(pageFocusTarget(page, _moreVisible.value, _selectedKey.value), ChromeFocusCause.PageSwap)
         }
     }
 
@@ -255,14 +312,16 @@ class NavRailViewModel @Inject constructor(
 
     fun pin(dest: BrowseDest) {
         viewModelScope.launch {
-            rail.updateLayout { NavLayoutResolver.pin(it, dest.key) }
+            val neighbor = rail.neighborOf(dest.key)?.let { ChromeFocusTarget.Row(it) }
+            rail.updateLayout(focusAfter = neighbor) { NavLayoutResolver.pin(it, dest.key) }
             if (rail.selectedKey.value == dest.key) rail.openPrimaryPage()
         }
     }
 
     fun unpin(dest: BrowseDest) {
         viewModelScope.launch {
-            rail.updateLayout { NavLayoutResolver.unpin(it, dest.key) }
+            val neighbor = rail.neighborOf(dest.key)?.let { ChromeFocusTarget.Row(it) }
+            rail.updateLayout(focusAfter = neighbor) { NavLayoutResolver.unpin(it, dest.key) }
             if (rail.selectedKey.value == dest.key) rail.openMorePage()
         }
     }
