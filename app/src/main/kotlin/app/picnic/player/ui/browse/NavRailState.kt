@@ -73,6 +73,10 @@ class NavRailState @Inject constructor(
 
     @Volatile private var customById: Map<String, BrowseDest> = emptyMap()
 
+    @Volatile private var pinnedDests: List<BrowseDest> = emptyList()
+
+    @Volatile private var unpinnedDests: List<BrowseDest> = emptyList()
+
     private val _selectedKey = MutableStateFlow(BrowseDest.Home.key)
     val selectedKey = _selectedKey.asStateFlow()
 
@@ -128,8 +132,7 @@ class NavRailState @Inject constructor(
         this.playlistsAvailable = playlistsAvailable
         customById = buildCustomMap(libraries, discoverAvailable, playlistsAvailable)
         _layout.value = layout
-        rebuildDestinations()
-        ensureSelectionValid()
+        resolveDestinations()
         _layoutEpoch.update { it + 1 }
     }
 
@@ -142,12 +145,7 @@ class NavRailState @Inject constructor(
 
     private fun applyLayout(layout: NavLayout) {
         _layout.value = layout
-        rebuildDestinations()
-        if (_panelPage.value == NavPanelPage.More && !_moreVisible.value) {
-            _panelPage.value = NavPanelPage.Primary
-            rebuildDestinations()
-        }
-        ensureSelectionValid()
+        resolveDestinations()
         _layoutEpoch.update { it + 1 }
     }
 
@@ -155,13 +153,13 @@ class NavRailState @Inject constructor(
         if (!_moreVisible.value) return
         _panelPage.value = NavPanelPage.More
         _reorderKey.value = null
-        rebuildDestinations()
+        showPage()
     }
 
     fun openPrimaryPage() {
         _panelPage.value = NavPanelPage.Primary
         _reorderKey.value = null
-        rebuildDestinations()
+        showPage()
     }
 
     fun enterReorder(key: String) {
@@ -199,6 +197,8 @@ class NavRailState @Inject constructor(
         discoverAvailable = false
         playlistsAvailable = false
         customById = emptyMap()
+        pinnedDests = emptyList()
+        unpinnedDests = emptyList()
         _layout.value = NavLayout()
         _panelDestinations.value = listOf(BrowseDest.Search, BrowseDest.Home)
         _allDestinations.value = listOf(BrowseDest.Search, BrowseDest.Home)
@@ -210,37 +210,26 @@ class NavRailState @Inject constructor(
         _chromeFocused.value = false
     }
 
-    private fun ensureSelectionValid() {
-        val gone = (!discoverAvailable && _selectedKey.value == BrowseDest.Discover.key) ||
-            (!playlistsAvailable && _selectedKey.value == BrowseDest.Playlists.key) ||
-            _allDestinations.value.none { it.key == _selectedKey.value }
-        if (!gone) return
-        _selectedKey.value = BrowseDest.Home.key
-        _pendingCommit.value = true
-        if (_panelPage.value == NavPanelPage.More) {
+    private fun resolveDestinations() {
+        val layout = _layout.value
+        pinnedDests = layout.pinnedIds.mapNotNull { customById[it] }
+        unpinnedDests = layout.unpinnedIds.mapNotNull { customById[it] }
+        val all = listOf(BrowseDest.Search, BrowseDest.Home) + pinnedDests + unpinnedDests
+        _allDestinations.value = all
+        _moreVisible.value = unpinnedDests.isNotEmpty()
+        if (all.none { it.key == _selectedKey.value }) {
+            _selectedKey.value = BrowseDest.Home.key
+            _pendingCommit.value = true
             _panelPage.value = NavPanelPage.Primary
-            rebuildDestinations()
         }
+        if (unpinnedDests.isEmpty()) _panelPage.value = NavPanelPage.Primary
+        showPage()
     }
 
-    private fun rebuildDestinations() {
-        val layout = _layout.value
-        val pinned = layout.pinnedIds.mapNotNull { customById[it] }
-        val unpinned = layout.unpinnedIds.mapNotNull { customById[it] }
-        _moreVisible.value = unpinned.isNotEmpty()
-        _allDestinations.value = buildList {
-            add(BrowseDest.Search)
-            add(BrowseDest.Home)
-            addAll(pinned)
-            addAll(unpinned)
-        }
+    private fun showPage() {
         _panelDestinations.value = when (_panelPage.value) {
-            NavPanelPage.Primary -> buildList {
-                add(BrowseDest.Search)
-                add(BrowseDest.Home)
-                addAll(pinned)
-            }
-            NavPanelPage.More -> unpinned
+            NavPanelPage.Primary -> listOf(BrowseDest.Search, BrowseDest.Home) + pinnedDests
+            NavPanelPage.More -> unpinnedDests
         }
     }
 
