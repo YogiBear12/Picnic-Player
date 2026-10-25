@@ -321,36 +321,12 @@ private fun FloatingNavBody(
                         leading = { NavAvatar(chrome.session, chrome.avatarUrl, PanelAvatarSize) }
                     )
 
-                    fixed.forEachIndexed { index, dest ->
-                        key(dest.key) {
-                            FloatingNavDestRow(
-                                dest = dest,
-                                index = index,
-                                selected = dest.key == chrome.selectedKey,
-                                reorderKey = chrome.reorderKey,
-                                itemFocusRequester = chrome.itemFocusRequesters[dest.key],
-                                onSelect = { actions.onSelect(dest) },
-                                onOpenActions = { onOpenActions(dest) }
-                            )
-                        }
-                    }
+                    FloatingNavDestRows(fixed, chrome, actions, onOpenActions)
 
                     NavPanelDivider()
 
                     PanelScrollColumn(Modifier.weight(1f), libraryScroll) {
-                        rearrangeable.forEachIndexed { index, dest ->
-                            key(dest.key) {
-                                FloatingNavDestRow(
-                                    dest = dest,
-                                    index = index,
-                                    selected = dest.key == chrome.selectedKey,
-                                    reorderKey = chrome.reorderKey,
-                                    itemFocusRequester = chrome.itemFocusRequesters[dest.key],
-                                    onSelect = { actions.onSelect(dest) },
-                                    onOpenActions = { onOpenActions(dest) }
-                                )
-                            }
-                        }
+                        FloatingNavDestRows(rearrangeable, chrome, actions, onOpenActions)
 
                         if (chrome.moreVisible) {
                             NavPanelRow(
@@ -391,19 +367,7 @@ private fun FloatingNavBody(
                     NavPanelDivider()
 
                     PanelScrollColumn(Modifier.weight(1f)) {
-                        chrome.destinations.forEachIndexed { index, dest ->
-                            key(dest.key) {
-                                FloatingNavDestRow(
-                                    dest = dest,
-                                    index = index,
-                                    selected = dest.key == chrome.selectedKey,
-                                    reorderKey = chrome.reorderKey,
-                                    itemFocusRequester = chrome.itemFocusRequesters[dest.key],
-                                    onSelect = { actions.onSelect(dest) },
-                                    onOpenActions = { onOpenActions(dest) }
-                                )
-                            }
-                        }
+                        FloatingNavDestRows(chrome.destinations, chrome, actions, onOpenActions)
                     }
                 }
             }
@@ -485,6 +449,28 @@ private fun PanelScrollColumn(
         verticalArrangement = Arrangement.spacedBy(PanelRowSpacing),
         content = content
     )
+}
+
+@Composable
+private fun FloatingNavDestRows(
+    destinations: List<BrowseDest>,
+    chrome: NavChromeState,
+    actions: NavChromeActions,
+    onOpenActions: (BrowseDest) -> Unit
+) {
+    destinations.forEachIndexed { index, dest ->
+        key(dest.key) {
+            FloatingNavDestRow(
+                dest = dest,
+                index = index,
+                selected = dest.key == chrome.selectedKey,
+                reorderKey = chrome.reorderKey,
+                itemFocusRequester = chrome.itemFocusRequesters[dest.key],
+                onSelect = { actions.onSelect(dest) },
+                onOpenActions = { onOpenActions(dest) }
+            )
+        }
+    }
 }
 
 @Composable
