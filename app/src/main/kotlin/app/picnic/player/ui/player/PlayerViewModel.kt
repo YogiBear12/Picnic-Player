@@ -859,19 +859,27 @@ class PlayerViewModel @Inject constructor(
 
     fun onInteraction() = sessionController.onInteraction()
 
-    fun autoplayNext() {
-        sessionController.onItemAutoplayed()
-        if (sessionController.shouldAskStillWatching(settings.value.passoutProtection)) {
-            player.playWhenReady = false
-            _state.update { it.copy(stillWatching = true) }
+    fun onNextUpExpired() {
+        val current = _state.value
+        val expiry = current.nextUpExpiry(sessionController.sleep.value.mode)
+        if (expiry == NextUpExpiry.IGNORE) return
+
+        leftFromOutroNextUp = leftFromOutroNextUp || current.videoStillPlaying
+        val askStillWatching = if (expiry == NextUpExpiry.PAUSE_FOR_SLEEP) {
+            sessionController.cancelSleep()
+            true
         } else {
-            playNext()
+            sessionController.onItemAutoplayed()
+            sessionController.shouldAskStillWatching(settings.value.passoutProtection)
         }
+        if (askStillWatching) player.playWhenReady = false
+        _state.update { it.completedByNextUpExpiry(askStillWatching) }
+        if (!askStillWatching) playNext()
     }
 
     fun playNext() {
         val next = nextItemId() ?: return
-        leftFromOutroNextUp = _state.value.videoStillPlaying
+        leftFromOutroNextUp = leftFromOutroNextUp || _state.value.videoStillPlaying
         sessionController.handOffToNextItem()
         _navEvents.tryEmit(PlayerNavEvent.PlayNext(next))
     }

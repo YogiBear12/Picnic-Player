@@ -83,6 +83,8 @@ data class PlaybackSettings(
     companion object {
         const val MinAssSubtitleOffsetMs = -2000
         const val MaxAssSubtitleOffsetMs = 2000
+        const val MinNextUpCountdownSeconds = 5
+        const val MaxNextUpCountdownSeconds = 15
     }
 }
 
@@ -107,7 +109,8 @@ class SettingsStore @Inject constructor(
             outroAction = p[OUTRO_ACTION]?.let { enumOrNull<SegmentAction>(it) } ?: SegmentAction.ASK_TO_SKIP,
             previewAction = p[PREVIEW_ACTION]?.let { enumOrNull<SegmentAction>(it) } ?: SegmentAction.ASK_TO_SKIP,
             commercialAction = p[COMMERCIAL_ACTION]?.let { enumOrNull<SegmentAction>(it) } ?: SegmentAction.SKIP_AUTOMATICALLY,
-            nextUpCountdownSeconds = (p[NEXT_UP_COUNTDOWN] ?: 5).coerceIn(0, 15),
+            nextUpCountdownSeconds = (p[NEXT_UP_COUNTDOWN] ?: 5)
+                .coerceIn(PlaybackSettings.MinNextUpCountdownSeconds, PlaybackSettings.MaxNextUpCountdownSeconds),
             displayNextUpDuringOutro = p[DISPLAY_NEXT_UP_DURING_OUTRO] ?: true,
             passoutProtection = p[PASSOUT_PROTECTION] ?: true,
             autoLoginLastUser = p[AUTO_LOGIN_LAST_USER] ?: true,
@@ -158,7 +161,9 @@ class SettingsStore @Inject constructor(
     suspend fun setOutroAction(value: SegmentAction) = put { it[OUTRO_ACTION] = value.name }
     suspend fun setPreviewAction(value: SegmentAction) = put { it[PREVIEW_ACTION] = value.name }
     suspend fun setCommercialAction(value: SegmentAction) = put { it[COMMERCIAL_ACTION] = value.name }
-    suspend fun setNextUpCountdownSeconds(value: Int) = put { it[NEXT_UP_COUNTDOWN] = value.coerceIn(0, 15) }
+    suspend fun setNextUpCountdownSeconds(value: Int) = put {
+        it[NEXT_UP_COUNTDOWN] = value.coerceIn(PlaybackSettings.MinNextUpCountdownSeconds, PlaybackSettings.MaxNextUpCountdownSeconds)
+    }
     suspend fun setDisplayNextUpDuringOutro(value: Boolean) = put { it[DISPLAY_NEXT_UP_DURING_OUTRO] = value }
     suspend fun setPassoutProtection(value: Boolean) = put { it[PASSOUT_PROTECTION] = value }
     suspend fun setAutoLoginLastUser(value: Boolean) = put { it[AUTO_LOGIN_LAST_USER] = value }

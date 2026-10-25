@@ -292,7 +292,7 @@ class SettingsViewModel @Inject constructor(
         val SKIP_FORWARD_OPTIONS = listOf(10, 15, 30, 45, 60)
         val SKIP_BACKWARD_OPTIONS = listOf(5, 10, 15, 30)
         val HIDE_CONTROLS_OPTIONS = listOf(2, 3, 5, 10)
-        val NEXT_UP_COUNTDOWN_OPTIONS = listOf(0, 5, 10, 15)
+        val NEXT_UP_COUNTDOWN_OPTIONS = listOf(5, 10, 15)
     }
 }
 

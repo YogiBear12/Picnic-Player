@@ -57,6 +57,27 @@ class PlaybackTickTest {
     private fun seg(kind: SegmentKind, start: Long, end: Long, id: String = kind.name) = MediaSegment(id = id, kind = kind, startMs = start, endMs = end)
 
     @Test
+    fun outroNextUp_completedByCountdown_staysCompleteOnLaterTicks() {
+        val outro = seg(SegmentKind.OUTRO, 80_000, 100_000)
+        listOf(PlaybackPhase.READY, PlaybackPhase.ENDED).forEach { phase ->
+            val later = playbackTick(
+                input(
+                    positionMs = 86_000,
+                    prevPositionMs = 85_500,
+                    phase = phase,
+                    segments = listOf(outro),
+                    hasNextUp = true,
+                    outroNextUpShown = true,
+                    prevEndedAwaitingNext = true,
+                    prevVideoStillPlaying = false
+                )
+            )
+            assertTrue(phase.name, later.endedAwaitingNext)
+            assertFalse(phase.name, later.videoStillPlaying)
+        }
+    }
+
+    @Test
     fun stopReportPositionMs_outroNextUp_withKnownDuration_returnsDuration() {
         assertEquals(100_000L, stopReportPositionMs(positionMs = 80_000, durationMs = 100_000, leftFromOutroNextUp = true))
     }

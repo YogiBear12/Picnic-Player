@@ -9,6 +9,7 @@ import app.picnic.player.data.playback.quality.QualityOption
 import app.picnic.player.data.playback.quality.QualityRung
 import app.picnic.player.playback.AudioBoost
 import app.picnic.player.playback.NightMode
+import app.picnic.player.playback.SleepMode
 import app.picnic.player.playback.SleepTimerState
 import app.picnic.player.playback.VideoOutput
 import app.picnic.player.ui.browse.ShortDateFormat
@@ -100,7 +101,19 @@ data class PlayerUiState(
         streamRung != null -> QualityOption.Transcode(streamRung)
         else -> null
     }
+
+    val queuedNextUp: NextUpItem? get() = nextUp.takeIf { endedAwaitingNext && !videoStillPlaying }
+
+    fun nextUpExpiry(sleepMode: SleepMode): NextUpExpiry = when {
+        stillWatching || !endedAwaitingNext || nextUp == null -> NextUpExpiry.IGNORE
+        sleepMode == SleepMode.END_OF_EPISODE -> NextUpExpiry.PAUSE_FOR_SLEEP
+        else -> NextUpExpiry.AUTOPLAY
+    }
+
+    fun completedByNextUpExpiry(askStillWatching: Boolean): PlayerUiState = copy(videoStillPlaying = false, stillWatching = askStillWatching)
 }
+
+enum class NextUpExpiry { IGNORE, PAUSE_FOR_SLEEP, AUTOPLAY }
 
 internal fun buildNextUpItem(session: UserSession, item: BaseItemDto): NextUpItem {
     val seasonNum = item.parentIndexNumber

@@ -444,15 +444,6 @@ fun PlayerScreen(
 
         PlayPausePulse(pulse)
 
-        val nextUpCountdownStart = remember(showNextUpOverlay) {
-            if (showNextUpOverlay && state.videoStillPlaying) {
-                val remainingSec = ((state.durationMs - state.positionMs) / 1000L)
-                    .toInt().coerceAtLeast(0)
-                remainingSec + settings.nextUpCountdownSeconds
-            } else {
-                settings.nextUpCountdownSeconds
-            }
-        }
         AnimatedVisibility(
             visible = showNextUpOverlay,
             modifier = Modifier
@@ -464,8 +455,8 @@ fun PlayerScreen(
             state.nextUp?.let { nextUp ->
                 NextUpOverlay(
                     item = nextUp,
-                    countdownSeconds = nextUpCountdownStart,
-                    onAutoplay = viewModel::autoplayNext,
+                    countdownSeconds = settings.nextUpCountdownSeconds,
+                    onAutoplay = viewModel::onNextUpExpired,
                     onPlayNext = viewModel::playNext,
                     onBack = onNextUpBack,
                     active = !stillWatching
@@ -474,7 +465,7 @@ fun PlayerScreen(
         }
 
         if (stillWatching) {
-            val queued = state.nextUp.takeIf { showNextUpOverlay && !state.videoStillPlaying }
+            val queued = state.queuedNextUp
             StillWatchingOverlay(
                 title = state.title,
                 onKeepWatching = {
