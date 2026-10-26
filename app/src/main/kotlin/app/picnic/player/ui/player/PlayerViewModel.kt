@@ -22,6 +22,7 @@ import app.picnic.player.data.media.PlaylistRepository
 import app.picnic.player.data.media.QueueKind
 import app.picnic.player.data.playback.BlackBarProbe
 import app.picnic.player.data.playback.DirectPlayVeto
+import app.picnic.player.data.playback.NextUpPhase
 import app.picnic.player.data.playback.OUTRO_END_TOLERANCE_MS
 import app.picnic.player.data.playback.PlayMethodKind
 import app.picnic.player.data.playback.PlaybackPhase
@@ -789,8 +790,7 @@ class PlayerViewModel @Inject constructor(
                 hasPresentedFirstFrame = hasPresentedFirstFrame,
                 autoSkippedIds = autoSkipped,
                 outroNextUpShown = outroNextUpShown,
-                prevEndedAwaitingNext = current.endedAwaitingNext,
-                prevVideoStillPlaying = current.videoStillPlaying,
+                prevNextUpPhase = current.nextUpPhase,
                 hasError = current.error != null,
                 prevPositionMs = lastTickPositionMs
             )
@@ -814,8 +814,7 @@ class PlayerViewModel @Inject constructor(
                 buffering = decision.buffering,
                 isLoading = decision.isLoading,
                 currentSegment = decision.currentSegment,
-                endedAwaitingNext = decision.endedAwaitingNext,
-                videoStillPlaying = decision.videoStillPlaying,
+                nextUpPhase = decision.nextUpPhase,
                 stillWatching = it.stillWatching || decision.pauseForSleep
             )
         }
@@ -854,7 +853,7 @@ class PlayerViewModel @Inject constructor(
     }
 
     fun dismissNextUp() {
-        _state.update { it.copy(endedAwaitingNext = false, videoStillPlaying = false) }
+        _state.update { it.copy(nextUpPhase = NextUpPhase.NONE) }
     }
 
     fun onInteraction() = sessionController.onInteraction()
@@ -864,7 +863,7 @@ class PlayerViewModel @Inject constructor(
         val expiry = current.nextUpExpiry(sessionController.sleep.value.mode)
         if (expiry == NextUpExpiry.IGNORE) return
 
-        leftFromOutroNextUp = leftFromOutroNextUp || current.videoStillPlaying
+        leftFromOutroNextUp = leftFromOutroNextUp || current.nextUpPhase == NextUpPhase.OUTRO
         val askStillWatching = if (expiry == NextUpExpiry.PAUSE_FOR_SLEEP) {
             sessionController.cancelSleep()
             true
@@ -879,7 +878,7 @@ class PlayerViewModel @Inject constructor(
 
     fun playNext() {
         val next = nextItemId() ?: return
-        leftFromOutroNextUp = leftFromOutroNextUp || _state.value.videoStillPlaying
+        leftFromOutroNextUp = leftFromOutroNextUp || _state.value.nextUpPhase == NextUpPhase.OUTRO
         sessionController.handOffToNextItem()
         _navEvents.tryEmit(PlayerNavEvent.PlayNext(next))
     }

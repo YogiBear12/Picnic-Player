@@ -5,6 +5,9 @@ import app.picnic.player.playback.SleepMode
 
 enum class PlaybackPhase { IDLE, BUFFERING, READY, ENDED, OTHER }
 
+// ENDED is logical completion: countdown expiry completes the item while the outro still plays.
+enum class NextUpPhase { NONE, OUTRO, ENDED }
+
 data class PlaybackTickSettings(
     val introAction: SegmentAction,
     val recapAction: SegmentAction,
@@ -27,8 +30,7 @@ data class PlaybackTickInput(
     val hasPresentedFirstFrame: Boolean,
     val autoSkippedIds: Set<String>,
     val outroNextUpShown: Boolean,
-    val prevEndedAwaitingNext: Boolean,
-    val prevVideoStillPlaying: Boolean,
+    val prevNextUpPhase: NextUpPhase,
     val hasError: Boolean,
     val prevPositionMs: Long?
 )
@@ -46,8 +48,7 @@ data class PlaybackTickDecision(
     val buffering: Boolean,
     val isLoading: Boolean,
     val currentSegment: MediaSegment?,
-    val endedAwaitingNext: Boolean,
-    val videoStillPlaying: Boolean
+    val nextUpPhase: NextUpPhase
 )
 
 const val OUTRO_END_TOLERANCE_MS = 3_000L
@@ -93,7 +94,7 @@ fun playbackTick(input: PlaybackTickInput): PlaybackTickDecision {
         segmentAction != SegmentAction.SKIP_AUTOMATICALLY &&
         input.durationMs > 0 &&
         active.endMs >= input.durationMs - OUTRO_END_TOLERANCE_MS
-    val outroTriggered = !input.prevEndedAwaitingNext &&
+    val outroTriggered = input.prevNextUpPhase == NextUpPhase.NONE &&
         !input.outroNextUpShown &&
         input.settings.displayNextUpDuringOutro &&
         outroRunsToEnd &&
@@ -101,10 +102,10 @@ fun playbackTick(input: PlaybackTickInput): PlaybackTickDecision {
         input.prevPositionMs < active.startMs &&
         input.hasNextUp
 
-    val videoStillNow = when {
-        outroTriggered -> true
-        endedNow && input.prevVideoStillPlaying -> false
-        else -> input.prevVideoStillPlaying
+    val nextUpPhase = when {
+        outroTriggered -> NextUpPhase.OUTRO
+        endedNow -> NextUpPhase.ENDED
+        else -> input.prevNextUpPhase
     }
 
     val pauseForSleep = endedNow && input.sleepMode == SleepMode.END_OF_EPISODE && input.hasNextUp
@@ -122,7 +123,6 @@ fun playbackTick(input: PlaybackTickInput): PlaybackTickDecision {
         buffering = input.phase == PlaybackPhase.BUFFERING || input.phase == PlaybackPhase.IDLE,
         isLoading = !presentedFirstFrame && !input.hasError,
         currentSegment = nextSegment,
-        endedAwaitingNext = input.prevEndedAwaitingNext || endedNow || outroTriggered,
-        videoStillPlaying = videoStillNow
+        nextUpPhase = nextUpPhase
     )
 }

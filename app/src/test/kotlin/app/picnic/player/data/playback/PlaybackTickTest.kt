@@ -31,8 +31,7 @@ class PlaybackTickTest {
         hasPresentedFirstFrame: Boolean = true,
         autoSkippedIds: Set<String> = emptySet(),
         outroNextUpShown: Boolean = false,
-        prevEndedAwaitingNext: Boolean = false,
-        prevVideoStillPlaying: Boolean = false,
+        prevNextUpPhase: NextUpPhase = NextUpPhase.NONE,
         hasError: Boolean = false,
         prevPositionMs: Long? = null
     ) = PlaybackTickInput(
@@ -48,8 +47,7 @@ class PlaybackTickTest {
         hasPresentedFirstFrame = hasPresentedFirstFrame,
         autoSkippedIds = autoSkippedIds,
         outroNextUpShown = outroNextUpShown,
-        prevEndedAwaitingNext = prevEndedAwaitingNext,
-        prevVideoStillPlaying = prevVideoStillPlaying,
+        prevNextUpPhase = prevNextUpPhase,
         hasError = hasError,
         prevPositionMs = prevPositionMs
     )
@@ -68,12 +66,10 @@ class PlaybackTickTest {
                     segments = listOf(outro),
                     hasNextUp = true,
                     outroNextUpShown = true,
-                    prevEndedAwaitingNext = true,
-                    prevVideoStillPlaying = false
+                    prevNextUpPhase = NextUpPhase.ENDED
                 )
             )
-            assertTrue(phase.name, later.endedAwaitingNext)
-            assertFalse(phase.name, later.videoStillPlaying)
+            assertEquals(phase.name, NextUpPhase.ENDED, later.nextUpPhase)
         }
     }
 
@@ -168,8 +164,7 @@ class PlaybackTickTest {
             input(positionMs = 96_000, durationMs = 100_000, segments = listOf(outro), hasNextUp = true, prevPositionMs = 94_500)
         )
         assertTrue(d.setOutroNextUpShown)
-        assertTrue(d.endedAwaitingNext)
-        assertTrue(d.videoStillPlaying)
+        assertEquals(NextUpPhase.OUTRO, d.nextUpPhase)
     }
 
     @Test
@@ -179,8 +174,7 @@ class PlaybackTickTest {
             input(positionMs = 95_000, segments = listOf(outro), hasNextUp = true, prevPositionMs = null)
         )
         assertFalse(d.setOutroNextUpShown)
-        assertFalse(d.endedAwaitingNext)
-        assertFalse(d.videoStillPlaying)
+        assertEquals(NextUpPhase.NONE, d.nextUpPhase)
     }
 
     @Test
@@ -190,7 +184,7 @@ class PlaybackTickTest {
             input(positionMs = 95_500, segments = listOf(outro), hasNextUp = true, prevPositionMs = 95_000)
         )
         assertFalse(d.setOutroNextUpShown)
-        assertFalse(d.endedAwaitingNext)
+        assertEquals(NextUpPhase.NONE, d.nextUpPhase)
     }
 
     @Test
@@ -210,8 +204,7 @@ class PlaybackTickTest {
             beforeSkip.copy(positionMs = requireNotNull(skip.autoSkipToMs), prevPositionMs = beforeSkip.positionMs)
         )
         assertTrue(d.setOutroNextUpShown)
-        assertTrue(d.endedAwaitingNext)
-        assertTrue(d.videoStillPlaying)
+        assertEquals(NextUpPhase.OUTRO, d.nextUpPhase)
     }
 
     @Test
@@ -221,7 +214,7 @@ class PlaybackTickTest {
             input(positionMs = 81_000, durationMs = 100_000, segments = listOf(outro), hasNextUp = true, prevPositionMs = 79_500)
         )
         assertFalse(d.setOutroNextUpShown)
-        assertFalse(d.endedAwaitingNext)
+        assertEquals(NextUpPhase.NONE, d.nextUpPhase)
     }
 
     @Test
@@ -247,6 +240,85 @@ class PlaybackTickTest {
     }
 
     @Test
+    fun noNextUp_staysOutOfOutroThenEndsAtPhysicalEnd() {
+        val outro = seg(SegmentKind.OUTRO, 95_000, 100_000)
+        val crossing = playbackTick(input(positionMs = 96_000, segments = listOf(outro), hasNextUp = false, prevPositionMs = 94_500))
+        assertEquals(NextUpPhase.NONE, crossing.nextUpPhase)
+
+        val end = playbackTick(
+            input(
+                positionMs = 100_000,
+                phase = PlaybackPhase.ENDED,
+                segments = listOf(outro),
+                sleepMode = SleepMode.END_OF_EPISODE,
+                hasNextUp = false,
+                prevNextUpPhase = crossing.nextUpPhase,
+                prevPositionMs = 99_500
+            )
+        )
+        assertEquals(NextUpPhase.ENDED, end.nextUpPhase)
+        assertFalse(end.pauseForSleep)
+    }
+
+    @Test
+    fun dismissedOutroCard_staysDismissedUntilPhysicalEnd() {
+        val outro = seg(SegmentKind.OUTRO, 80_000, 100_000, id = "outro")
+        val lateOutro = seg(SegmentKind.OUTRO, 93_000, 100_000, id = "late")
+        val dismissed = input(
+            segments = listOf(outro),
+            hasNextUp = true,
+            outroNextUpShown = true,
+            prevNextUpPhase = NextUpPhase.NONE
+        )
+
+        val laterTick = playbackTick(dismissed.copy(positionMs = 86_500, prevPositionMs = 86_000))
+        assertEquals(NextUpPhase.NONE, laterTick.nextUpPhase)
+        assertFalse(laterTick.setOutroNextUpShown)
+
+        val secondCrossing = playbackTick(
+            dismissed.copy(segments = listOf(lateOutro), positionMs = 93_500, prevPositionMs = 92_500)
+        )
+        assertEquals(NextUpPhase.NONE, secondCrossing.nextUpPhase)
+        assertFalse(secondCrossing.setOutroNextUpShown)
+
+        val end = playbackTick(dismissed.copy(positionMs = 100_000, phase = PlaybackPhase.ENDED, prevPositionMs = 99_500))
+        assertEquals(NextUpPhase.ENDED, end.nextUpPhase)
+    }
+
+    @Test
+    fun endedPhase_ignoresALaterOutroCrossing() {
+        val outro = seg(SegmentKind.OUTRO, 95_000, 100_000)
+        val d = playbackTick(
+            input(
+                positionMs = 95_500,
+                segments = listOf(outro),
+                hasNextUp = true,
+                prevNextUpPhase = NextUpPhase.ENDED,
+                prevPositionMs = 94_500
+            )
+        )
+        assertEquals(NextUpPhase.ENDED, d.nextUpPhase)
+        assertFalse(d.setOutroNextUpShown)
+    }
+
+    @Test
+    fun physicalEndDuringOutroCountdown_movesToEnded() {
+        val outro = seg(SegmentKind.OUTRO, 95_000, 100_000)
+        val d = playbackTick(
+            input(
+                positionMs = 100_000,
+                phase = PlaybackPhase.ENDED,
+                segments = listOf(outro),
+                hasNextUp = true,
+                outroNextUpShown = true,
+                prevNextUpPhase = NextUpPhase.OUTRO,
+                prevPositionMs = 99_500
+            )
+        )
+        assertEquals(NextUpPhase.ENDED, d.nextUpPhase)
+    }
+
+    @Test
     fun outro_notTriggered_whenAutoSkip() {
         val outro = seg(SegmentKind.OUTRO, 95_000, 100_000)
         val d = playbackTick(
@@ -263,9 +335,9 @@ class PlaybackTickTest {
     }
 
     @Test
-    fun endedDefault_latchesEndedAwaitingNext() {
+    fun endedDefault_latchesEndedPhase() {
         val d = playbackTick(input(phase = PlaybackPhase.ENDED))
-        assertTrue(d.endedAwaitingNext)
+        assertEquals(NextUpPhase.ENDED, d.nextUpPhase)
         assertFalse(d.pauseForSleep)
     }
 
@@ -275,7 +347,7 @@ class PlaybackTickTest {
             input(phase = PlaybackPhase.ENDED, sleepMode = SleepMode.END_OF_EPISODE, hasNextUp = true)
         )
         assertTrue(d.pauseForSleep)
-        assertTrue(d.endedAwaitingNext)
+        assertEquals(NextUpPhase.ENDED, d.nextUpPhase)
     }
 
     @Test
@@ -284,13 +356,13 @@ class PlaybackTickTest {
             input(phase = PlaybackPhase.ENDED, sleepMode = SleepMode.END_OF_EPISODE, hasNextUp = false)
         )
         assertFalse(d.pauseForSleep)
-        assertTrue(d.endedAwaitingNext)
+        assertEquals(NextUpPhase.ENDED, d.nextUpPhase)
     }
 
     @Test
-    fun videoStill_clearsOnEndWhenPreviouslyPlaying() {
-        val d = playbackTick(input(phase = PlaybackPhase.ENDED, prevVideoStillPlaying = true))
-        assertFalse(d.videoStillPlaying)
+    fun outroPhase_endsOnPhysicalEnd() {
+        val d = playbackTick(input(phase = PlaybackPhase.ENDED, prevNextUpPhase = NextUpPhase.OUTRO))
+        assertEquals(NextUpPhase.ENDED, d.nextUpPhase)
     }
 
     @Test

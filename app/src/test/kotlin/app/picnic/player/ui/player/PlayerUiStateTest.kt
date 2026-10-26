@@ -1,5 +1,6 @@
 package app.picnic.player.ui.player
 
+import app.picnic.player.data.playback.NextUpPhase
 import app.picnic.player.data.playback.PlayMethodKind
 import app.picnic.player.data.playback.quality.QualityOption
 import app.picnic.player.data.playback.quality.QualityRung
@@ -41,7 +42,7 @@ class PlayerUiStateTest {
     }
 
     private val next = NextUpItem("next", "Next", "S1:E2", "", "", null, null)
-    private val outroNextUp = PlayerUiState(nextUp = next, endedAwaitingNext = true, videoStillPlaying = true)
+    private val outroNextUp = PlayerUiState(nextUp = next, nextUpPhase = NextUpPhase.OUTRO)
 
     @Test
     fun countdownExpiryDuringOutro_autoplays() {
@@ -60,7 +61,7 @@ class PlayerUiStateTest {
     fun countdownExpiryAfterThePromptOrADismiss_isIgnored() {
         listOf(
             outroNextUp.copy(stillWatching = true),
-            outroNextUp.copy(endedAwaitingNext = false, videoStillPlaying = false),
+            outroNextUp.copy(nextUpPhase = NextUpPhase.NONE),
             outroNextUp.copy(nextUp = null)
         ).forEach { assertEquals(it.toString(), NextUpExpiry.IGNORE, it.nextUpExpiry(SleepMode.END_OF_EPISODE)) }
     }

@@ -43,6 +43,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.picnic.player.data.media.ItemQueue
+import app.picnic.player.data.playback.NextUpPhase
 import app.picnic.player.data.playback.enteredAtStart
 import app.picnic.player.playback.videoDisplayHints
 import app.picnic.player.ui.common.SilentNavigationSounds
@@ -123,7 +124,7 @@ fun PlayerScreen(
     )
 
     val stillWatching = state.stillWatching && !inPipMode
-    val showNextUpOverlay = state.endedAwaitingNext && state.nextUp != null && !inPipMode
+    val showNextUpOverlay = state.nextUpPhase != NextUpPhase.NONE && state.nextUp != null && !inPipMode
 
     LaunchedEffect(showNextUpOverlay, stillWatching) {
         chrome.onOverlayChanged(
@@ -185,14 +186,15 @@ fun PlayerScreen(
         }
     }
 
-    LaunchedEffect(state.endedAwaitingNext) {
-        if (state.endedAwaitingNext && state.nextUp == null) {
+    val nextUpActive = state.nextUpPhase != NextUpPhase.NONE
+    LaunchedEffect(nextUpActive) {
+        if (nextUpActive && state.nextUp == null) {
             exitPlayer()
         }
     }
 
     val onNextUpBack: () -> Unit = {
-        if (state.videoStillPlaying) viewModel.dismissNextUp() else exitPlayer()
+        if (state.nextUpPhase == NextUpPhase.OUTRO) viewModel.dismissNextUp() else exitPlayer()
     }
 
     val onBack: () -> Unit = {

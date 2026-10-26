@@ -4,6 +4,7 @@ import androidx.media3.common.text.Cue
 import app.picnic.player.data.auth.UserSession
 import app.picnic.player.data.jellyfin.JellyfinImages
 import app.picnic.player.data.playback.MediaSegment
+import app.picnic.player.data.playback.NextUpPhase
 import app.picnic.player.data.playback.PlayMethodKind
 import app.picnic.player.data.playback.quality.QualityOption
 import app.picnic.player.data.playback.quality.QualityRung
@@ -72,8 +73,7 @@ data class PlayerUiState(
     val currentSegment: MediaSegment? = null,
     val segments: List<MediaSegment> = emptyList(),
     val nextUp: NextUpItem? = null,
-    val endedAwaitingNext: Boolean = false,
-    val videoStillPlaying: Boolean = false,
+    val nextUpPhase: NextUpPhase = NextUpPhase.NONE,
     val chapters: List<ChapterMark> = emptyList(),
     val subtitleDelayMs: Long = 0,
     val playbackSpeed: Float = 1.0f,
@@ -102,15 +102,15 @@ data class PlayerUiState(
         else -> null
     }
 
-    val queuedNextUp: NextUpItem? get() = nextUp.takeIf { endedAwaitingNext && !videoStillPlaying }
+    val queuedNextUp: NextUpItem? get() = nextUp.takeIf { nextUpPhase == NextUpPhase.ENDED }
 
     fun nextUpExpiry(sleepMode: SleepMode): NextUpExpiry = when {
-        stillWatching || !endedAwaitingNext || nextUp == null -> NextUpExpiry.IGNORE
+        stillWatching || nextUpPhase == NextUpPhase.NONE || nextUp == null -> NextUpExpiry.IGNORE
         sleepMode == SleepMode.END_OF_EPISODE -> NextUpExpiry.PAUSE_FOR_SLEEP
         else -> NextUpExpiry.AUTOPLAY
     }
 
-    fun completedByNextUpExpiry(askStillWatching: Boolean): PlayerUiState = copy(videoStillPlaying = false, stillWatching = askStillWatching)
+    fun completedByNextUpExpiry(askStillWatching: Boolean): PlayerUiState = copy(nextUpPhase = NextUpPhase.ENDED, stillWatching = askStillWatching)
 }
 
 enum class NextUpExpiry { IGNORE, PAUSE_FOR_SLEEP, AUTOPLAY }
