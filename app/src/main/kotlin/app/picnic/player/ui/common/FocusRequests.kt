@@ -11,6 +11,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
@@ -23,7 +24,7 @@ private const val ListFocusSettleMs = 120L
 
 suspend fun FocusRequester.requestFocusWhenAttached(maxFrames: Int = 10): Boolean {
     repeat(maxFrames) {
-        if (runCatching { requestFocus() }.isSuccess) return true
+        if (requestFocus(FocusDirection.Enter)) return true
         withFrameNanos { }
     }
     return false
