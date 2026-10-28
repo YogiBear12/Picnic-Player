@@ -898,7 +898,6 @@ class PlayerViewModel @Inject constructor(
         engine.release()
         if (s != null && info != null && id != null) {
             appScope.launch {
-                playbackRepository.stopEncoding(s, info.playSessionId)
                 runCatching { playbackRepository.reportStopped(s, info, id, positionTicks, series) }
             }
         }

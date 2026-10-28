@@ -37,13 +37,13 @@ class StreamLoaderTest {
     }
 
     @Test
-    fun replacingEndsTheEncoderBeforeNegotiating() = runBlocking {
+    fun replacingReportsStoppedBeforeNegotiating() = runBlocking {
         val negotiator = FakeNegotiator()
         val loader = StreamLoader(RecordingTarget(), negotiator)
 
         loader.load(request(replacing = existing))
 
-        assertEquals(listOf("stopEncoding(old-session)", "reportStopped", "resolve", "reportStarted"), negotiator.orderedCalls)
+        assertEquals(listOf("reportStopped", "resolve", "reportStarted"), negotiator.orderedCalls)
     }
 
     @Test
@@ -151,11 +151,6 @@ class StreamLoaderTest {
             orderedCalls += "resolve"
             if (failResolve) error("negotiation failed")
             return stream("new-session")
-        }
-
-        override suspend fun stopEncoding(session: UserSession, playSessionId: String?) {
-            orderedCalls += "stopEncoding($playSessionId)"
-            teardownCalls += "stopEncoding"
         }
 
         override suspend fun reportStarted(session: UserSession, info: StreamInfo, itemId: UUID, positionTicks: Long) {

@@ -27,8 +27,6 @@ data class StreamNegotiation(
 interface StreamNegotiator {
     suspend fun resolveStream(negotiation: StreamNegotiation): StreamInfo
 
-    suspend fun stopEncoding(session: UserSession, playSessionId: String?)
-
     suspend fun reportStarted(session: UserSession, info: StreamInfo, itemId: UUID, positionTicks: Long)
 
     suspend fun reportStopped(
@@ -90,7 +88,6 @@ class StreamLoader(
         }
 
         if (replacing != null) {
-            negotiator.stopEncoding(request.session, replacing.playSessionId)
             runCatching {
                 negotiator.reportStopped(request.session, replacing, request.itemId, positionTicks, request.seriesId)
             }

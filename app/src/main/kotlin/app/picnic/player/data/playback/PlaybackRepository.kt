@@ -31,7 +31,6 @@ import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
-import org.jellyfin.sdk.api.client.extensions.hlsSegmentApi
 import org.jellyfin.sdk.api.client.extensions.mediaInfoApi
 import org.jellyfin.sdk.api.client.extensions.mediaSegmentsApi
 import org.jellyfin.sdk.api.client.extensions.playStateApi
@@ -74,18 +73,6 @@ class PlaybackRepository @Inject constructor(
 
     private suspend fun session(): UserSession = authRepository.requireSession()
 
-    override suspend fun stopEncoding(session: UserSession, playSessionId: String?) {
-        if (playSessionId == null) return
-        onIo {
-            runCatching {
-                api(session).hlsSegmentApi.stopEncodingProcess(
-                    deviceId = deviceIdentityStore.deviceId,
-                    playSessionId = playSessionId
-                )
-            }
-        }
-    }
-
     private suspend inline fun <T> onIo(crossinline block: suspend () -> T): T = withContext(ioDispatcher) { block() }
 
     override suspend fun resolveStream(negotiation: StreamNegotiation): StreamInfo = onIo {
@@ -107,7 +94,6 @@ class PlaybackRepository @Inject constructor(
         // pass 1 could not have known about needs a second pass of its own.
         val burnNeedsSecondPass = burnIn && !forceBurn
         val adopted = if (plan is ConversionPlan.Renegotiate || burnNeedsSecondPass) {
-            stopEncoding(session, first.playSessionId)
             negotiate(negotiation, settings, adoptedRung, pass = 2, burnIn = burnIn, forceTranscode = forceBurn)
         } else {
             first
