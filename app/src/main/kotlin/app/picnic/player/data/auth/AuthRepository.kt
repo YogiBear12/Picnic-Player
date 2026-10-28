@@ -13,7 +13,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
-import org.jellyfin.sdk.api.client.extensions.quickConnectApi
+import org.jellyfin.sdk.api.client.extensions.authenticationApi
 import org.jellyfin.sdk.api.client.extensions.sessionApi
 import org.jellyfin.sdk.api.client.extensions.userApi
 import org.jellyfin.sdk.discovery.RecommendedServerInfoScore
@@ -202,14 +202,14 @@ class AuthRepository @Inject constructor(
         password: String
     ): UserSession = onIo {
         val result = jellyfin.api(server.baseUrl)
-            .userApi.authenticateUserByName(
+            .authenticationApi.authenticateUserByName(
                 AuthenticateUserByName(username = username, pw = password)
             ).content
         persist(server, result)
     }
 
     suspend fun startQuickConnect(server: ServerConnection): QuickConnectRequest = onIo {
-        val state = jellyfin.api(server.baseUrl).quickConnectApi.initiateQuickConnect().content
+        val state = jellyfin.api(server.baseUrl).authenticationApi.initiateQuickConnect().content
         QuickConnectRequest(
             secret = state.secret ?: error("Quick Connect unavailable"),
             code = state.code ?: error("Quick Connect unavailable")
@@ -217,12 +217,12 @@ class AuthRepository @Inject constructor(
     }
 
     suspend fun isQuickConnectApproved(server: ServerConnection, secret: String): Boolean = onIo {
-        jellyfin.api(server.baseUrl).quickConnectApi.getQuickConnectState(secret).content.authenticated
+        jellyfin.api(server.baseUrl).authenticationApi.getQuickConnectState(secret).content.authenticated
     }
 
     suspend fun loginWithQuickConnect(server: ServerConnection, secret: String): UserSession = onIo {
         val result = jellyfin.api(server.baseUrl)
-            .userApi.authenticateWithQuickConnect(QuickConnectDto(secret = secret)).content
+            .authenticationApi.authenticateWithQuickConnect(QuickConnectDto(secret = secret)).content
         persist(server, result)
     }
 

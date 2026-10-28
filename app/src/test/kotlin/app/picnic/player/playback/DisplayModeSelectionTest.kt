@@ -47,6 +47,7 @@ class VideoDisplayHintsTest {
             isDefault = false,
             isForced = false,
             isHearingImpaired = false,
+            isOriginal = false,
             isExternal = false,
             isTextSubtitleStream = false,
             supportsExternalStream = false
@@ -172,6 +173,7 @@ private fun videoStream(
     isDefault = true,
     isForced = false,
     isHearingImpaired = false,
+    isOriginal = false,
     isExternal = false,
     isTextSubtitleStream = false,
     supportsExternalStream = false

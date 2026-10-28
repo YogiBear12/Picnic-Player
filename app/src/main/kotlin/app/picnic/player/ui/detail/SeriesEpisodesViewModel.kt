@@ -41,7 +41,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.jellyfin.sdk.api.client.extensions.tvShowsApi
+import org.jellyfin.sdk.api.client.extensions.showApi
 import org.jellyfin.sdk.model.api.BaseItemDto
 
 private const val TAG = "SeriesEpisodes"
@@ -205,7 +205,7 @@ class SeriesEpisodesViewModel @Inject constructor(
             try {
                 val fastResponse = withContext(ioDispatcher) {
                     val api = jellyfin.api(currentSession.server.baseUrl, currentSession.accessToken)
-                    api.tvShowsApi.getSeasons(
+                    api.showApi.getSeasons(
                         seriesId = UUID.fromString(seriesId),
                         userId = currentSession.userUuid,
                         fields = emptyList()

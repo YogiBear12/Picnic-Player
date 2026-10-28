@@ -7,7 +7,7 @@ import java.util.UUID
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
 import org.jellyfin.sdk.api.client.ApiClient
-import org.jellyfin.sdk.api.client.extensions.tvShowsApi
+import org.jellyfin.sdk.api.client.extensions.showApi
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.ItemFields
 
@@ -32,7 +32,7 @@ class EpisodePagingSource(
         val startIndex = params.key ?: 0
         val limit = if (params is LoadParams.Refresh && !firstLoad) params.loadSize * RefreshPageSpan else params.loadSize
         try {
-            val response = api.tvShowsApi.getEpisodes(
+            val response = api.showApi.getEpisodes(
                 seriesId = UUID.fromString(seriesId),
                 seasonId = UUID.fromString(seasonId),
                 userId = userId,

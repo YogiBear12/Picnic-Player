@@ -220,6 +220,7 @@ class PlayingStreamTest {
         isDefault = false,
         isForced = false,
         isHearingImpaired = false,
+        isOriginal = false,
         isExternal = false,
         isTextSubtitleStream = false,
         supportsExternalStream = false

@@ -32,8 +32,7 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import org.jellyfin.sdk.api.client.extensions.mediaInfoApi
-import org.jellyfin.sdk.api.client.extensions.mediaSegmentsApi
-import org.jellyfin.sdk.api.client.extensions.playStateApi
+import org.jellyfin.sdk.api.client.extensions.mediaSegmentApi
 import org.jellyfin.sdk.api.client.extensions.sessionApi
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.MediaSegmentType
@@ -256,7 +255,7 @@ class PlaybackRepository @Inject constructor(
     )
 
     override suspend fun reportStarted(session: UserSession, info: StreamInfo, itemId: UUID, positionTicks: Long): Unit = onIo {
-        api(session).playStateApi.reportPlaybackStart(
+        api(session).sessionApi.reportPlaybackStart(
             PlaybackStartInfo(
                 itemId = itemId,
                 mediaSourceId = info.mediaSourceId,
@@ -278,7 +277,7 @@ class PlaybackRepository @Inject constructor(
         positionTicks: Long,
         isPaused: Boolean
     ) = onIo {
-        api(session()).playStateApi.reportPlaybackProgress(
+        api(session()).sessionApi.reportPlaybackProgress(
             PlaybackProgressInfo(
                 itemId = itemId,
                 mediaSourceId = info.mediaSourceId,
@@ -301,7 +300,7 @@ class PlaybackRepository @Inject constructor(
         positionTicks: Long,
         seriesId: UUID?
     ): Unit = onIo {
-        api(session).playStateApi.reportPlaybackStopped(
+        api(session).sessionApi.reportPlaybackStopped(
             PlaybackStopInfo(
                 itemId = itemId,
                 mediaSourceId = info.mediaSourceId,
@@ -321,7 +320,7 @@ class PlaybackRepository @Inject constructor(
 
     suspend fun mediaSegments(itemId: UUID): List<MediaSegment> = onIo {
         runCatching {
-            val response = api(session()).mediaSegmentsApi.getItemSegments(itemId).content
+            val response = api(session()).mediaSegmentApi.getItemSegments(itemId).content
             response.items.mapNotNull { dto ->
                 MediaSegment(
                     id = dto.id.toString(),

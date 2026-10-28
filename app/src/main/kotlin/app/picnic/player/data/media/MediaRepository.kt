@@ -16,19 +16,17 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
+import org.jellyfin.sdk.api.client.extensions.audioApi
 import org.jellyfin.sdk.api.client.extensions.filterApi
-import org.jellyfin.sdk.api.client.extensions.genresApi
-import org.jellyfin.sdk.api.client.extensions.itemsApi
+import org.jellyfin.sdk.api.client.extensions.genreApi
 import org.jellyfin.sdk.api.client.extensions.libraryApi
 import org.jellyfin.sdk.api.client.extensions.localizationApi
-import org.jellyfin.sdk.api.client.extensions.personsApi
-import org.jellyfin.sdk.api.client.extensions.studiosApi
-import org.jellyfin.sdk.api.client.extensions.suggestionsApi
-import org.jellyfin.sdk.api.client.extensions.tvShowsApi
-import org.jellyfin.sdk.api.client.extensions.universalAudioApi
+import org.jellyfin.sdk.api.client.extensions.personApi
+import org.jellyfin.sdk.api.client.extensions.showApi
+import org.jellyfin.sdk.api.client.extensions.studioApi
+import org.jellyfin.sdk.api.client.extensions.suggestionApi
 import org.jellyfin.sdk.api.client.extensions.userApi
-import org.jellyfin.sdk.api.client.extensions.userLibraryApi
-import org.jellyfin.sdk.api.client.extensions.userViewsApi
+import org.jellyfin.sdk.api.client.extensions.userViewApi
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemDtoQueryResult
 import org.jellyfin.sdk.model.api.BaseItemKind
@@ -66,7 +64,7 @@ class MediaRepository @Inject constructor(
     private suspend fun <T> onIo(block: suspend () -> T): T = source.onIo(block)
 
     suspend fun userViews(): List<BaseItemDto> = onIo {
-        api().userViewsApi.getUserViews().content.items.orEmpty()
+        api().userViewApi.getUserViews().content.items.orEmpty()
     }
 
     suspend fun cultures(): List<CultureDto> = onIo {
@@ -82,7 +80,7 @@ class MediaRepository @Inject constructor(
     }
 
     suspend fun resumeItems(limit: Int = LATEST_ROW_LIMIT): List<BaseItemDto> = onIo {
-        api().itemsApi.getResumeItems(
+        api().libraryApi.getResumeItems(
             limit = limit,
             includeItemTypes = PLAYABLE_KINDS,
             // Redundant with the kinds, but without it the server takes ~10 s instead of ~0.5 s.
@@ -94,7 +92,7 @@ class MediaRepository @Inject constructor(
     }
 
     suspend fun nextUp(limit: Int = LATEST_ROW_LIMIT): List<BaseItemDto> = onIo {
-        api().tvShowsApi.getNextUp(
+        api().showApi.getNextUp(
             limit = limit,
             fields = CONTINUE_FIELDS,
             enableImageTypes = IMAGE_TYPES,
@@ -126,7 +124,7 @@ class MediaRepository @Inject constructor(
 
     private suspend fun queuedEpisodeDate(seriesId: UUID, episode: BaseItemDto): LocalDateTime? {
         val precedingPlay = runCatching {
-            api().tvShowsApi.getEpisodes(
+            api().showApi.getEpisodes(
                 seriesId = seriesId,
                 userId = session().userUuid,
                 adjacentTo = episode.id,
@@ -139,7 +137,7 @@ class MediaRepository @Inject constructor(
 
     private suspend fun resumeEpisodesForSeries(seriesId: UUID): List<BaseItemDto> = onIo {
         runCatching {
-            api().itemsApi.getResumeItems(
+            api().libraryApi.getResumeItems(
                 userId = session().userUuid,
                 parentId = seriesId,
                 includeItemTypes = listOf(BaseItemKind.EPISODE),
@@ -157,7 +155,7 @@ class MediaRepository @Inject constructor(
 
     private suspend fun nextUpForSeries(seriesId: UUID): BaseItemDto? = onIo {
         val nextUp = runCatching {
-            api().tvShowsApi.getNextUp(
+            api().showApi.getNextUp(
                 seriesId = seriesId,
                 userId = session().userUuid,
                 fields = CONTINUE_FIELDS,
@@ -170,7 +168,7 @@ class MediaRepository @Inject constructor(
         }
 
         val episodes = runCatching {
-            api().tvShowsApi.getEpisodes(
+            api().showApi.getEpisodes(
                 seriesId = seriesId,
                 userId = session().userUuid,
                 fields = CONTINUE_FIELDS,
@@ -184,7 +182,7 @@ class MediaRepository @Inject constructor(
     suspend fun latestInLibrary(
         parentId: UUID
     ): List<BaseItemDto> = onIo {
-        api().userLibraryApi.getLatestMedia(
+        api().libraryApi.getLatestMedia(
             parentId = parentId,
             limit = LATEST_ROW_LIMIT,
             fields = LATEST_FIELDS,
@@ -198,7 +196,7 @@ class MediaRepository @Inject constructor(
         limit: Int = LATEST_ROW_LIMIT,
         groupItems: Boolean = true
     ): List<BaseItemDto> = onIo {
-        api().userLibraryApi.getLatestMedia(
+        api().libraryApi.getLatestMedia(
             limit = limit,
             fields = LATEST_FIELDS,
             enableImageTypes = IMAGE_TYPES,
@@ -210,7 +208,7 @@ class MediaRepository @Inject constructor(
     suspend fun suggestions(
         limit: Int = LATEST_ROW_LIMIT
     ): List<BaseItemDto> = onIo {
-        api().suggestionsApi.getSuggestions(
+        api().suggestionApi.getSuggestions(
             userId = session().userUuid,
             mediaType = listOf(MediaType.VIDEO),
             type = listOf(BaseItemKind.MOVIE, BaseItemKind.SERIES),
@@ -232,7 +230,7 @@ class MediaRepository @Inject constructor(
 
     suspend fun collectionsContaining(itemId: UUID): List<BaseItemDto> = onIo {
         try {
-            val boxSets = api().itemsApi.getItems(
+            val boxSets = api().libraryApi.getItems(
                 userId = session().userUuid,
                 includeItemTypes = listOf(BaseItemKind.BOX_SET),
                 recursive = true,
@@ -269,7 +267,7 @@ class MediaRepository @Inject constructor(
         boxSetChildIdsCache[boxSetId]
             ?.takeIf { now - it.atMillis < BOX_SET_CACHE_TTL_MS }
             ?.let { return it.ids }
-        val ids = api().itemsApi.getItems(
+        val ids = api().libraryApi.getItems(
             userId = session().userUuid,
             parentId = boxSetId,
             recursive = false,
@@ -309,7 +307,7 @@ class MediaRepository @Inject constructor(
         excludeItemTypes: List<BaseItemKind>? = null,
         recursive: Boolean
     ): MediaGridPage = onIo {
-        val response = api().itemsApi.getItems(
+        val response = api().libraryApi.getItems(
             userId = session().userUuid,
             parentId = parentId,
             recursive = recursive,
@@ -330,7 +328,7 @@ class MediaRepository @Inject constructor(
     // Unbounded on purpose: IDs, names and Primary tags only. Page it if a folder ever holds tens of thousands of photos.
     suspend fun folderPhotos(parentId: UUID, sort: GridSortSpec): List<BaseItemDto> = onIo {
         val (sortBy, sortOrder) = sort.itemOrder()
-        api().itemsApi.getItems(
+        api().libraryApi.getItems(
             userId = session().userUuid,
             parentId = parentId,
             recursive = false,
@@ -348,7 +346,7 @@ class MediaRepository @Inject constructor(
     }
 
     suspend fun getPerson(personId: UUID): BaseItemDto = onIo {
-        api().userLibraryApi.getItem(itemId = personId).content
+        api().libraryApi.getItem(itemId = personId).content
     }
 
     suspend fun getItemsByPerson(
@@ -361,7 +359,7 @@ class MediaRepository @Inject constructor(
         fields: List<ItemFields> = PERSON_ITEM_FIELDS,
         sortBy: List<ItemSortBy> = listOf(ItemSortBy.PREMIERE_DATE, ItemSortBy.PRODUCTION_YEAR, ItemSortBy.SORT_NAME)
     ): List<BaseItemDto> = onIo {
-        api().itemsApi.getItems(
+        api().libraryApi.getItems(
             userId = session().userUuid,
             personIds = listOf(personId),
             personTypes = personType?.let { listOf(it.serialName) },
@@ -379,7 +377,7 @@ class MediaRepository @Inject constructor(
     }
 
     suspend fun shuffledGenreIds(genreId: UUID, type: BaseItemKind, excludeId: UUID, limit: Int): List<UUID> = onIo {
-        api().itemsApi.getItems(
+        api().libraryApi.getItems(
             userId = session().userUuid,
             genreIds = listOf(genreId),
             includeItemTypes = listOf(type),
@@ -396,15 +394,15 @@ class MediaRepository @Inject constructor(
     }
 
     suspend fun item(itemId: UUID): BaseItemDto = onIo {
-        api().userLibraryApi.getItem(itemId = itemId).content
+        api().libraryApi.getItem(itemId = itemId).content
     }
 
     suspend fun localTrailers(itemId: UUID): List<BaseItemDto> = onIo {
-        api().userLibraryApi.getLocalTrailers(itemId = itemId, userId = session().userUuid).content.orEmpty()
+        api().libraryApi.getLocalTrailers(itemId = itemId, userId = session().userUuid).content.orEmpty()
     }
 
     suspend fun seasonCount(seriesId: UUID): Int = onIo {
-        api().itemsApi.getItems(
+        api().libraryApi.getItems(
             userId = session().userUuid,
             parentId = seriesId,
             includeItemTypes = listOf(BaseItemKind.SEASON),
@@ -419,7 +417,7 @@ class MediaRepository @Inject constructor(
     suspend fun seasonCounts(seasonIds: List<UUID>): Map<UUID, Int> = onIo {
         if (seasonIds.isEmpty()) return@onIo emptyMap()
         runCatching {
-            api().itemsApi.getItems(
+            api().libraryApi.getItems(
                 userId = session().userUuid,
                 ids = seasonIds,
                 fields = listOf(ItemFields.CHILD_COUNT)
@@ -428,7 +426,7 @@ class MediaRepository @Inject constructor(
     }
 
     suspend fun seasonEpisodeStates(seriesId: UUID, seasonId: UUID): List<BaseItemDto> = onIo {
-        api().tvShowsApi.getEpisodes(
+        api().showApi.getEpisodes(
             seriesId = seriesId,
             seasonId = seasonId,
             userId = session().userUuid,
@@ -439,7 +437,7 @@ class MediaRepository @Inject constructor(
 
     suspend fun episodeNumbersBySeason(seriesId: UUID): Map<Int, List<Int>> = onIo {
         runCatching {
-            api().tvShowsApi.getEpisodes(
+            api().showApi.getEpisodes(
                 seriesId = seriesId,
                 userId = session().userUuid,
                 isMissing = false,
@@ -456,7 +454,7 @@ class MediaRepository @Inject constructor(
 
     suspend fun leadEpisode(seriesId: UUID, seasonId: UUID? = null): BaseItemDto? = onIo {
         runCatching {
-            api().tvShowsApi.getEpisodes(
+            api().showApi.getEpisodes(
                 seriesId = seriesId,
                 seasonId = seasonId,
                 userId = session().userUuid,
@@ -488,7 +486,7 @@ class MediaRepository @Inject constructor(
         }
     }
 
-    private suspend fun itemPage(ids: List<UUID>, fields: List<ItemFields>): List<BaseItemDto> = api().itemsApi.getItems(
+    private suspend fun itemPage(ids: List<UUID>, fields: List<ItemFields>): List<BaseItemDto> = api().libraryApi.getItems(
         userId = session().userUuid,
         ids = ids,
         fields = fields,
@@ -509,7 +507,7 @@ class MediaRepository @Inject constructor(
     suspend fun itemStreams(itemIds: List<UUID>): Map<UUID, List<MediaStream>> = onIo {
         if (itemIds.isEmpty()) return@onIo emptyMap()
         runCatching {
-            api().itemsApi.getItems(
+            api().libraryApi.getItems(
                 userId = session().userUuid,
                 ids = itemIds,
                 fields = listOf(ItemFields.MEDIA_STREAMS)
@@ -521,7 +519,7 @@ class MediaRepository @Inject constructor(
         val api = api()
         val theme = api.libraryApi.getThemeSongs(itemId = itemId)
             .content.items.orEmpty().randomOrNull() ?: return@onIo null
-        val url = api.universalAudioApi.getUniversalAudioStreamUrl(
+        val url = api.audioApi.getUniversalAudioStreamUrl(
             itemId = theme.id,
             container = listOf("opus", "mp3", "aac", "flac")
         )
@@ -532,13 +530,13 @@ class MediaRepository @Inject constructor(
         val api = api()
         val userId = session().userUuid
 
-        val currentEp = runCatching { api.userLibraryApi.getItem(episodeId).content }.getOrNull()
+        val currentEp = runCatching { api.libraryApi.getItem(episodeId).content }.getOrNull()
             ?: return@onIo null
 
         val seriesId = currentEp.seriesId ?: return@onIo null
 
         val episodes = runCatching {
-            api.tvShowsApi.getEpisodes(
+            api.showApi.getEpisodes(
                 seriesId = seriesId,
                 userId = userId,
                 startItemId = episodeId,
@@ -567,7 +565,7 @@ class MediaRepository @Inject constructor(
         nameLessThan: String? = null
     ): MediaGridPage = onIo {
         val (sortBy, sortOrder) = sort.itemOrder()
-        val response = api().itemsApi.getItems(
+        val response = api().libraryApi.getItems(
             userId = session().userUuid,
             includeItemTypes = filter.contentType.itemKinds(kinds),
             recursive = filter.folderId == null,
@@ -668,7 +666,7 @@ class MediaRepository @Inject constructor(
             val userId = session().userUuid
             val genres = async {
                 runCatching {
-                    api().genresApi.getGenres(
+                    api().genreApi.getGenres(
                         userId = userId,
                         parentId = libraryId,
                         includeItemTypes = kinds,
@@ -679,7 +677,7 @@ class MediaRepository @Inject constructor(
             }
             val studios = async {
                 runCatching {
-                    api().studiosApi.getStudios(
+                    api().studioApi.getStudios(
                         userId = userId,
                         parentId = libraryId,
                         includeItemTypes = kinds
@@ -715,7 +713,7 @@ class MediaRepository @Inject constructor(
         parentId: UUID? = null,
         limit: Int = SEARCH_ROW_LIMIT
     ): List<BaseItemDto> = onIo {
-        api().itemsApi.getItems(
+        api().libraryApi.getItems(
             userId = session().userUuid,
             parentId = parentId,
             searchTerm = query,
@@ -731,7 +729,7 @@ class MediaRepository @Inject constructor(
         query: String,
         limit: Int = SEARCH_ROW_LIMIT
     ): List<BaseItemDto> = onIo {
-        api().personsApi.getPersons(
+        api().personApi.getPersons(
             userId = session().userUuid,
             searchTerm = query,
             limit = limit,
@@ -743,7 +741,7 @@ class MediaRepository @Inject constructor(
         libraryId: UUID? = null,
         kinds: List<BaseItemKind> = listOf(BaseItemKind.MOVIE, BaseItemKind.SERIES)
     ): List<BaseItemDto> = onIo {
-        api().genresApi.getGenres(
+        api().genreApi.getGenres(
             userId = session().userUuid,
             parentId = libraryId,
             includeItemTypes = kinds,
@@ -753,7 +751,7 @@ class MediaRepository @Inject constructor(
     }
 
     suspend fun collectionCount(): Int = onIo {
-        api().itemsApi.getItems(
+        api().libraryApi.getItems(
             userId = session().userUuid,
             includeItemTypes = listOf(BaseItemKind.BOX_SET),
             recursive = true,
@@ -768,7 +766,7 @@ class MediaRepository @Inject constructor(
         limit: Int,
         fields: List<ItemFields> = emptyList()
     ): List<BaseItemDto> = onIo {
-        api().itemsApi.getItems(
+        api().libraryApi.getItems(
             userId = session().userUuid,
             parentId = libraryId,
             recursive = true,
@@ -790,7 +788,7 @@ class MediaRepository @Inject constructor(
         limit: Int,
         isFavorite: Boolean? = null
     ): List<BaseItemDto> = onIo {
-        api().itemsApi.getItems(
+        api().libraryApi.getItems(
             userId = session().userUuid,
             recursive = true,
             genres = genres.takeIf { it.isNotEmpty() },
@@ -838,7 +836,7 @@ class MediaRepository @Inject constructor(
     }
 
     private suspend fun watchedCount(kind: BaseItemKind): Int = onIo {
-        api().itemsApi.getItems(
+        api().libraryApi.getItems(
             userId = session().userUuid,
             includeItemTypes = listOf(kind),
             recursive = true,
@@ -849,7 +847,7 @@ class MediaRepository @Inject constructor(
     }
 
     private suspend fun seriesPlayStatePage(startIndex: Int): BaseItemDtoQueryResult = onIo {
-        api().itemsApi.getItems(
+        api().libraryApi.getItems(
             userId = session().userUuid,
             includeItemTypes = listOf(BaseItemKind.SERIES),
             recursive = true,
@@ -871,7 +869,7 @@ class MediaRepository @Inject constructor(
     }
 
     private suspend fun favoritePage(startIndex: Int): BaseItemDtoQueryResult = onIo {
-        api().itemsApi.getItems(
+        api().libraryApi.getItems(
             userId = session().userUuid,
             recursive = true,
             includeItemTypes = listOf(

@@ -51,6 +51,7 @@ private fun stream(type: MediaStreamType, codec: String?): MediaStream = MediaSt
     isDefault = true,
     isForced = false,
     isHearingImpaired = false,
+    isOriginal = false,
     isExternal = false,
     isTextSubtitleStream = false,
     supportsExternalStream = false

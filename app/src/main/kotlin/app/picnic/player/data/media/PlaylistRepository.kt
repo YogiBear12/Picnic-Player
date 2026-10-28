@@ -3,9 +3,8 @@ package app.picnic.player.data.media
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
-import org.jellyfin.sdk.api.client.extensions.itemsApi
 import org.jellyfin.sdk.api.client.extensions.libraryApi
-import org.jellyfin.sdk.api.client.extensions.playlistsApi
+import org.jellyfin.sdk.api.client.extensions.playlistApi
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
 import org.jellyfin.sdk.model.api.CreatePlaylistDto
@@ -23,7 +22,7 @@ class PlaylistRepository @Inject constructor(
     private suspend fun <T> onIo(block: suspend () -> T): T = source.onIo(block)
 
     suspend fun playlists(): List<BaseItemDto> = onIo {
-        api().itemsApi.getItems(
+        api().libraryApi.getItems(
             userId = source.session().userUuid,
             includeItemTypes = listOf(BaseItemKind.PLAYLIST),
             recursive = true,
@@ -36,7 +35,7 @@ class PlaylistRepository @Inject constructor(
     }
 
     suspend fun playlistItems(playlistId: UUID): List<BaseItemDto> = onIo {
-        api().playlistsApi.getPlaylistItems(
+        api().playlistApi.getPlaylistItems(
             playlistId = playlistId,
             userId = source.session().userUuid,
             fields = BROWSE_FIELDS,
@@ -45,7 +44,7 @@ class PlaylistRepository @Inject constructor(
     }
 
     suspend fun createPlaylist(name: String, itemIds: List<UUID>): UUID? = onIo {
-        val result = api().playlistsApi.createPlaylist(
+        val result = api().playlistApi.createPlaylist(
             CreatePlaylistDto(
                 name = name,
                 ids = itemIds,
@@ -60,7 +59,7 @@ class PlaylistRepository @Inject constructor(
     }
 
     suspend fun addToPlaylist(playlistId: UUID, itemIds: List<UUID>) = onIo {
-        api().playlistsApi.addItemToPlaylist(
+        api().playlistApi.addItemToPlaylist(
             playlistId = playlistId,
             ids = itemIds,
             userId = source.session().userUuid
@@ -69,7 +68,7 @@ class PlaylistRepository @Inject constructor(
     }
 
     suspend fun removeFromPlaylist(playlistId: UUID, entryIds: List<String>) = onIo {
-        api().playlistsApi.removeItemFromPlaylist(
+        api().playlistApi.removeItemFromPlaylist(
             playlistId = playlistId.toString(),
             entryIds = entryIds
         )
@@ -86,7 +85,7 @@ class PlaylistRepository @Inject constructor(
         playlistItemId: String,
         newIndex: Int
     ) = onIo {
-        api().playlistsApi.moveItem(
+        api().playlistApi.moveItem(
             playlistId = playlistId.toString(),
             itemId = playlistItemId,
             newIndex = newIndex

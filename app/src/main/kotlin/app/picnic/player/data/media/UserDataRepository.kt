@@ -3,8 +3,7 @@ package app.picnic.player.data.media
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
-import org.jellyfin.sdk.api.client.extensions.playStateApi
-import org.jellyfin.sdk.api.client.extensions.userLibraryApi
+import org.jellyfin.sdk.api.client.extensions.userDataApi
 
 @Singleton
 class UserDataRepository @Inject constructor(
@@ -23,9 +22,9 @@ class UserDataRepository @Inject constructor(
     ) = onIo {
         (
             if (played) {
-                api().playStateApi.markPlayedItem(itemId).content
+                api().userDataApi.markPlayedItem(itemId).content
             } else {
-                api().playStateApi.markUnplayedItem(itemId).content
+                api().userDataApi.markUnplayedItem(itemId).content
             }
             ).also {
             if (played) hiddenResumeStore.unhide((seriesId ?: itemId).toString())
@@ -40,9 +39,9 @@ class UserDataRepository @Inject constructor(
     ) = onIo {
         (
             if (favorite) {
-                api().userLibraryApi.markFavoriteItem(itemId).content
+                api().userDataApi.markFavoriteItem(itemId).content
             } else {
-                api().userLibraryApi.unmarkFavoriteItem(itemId).content
+                api().userDataApi.unmarkFavoriteItem(itemId).content
             }
             ).also { notifyItemChanged(itemId, seriesId) }
     }

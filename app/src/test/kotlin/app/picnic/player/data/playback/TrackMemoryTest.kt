@@ -369,6 +369,7 @@ private fun audio(
     isDefault = isDefault,
     isForced = false,
     isHearingImpaired = false,
+    isOriginal = false,
     isExternal = false,
     isTextSubtitleStream = false,
     supportsExternalStream = false
@@ -389,6 +390,7 @@ private fun subtitle(
     isDefault = isDefault,
     isForced = isForced,
     isHearingImpaired = false,
+    isOriginal = false,
     isExternal = false,
     isTextSubtitleStream = true,
     supportsExternalStream = false
