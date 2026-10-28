@@ -155,8 +155,6 @@ internal fun sectionsFor(
     viewModel: SettingsViewModel,
     youtubeApps: List<YouTubeAppInfo>,
     pictureInPictureSupported: Boolean,
-    serverAudioLanguage: String?,
-    serverSubtitleLanguage: String?,
     showPicker: (ActivePicker) -> Unit,
     onShowAudioLanguagePicker: () -> Unit,
     onShowSubtitleLanguagePicker: () -> Unit,
@@ -170,8 +168,6 @@ internal fun sectionsFor(
         viewModel,
         youtubeApps,
         pictureInPictureSupported,
-        serverAudioLanguage,
-        serverSubtitleLanguage,
         showPicker,
         onShowAudioLanguagePicker,
         onShowSubtitleLanguagePicker,
@@ -184,8 +180,6 @@ internal fun sectionsFor(
         viewModel,
         youtubeApps,
         pictureInPictureSupported,
-        serverAudioLanguage,
-        serverSubtitleLanguage,
         showPicker,
         onShowAudioLanguagePicker,
         onShowSubtitleLanguagePicker,
@@ -198,8 +192,6 @@ internal fun sectionsFor(
         viewModel,
         youtubeApps,
         pictureInPictureSupported,
-        serverAudioLanguage,
-        serverSubtitleLanguage,
         showPicker,
         onShowAudioLanguagePicker,
         onShowSubtitleLanguagePicker,
@@ -214,8 +206,6 @@ private fun experienceSections(
     viewModel: SettingsViewModel,
     youtubeApps: List<YouTubeAppInfo>,
     pictureInPictureSupported: Boolean,
-    serverAudioLanguage: String?,
-    serverSubtitleLanguage: String?,
     showPicker: (ActivePicker) -> Unit,
     onShowAudioLanguagePicker: () -> Unit,
     onShowSubtitleLanguagePicker: () -> Unit,
@@ -296,8 +286,6 @@ private fun playbackSections(
     viewModel: SettingsViewModel,
     youtubeApps: List<YouTubeAppInfo>,
     pictureInPictureSupported: Boolean,
-    serverAudioLanguage: String?,
-    serverSubtitleLanguage: String?,
     showPicker: (ActivePicker) -> Unit,
     onShowAudioLanguagePicker: () -> Unit,
     onShowSubtitleLanguagePicker: () -> Unit,
@@ -317,28 +305,18 @@ private fun playbackSections(
             ),
             SettingItem(
                 "Preferred audio language",
-                if (settings.preferDefaultAudioTrack) {
+                if (settings.audioFollowsOriginalLanguage) {
                     "Original language"
                 } else {
-                    viewModel.languageLabel(
-                        resolveLanguageCode(
-                            settings.preferredAudioLanguage,
-                            serverAudioLanguage,
-                            viewModel.deviceLanguage
-                        )
-                    )
+                    viewModel.languageLabel(resolveLanguageCode(settings.preferredAudioLanguage, viewModel.deviceLanguage))
                 },
                 onActivate = onShowAudioLanguagePicker
             ),
             SettingItem(
                 "Preferred subtitle language",
-                viewModel.languageLabel(
-                    resolveLanguageCode(
-                        settings.preferredSubtitleLanguage,
-                        serverSubtitleLanguage,
-                        viewModel.deviceLanguage
-                    )
-                ),
+                settings.preferredSubtitleLanguage?.takeIf { it.isNotBlank() }
+                    ?.let { viewModel.languageLabel(it) }
+                    ?: "System language (${viewModel.languageLabel(viewModel.deviceLanguage)})",
                 onActivate = onShowSubtitleLanguagePicker
             ),
             viewModel.toggleItem(settings, "Always display subtitles", SettingKeys.AlwaysDisplaySubtitles),
@@ -459,8 +437,6 @@ private fun advancedSections(
     viewModel: SettingsViewModel,
     youtubeApps: List<YouTubeAppInfo>,
     pictureInPictureSupported: Boolean,
-    serverAudioLanguage: String?,
-    serverSubtitleLanguage: String?,
     showPicker: (ActivePicker) -> Unit,
     onShowAudioLanguagePicker: () -> Unit,
     onShowSubtitleLanguagePicker: () -> Unit,

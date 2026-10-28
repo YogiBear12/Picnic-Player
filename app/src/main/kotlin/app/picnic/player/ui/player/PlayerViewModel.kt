@@ -168,8 +168,6 @@ class PlayerViewModel @Inject constructor(
 
     private val tracks = PlayerTracks(
         player = player,
-        authRepository = authRepository,
-        mediaRepository = mediaRepository,
         trackMemoryStore = trackMemoryStore,
         scope = viewModelScope,
         onOptionsChanged = { options ->

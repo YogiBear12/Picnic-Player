@@ -96,8 +96,6 @@ fun SettingsScreen(
     var languagePickerKind by remember { mutableStateOf<LanguagePickerKind?>(null) }
     val youtubeApps by viewModel.launcherApps.collectAsStateWithLifecycle()
     val cultureOptions by viewModel.cultureOptions.collectAsStateWithLifecycle()
-    val serverAudioLanguage by viewModel.serverAudioLanguage.collectAsStateWithLifecycle()
-    val serverSubtitleLanguage by viewModel.serverSubtitleLanguage.collectAsStateWithLifecycle()
 
     var restoreDetailRow by remember { mutableStateOf<SubPageRow?>(null) }
 
@@ -185,15 +183,11 @@ fun SettingsScreen(
             LanguagePickerKind.AUDIO -> settings.preferredAudioLanguage
             LanguagePickerKind.SUBTITLE -> settings.preferredSubtitleLanguage
         }
-        val serverCode = when (kind) {
-            LanguagePickerKind.AUDIO -> serverAudioLanguage
-            LanguagePickerKind.SUBTITLE -> serverSubtitleLanguage
-        }
         val picker = remember(cultureOptions, kind) {
             languagePickerRows(
                 base = cultureOptions,
                 deviceLanguage = viewModel.deviceLanguage,
-                includeDefaultAudioTrack = kind == LanguagePickerKind.AUDIO
+                includeOriginalLanguage = kind == LanguagePickerKind.AUDIO
             )
         }
         LanguagePreferenceDialog(
@@ -205,12 +199,12 @@ fun SettingsScreen(
             separatorAfterIndex = picker.separatorAfterIndex,
             selectedRow = selectedLanguageRow(
                 rows = picker.rows,
-                languageCode = resolveLanguageCode(appCode, serverCode, viewModel.deviceLanguage),
-                preferDefaultAudioTrack = kind == LanguagePickerKind.AUDIO && settings.preferDefaultAudioTrack
+                languageCode = resolveLanguageCode(appCode, viewModel.deviceLanguage),
+                preferOriginalLanguage = kind == LanguagePickerKind.AUDIO && settings.audioFollowsOriginalLanguage
             ),
             onSelect = { row ->
                 when (row) {
-                    LanguagePickerRow.DefaultAudioTrack -> viewModel.preferDefaultAudioTrack()
+                    LanguagePickerRow.OriginalLanguage -> viewModel.preferOriginalLanguage()
                     is LanguagePickerRow.Culture -> when (kind) {
                         LanguagePickerKind.AUDIO -> viewModel.setPreferredAudioLanguage(row.option.languageCode)
                         LanguagePickerKind.SUBTITLE -> viewModel.set(SettingKeys.PreferredSubtitleLanguage, row.option.languageCode)
@@ -383,8 +377,6 @@ private fun DetailPanel(
     }
 
     val seerr by viewModel.seerrState.collectAsStateWithLifecycle()
-    val serverAudioLanguage by viewModel.serverAudioLanguage.collectAsStateWithLifecycle()
-    val serverSubtitleLanguage by viewModel.serverSubtitleLanguage.collectAsStateWithLifecycle()
     val sections = sectionsFor(
         category,
         settings,
@@ -393,8 +385,6 @@ private fun DetailPanel(
         viewModel,
         youtubeApps,
         viewModel.pictureInPictureSupported,
-        serverAudioLanguage,
-        serverSubtitleLanguage,
         showPicker,
         onShowAudioLanguagePicker,
         onShowSubtitleLanguagePicker,

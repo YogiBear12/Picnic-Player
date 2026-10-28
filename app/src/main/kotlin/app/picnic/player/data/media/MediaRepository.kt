@@ -38,7 +38,6 @@ import org.jellyfin.sdk.model.api.MediaStream
 import org.jellyfin.sdk.model.api.MediaType
 import org.jellyfin.sdk.model.api.PersonKind
 import org.jellyfin.sdk.model.api.SortOrder
-import org.jellyfin.sdk.model.api.UserConfiguration
 import org.jellyfin.sdk.model.api.request.GetSimilarItemsRequest
 
 internal const val MEDIA_GRID_PAGE_SIZE = 100
@@ -69,10 +68,6 @@ class MediaRepository @Inject constructor(
 
     suspend fun cultures(): List<CultureDto> = onIo {
         api().localizationApi.getCultures().content
-    }
-
-    suspend fun userConfiguration(): UserConfiguration? = onIo {
-        api().userApi.getCurrentUser().content.configuration
     }
 
     suspend fun canTranscodeVideo(): Boolean = onIo {

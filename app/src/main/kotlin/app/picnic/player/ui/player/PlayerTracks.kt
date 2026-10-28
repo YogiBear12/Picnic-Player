@@ -5,8 +5,6 @@ package app.picnic.player.ui.player
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.exoplayer.ExoPlayer
-import app.picnic.player.data.auth.AuthRepository
-import app.picnic.player.data.media.MediaRepository
 import app.picnic.player.data.playback.PlayMethodKind
 import app.picnic.player.data.playback.RememberedTrack
 import app.picnic.player.data.playback.StreamInfo
@@ -40,8 +38,6 @@ data class TrackOptions(
 
 class PlayerTracks(
     private val player: ExoPlayer,
-    private val authRepository: AuthRepository,
-    private val mediaRepository: MediaRepository,
     private val trackMemoryStore: TrackMemoryStore,
     private val scope: CoroutineScope,
     private val onOptionsChanged: (TrackOptions) -> Unit,
@@ -67,10 +63,6 @@ class PlayerTracks(
     private var seasonKey: String? = null
     private var originalLanguage: String? = null
 
-    private var serverAudioLanguage: String? = null
-    private var serverSubtitleLanguage: String? = null
-    private var serverLanguagePrefsLoaded = false
-
     private class ExternalSubtitleRef(val streamIndex: Int, val urlPrefix: String)
 
     fun adopt(info: StreamInfo) {
@@ -92,7 +84,6 @@ class PlayerTracks(
 
     suspend fun initDefaults(prefs: PlaybackSettings) {
         burnMode = if (prefs.forceDirectPlay) BurnInSubtitles.OFF else prefs.burnInSubtitles
-        ensureServerLanguagePrefs()
         val deviceLanguage = Locale.getDefault().language
         val memory = memoryKey?.let { key ->
             trackMemoryStore.effectiveMemory(key, seasonKey)
@@ -100,32 +91,15 @@ class PlayerTracks(
         val pick = pickTracksWithMemory(
             streams = mediaStreams,
             memory = memory,
-            preferredAudioLanguage = resolveLanguageCode(
-                prefs.preferredAudioLanguage,
-                serverAudioLanguage,
-                deviceLanguage
-            ),
-            preferredSubtitleLanguage = resolveLanguageCode(
-                prefs.preferredSubtitleLanguage,
-                serverSubtitleLanguage,
-                deviceLanguage
-            ),
+            preferredAudioLanguage = prefs.preferredAudioLanguage,
+            preferredSubtitleLanguage = resolveLanguageCode(prefs.preferredSubtitleLanguage, deviceLanguage),
             deviceSubtitleLanguage = deviceLanguage,
             alwaysDisplaySubtitles = prefs.alwaysDisplaySubtitles,
-            preferOriginalLanguage = prefs.preferDefaultAudioTrack,
+            preferOriginalLanguage = prefs.audioFollowsOriginalLanguage,
             originalLanguage = originalLanguage
         )
         audioIndex = pick.audioIndex
         subtitleIndex = pick.subtitleIndex
-    }
-
-    private suspend fun ensureServerLanguagePrefs() {
-        if (serverLanguagePrefsLoaded) return
-        serverLanguagePrefsLoaded = true
-        authRepository.activeSession() ?: return
-        val config = runCatching { mediaRepository.userConfiguration() }.getOrNull()
-        serverAudioLanguage = config?.audioLanguagePreference
-        serverSubtitleLanguage = config?.subtitleLanguagePreference
     }
 
     fun selectAudio(streamIndex: String) {

@@ -20,9 +20,7 @@ fun culturePickerOptions(cultures: List<CultureDto>): List<CulturePickerOption> 
     .distinctBy { it.languageCode }
     .sortedBy { it.displayName.lowercase() }
 
-fun resolveLanguageCode(appPreference: String?, serverPreference: String?, deviceLanguage: String): String = appPreference?.takeIf { it.isNotBlank() }
-    ?: serverPreference?.takeIf { it.isNotBlank() }
-    ?: deviceLanguage
+fun resolveLanguageCode(appPreference: String?, deviceLanguage: String): String = appPreference?.takeIf { it.isNotBlank() } ?: deviceLanguage
 
 data class PinnedLanguageOptions(
     val options: List<CulturePickerOption>,
@@ -46,8 +44,8 @@ sealed interface LanguagePickerRow {
     val key: String
     val label: String
 
-    data object DefaultAudioTrack : LanguagePickerRow {
-        override val key: String = "default-audio-track"
+    data object OriginalLanguage : LanguagePickerRow {
+        override val key: String = "original-language"
         override val label: String = "Original language"
     }
 
@@ -65,15 +63,15 @@ data class LanguagePickerRows(
 fun languagePickerRows(
     base: List<CulturePickerOption>,
     deviceLanguage: String,
-    includeDefaultAudioTrack: Boolean
+    includeOriginalLanguage: Boolean
 ): LanguagePickerRows {
     val pinned = pinnedLanguageOptions(base, deviceLanguage)
     val cultures = pinned.options.map { LanguagePickerRow.Culture(it) }
-    if (!includeDefaultAudioTrack) {
+    if (!includeOriginalLanguage) {
         return LanguagePickerRows(cultures, pinned.separatorAfterIndex)
     }
     return LanguagePickerRows(
-        rows = listOf(LanguagePickerRow.DefaultAudioTrack) + cultures,
+        rows = listOf(LanguagePickerRow.OriginalLanguage) + cultures,
         separatorAfterIndex = pinned.separatorAfterIndex + 1
     )
 }
@@ -81,9 +79,9 @@ fun languagePickerRows(
 fun selectedLanguageRow(
     rows: List<LanguagePickerRow>,
     languageCode: String?,
-    preferDefaultAudioTrack: Boolean
+    preferOriginalLanguage: Boolean
 ): LanguagePickerRow? = when {
-    preferDefaultAudioTrack -> rows.firstOrNull { it is LanguagePickerRow.DefaultAudioTrack }
+    preferOriginalLanguage -> rows.firstOrNull { it is LanguagePickerRow.OriginalLanguage }
     languageCode.isNullOrBlank() -> null
     else -> rows.firstOrNull {
         it is LanguagePickerRow.Culture && languageMatches(it.option.languageCode, languageCode)

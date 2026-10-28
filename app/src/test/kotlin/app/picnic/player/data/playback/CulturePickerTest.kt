@@ -21,12 +21,10 @@ class CulturePickerTest {
     }
 
     @Test
-    fun resolveLanguageCode_appOverrideThenServerThenDevice() {
-        assertEquals("fr", resolveLanguageCode("fr", "en", deviceLanguage = "de"))
-        assertEquals("en", resolveLanguageCode(null, "en", deviceLanguage = "de"))
-        assertEquals("en", resolveLanguageCode("", "en", deviceLanguage = "de"))
-        assertEquals("de", resolveLanguageCode(null, "", deviceLanguage = "de"))
-        assertEquals("de", resolveLanguageCode(null, null, deviceLanguage = "de"))
+    fun resolveLanguageCode_appOverrideThenDevice() {
+        assertEquals("fr", resolveLanguageCode("fr", deviceLanguage = "de"))
+        assertEquals("de", resolveLanguageCode("", deviceLanguage = "de"))
+        assertEquals("de", resolveLanguageCode(null, deviceLanguage = "de"))
     }
 
     @Test
@@ -61,7 +59,7 @@ class CulturePickerTest {
                 culture("german", "German", "de")
             )
         )
-        val picker = languagePickerRows(base, deviceLanguage = "de", includeDefaultAudioTrack = true)
+        val picker = languagePickerRows(base, deviceLanguage = "de", includeOriginalLanguage = true)
         assertEquals(listOf("Original language", "German", "English"), picker.rows.map { it.label })
         // Divider sits under the Default + device-language block.
         assertEquals(1, picker.separatorAfterIndex)
@@ -70,7 +68,7 @@ class CulturePickerTest {
     @Test
     fun languagePickerRows_subtitlesHaveNoDefaultRow() {
         val base = culturePickerOptions(listOf(culture("english", "English", "en")))
-        val picker = languagePickerRows(base, deviceLanguage = "de", includeDefaultAudioTrack = false)
+        val picker = languagePickerRows(base, deviceLanguage = "de", includeOriginalLanguage = false)
         assertEquals(listOf("English"), picker.rows.map { it.label })
         assertEquals(-1, picker.separatorAfterIndex)
     }
@@ -78,7 +76,7 @@ class CulturePickerTest {
     @Test
     fun languagePickerRows_defaultRowAloneWhenDeviceLanguageAbsent() {
         val base = culturePickerOptions(listOf(culture("english", "English", "en")))
-        val picker = languagePickerRows(base, deviceLanguage = "de", includeDefaultAudioTrack = true)
+        val picker = languagePickerRows(base, deviceLanguage = "de", includeOriginalLanguage = true)
         assertEquals(listOf("Original language", "English"), picker.rows.map { it.label })
         assertEquals(0, picker.separatorAfterIndex)
     }
@@ -86,16 +84,16 @@ class CulturePickerTest {
     @Test
     fun selectedLanguageRow_defaultBeatsLanguageCode() {
         val base = culturePickerOptions(listOf(culture("english", "English", "en")))
-        val rows = languagePickerRows(base, deviceLanguage = "en", includeDefaultAudioTrack = true).rows
+        val rows = languagePickerRows(base, deviceLanguage = "en", includeOriginalLanguage = true).rows
         assertEquals(
-            LanguagePickerRow.DefaultAudioTrack,
-            selectedLanguageRow(rows, languageCode = "en", preferDefaultAudioTrack = true)
+            LanguagePickerRow.OriginalLanguage,
+            selectedLanguageRow(rows, languageCode = "en", preferOriginalLanguage = true)
         )
         assertEquals(
             "English",
-            selectedLanguageRow(rows, languageCode = "eng", preferDefaultAudioTrack = false)?.label
+            selectedLanguageRow(rows, languageCode = "eng", preferOriginalLanguage = false)?.label
         )
-        assertNull(selectedLanguageRow(rows, languageCode = null, preferDefaultAudioTrack = false))
+        assertNull(selectedLanguageRow(rows, languageCode = null, preferOriginalLanguage = false))
     }
 
     @Test

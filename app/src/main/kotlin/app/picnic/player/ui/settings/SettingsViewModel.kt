@@ -103,12 +103,6 @@ class SettingsViewModel @Inject constructor(
     private val _cultureOptions = MutableStateFlow<List<CulturePickerOption>>(emptyList())
     val cultureOptions: StateFlow<List<CulturePickerOption>> = _cultureOptions
 
-    private val _serverAudioLanguage = MutableStateFlow<String?>(null)
-    val serverAudioLanguage: StateFlow<String?> = _serverAudioLanguage
-
-    private val _serverSubtitleLanguage = MutableStateFlow<String?>(null)
-    val serverSubtitleLanguage: StateFlow<String?> = _serverSubtitleLanguage
-
     val deviceLanguage: String = java.util.Locale.getDefault().language
 
     private val _activeUserId = MutableStateFlow<java.util.UUID?>(null)
@@ -170,9 +164,6 @@ class SettingsViewModel @Inject constructor(
             if (cultures.isNotEmpty()) {
                 _cultureOptions.value = culturePickerOptions(cultures)
             }
-            val config = runCatching { mediaRepository.userConfiguration() }.getOrNull()
-            _serverAudioLanguage.value = config?.audioLanguagePreference
-            _serverSubtitleLanguage.value = config?.subtitleLanguagePreference
         }
         viewModelScope.launch {
             changeBus.batches().collect { refreshAccount() }
@@ -200,7 +191,7 @@ class SettingsViewModel @Inject constructor(
         store.setPreferDefaultAudioTrack(false)
     }
 
-    fun preferDefaultAudioTrack() = viewModelScope.launch {
+    fun preferOriginalLanguage() = viewModelScope.launch {
         store.setPreferDefaultAudioTrack(true)
     }
 

@@ -80,6 +80,8 @@ data class PlaybackSettings(
     val assSubtitleOffsetMs: Int = 0,
     val subtitleAppearance: SubtitleAppearance = SubtitleAppearance()
 ) {
+    val audioFollowsOriginalLanguage: Boolean get() = preferDefaultAudioTrack || preferredAudioLanguage.isNullOrBlank()
+
     companion object {
         const val MinAssSubtitleOffsetMs = -2000
         const val MaxAssSubtitleOffsetMs = 2000
