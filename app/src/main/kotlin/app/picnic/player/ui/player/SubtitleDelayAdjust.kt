@@ -60,7 +60,7 @@ fun rememberSubtitleDelayAdjust(
         adjust.ramp({ currentDelayMs.value }, { currentOnDelayChange.value(it) })
     }
     LaunchedEffect(active) {
-        if (active) runCatching { adjust.focusRequester.requestFocus() }
+        if (active) adjust.focusRequester.requestFocus()
     }
     return adjust
 }

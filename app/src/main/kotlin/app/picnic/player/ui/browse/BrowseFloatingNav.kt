@@ -250,7 +250,7 @@ private fun FloatingNavBody(
                 .onKeyEvent { event ->
                     val sideways = event.key == Key.DirectionLeft || event.key == Key.DirectionRight
                     if (sideways && event.type == KeyEventType.KeyDown && onPrimaryPage) {
-                        runCatching { actions.paneEntryFocus().requestFocus() }
+                        actions.paneEntryFocus().requestFocus()
                     }
                     sideways
                 }

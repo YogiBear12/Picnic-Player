@@ -117,7 +117,7 @@ internal fun SearchPane(
         Modifier
             .fillMaxSize()
             .focusProperties {
-                onEnter = { runCatching { entryFocus().requestFocus() } }
+                onEnter = { entryFocus().requestFocus() }
             }
     ) {
         SearchField(

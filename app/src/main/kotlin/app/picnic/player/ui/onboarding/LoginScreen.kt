@@ -70,7 +70,7 @@ fun LoginScreen(
     val usernameFocus = remember { FocusRequester() }
     val passwordFocus = remember { FocusRequester() }
     // Default focus on the Quick Connect option (method follows focus).
-    LaunchedEffect(Unit) { runCatching { quickConnectFocus.requestFocus() } }
+    LaunchedEffect(Unit) { quickConnectFocus.requestFocus() }
 
     Column(modifier = Modifier.fillMaxSize().imePadding().padding(48.dp)) {
         Text("Sign in", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
@@ -268,7 +268,7 @@ private fun PasswordPane(
             onValueChange = onUsername,
             placeholder = "Username",
             imeAction = ImeAction.Next,
-            onImeAction = { runCatching { passwordFocus.requestFocus() } },
+            onImeAction = { passwordFocus.requestFocus() },
             modifier = Modifier
                 .fillMaxWidth()
                 .focusRequester(usernameFocus)

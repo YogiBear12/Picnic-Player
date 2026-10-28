@@ -150,7 +150,7 @@ fun EditablePickerRow(
         val targetId = editId ?: anchorId ?: firstFocusId ?: return@LaunchedEffect
         editExitAnchorId = null
         repeat(2) { withFrameNanos { } }
-        runCatching { focuserFor(targetId).requestFocus() }
+        focuserFor(targetId).requestFocus()
     }
 
     fun exitEdit() {

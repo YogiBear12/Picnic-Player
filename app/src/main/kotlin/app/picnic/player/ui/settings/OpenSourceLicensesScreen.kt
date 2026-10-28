@@ -251,7 +251,7 @@ private fun LicenseDetailPage(library: Library) {
     }
 
     LaunchedEffect(library) {
-        runCatching { scrollFr.requestFocus() }
+        scrollFr.requestFocus()
     }
 }
 

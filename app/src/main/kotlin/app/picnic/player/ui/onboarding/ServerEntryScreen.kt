@@ -69,7 +69,7 @@ fun ServerEntryScreen(
     val hasDiscovered = state.discovered.isNotEmpty()
     LaunchedEffect(hasDiscovered, addressEditing) {
         if (addressEditing) return@LaunchedEffect
-        runCatching { (if (hasDiscovered) cardFocus else continueFocus).requestFocus() }
+        (if (hasDiscovered) cardFocus else continueFocus).requestFocus()
     }
 
     BoxWithConstraints(

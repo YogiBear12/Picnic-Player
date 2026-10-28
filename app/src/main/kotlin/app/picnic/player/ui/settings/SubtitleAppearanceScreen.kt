@@ -166,7 +166,7 @@ internal fun SubtitleAppearanceScreen(
     BackHandler(onBack = onBack)
 
     val firstRowFocus = remember { FocusRequester() }
-    LaunchedEffect(Unit) { runCatching { firstRowFocus.requestFocus() } }
+    LaunchedEffect(Unit) { firstRowFocus.requestFocus() }
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val barFraction = scopeBarFraction(maxWidth / maxHeight)

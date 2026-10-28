@@ -38,7 +38,7 @@ suspend fun FocusRequester.requestFocusWhenVisible(
     listState.scrollToItem(index)
     repeat(ListFocusAttempts) {
         if (listState.layoutInfo.visibleItemsInfo.any { it.index == index }) {
-            runCatching { requestFocus() }
+            requestFocus()
             val held = withTimeoutOrNull(ListFocusSettleMs) {
                 snapshotFlow { hasFocus() }.first { it }
             } == true

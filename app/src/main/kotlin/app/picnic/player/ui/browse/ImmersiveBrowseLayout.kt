@@ -83,7 +83,7 @@ internal fun <R, T, K : Any> ImmersiveBrowseLayout(
         val landed = focus.rowCardFocus.getOrNull(rowIndex)
             ?.requestFocusWhenAttached(maxFrames = 30) == true
         if (!landed) {
-            runCatching { focus.rowFocusRequesters.getOrNull(rowIndex)?.requestFocus() }
+            focus.rowFocusRequesters.getOrNull(rowIndex)?.requestFocus()
         }
         onContentFocusSeeded()
     }
@@ -127,7 +127,7 @@ internal fun <R, T, K : Any> ImmersiveBrowseLayout(
             Modifier
                 .fillMaxSize()
                 .focusProperties {
-                    onEnter = { runCatching { currentEntryFocus().requestFocus() } }
+                    onEnter = { currentEntryFocus().requestFocus() }
                 }
         ) {
             Box(Modifier.fillMaxWidth().weight(1f).clipToBounds()) {

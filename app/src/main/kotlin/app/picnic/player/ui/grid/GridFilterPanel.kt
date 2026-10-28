@@ -199,19 +199,14 @@ internal fun GridFilterPanel(
 
         LaunchedEffect(openSection, shown, facets) {
             if (!shown) return@LaunchedEffect
-            val returnTo = lastOpenedSection
             val target = when (val section = openSection) {
-                null -> sectionRowFocus[returnTo ?: sections.firstOrNull()] ?: return@LaunchedEffect
+                null -> sectionRowFocus[lastOpenedSection ?: sections.firstOrNull()] ?: return@LaunchedEffect
                 else -> {
                     lastOpenedSection = section
                     firstValueFocus
                 }
             }
-            if (target.requestFocusWhenAttached(maxFrames = 20)) return@LaunchedEffect
-            if (openSection == null && returnTo != null) {
-                runCatching { topListState.scrollToItem(sections.indexOf(returnTo).coerceAtLeast(0)) }
-                target.requestFocusWhenAttached(maxFrames = 20)
-            }
+            target.requestFocusWhenAttached(maxFrames = 20)
         }
 
         Box(Modifier.fillMaxSize()) {

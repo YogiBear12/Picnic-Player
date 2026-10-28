@@ -15,7 +15,7 @@ class PlayerOsdFocus {
     val osdSkip = FocusRequester()
 
     fun requestVideo() {
-        runCatching { video.requestFocus() }
+        video.requestFocus()
     }
 
     suspend fun seedFor(lastPanel: Panel) {

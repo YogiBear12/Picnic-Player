@@ -264,7 +264,7 @@ private fun MediaGridBody(
         if (panelCloseNonce == 0) return@LaunchedEffect
         repeat(30) {
             if (filterButtonFocused) return@LaunchedEffect
-            runCatching { filterFocus.requestFocus() }
+            filterFocus.requestFocus()
             withFrameNanos { }
         }
     }

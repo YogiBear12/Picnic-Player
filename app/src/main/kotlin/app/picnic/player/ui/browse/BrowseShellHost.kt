@@ -133,7 +133,7 @@ fun BrowseShellHost(
     BackHandler {
         when {
             !navChromeFocused ->
-                runCatching { rail.requesterFor(selectedKey).requestFocus() }
+                rail.requesterFor(selectedKey).requestFocus()
             panelPage == NavPanelPage.More ->
                 rail.openPrimaryPage()
             selectedKey != BrowseDest.Home.key ->

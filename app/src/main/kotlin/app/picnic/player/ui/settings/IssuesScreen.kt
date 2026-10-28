@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -70,6 +71,7 @@ internal fun IssuesScreen(
     var showResolved by rememberSaveable { mutableStateOf(false) }
     var pendingRestoreId by rememberSaveable { mutableStateOf<Int?>(null) }
     var restoreToken by rememberSaveable { mutableIntStateOf(0) }
+    val listState = rememberLazyListState()
 
     fun restoreFocusTo(issueId: Int?) {
         pendingRestoreId = issueId
@@ -119,6 +121,7 @@ internal fun IssuesScreen(
                 cacheImages = cacheImages,
                 restoreId = pendingRestoreId,
                 restoreToken = restoreToken,
+                listState = listState,
                 onTab = { showResolved = it },
                 onSelect = { row ->
                     pendingRestoreId = row.issue.id
@@ -148,12 +151,12 @@ private fun IssueListPage(
     cacheImages: Boolean,
     restoreId: Int?,
     restoreToken: Int,
+    listState: LazyListState,
     onTab: (Boolean) -> Unit,
     onSelect: (SeerrIssueDisplay) -> Unit,
     onToggleResolved: (SeerrIssueDisplay) -> Unit,
     onDelete: (SeerrIssueDisplay) -> Unit
 ) {
-    val listState = rememberLazyListState()
     var menuRow by remember { mutableStateOf<SeerrIssueDisplay?>(null) }
     val restoreRowFr = remember { FocusRequester() }
     val openTabFr = remember { FocusRequester() }
@@ -243,13 +246,10 @@ private fun IssueListPage(
     }
 
     LaunchedEffect(restoreToken) {
-        val restoreIndex = issues.indexOfFirst { it.issue.id == restoreId }
-        if (restoreIndex < 0) {
+        if (issues.none { it.issue.id == restoreId }) {
             activeTabFr.requestFocusWhenAttached(maxFrames = 20)
             return@LaunchedEffect
         }
-        if (restoreRowFr.requestFocusWhenAttached(maxFrames = 20)) return@LaunchedEffect
-        listState.scrollToItem(restoreIndex)
         restoreRowFr.requestFocusWhenAttached(maxFrames = 20)
     }
 }

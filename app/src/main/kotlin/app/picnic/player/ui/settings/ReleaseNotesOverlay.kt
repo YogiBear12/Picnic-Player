@@ -101,7 +101,7 @@ internal fun ReleaseNotesOverlay(
         }
     }
 
-    LaunchedEffect(Unit) { runCatching { scrollFr.requestFocus() } }
+    LaunchedEffect(Unit) { scrollFr.requestFocus() }
 }
 
 @Composable

@@ -202,5 +202,5 @@ internal fun BoxScope.ReorderArrows(offset: Dp) {
 /** A directional entry lands on the active destination; a requested entry already names its row. */
 internal fun FocusEnterExitScope.onEnterFocusActiveDestination(active: FocusRequester?) {
     if (requestedFocusDirection == FocusDirection.Enter) return
-    active?.let { runCatching { it.requestFocus() } }
+    active?.requestFocus()
 }

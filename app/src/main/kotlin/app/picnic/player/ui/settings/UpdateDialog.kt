@@ -48,7 +48,7 @@ internal fun UpdateDialog(
     val primaryFocus = remember { FocusRequester() }
     var showNotes by remember { mutableStateOf(false) }
     LaunchedEffect(phase::class, showNotes) {
-        if (!showNotes) runCatching { primaryFocus.requestFocus() }
+        if (!showNotes) primaryFocus.requestFocus()
     }
 
     PicnicDialog(onDismiss = onDismiss) {

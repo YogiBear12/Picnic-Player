@@ -78,9 +78,9 @@ fun SettingsScreen(
     var detailReturnFocus by remember(selected) { mutableStateOf<FocusRequester?>(null) }
     val enterDetail = {
         val stored = detailReturnFocus
-        val landed = stored != null && runCatching { stored.requestFocus() }.isSuccess
+        val landed = stored?.requestFocus(FocusDirection.Enter) == true
         if (!landed) detailReturnFocus = null
-        landed || runCatching { detailEnterFr.requestFocus() }.isSuccess
+        landed || detailEnterFr.requestFocus(FocusDirection.Enter)
     }
     val panelFocus = remember(detailEnterFr, selected) {
         SettingsPanelFocus(
@@ -126,13 +126,13 @@ fun SettingsScreen(
 
     LaunchedEffect(Unit) {
         if (restoreDetailRow == null) {
-            runCatching { categoryFocusRequesters.getValue(selected).requestFocus() }
+            categoryFocusRequesters.getValue(selected).requestFocus()
         }
     }
 
     BackHandler {
         if (detailHasFocus) {
-            runCatching { categoryFocusRequesters.getValue(selected).requestFocus() }
+            categoryFocusRequesters.getValue(selected).requestFocus()
         } else {
             onBack()
         }
