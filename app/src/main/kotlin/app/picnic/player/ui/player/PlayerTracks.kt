@@ -65,6 +65,7 @@ class PlayerTracks(
 
     private var memoryKey: String? = null
     private var seasonKey: String? = null
+    private var originalLanguage: String? = null
 
     private var serverAudioLanguage: String? = null
     private var serverSubtitleLanguage: String? = null
@@ -83,9 +84,10 @@ class PlayerTracks(
         publishOptions()
     }
 
-    fun onItemMetadata(memoryKey: String?, seasonKey: String?) {
+    fun onItemMetadata(memoryKey: String?, seasonKey: String?, originalLanguage: String?) {
         this.memoryKey = memoryKey
         this.seasonKey = seasonKey
+        this.originalLanguage = originalLanguage
     }
 
     suspend fun initDefaults(prefs: PlaybackSettings) {
@@ -110,7 +112,8 @@ class PlayerTracks(
             ),
             deviceSubtitleLanguage = deviceLanguage,
             alwaysDisplaySubtitles = prefs.alwaysDisplaySubtitles,
-            preferDefaultAudioTrack = prefs.preferDefaultAudioTrack
+            preferOriginalLanguage = prefs.preferDefaultAudioTrack,
+            originalLanguage = originalLanguage
         )
         audioIndex = pick.audioIndex
         subtitleIndex = pick.subtitleIndex

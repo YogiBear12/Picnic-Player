@@ -106,6 +106,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
+import org.jellyfin.sdk.model.api.MediaStreamType
 
 private const val LAST_FRAME_MS = 200L
 
@@ -458,6 +459,7 @@ class PlayerViewModel @Inject constructor(
             val itemDeferred = async {
                 runCatching { mediaRepository.item(id) }.getOrNull()
             }
+            val originalLanguageDeferred = async { itemDeferred.await()?.let { originalLanguage(it) } }
 
             launch {
                 val segments = runCatching { playbackRepository.mediaSegments(id) }.getOrDefault(emptyList())
@@ -485,7 +487,7 @@ class PlayerViewModel @Inject constructor(
                 return@launch
             }
             adopt(result.stream, subtitleDelayMs = 0, speed = 1.0f)
-            itemDeferred.await()?.let { applyItemMetadata(activeSession, id, it) }
+            itemDeferred.await()?.let { applyItemMetadata(activeSession, id, it, originalLanguageDeferred.await()) }
             tracks.initDefaults(settings.value)
             if (tracks.needsStreamForSelection()) {
                 reload(ReloadReason.SUBTITLE_CHANGE)
@@ -667,9 +669,16 @@ class PlayerViewModel @Inject constructor(
         canTranscode = runCatching { mediaRepository.canTranscodeVideo() }.getOrDefault(true)
     }
 
-    private fun applyItemMetadata(activeSession: UserSession, id: UUID, item: BaseItemDto) {
+    private suspend fun originalLanguage(item: BaseItemDto): String? {
+        item.originalLanguage?.takeIf { it.isNotBlank() }?.let { return it }
+        val seriesId = item.seriesId ?: return null
+        if (item.mediaStreams.orEmpty().count { it.type == MediaStreamType.AUDIO } < 2) return null
+        return runCatching { mediaRepository.item(seriesId).originalLanguage }.getOrNull()
+    }
+
+    private fun applyItemMetadata(activeSession: UserSession, id: UUID, item: BaseItemDto, originalLanguage: String?) {
         seriesId = item.seriesId
-        tracks.onItemMetadata(trackMemoryKey(item.type, id, item.seriesId), item.seasonId?.toString())
+        tracks.onItemMetadata(trackMemoryKey(item.type, id, item.seriesId), item.seasonId?.toString(), originalLanguage)
         val sheets = playbackRepository.trickplayFromItem(item)?.let { (sheetWidth, tiles) ->
             Trickplay(tiles) { tileIndex ->
                 JellyfinImages.trickplayTile(activeSession, id, sheetWidth, tileIndex)

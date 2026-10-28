@@ -11,7 +11,7 @@ data class TrackPick(
 
 /**
  * @param alwaysDisplaySubtitles true = Always, false = Smart
- * @param preferDefaultAudioTrack ignores [preferredAudioLanguage]; subtitles still follow the
+ * @param preferOriginalLanguage ignores [preferredAudioLanguage]; subtitles still follow the
  *   language of whichever audio track that lands on
  */
 fun pickTracks(
@@ -20,9 +20,16 @@ fun pickTracks(
     preferredSubtitleLanguage: String?,
     deviceSubtitleLanguage: String,
     alwaysDisplaySubtitles: Boolean,
-    preferDefaultAudioTrack: Boolean = false
+    preferOriginalLanguage: Boolean = false,
+    originalLanguage: String? = null
 ): TrackPick {
-    val audioIndex = pickAudioIndex(streams, preferredAudioLanguage, preferDefaultAudioTrack)
+    val audioIndex = pickAudioIndex(
+        streams = streams,
+        preferredAudioLanguage = preferredAudioLanguage,
+        preferOriginalLanguage = preferOriginalLanguage,
+        originalLanguage = originalLanguage,
+        deviceLanguage = deviceSubtitleLanguage
+    )
     val audioLanguage = streams.firstOrNull { it.index == audioIndex }?.language
     val subtitleIndex = pickSubtitleIndex(
         streams = streams,
@@ -37,19 +44,29 @@ fun pickTracks(
 fun pickAudioIndex(
     streams: List<MediaStream>,
     preferredAudioLanguage: String?,
-    preferDefaultAudioTrack: Boolean = false
+    preferOriginalLanguage: Boolean = false,
+    originalLanguage: String? = null,
+    deviceLanguage: String? = null
 ): Int? {
     val audios = streams.filter { it.type == MediaStreamType.AUDIO }
     if (audios.isEmpty()) return null
     val pool = audios.filter { !it.isCommentaryStyle() || it.isDefault }
     val candidates = pool.ifEmpty { audios }
 
-    if (!preferDefaultAudioTrack && !preferredAudioLanguage.isNullOrBlank()) {
-        val matches = candidates.filter { languageMatches(it.language, preferredAudioLanguage) }
-        preferDefaultElseFirst(matches)?.let { return it.index }
+    if (preferOriginalLanguage) {
+        return (
+            candidates.inLanguage(originalLanguage)
+                ?: candidates.firstOrNull { it.isDefault }
+                ?: candidates.inLanguage(deviceLanguage)
+                ?: candidates.first()
+            ).index
     }
+    candidates.inLanguage(preferredAudioLanguage)?.let { return it.index }
     return preferDefaultElseFirst(candidates)?.index
 }
+
+private fun List<MediaStream>.inLanguage(language: String?): MediaStream? = language?.takeIf { it.isNotBlank() }
+    ?.let { wanted -> preferDefaultElseFirst(filter { languageMatches(it.language, wanted) }) }
 
 fun pickSubtitleIndex(
     streams: List<MediaStream>,

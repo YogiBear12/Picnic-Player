@@ -65,7 +65,7 @@ class TrackMemoryTest {
     }
 
     @Test
-    fun seriesRemember_beatsPreferDefaultAudioTrack() {
+    fun seriesRemember_beatsOriginalLanguage() {
         val memory = EffectiveTrackMemory(
             audio = RememberedTrack(language = "eng", title = remasteredTitle)
         )
@@ -76,7 +76,8 @@ class TrackMemoryTest {
             preferredSubtitleLanguage = "en",
             deviceSubtitleLanguage = "en",
             alwaysDisplaySubtitles = false,
-            preferDefaultAudioTrack = true
+            preferOriginalLanguage = true,
+            originalLanguage = "ja"
         )
         assertEquals(3, pick.audioIndex)
     }

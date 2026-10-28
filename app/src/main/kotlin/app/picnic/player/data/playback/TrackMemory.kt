@@ -76,7 +76,8 @@ fun pickTracksWithMemory(
     preferredSubtitleLanguage: String?,
     deviceSubtitleLanguage: String,
     alwaysDisplaySubtitles: Boolean,
-    preferDefaultAudioTrack: Boolean = false
+    preferOriginalLanguage: Boolean = false,
+    originalLanguage: String? = null
 ): TrackPick {
     val global = pickTracks(
         streams = streams,
@@ -84,7 +85,8 @@ fun pickTracksWithMemory(
         preferredSubtitleLanguage = preferredSubtitleLanguage,
         deviceSubtitleLanguage = deviceSubtitleLanguage,
         alwaysDisplaySubtitles = alwaysDisplaySubtitles,
-        preferDefaultAudioTrack = preferDefaultAudioTrack
+        preferOriginalLanguage = preferOriginalLanguage,
+        originalLanguage = originalLanguage
     )
     if (memory == null) return global
 

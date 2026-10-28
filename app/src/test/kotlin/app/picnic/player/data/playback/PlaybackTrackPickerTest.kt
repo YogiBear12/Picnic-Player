@@ -394,7 +394,7 @@ class PlaybackTrackPickerTest {
         assertEquals(2, pickAudioIndex(streams, preferredAudioLanguage = "en"))
         assertEquals(
             1,
-            pickAudioIndex(streams, preferredAudioLanguage = "en", preferDefaultAudioTrack = true)
+            pickAudioIndex(streams, preferredAudioLanguage = "en", preferOriginalLanguage = true)
         )
     }
 
@@ -406,7 +406,7 @@ class PlaybackTrackPickerTest {
         )
         assertEquals(
             1,
-            pickAudioIndex(streams, preferredAudioLanguage = "en", preferDefaultAudioTrack = true)
+            pickAudioIndex(streams, preferredAudioLanguage = "en", preferOriginalLanguage = true)
         )
     }
 
@@ -424,10 +424,65 @@ class PlaybackTrackPickerTest {
             preferredSubtitleLanguage = "en",
             deviceSubtitleLanguage = "en",
             alwaysDisplaySubtitles = false,
-            preferDefaultAudioTrack = true
+            preferOriginalLanguage = true
         )
         assertEquals(1, pick.audioIndex)
         assertEquals(3, pick.subtitleIndex)
+    }
+
+    @Test
+    fun original_beatsAnEarlierDefaultFlaggedDub() {
+        val streams = listOf(
+            audio(index = 1, language = "eng", isDefault = true, title = "English Dub"),
+            audio(index = 2, language = "jpn", isDefault = true)
+        )
+        assertEquals(2, pickAudioIndex(streams, null, preferOriginalLanguage = true, originalLanguage = "ja"))
+    }
+
+    @Test
+    fun original_noOriginalLanguage_picksDefaultFlagged() {
+        val streams = listOf(
+            audio(index = 1, language = "eng", isDefault = false),
+            audio(index = 2, language = "jpn", isDefault = true)
+        )
+        assertEquals(2, pickAudioIndex(streams, null, preferOriginalLanguage = true, deviceLanguage = "en"))
+    }
+
+    @Test
+    fun original_noOriginalLanguageNoDefault_picksDeviceLanguage() {
+        val streams = listOf(
+            audio(index = 1, language = "jpn", isDefault = false),
+            audio(index = 2, language = "eng", isDefault = false)
+        )
+        assertEquals(2, pickAudioIndex(streams, null, preferOriginalLanguage = true, deviceLanguage = "en"))
+    }
+
+    @Test
+    fun original_noTrackInOriginalLanguage_picksDefaultFlagged() {
+        val streams = listOf(
+            audio(index = 1, language = "eng", isDefault = false),
+            audio(index = 2, language = "fre", isDefault = true)
+        )
+        assertEquals(2, pickAudioIndex(streams, null, preferOriginalLanguage = true, originalLanguage = "ko", deviceLanguage = "en"))
+    }
+
+    @Test
+    fun original_skipsCommentaryInTheOriginalLanguage() {
+        val streams = listOf(
+            audio(index = 1, language = "eng", isDefault = true),
+            audio(index = 2, language = "jpn", isDefault = false, title = "Commentary"),
+            audio(index = 3, language = "jpn", isDefault = false)
+        )
+        assertEquals(3, pickAudioIndex(streams, null, preferOriginalLanguage = true, originalLanguage = "ja"))
+    }
+
+    @Test
+    fun explicitLanguage_ignoresOriginalLanguage() {
+        val streams = listOf(
+            audio(index = 1, language = "jpn", isDefault = true),
+            audio(index = 2, language = "eng", isDefault = false)
+        )
+        assertEquals(2, pickAudioIndex(streams, "en", preferOriginalLanguage = false, originalLanguage = "ja"))
     }
 
     @Test
