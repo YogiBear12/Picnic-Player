@@ -39,7 +39,6 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -78,7 +77,6 @@ import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.common.rowPrimaryColor
 import app.picnic.player.ui.common.verticalFadingEdges
 import app.picnic.player.ui.theme.PicnicColors
-import kotlinx.coroutines.yield
 
 private val DockIconSize = 22.dp
 private val DockAvatarSize = 28.dp
@@ -87,8 +85,7 @@ private val PanelIconSize = 18.dp
 private val PanelAvatarSize = 18.dp
 private val NavRowMetrics = PanelRowMetrics(innerPadding = 10.dp, verticalPadding = 7.dp)
 private const val PanelAnimMs = 220
-private const val ReorderFocusFrames = 2
-private const val NeighborRefocusMaxFrames = 20
+private const val PanelFocusMaxFrames = 20
 
 @Immutable
 internal data class NavChromeState(
@@ -152,16 +149,7 @@ internal fun BrowseFloatingNav(
     LaunchedEffect(chrome.focusRequest) {
         val request = chrome.focusRequest ?: return@LaunchedEffect
         if (request.seq <= mountSeq) return@LaunchedEffect
-        when (request.cause) {
-            ChromeFocusCause.Neighbor -> Unit
-            ChromeFocusCause.PageSwap -> yield()
-            ChromeFocusCause.Reorder -> repeat(ReorderFocusFrames) { withFrameNanos { } }
-        }
-        val requester = resolve(request.target)
-        when (request.cause) {
-            ChromeFocusCause.Neighbor -> requester.requestFocusWhenAttached(maxFrames = NeighborRefocusMaxFrames)
-            ChromeFocusCause.PageSwap, ChromeFocusCause.Reorder -> runCatching { requester.requestFocus() }
-        }
+        resolve(request.target).requestFocusWhenAttached(maxFrames = PanelFocusMaxFrames)
     }
 
     if (chrome.reorderKey != null) {

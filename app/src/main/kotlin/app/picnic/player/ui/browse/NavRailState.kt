@@ -38,9 +38,7 @@ sealed interface ChromeFocusTarget {
     data class Row(val key: String) : ChromeFocusTarget
 }
 
-enum class ChromeFocusCause { PageSwap, Reorder, Neighbor }
-
-data class ChromeFocusRequest(val seq: Int, val target: ChromeFocusTarget, val cause: ChromeFocusCause)
+data class ChromeFocusRequest(val seq: Int, val target: ChromeFocusTarget)
 
 internal fun panelNeighbor(destinations: List<BrowseDest>, key: String): String? {
     val index = destinations.indexOfFirst { it.key == key }
@@ -123,8 +121,8 @@ class NavRailState @Inject constructor(
 
     fun neighborOf(key: String): String? = panelNeighbor(_panelDestinations.value, key)
 
-    private fun publishFocus(target: ChromeFocusTarget, cause: ChromeFocusCause) {
-        _focusRequest.value = ChromeFocusRequest(++focusSeq, target, cause)
+    private fun publishFocus(target: ChromeFocusTarget) {
+        _focusRequest.value = ChromeFocusRequest(++focusSeq, target)
     }
 
     private val requesters = mutableMapOf<String, FocusRequester>()
@@ -183,9 +181,9 @@ class NavRailState @Inject constructor(
         val page = _panelPage.value
         applyLayout(next)
         if (focusAfter != null && page == _panelPage.value) {
-            publishFocus(focusAfter, ChromeFocusCause.Neighbor)
+            publishFocus(focusAfter)
         }
-        _reorderKey.value?.let { publishFocus(ChromeFocusTarget.Row(it), ChromeFocusCause.Reorder) }
+        _reorderKey.value?.let { publishFocus(ChromeFocusTarget.Row(it)) }
         navLayoutStore.save(session.server.id, session.userId, next)
     }
 
@@ -210,12 +208,13 @@ class NavRailState @Inject constructor(
 
     fun enterReorder(key: String) {
         _reorderKey.value = key
-        publishFocus(ChromeFocusTarget.Row(key), ChromeFocusCause.Reorder)
+        publishFocus(ChromeFocusTarget.Row(key))
     }
 
     fun exitReorder() {
+        val key = _reorderKey.value ?: return
         _reorderKey.value = null
-        if (_focusRequest.value?.cause == ChromeFocusCause.Reorder) _focusRequest.value = null
+        if (_focusRequest.value?.target == ChromeFocusTarget.Row(key)) _focusRequest.value = null
     }
 
     fun select(dest: BrowseDest) {
@@ -286,7 +285,7 @@ class NavRailState @Inject constructor(
         }
         if (page != lastPublishedPage) {
             lastPublishedPage = page
-            publishFocus(pageFocusTarget(page, _moreVisible.value, _selectedKey.value), ChromeFocusCause.PageSwap)
+            publishFocus(pageFocusTarget(page, _moreVisible.value, _selectedKey.value))
         }
     }
 
