@@ -1,6 +1,7 @@
 package app.picnic.player.data.auth
 
 import app.picnic.player.data.jellyfin.JellyfinFactory
+import app.picnic.player.data.jellyfin.MINIMUM_SERVER_VERSION
 import app.picnic.player.data.jellyfin.isAuthFailure
 import app.picnic.player.data.jellyfin.serverErrorMessage
 import app.picnic.player.data.seerr.SeerrRepository
@@ -16,6 +17,7 @@ import kotlinx.coroutines.withContext
 import org.jellyfin.sdk.api.client.extensions.authenticationApi
 import org.jellyfin.sdk.api.client.extensions.sessionApi
 import org.jellyfin.sdk.api.client.extensions.userApi
+import org.jellyfin.sdk.discovery.RecommendedServerInfo
 import org.jellyfin.sdk.discovery.RecommendedServerInfoScore
 import org.jellyfin.sdk.discovery.RecommendedServerIssue
 import org.jellyfin.sdk.model.api.AuthenticateUserByName
@@ -148,10 +150,11 @@ class AuthRepository @Inject constructor(
     suspend fun resolveServer(input: String): ServerConnection = onIo {
         val candidates = jellyfin.discovery.getRecommendedServers(input)
         val best = candidates
-            .filter { it.score != RecommendedServerInfoScore.BAD }
+            .filter { it.score != RecommendedServerInfoScore.BAD && it.unsupportedVersion() == null }
             .minByOrNull { it.score.ordinal }
         val info = best?.systemInfo?.getOrNull()
         if (best == null || info == null) {
+            unsupportedServerMessage(candidates)?.let { throw IllegalStateException(it) }
             val tried = candidates
                 .joinToString("; ") { "${it.address} (${issueText(it.issues.firstOrNull())})" }
                 .ifEmpty { "no candidate addresses for \"$input\"" }
@@ -324,4 +327,11 @@ class AuthRepository @Inject constructor(
             storedTokens = cache.storedTokens - tokenKey(serverId, userId)
         )
     }
+}
+
+private fun RecommendedServerInfo.unsupportedVersion() = issues.filterIsInstance<RecommendedServerIssue.UnsupportedServerVersion>().firstOrNull()
+
+internal fun unsupportedServerMessage(candidates: Collection<RecommendedServerInfo>): String? {
+    val version = candidates.firstNotNullOfOrNull { it.unsupportedVersion() }?.version ?: return null
+    return "This server runs Jellyfin ${version.toString(3)}. Picnic Player needs ${MINIMUM_SERVER_VERSION.toString(2)} or newer."
 }

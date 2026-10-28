@@ -17,7 +17,10 @@ import org.jellyfin.sdk.createJellyfin
 import org.jellyfin.sdk.discovery.DiscoveryService
 import org.jellyfin.sdk.model.ClientInfo
 import org.jellyfin.sdk.model.DeviceInfo
+import org.jellyfin.sdk.model.ServerVersion
 import org.jellyfin.sdk.model.api.ServerDiscoveryInfo
+
+internal val MINIMUM_SERVER_VERSION = ServerVersion(12, 0, 0, 0)
 
 /**
  * Owns the single [org.jellyfin.sdk.Jellyfin] instance and mints [ApiClient]s.
@@ -38,6 +41,7 @@ class JellyfinFactory @Inject constructor(
             clientInfo = ClientInfo(name = "Picnic Player", version = BuildConfig.VERSION_NAME)
             deviceInfo = DeviceInfo(id = deviceIdentity.deviceId, name = deviceIdentity.deviceName)
             context = appContext
+            minimumServerVersion = MINIMUM_SERVER_VERSION
             // The SDK's default factory builds a KtorClient, but the Android SDK ships
             // the OkHttp engine (jellyfin-api-okhttp) — Ktor isn't on the classpath, so
             // the default throws NoClassDefFoundError on every request. Wire OkHttp explicitly,
@@ -47,10 +51,8 @@ class JellyfinFactory @Inject constructor(
         }
     }
 
-    /** An API client for [baseUrl] (null for not-yet-resolved) with optional token. */
     fun api(baseUrl: String? = null, accessToken: String? = null): ApiClient = jellyfin.createApi(baseUrl = baseUrl, accessToken = accessToken)
 
-    /** Server discovery (LAN broadcast + address-candidate resolution). */
     val discovery: DiscoveryService get() = jellyfin.discovery
 
     /**
