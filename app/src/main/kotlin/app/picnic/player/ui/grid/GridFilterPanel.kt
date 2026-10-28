@@ -29,6 +29,7 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.Business
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Check
@@ -40,6 +41,7 @@ import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarHalf
+import androidx.compose.material.icons.filled.Subtitles
 import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
@@ -74,6 +76,7 @@ import app.picnic.player.data.media.GridContentType
 import app.picnic.player.data.media.GridFilterFacets
 import app.picnic.player.data.media.GridSortField
 import app.picnic.player.data.media.GridSortSpec
+import app.picnic.player.data.media.LanguageFacet
 import app.picnic.player.data.media.MediaGridFilter
 import app.picnic.player.data.media.ResolutionFilter
 import app.picnic.player.data.media.WatchedFilter
@@ -114,6 +117,8 @@ internal enum class GridFilterSection(val label: String, val icon: ImageVector) 
     COMMUNITY_RATING("Community rating", Icons.Filled.StarHalf),
     PARENTAL("Parental rating", Icons.Filled.Shield),
     RESOLUTION("Resolution", Icons.Filled.Hd),
+    AUDIO_LANGUAGE("Audio language", Icons.Filled.Audiotrack),
+    SUBTITLE_LANGUAGE("Subtitle language", Icons.Filled.Subtitles),
     DECADE("Decade", Icons.Filled.DateRange)
 }
 
@@ -126,6 +131,8 @@ internal fun availableFilterSections(
         GridFilterSection.GENRES -> GridFilterSection.GENRES in offered && facets.genres.isNotEmpty()
         GridFilterSection.STUDIOS -> facets.studios.isNotEmpty()
         GridFilterSection.PARENTAL -> facets.parentalRatings.isNotEmpty()
+        GridFilterSection.AUDIO_LANGUAGE -> facets.audioLanguages.isNotEmpty()
+        GridFilterSection.SUBTITLE_LANGUAGE -> facets.subtitleLanguages.isNotEmpty()
         GridFilterSection.DECADE -> facets.decades.isNotEmpty()
         else -> true
     }
@@ -145,6 +152,8 @@ internal fun activeFilterSections(
     if (filter.minCommunityRating != null) add(GridFilterSection.COMMUNITY_RATING)
     if (filter.parentalRatings.isNotEmpty()) add(GridFilterSection.PARENTAL)
     if (filter.resolution != ResolutionFilter.ANY) add(GridFilterSection.RESOLUTION)
+    if (filter.audioLanguages.isNotEmpty()) add(GridFilterSection.AUDIO_LANGUAGE)
+    if (filter.subtitleLanguages.isNotEmpty()) add(GridFilterSection.SUBTITLE_LANGUAGE)
     if (filter.decades.isNotEmpty()) add(GridFilterSection.DECADE)
 }
 
@@ -410,6 +419,12 @@ private fun buildSectionOptions(
             onClick = { onFilterChange(filter.copy(resolution = option)) }
         )
     }
+    GridFilterSection.AUDIO_LANGUAGE -> languageOptions(facets.audioLanguages, filter.audioLanguages) {
+        onFilterChange(filter.copy(audioLanguages = it))
+    }
+    GridFilterSection.SUBTITLE_LANGUAGE -> languageOptions(facets.subtitleLanguages, filter.subtitleLanguages) {
+        onFilterChange(filter.copy(subtitleLanguages = it))
+    }
     GridFilterSection.DECADE -> facets.decades.map { decade ->
         PanelOption(
             label = "${decade}s",
@@ -423,6 +438,19 @@ private val CommunityRatingSteps = listOf(10, 9, 8, 7, 6, 5, 4, 3, 2, 1)
 private val RatingStarGold = Color(0xFFE0C05C)
 
 private fun <T> Set<T>.toggle(value: T): Set<T> = if (value in this) this - value else this + value
+
+private fun languageOptions(
+    facets: List<LanguageFacet>,
+    selected: Set<String>,
+    onChange: (Set<String>) -> Unit
+): List<PanelOption> = facets.map { language ->
+    val picked = selected.any { it in language.codes }
+    PanelOption(
+        label = language.label,
+        selected = picked,
+        onClick = { onChange(if (picked) selected - language.codes else selected + language.codes) }
+    )
+}
 
 private sealed interface FilterPanelContent {
     data object LoadingFacets : FilterPanelContent

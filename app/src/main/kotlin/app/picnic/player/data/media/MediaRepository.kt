@@ -5,6 +5,7 @@ import app.picnic.player.BuildConfig
 import app.picnic.player.data.auth.UserSession
 import app.picnic.player.data.jellyfin.withApiKey
 import java.time.LocalDateTime
+import java.util.Locale
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -587,6 +588,8 @@ class MediaRepository @Inject constructor(
             minCommunityRating = filter.minCommunityRating?.toDouble(),
             minCriticRating = filter.minCriticRating?.toDouble(),
             officialRatings = filter.parentalRatings.toList().takeIf { it.isNotEmpty() },
+            audioLanguages = filter.audioLanguages.toList().takeIf { it.isNotEmpty() },
+            subtitleLanguages = filter.subtitleLanguages.toList().takeIf { it.isNotEmpty() },
             years = filter.decades.flatMap { decade -> decade..decade + 9 }
                 .takeIf { it.isNotEmpty() },
             minWidth = if (filter.resolution == ResolutionFilter.UHD_4K) UHD_MIN_WIDTH else null,
@@ -689,11 +692,24 @@ class MediaRepository @Inject constructor(
                     ).content
                 }.getOrNull()
             }
+            val streamFilters = async {
+                runCatching {
+                    api().filterApi.getQueryFilters(
+                        userId = userId,
+                        parentId = libraryId,
+                        includeItemTypes = kinds
+                    ).content
+                }.getOrNull()
+            }
             val legacy = legacyFilters.await()
+            val streams = streamFilters.await()
+            val deviceLanguage = Locale.getDefault().language
             GridFilterFacets(
                 genres = genres.await(),
                 studios = studios.await(),
                 parentalRatings = legacy?.officialRatings.orEmpty(),
+                audioLanguages = languageFacets(streams?.audioLanguages.orEmpty().mapNotNull { it.value }, deviceLanguage),
+                subtitleLanguages = languageFacets(streams?.subtitleLanguages.orEmpty().mapNotNull { it.value }, deviceLanguage),
                 decades = legacy?.years.orEmpty()
                     .map { it / 10 * 10 }
                     .distinct()

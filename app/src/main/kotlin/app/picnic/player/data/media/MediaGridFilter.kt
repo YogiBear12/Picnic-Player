@@ -1,5 +1,10 @@
 package app.picnic.player.data.media
 
+import app.picnic.player.data.playback.CulturePickerOption
+import app.picnic.player.data.playback.pinnedLanguageOptions
+import app.picnic.player.util.LanguageDisplay
+import app.picnic.player.util.iso3ToIso2
+import java.util.Locale
 import java.util.UUID
 import kotlinx.serialization.Serializable
 import org.jellyfin.sdk.model.api.BaseItemDto
@@ -18,6 +23,8 @@ data class MediaGridFilter(
     val minCriticRating: Int? = null,
     val parentalRatings: Set<String> = emptySet(),
     val resolution: ResolutionFilter = ResolutionFilter.ANY,
+    val audioLanguages: Set<String> = emptySet(),
+    val subtitleLanguages: Set<String> = emptySet(),
     val decades: Set<Int> = emptySet()
 ) {
     val tracksUserStatus: Boolean
@@ -33,6 +40,8 @@ data class MediaGridFilter(
             minCriticRating != null ||
             parentalRatings.isNotEmpty() ||
             resolution != ResolutionFilter.ANY ||
+            audioLanguages.isNotEmpty() ||
+            subtitleLanguages.isNotEmpty() ||
             decades.isNotEmpty()
 
     fun clearUserFilters(): MediaGridFilter = MediaGridFilter(
@@ -87,5 +96,24 @@ data class GridFilterFacets(
     val genres: List<BaseItemDto> = emptyList(),
     val studios: List<BaseItemDto> = emptyList(),
     val parentalRatings: List<String> = emptyList(),
+    val audioLanguages: List<LanguageFacet> = emptyList(),
+    val subtitleLanguages: List<LanguageFacet> = emptyList(),
     val decades: List<Int> = emptyList()
 )
+
+data class LanguageFacet(val label: String, val codes: Set<String>)
+
+private val UNSPOKEN_LANGUAGE_LABELS = mapOf("und" to "Unknown", "zxx" to "No dialogue")
+
+fun languageFacets(codes: List<String>, deviceLanguage: String): List<LanguageFacet> {
+    val (unspoken, spoken) = codes.distinct().partition { it.lowercase(Locale.ROOT) in UNSPOKEN_LANGUAGE_LABELS }
+    val byLanguage = spoken.groupBy { iso3ToIso2(it) ?: it.lowercase(Locale.ROOT) }
+    val pinned = pinnedLanguageOptions(
+        byLanguage
+            .map { (language, group) -> CulturePickerOption(languageCode = language, displayName = LanguageDisplay.name(group.first())) }
+            .sortedBy { it.displayName.lowercase(Locale.ROOT) },
+        deviceLanguage
+    )
+    return pinned.options.map { LanguageFacet(it.displayName, byLanguage.getValue(it.languageCode).toSet()) } +
+        unspoken.map { LanguageFacet(UNSPOKEN_LANGUAGE_LABELS.getValue(it.lowercase(Locale.ROOT)), setOf(it)) }
+}
