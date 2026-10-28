@@ -59,7 +59,7 @@ import org.jellyfin.sdk.model.api.BaseItemKind
 internal fun libraryPaneVmKey(destKey: String) = "libpane:$destKey"
 internal fun forYouVmKey(destKey: String) = "libforyou:$destKey"
 
-internal const val CollectionsGridVmKey = "grid:collections"
+internal fun collectionsGridVmKey(destKey: String) = "grid:collections:$destKey"
 
 @Composable
 internal fun LibraryPane(
@@ -76,7 +76,7 @@ internal fun LibraryPane(
     val paneViewModel: LibraryPaneViewModel = hiltViewModel(key = libraryPaneVmKey(dest.key))
     val forYouViewModel: ForYouViewModel = hiltViewModel(key = forYouVmKey(dest.key))
     val gridViewModel: LibraryGridViewModel = hiltViewModel(key = dest.key)
-    val collectionsViewModel: LibraryGridViewModel = hiltViewModel(key = CollectionsGridVmKey)
+    val collectionsViewModel: LibraryGridViewModel = hiltViewModel(key = collectionsGridVmKey(dest.key))
 
     LaunchedEffect(dest) { paneViewModel.bind(dest.id, dest.kinds) }
 
@@ -102,6 +102,13 @@ internal fun LibraryPane(
 
     val selectedTab = paneState.selectedTab
     val tabFocus = remember { FocusRequester() }
+    var lastTabFocusNonce by remember { mutableIntStateOf(paneState.tabFocusNonce) }
+    LaunchedEffect(paneState.tabFocusNonce) {
+        if (paneState.tabFocusNonce != lastTabFocusNonce) {
+            lastTabFocusNonce = paneState.tabFocusNonce
+            tabFocus.requestFocusWhenAttached()
+        }
+    }
     DeclarePaneEntry { tabFocus }
     var tabRowFocused by remember { mutableStateOf(false) }
     val libraryEmptyFocus = remember { FocusRequester() }
@@ -188,7 +195,7 @@ internal fun LibraryPane(
                             onGenre = onGenre
                         )
                         LibraryTab.COLLECTIONS -> {
-                            LaunchedEffect(Unit) { collectionsViewModel.bindCollections() }
+                            LaunchedEffect(Unit) { collectionsViewModel.bindCollections(dest.id) }
                             MediaGridPane(
                                 state = collectionsState,
                                 viewModel = collectionsViewModel,

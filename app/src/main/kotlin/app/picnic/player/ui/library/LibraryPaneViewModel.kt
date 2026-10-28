@@ -3,7 +3,9 @@ package app.picnic.player.ui.library
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.picnic.player.data.auth.AuthRepository
+import app.picnic.player.data.media.LibraryChangeBus
 import app.picnic.player.data.media.MediaRepository
+import app.picnic.player.data.media.batches
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.util.UUID
 import javax.inject.Inject
@@ -17,11 +19,13 @@ import org.jellyfin.sdk.model.api.BaseItemKind
 @HiltViewModel
 class LibraryPaneViewModel @Inject constructor(
     private val authRepository: AuthRepository,
-    private val mediaRepository: MediaRepository
+    private val mediaRepository: MediaRepository,
+    private val changeBus: LibraryChangeBus
 ) : ViewModel() {
     data class UiState(
         val selectedTab: LibraryTab = LibraryTab.LIBRARY,
         val collectionsAvailable: Boolean = false,
+        val tabFocusNonce: Int = 0,
         val genres: List<BaseItemDto> = emptyList(),
         val genresLoading: Boolean = false,
         val genresError: Boolean = false,
@@ -34,6 +38,12 @@ class LibraryPaneViewModel @Inject constructor(
                 } else {
                     LibraryTab.entries.filterNot { it == LibraryTab.COLLECTIONS }
                 }
+
+        fun withCollectionsAvailable(available: Boolean): UiState = if (!available && selectedTab == LibraryTab.COLLECTIONS) {
+            copy(collectionsAvailable = false, selectedTab = LibraryTab.LIBRARY, tabFocusNonce = tabFocusNonce + 1)
+        } else {
+            copy(collectionsAvailable = available)
+        }
     }
 
     private val _state = MutableStateFlow(UiState())
@@ -45,12 +55,21 @@ class LibraryPaneViewModel @Inject constructor(
     private var collectionsProbed = false
     private var genresRequested = false
 
+    init {
+        viewModelScope.launch {
+            changeBus.batches().collect { batch ->
+                if (batch.contentChanged) countCollections()
+            }
+        }
+    }
+
     fun bind(libraryId: UUID, kinds: List<BaseItemKind>) {
+        if (!bound) {
+            bound = true
+            this.libraryId = libraryId
+            this.kinds = kinds
+        }
         probeCollections()
-        if (bound) return
-        bound = true
-        this.libraryId = libraryId
-        this.kinds = kinds
     }
 
     fun selectTab(tab: LibraryTab) {
@@ -61,17 +80,20 @@ class LibraryPaneViewModel @Inject constructor(
     }
 
     private fun probeCollections() {
-        if (collectionsProbed) return
+        if (collectionsProbed || libraryId == null) return
         collectionsProbed = true
         viewModelScope.launch {
-            val session = authRepository.activeSession()
-            val count = session?.let { runCatching { mediaRepository.collectionCount() }.getOrNull() }
-            if (count == null) {
-                collectionsProbed = false
-                return@launch
-            }
-            _state.update { it.copy(collectionsAvailable = count > 0) }
+            if (!countCollections()) collectionsProbed = false
         }
+    }
+
+    private suspend fun countCollections(): Boolean {
+        val libraryId = libraryId ?: return false
+        val session = authRepository.activeSession()
+        val count = session?.let { runCatching { mediaRepository.collectionCount(libraryId) }.getOrNull() }
+            ?: return false
+        _state.update { it.withCollectionsAvailable(count > 0) }
+        return true
     }
 
     fun retryGenres() = ensureGenresLoaded()

@@ -583,11 +583,7 @@ class MediaRepository @Inject constructor(
         filter: MediaGridFilter,
         letter: Char
     ): Int {
-        if (filter.libraryId == null &&
-            filter.genreId == null &&
-            filter.folderId == null &&
-            kinds != listOf(BaseItemKind.BOX_SET)
-        ) {
+        if (filter.libraryId == null && filter.genreId == null && filter.folderId == null) {
             return 0
         }
         return filteredItems(
@@ -721,9 +717,10 @@ class MediaRepository @Inject constructor(
         ).content.items.orEmpty()
     }
 
-    suspend fun collectionCount(): Int = onIo {
+    suspend fun collectionCount(libraryId: UUID): Int = onIo {
         api().libraryApi.getItems(
             userId = session().userUuid,
+            parentId = libraryId,
             includeItemTypes = listOf(BaseItemKind.BOX_SET),
             recursive = true,
             limit = 0,

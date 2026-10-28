@@ -6,6 +6,6 @@ enum class LibraryTab(val label: String) {
     FOR_YOU("For you"),
     GENRES("Genres"),
 
-    /** Only offered when the server has at least one collection (box set). */
+    /** Only offered when at least one collection (box set) holds an item from this library. */
     COLLECTIONS("Collections")
 }

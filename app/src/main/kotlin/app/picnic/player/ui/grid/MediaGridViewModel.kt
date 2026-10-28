@@ -95,11 +95,12 @@ class LibraryGridViewModel @Inject constructor(
         load()
     }
 
-    fun bindCollections() {
+    fun bindCollections(libraryId: UUID) {
         if (bound) return
         bound = true
         kinds = listOf(BaseItemKind.BOX_SET)
         this.title = "collections"
+        _state.update { it.copy(filter = it.filter.copy(libraryId = libraryId)) }
         load()
     }
 
