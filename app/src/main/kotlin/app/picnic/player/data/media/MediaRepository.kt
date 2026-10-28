@@ -226,54 +226,14 @@ class MediaRepository @Inject constructor(
 
     suspend fun collectionsContaining(itemId: UUID): List<BaseItemDto> = onIo {
         try {
-            val boxSets = api().libraryApi.getItems(
+            api().libraryApi.getItemCollections(
+                itemId = itemId,
                 userId = session().userUuid,
-                includeItemTypes = listOf(BaseItemKind.BOX_SET),
-                recursive = true,
-                fields = BROWSE_FIELDS,
-                enableImageTypes = IMAGE_TYPES,
-                enableUserData = false,
-                enableTotalRecordCount = false,
-                limit = BOX_SET_LIMIT
+                fields = BROWSE_FIELDS
             ).content.items.orEmpty()
-
-            coroutineScope {
-                val gate = Semaphore(BOX_SET_FETCH_CONCURRENCY)
-                boxSets.map { boxSet ->
-                    async {
-                        val ids = runCatching {
-                            gate.withPermit { boxSetChildIds(boxSet.id) }
-                        }.getOrDefault(emptySet())
-                        boxSet.takeIf { itemId in ids }
-                    }
-                }.awaitAll().filterNotNull()
-            }
         } catch (_: Exception) {
             emptyList()
         }
-    }
-
-    private data class CachedChildIds(val ids: Set<UUID>, val atMillis: Long)
-
-    private val boxSetChildIdsCache =
-        java.util.concurrent.ConcurrentHashMap<UUID, CachedChildIds>()
-
-    private suspend fun boxSetChildIds(boxSetId: UUID): Set<UUID> {
-        val now = System.currentTimeMillis()
-        boxSetChildIdsCache[boxSetId]
-            ?.takeIf { now - it.atMillis < BOX_SET_CACHE_TTL_MS }
-            ?.let { return it.ids }
-        val ids = api().libraryApi.getItems(
-            userId = session().userUuid,
-            parentId = boxSetId,
-            recursive = false,
-            enableImages = false,
-            enableUserData = false,
-            enableTotalRecordCount = false,
-            limit = BOX_SET_LIMIT
-        ).content.items.orEmpty().map { it.id }.toSet()
-        boxSetChildIdsCache[boxSetId] = CachedChildIds(ids, now)
-        return ids
     }
 
     fun collectionChildren(collectionId: UUID): Flow<List<BaseItemDto>> = pagedItems { startIndex ->
@@ -910,10 +870,6 @@ class MediaRepository @Inject constructor(
         const val UHD_MIN_WIDTH = 3200
 
         const val NEXT_EPISODE_LOOKAHEAD = 2
-
-        const val BOX_SET_LIMIT = 500
-        const val BOX_SET_FETCH_CONCURRENCY = 4
-        const val BOX_SET_CACHE_TTL_MS = 5 * 60 * 1000L
 
         const val SERIES_PLAY_STATE_PAGE_SIZE = 2000
 
