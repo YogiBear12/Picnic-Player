@@ -492,6 +492,30 @@ class PlaybackTrackPickerTest {
         assertEquals(true, languageMatches("en-US", "en"))
         assertEquals(false, languageMatches("jpn", "en"))
     }
+
+    @Test
+    fun languageMatches_bibliographicCodes() {
+        assertEquals(true, languageMatches("fre", "fr"))
+        assertEquals(true, languageMatches("ger", "de"))
+        assertEquals(true, languageMatches("chi", "zh"))
+        assertEquals(true, languageMatches("chi", "zho"))
+        assertEquals(false, languageMatches("fre", "de"))
+    }
+
+    @Test
+    fun languageMatches_firstIsoEntryWinsOverLaterAlias() {
+        assertEquals(true, languageMatches("heb", "he"))
+        assertEquals(true, languageMatches("ind", "id"))
+    }
+
+    @Test
+    fun original_frenchOriginalMatchesBibliographicTrack() {
+        val streams = listOf(
+            audio(index = 1, language = "eng", isDefault = true),
+            audio(index = 2, language = "fre", isDefault = false)
+        )
+        assertEquals(2, pickAudioIndex(streams, null, preferOriginalLanguage = true, originalLanguage = "fr"))
+    }
 }
 
 private fun audio(

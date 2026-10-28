@@ -1,5 +1,6 @@
 package app.picnic.player.data.playback
 
+import app.picnic.player.util.iso3ToIso2
 import java.util.Locale
 import org.jellyfin.sdk.model.api.MediaStream
 import org.jellyfin.sdk.model.api.MediaStreamType
@@ -128,15 +129,6 @@ private fun preferDefaultElseFirst(streams: List<MediaStream>): MediaStream? = s
 private fun MediaStream.isCommentaryStyle(): Boolean {
     val haystack = listOfNotNull(title, displayTitle, comment).joinToString(" ")
     return COMMENTARY.containsMatchIn(haystack)
-}
-
-private fun iso3ToIso2(code: String): String? {
-    val lower = code.lowercase(Locale.ROOT)
-    for (lang in Locale.getISOLanguages()) {
-        val locale = Locale(lang)
-        if (locale.isO3Language.equals(lower, ignoreCase = true)) return lang
-    }
-    return null
 }
 
 private val COMMENTARY = Regex("commentary", RegexOption.IGNORE_CASE)
