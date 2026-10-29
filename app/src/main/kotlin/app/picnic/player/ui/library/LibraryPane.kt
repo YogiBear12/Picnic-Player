@@ -55,6 +55,7 @@ import app.picnic.player.ui.grid.LibraryGridViewModel
 import app.picnic.player.ui.grid.MediaGridPane
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
+import org.jellyfin.sdk.model.api.NameGuidPair
 
 internal fun libraryPaneVmKey(destKey: String) = "libpane:$destKey"
 internal fun forYouVmKey(destKey: String) = "libforyou:$destKey"
@@ -69,7 +70,7 @@ internal fun LibraryPane(
     seedContentFocus: Boolean,
     onContentFocusSeeded: () -> Unit,
     onItem: (BaseItemDto, String?) -> Unit,
-    onGenre: (BaseItemDto) -> Unit,
+    onGenre: (NameGuidPair) -> Unit,
     onCollection: (BaseItemDto) -> Unit,
     onSessionExpired: (String) -> Unit
 ) {
@@ -321,7 +322,7 @@ private fun GenresTabContent(
     onContentFocusSeeded: () -> Unit,
     onGenreFocused: (Int) -> Unit,
     onRetryGenres: () -> Unit,
-    onGenre: (BaseItemDto) -> Unit
+    onGenre: (NameGuidPair) -> Unit
 ) {
     val genreCardFocus = remember { FocusRequester() }
     val genreGridState = rememberLazyGridState()

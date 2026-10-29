@@ -19,7 +19,6 @@ import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import org.jellyfin.sdk.api.client.extensions.audioApi
 import org.jellyfin.sdk.api.client.extensions.filterApi
-import org.jellyfin.sdk.api.client.extensions.genreApi
 import org.jellyfin.sdk.api.client.extensions.libraryApi
 import org.jellyfin.sdk.api.client.extensions.localizationApi
 import org.jellyfin.sdk.api.client.extensions.personApi
@@ -37,6 +36,7 @@ import org.jellyfin.sdk.model.api.ItemFields
 import org.jellyfin.sdk.model.api.ItemSortBy
 import org.jellyfin.sdk.model.api.MediaStream
 import org.jellyfin.sdk.model.api.MediaType
+import org.jellyfin.sdk.model.api.NameGuidPair
 import org.jellyfin.sdk.model.api.PersonKind
 import org.jellyfin.sdk.model.api.SortOrder
 import org.jellyfin.sdk.model.api.request.GetSimilarItemsRequest
@@ -618,17 +618,6 @@ class MediaRepository @Inject constructor(
     ): GridFilterFacets = onIo {
         kotlinx.coroutines.coroutineScope {
             val userId = session().userUuid
-            val genres = async {
-                runCatching {
-                    api().genreApi.getGenres(
-                        userId = userId,
-                        parentId = libraryId,
-                        includeItemTypes = kinds,
-                        sortBy = listOf(ItemSortBy.SORT_NAME),
-                        sortOrder = listOf(SortOrder.ASCENDING)
-                    ).content.items.orEmpty()
-                }.getOrDefault(emptyList())
-            }
             val studios = async {
                 runCatching {
                     api().studioApi.getStudios(
@@ -661,7 +650,7 @@ class MediaRepository @Inject constructor(
             val streams = streamFilters.await()
             val deviceLanguage = Locale.getDefault().language
             GridFilterFacets(
-                genres = genres.await(),
+                genres = streams?.genres.orEmpty(),
                 studios = studios.await(),
                 parentalRatings = legacy?.officialRatings.orEmpty(),
                 audioLanguages = languageFacets(streams?.audioLanguages.orEmpty().mapNotNull { it.value }, deviceLanguage),
@@ -707,14 +696,12 @@ class MediaRepository @Inject constructor(
     suspend fun genres(
         libraryId: UUID? = null,
         kinds: List<BaseItemKind> = listOf(BaseItemKind.MOVIE, BaseItemKind.SERIES)
-    ): List<BaseItemDto> = onIo {
-        api().genreApi.getGenres(
+    ): List<NameGuidPair> = onIo {
+        api().filterApi.getQueryFilters(
             userId = session().userUuid,
             parentId = libraryId,
-            includeItemTypes = kinds,
-            sortBy = listOf(ItemSortBy.SORT_NAME),
-            sortOrder = listOf(SortOrder.ASCENDING)
-        ).content.items.orEmpty()
+            includeItemTypes = kinds
+        ).content.genres.orEmpty()
     }
 
     suspend fun collectionCount(libraryId: UUID): Int = onIo {

@@ -13,8 +13,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
+import org.jellyfin.sdk.model.api.NameGuidPair
 
 @HiltViewModel
 class LibraryPaneViewModel @Inject constructor(
@@ -26,7 +26,7 @@ class LibraryPaneViewModel @Inject constructor(
         val selectedTab: LibraryTab = LibraryTab.LIBRARY,
         val collectionsAvailable: Boolean = false,
         val tabFocusNonce: Int = 0,
-        val genres: List<BaseItemDto> = emptyList(),
+        val genres: List<NameGuidPair> = emptyList(),
         val genresLoading: Boolean = false,
         val genresError: Boolean = false,
         val focusedGenreIndex: Int = 0

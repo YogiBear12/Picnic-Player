@@ -60,6 +60,7 @@ import app.picnic.player.ui.grid.MediaGridCard
 import app.picnic.player.ui.grid.gridCellSlot
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
+import org.jellyfin.sdk.model.api.NameGuidPair
 
 @Composable
 internal fun SearchPane(
@@ -72,7 +73,7 @@ internal fun SearchPane(
     onItem: (BaseItemDto, String?) -> Unit,
     onPersonalItem: (PersonalLibrary, BaseItemDto) -> Unit,
     onSeerrItem: (app.picnic.player.data.seerr.SeerrCatalogItem, String?, String?) -> Unit,
-    onGenre: (BaseItemDto) -> Unit,
+    onGenre: (NameGuidPair) -> Unit,
     onCollection: (BaseItemDto) -> Unit,
     onPerson: (BaseItemDto) -> Unit
 ) {

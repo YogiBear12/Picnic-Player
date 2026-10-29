@@ -7,13 +7,14 @@ import app.picnic.player.data.media.PersonalLibrary
 import app.picnic.player.ui.browse.BrowseDest
 import app.picnic.player.ui.browse.BrowseShellHost
 import org.jellyfin.sdk.model.api.BaseItemDto
+import org.jellyfin.sdk.model.api.NameGuidPair
 
 @Composable
 fun HomeScreen(
     onItem: (BaseItemDto, String?) -> Unit,
     onSeerrItem: (app.picnic.player.data.seerr.SeerrCatalogItem, String?, String?) -> Unit,
-    onGenre: (BaseItemDto) -> Unit,
-    onLibraryGenre: (BaseItemDto, BrowseDest.Library) -> Unit,
+    onGenre: (NameGuidPair) -> Unit,
+    onLibraryGenre: (NameGuidPair, BrowseDest.Library) -> Unit,
     onCollection: (BaseItemDto) -> Unit,
     onPlaylist: (BaseItemDto) -> Unit,
     onPerson: (BaseItemDto) -> Unit,

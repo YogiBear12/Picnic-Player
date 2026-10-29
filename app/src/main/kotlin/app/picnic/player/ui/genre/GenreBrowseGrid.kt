@@ -36,7 +36,7 @@ import app.picnic.player.ui.common.skeletonPulse
 import app.picnic.player.ui.search.GenreCard
 import app.picnic.player.ui.search.GenreCardAspectRatio
 import app.picnic.player.ui.search.GenreCardCorner
-import org.jellyfin.sdk.model.api.BaseItemDto
+import org.jellyfin.sdk.model.api.NameGuidPair
 
 /** Fixed genre-tile column count — the chrome rule treats indices below this as row 1. */
 internal const val GenreGridColumns = 4
@@ -48,7 +48,7 @@ internal const val GenreGridColumns = 4
  */
 @Composable
 internal fun GenreBrowseGrid(
-    genres: List<BaseItemDto>,
+    genres: List<NameGuidPair>,
     gridState: LazyGridState,
     focusedGenreIndex: Int,
     genreCardFocus: FocusRequester,
@@ -56,7 +56,7 @@ internal fun GenreBrowseGrid(
     horizontalInset: Dp,
     metrics: BrowseLayoutMetrics,
     onGenreFocused: (Int) -> Unit,
-    onGenre: (BaseItemDto) -> Unit,
+    onGenre: (NameGuidPair) -> Unit,
     header: String? = null,
     chromeInset: Dp = 0.dp,
     modifier: Modifier = Modifier

@@ -28,6 +28,7 @@ import kotlinx.coroutines.launch
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
 import org.jellyfin.sdk.model.api.CollectionType
+import org.jellyfin.sdk.model.api.NameGuidPair
 
 @HiltViewModel
 class SearchViewModel @Inject constructor(
@@ -54,7 +55,7 @@ class SearchViewModel @Inject constructor(
     data class UiState(
         val loading: Boolean = true,
         val session: UserSession? = null,
-        val genres: List<BaseItemDto> = emptyList(),
+        val genres: List<NameGuidPair> = emptyList(),
         val query: String = "",
         val searching: Boolean = false,
         val results: List<ResultRow> = emptyList(),

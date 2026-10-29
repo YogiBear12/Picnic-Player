@@ -53,13 +53,14 @@ import app.picnic.player.ui.search.SearchPane
 import app.picnic.player.ui.search.SearchViewModel
 import app.picnic.player.ui.theme.PicnicColors
 import org.jellyfin.sdk.model.api.BaseItemDto
+import org.jellyfin.sdk.model.api.NameGuidPair
 
 @Composable
 fun BrowseShellHost(
     onItem: (BaseItemDto, String?) -> Unit,
     onSeerrItem: (SeerrCatalogItem, String?, String?) -> Unit,
-    onGenre: (BaseItemDto) -> Unit,
-    onLibraryGenre: (BaseItemDto, BrowseDest.Library) -> Unit,
+    onGenre: (NameGuidPair) -> Unit,
+    onLibraryGenre: (NameGuidPair, BrowseDest.Library) -> Unit,
     onCollection: (BaseItemDto) -> Unit,
     onPlaylist: (BaseItemDto) -> Unit,
     onPerson: (BaseItemDto) -> Unit,

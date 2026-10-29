@@ -9,6 +9,7 @@ import java.util.UUID
 import kotlinx.serialization.Serializable
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.ItemSortBy
+import org.jellyfin.sdk.model.api.NameGuidPair
 
 data class MediaGridFilter(
     val libraryId: UUID? = null,
@@ -93,7 +94,7 @@ enum class GridSortField(val label: String, internal val sortBy: ItemSortBy) {
 }
 
 data class GridFilterFacets(
-    val genres: List<BaseItemDto> = emptyList(),
+    val genres: List<NameGuidPair> = emptyList(),
     val studios: List<BaseItemDto> = emptyList(),
     val parentalRatings: List<String> = emptyList(),
     val audioLanguages: List<LanguageFacet> = emptyList(),
