@@ -7,6 +7,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
@@ -54,19 +56,22 @@ private const val MASK_BITMAP_W = 480
 private const val MASK_BITMAP_H = 270
 
 private val MaskSide = Color(0xFF04080C)
+private const val SIDE_ALPHA = 0.88f
+private const val SIDE_HOLD_END = 0.30f
+private const val SIDE_FADE_END = 0.75f
 
-// Stops are the approved 80% shielding, already scaled; layers composite in this order.
+// Smoothstep has zero slope at both ends, so the side fade shows no crease; layers composite in this order.
 private val detailMask: ImageBitmap by lazy {
     bakeGradient(MASK_BITMAP_W, MASK_BITMAP_H) {
-        drawRect(
-            Brush.horizontalGradient(
-                0f to MaskSide.copy(alpha = 0.704f),
-                0.23f to MaskSide.copy(alpha = 0.632f),
-                0.40f to MaskSide.copy(alpha = 0.448f),
-                0.58f to MaskSide.copy(alpha = 0.104f),
-                0.74f to MaskSide.copy(alpha = 0f)
+        for (x in 0 until MASK_BITMAP_W) {
+            val t = ((x + 0.5f) / MASK_BITMAP_W - SIDE_HOLD_END) / (SIDE_FADE_END - SIDE_HOLD_END)
+            val c = t.coerceIn(0f, 1f)
+            drawRect(
+                MaskSide.copy(alpha = SIDE_ALPHA * (1f - c * c * (3f - 2f * c))),
+                topLeft = Offset(x.toFloat(), 0f),
+                size = Size(1f, MASK_BITMAP_H.toFloat())
             )
-        )
+        }
         drawRect(
             Brush.verticalGradient(
                 0.43f to PicnicColors.Background.copy(alpha = 0f),
