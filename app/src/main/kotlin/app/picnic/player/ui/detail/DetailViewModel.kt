@@ -21,16 +21,17 @@ import app.picnic.player.data.seerr.tmdbIdFromProviderIds
 import app.picnic.player.data.settings.SettingsStore
 import app.picnic.player.data.socket.ServerMessageBus
 import app.picnic.player.data.socket.ServerNotice
+import app.picnic.player.ui.common.RowCursor
+import app.picnic.player.ui.common.RowPage
+import app.picnic.player.ui.common.RowPager
+import app.picnic.player.ui.common.loadOrderedPage
 import app.picnic.player.ui.navigation.PersonKey
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.util.UUID
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.CoroutineStart
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -81,11 +82,11 @@ class DetailViewModel @AssistedInject constructor(
     private val _state = MutableStateFlow(UiState())
     val state = _state.asStateFlow()
 
-    private var relatedSpecs = emptyList<RelatedRowSpec>()
     private var lazySpecs = emptyList<RelatedRowSpec>()
-    private var relatedRowsJob: Job? = null
-    private val relatedPageJobs = mutableMapOf<String, Job>()
-    private val rowCursors = mutableMapOf<String, RowCursor>()
+    private var lazyRowsRequested = false
+    private val relatedPager = RowPager(viewModelScope) { key, page ->
+        updateRow(key) { row -> row.copy(items = (row.items.orEmpty() + page).distinctBy { it.id }) }
+    }
 
     init {
         viewModelScope.launch {
@@ -96,7 +97,10 @@ class DetailViewModel @AssistedInject constructor(
             }
             runCatching { mediaRepository.item(UUID.fromString(itemId)) }
                 .onSuccess { item ->
-                    relatedSpecs = relatedRowSpecs(item)
+                    val relatedSpecs = relatedRowSpecs(item)
+                    relatedSpecs.forEach { spec ->
+                        relatedPager.add(spec.key, RowCursor(RELATED_PAGE_SIZE)) { cursor -> fetchRelatedPage(spec.query, cursor) }
+                    }
                     val (eagerSpecs, lazy) = relatedSpecs.partition { it.eager }
                     lazySpecs = lazy
                     _state.update {
@@ -110,7 +114,7 @@ class DetailViewModel @AssistedInject constructor(
                         )
                     }
                     val eagerJob = launch {
-                        eagerSpecs.forEach { spec -> launch { loadRelatedPage(spec) } }
+                        eagerSpecs.mapNotNull { relatedPager.load(it.key) }.joinAll()
                     }
                     val collectionsJob = launch {
                         runCatching { mediaRepository.collectionsContaining(item.id) }
@@ -178,73 +182,42 @@ class DetailViewModel @AssistedInject constructor(
     }
 
     fun loadRelatedRows() {
-        if (relatedRowsJob != null || lazySpecs.isEmpty()) return
-        relatedRowsJob = viewModelScope.launch {
-            lazySpecs.forEach { spec -> launch { loadRelatedPage(spec) } }
-        }
+        if (lazyRowsRequested || lazySpecs.isEmpty()) return
+        lazyRowsRequested = true
+        lazySpecs.forEach { relatedPager.load(it.key) }
     }
 
     fun loadMoreRelated(key: String, focusedIndex: Int) {
-        val row = state.value.relatedRows.firstOrNull { it.key == key } ?: return
-        val items = row.items ?: return
-        if (!needsNextPage(focusedIndex, items.size, row.endReached, key in relatedPageJobs)) return
-        val job = viewModelScope.launch(start = CoroutineStart.LAZY) {
-            try {
-                relatedSpecs.firstOrNull { it.key == key }?.let { loadRelatedPage(it) }
-            } finally {
-                relatedPageJobs.remove(key)
-            }
-        }
-        relatedPageJobs[key] = job
-        job.start()
+        val items = state.value.relatedRows.firstOrNull { it.key == key }?.items ?: return
+        relatedPager.onFocused(key, focusedIndex, items.size)
     }
 
-    private suspend fun loadRelatedPage(spec: RelatedRowSpec) {
-        try {
-            val currentItemId = UUID.fromString(itemId)
-            val cursor = rowCursors.getOrPut(spec.key) { RowCursor() }
-            val page: List<BaseItemDto>
-            val endReached: Boolean
-            when (val query = spec.query) {
-                is RelatedRowQuery.Person -> {
-                    page = mediaRepository.getItemsByPerson(
-                        query.id,
-                        listOf(query.type),
-                        personType = query.kind,
-                        excludeId = currentItemId,
-                        startIndex = cursor.next,
-                        limit = RELATED_PAGE_SIZE,
-                        fields = BROWSE_FIELDS
-                    )
-                    cursor.next += page.size
-                    endReached = page.size < RELATED_PAGE_SIZE
-                }
-                RelatedRowQuery.Similar -> {
-                    val result = loadOrderedPage(
-                        cursor,
-                        { mediaRepository.similarItems(currentItemId, SIMILAR_ID_CAP, emptyList()).map { it.id } },
-                        mediaRepository::items
-                    )
-                    page = result.items
-                    endReached = result.endReached
-                }
-                is RelatedRowQuery.Genre -> {
-                    val result = loadOrderedPage(
-                        cursor,
-                        { mediaRepository.shuffledGenreIds(query.id, query.type, currentItemId, limit = RELATED_ID_CAP) },
-                        mediaRepository::items
-                    )
-                    page = result.items
-                    endReached = result.endReached
-                }
+    private suspend fun fetchRelatedPage(query: RelatedRowQuery, cursor: RowCursor): RowPage {
+        val currentItemId = UUID.fromString(itemId)
+        return when (query) {
+            is RelatedRowQuery.Person -> {
+                val page = mediaRepository.getItemsByPerson(
+                    query.id,
+                    listOf(query.type),
+                    personType = query.kind,
+                    excludeId = currentItemId,
+                    startIndex = cursor.next,
+                    limit = cursor.pageSize,
+                    fields = BROWSE_FIELDS
+                )
+                cursor.next += page.size
+                RowPage(page, page.size < cursor.pageSize)
             }
-            updateRow(spec.key) { row ->
-                row.copy(items = (row.items.orEmpty() + page).distinctBy { it.id }, endReached = endReached)
-            }
-        } catch (cancelled: CancellationException) {
-            throw cancelled
-        } catch (_: Exception) {
-            updateRow(spec.key) { row -> row.copy(items = row.items.orEmpty(), endReached = true) }
+            RelatedRowQuery.Similar -> loadOrderedPage(
+                cursor,
+                { mediaRepository.similarItems(currentItemId, SIMILAR_ID_CAP, emptyList()).map { it.id } },
+                mediaRepository::items
+            )
+            is RelatedRowQuery.Genre -> loadOrderedPage(
+                cursor,
+                { mediaRepository.shuffledGenreIds(query.id, query.type, currentItemId, limit = RELATED_ID_CAP) },
+                mediaRepository::items
+            )
         }
     }
 

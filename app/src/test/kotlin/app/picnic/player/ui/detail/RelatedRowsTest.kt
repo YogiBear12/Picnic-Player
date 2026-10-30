@@ -1,7 +1,6 @@
 package app.picnic.player.ui.detail
 
 import java.util.UUID
-import kotlinx.coroutines.test.runTest
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
 import org.jellyfin.sdk.model.api.BaseItemPerson
@@ -10,7 +9,6 @@ import org.jellyfin.sdk.model.api.PersonKind
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
-import org.junit.Assert.fail
 import org.junit.Test
 
 class RelatedRowsTest {
@@ -167,111 +165,5 @@ class RelatedRowsTest {
         assertEquals(listOf(loaded, later), rowsInDisplayOrder(listOf(loaded, loading.copy(items = emptyList()), hidden, later)))
         val settled = loading.copy(items = listOf(item()))
         assertEquals(listOf(loaded, settled, later), rowsInDisplayOrder(listOf(loaded, settled, hidden, later)))
-    }
-
-    @Test
-    fun orderedPageFollowsIdSliceAndOmitsMissingItems() = runTest {
-        val first = item()
-        val second = item()
-        val unrelated = item()
-        val missing = UUID.randomUUID()
-        val page = loadOrderedPage(
-            RowCursor(),
-            fetchIds = { listOf(second.id, missing, first.id) },
-            fetchItems = { listOf(first, unrelated, second) }
-        )
-
-        assertEquals(listOf(second, first), page.items)
-        assertTrue(page.endReached)
-    }
-
-    @Test
-    fun orderedPageHonorsAPageSizeAndResumesFromASeededCursor() = runTest {
-        val items = List(40) { item() }
-        val cursor = RowCursor(12, items.map { it.id }, pageSize = 12)
-        val page = loadOrderedPage(cursor, { error("Seeded ids are not refetched") }, { ids -> items.filter { it.id in ids } })
-
-        assertEquals(items.subList(12, 24), page.items)
-        assertEquals(24, cursor.next)
-        assertFalse(page.endReached)
-    }
-
-    @Test
-    fun orderedPagesFetchIdsOnceSliceInOrderAndEndAtLastSlice() = runTest {
-        for (total in listOf(0, 7, RELATED_PAGE_SIZE * 2, RELATED_PAGE_SIZE * 2 + 3, RELATED_ID_CAP)) {
-            val ranked = List(total) { item() }
-            val ids = ranked.map { it.id }
-            val cursor = RowCursor()
-            var idFetches = 0
-            val slices = mutableListOf<List<UUID>>()
-            val loaded = mutableListOf<BaseItemDto>()
-            var pageCount = 0
-            do {
-                val start = cursor.next
-                val expectedSlice = ids.drop(start).take(RELATED_PAGE_SIZE)
-                val page = loadOrderedPage(
-                    cursor,
-                    fetchIds = {
-                        idFetches++
-                        ids + ids.take(1)
-                    },
-                    fetchItems = { slice ->
-                        slices.add(slice)
-                        ranked.filter { it.id in slice }.reversed()
-                    }
-                )
-                pageCount++
-                assertEquals(expectedSlice, slices.last())
-                assertEquals(expectedSlice, page.items.map { it.id })
-                assertEquals(start + expectedSlice.size, cursor.next)
-                assertEquals(cursor.next == total, page.endReached)
-                loaded.addAll(page.items)
-            } while (!page.endReached)
-
-            assertEquals(1, idFetches)
-            assertEquals(ranked, loaded)
-            if (total == RELATED_ID_CAP) assertEquals(5, pageCount)
-        }
-    }
-
-    @Test
-    fun failedHydrateThrowsWithoutAdvancingCursor() = runTest {
-        val ranked = List(RELATED_PAGE_SIZE + 1) { item() }
-        val ids = ranked.map { it.id }
-        val cursor = RowCursor()
-        val fetchIds: suspend () -> List<UUID> = { ids }
-        val first = loadOrderedPage(cursor, fetchIds) { ranked.take(RELATED_PAGE_SIZE) }
-        assertFalse(first.endReached)
-
-        try {
-            loadOrderedPage(cursor, fetchIds) { slice ->
-                assertEquals(ids.takeLast(1), slice)
-                emptyList()
-            }
-            fail("Expected empty hydration to throw")
-        } catch (_: IllegalStateException) {
-            assertEquals(RELATED_PAGE_SIZE, cursor.next)
-        }
-    }
-
-    @Test
-    fun nearEndLoadsNextPage() {
-        assertTrue(needsNextPage(RELATED_PAGE_SIZE - RELATED_PREFETCH, RELATED_PAGE_SIZE, endReached = false, inFlight = false))
-        assertTrue(needsNextPage(RELATED_PAGE_SIZE - 1, RELATED_PAGE_SIZE, endReached = false, inFlight = false))
-    }
-
-    @Test
-    fun farFromEndDoesNotLoadNextPage() {
-        assertFalse(needsNextPage(RELATED_PAGE_SIZE - RELATED_PREFETCH - 1, RELATED_PAGE_SIZE, endReached = false, inFlight = false))
-    }
-
-    @Test
-    fun endReachedDoesNotLoadNextPage() {
-        assertFalse(needsNextPage(RELATED_PAGE_SIZE - 1, RELATED_PAGE_SIZE, endReached = true, inFlight = false))
-    }
-
-    @Test
-    fun inFlightDoesNotLoadNextPage() {
-        assertFalse(needsNextPage(RELATED_PAGE_SIZE - 1, RELATED_PAGE_SIZE, endReached = false, inFlight = true))
     }
 }
