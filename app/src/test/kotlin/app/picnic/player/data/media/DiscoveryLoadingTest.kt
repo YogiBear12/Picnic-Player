@@ -127,7 +127,7 @@ class DiscoveryLoadingTest {
         var active = 0
         var peak = 0
         var calls = 0
-        val candidates = (0..2).map { page -> candidate("page$page", (page * 100 + 1..page * 100 + 100).toList()) }
+        val candidates = (0..24).map { row -> candidate("row$row", (row * 12 + 1..row * 12 + 12).toList()) }
         val loader = DiscoveryItemLoader(
             this,
             candidates,
@@ -142,11 +142,11 @@ class DiscoveryLoadingTest {
             },
             query = { error("Unexpected query") }
         )
-        assertEquals(listOf((1..100).map { item(it) }), loader.load(candidates.take(1)))
+        assertEquals(listOf((1..12).map { item(it) }), loader.load(candidates.take(1)))
         assertEquals(10L, currentTime)
-        assertEquals(listOf((201..300).map { item(it) }), loader.load(candidates.takeLast(1)))
+        assertEquals(listOf((289..300).map { item(it) }), loader.load(candidates.takeLast(1)))
         assertEquals(20L, currentTime)
-        assertEquals(listOf((101..200).map { item(it) }), loader.load(candidates.subList(1, 2)))
+        assertEquals(listOf((109..120).map { item(it) }), loader.load(candidates.subList(9, 10)))
         assertEquals(1_000L, currentTime)
         assertEquals(3, calls)
         assertEquals(2, peak)
@@ -272,21 +272,26 @@ class DiscoveryLoadingTest {
     fun picksPreferUnwatchedButKeepSomeWatchedTitles() {
         val pool = (1..80).map { item(it) } + (81..160).map { item(it, played = true) }
         val selected = sampleDiscoveryItems(pool, Random(42))
-        assertEquals(12, selected.size)
-        assertEquals(9, selected.count { it.userData?.played != true })
-        assertEquals(3, selected.count { it.userData?.played == true })
+        assertEquals(40, selected.size)
+        assertEquals(30, selected.count { it.userData?.played != true })
+        assertEquals(10, selected.count { it.userData?.played == true })
+        assertEquals(selected.size, selected.distinctBy { it.discoveryItemKey() }.size)
         assertEquals(selected, sampleDiscoveryItems(pool, Random(42)))
         assertFalse(selected == sampleDiscoveryItems(pool, Random(43)))
     }
 
     @Test
     fun picksFillFromEitherPoolWhenTheOtherIsSmall() {
-        val watched = (1..15).map { item(it, played = true) }
-        val unwatched = (16..30).map { item(it) }
-        assertEquals(12, sampleDiscoveryItems(watched + unwatched.take(2), Random(42)).size)
-        assertEquals(12, sampleDiscoveryItems(unwatched + watched.take(1), Random(42)).size)
-        assertEquals(12, sampleDiscoveryItems(watched, Random(42)).size)
-        assertEquals(12, sampleDiscoveryItems(unwatched, Random(42)).size)
+        val watched = (1..50).map { item(it, played = true) }
+        val unwatched = (51..100).map { item(it) }
+        val fewUnwatched = sampleDiscoveryItems(watched + unwatched.take(2), Random(42))
+        assertEquals(40, fewUnwatched.size)
+        assertEquals(2, fewUnwatched.count { it.userData?.played != true })
+        val fewWatched = sampleDiscoveryItems(unwatched + watched.take(1), Random(42))
+        assertEquals(40, fewWatched.size)
+        assertEquals(1, fewWatched.count { it.userData?.played == true })
+        assertEquals(40, sampleDiscoveryItems(watched, Random(42)).size)
+        assertEquals(40, sampleDiscoveryItems(unwatched, Random(42)).size)
         assertTrue(sampleDiscoveryItems(emptyList(), Random(42)).isEmpty())
     }
 
@@ -296,7 +301,7 @@ class DiscoveryLoadingTest {
         val weak = (61..100).map { item(it, rating = 3f) }
         val copies = strong.map { it.copy(id = UUID.randomUUID()) }
         val selected = sampleDiscoveryItems(strong + copies + weak, Random(42))
-        assertEquals(12, selected.size)
+        assertEquals(40, selected.size)
         assertTrue(selected.all { it.communityRating == 9f })
         assertEquals(selected.size, selected.distinctBy { it.discoveryItemKey() }.size)
     }
@@ -321,5 +326,53 @@ class DiscoveryLoadingTest {
         )
         assertEquals((1..3).map { listOf(item(it)) }, loader.load(candidates))
         assertEquals(2, peak)
+    }
+
+    @Test
+    fun savedRowLoadsOnlyItsFirstPage() = runTest {
+        val saved = candidate("saved", (1..40).toList())
+        val requested = mutableListOf<UUID>()
+        val loader = DiscoveryItemLoader(
+            this,
+            listOf(saved),
+            fetchSaved = { ids ->
+                requested += ids
+                ids.map { id -> item(id.leastSignificantBits.toInt()) }
+            },
+            query = { error("Saved rows do not query") }
+        )
+        assertEquals(listOf((1..12).map { item(it) }), loader.load(listOf(saved)))
+        assertEquals((1..12).map { item(it).id }, requested)
+    }
+
+    @Test
+    fun acceptedRowsKeepFortyIdsAndPublishTheFirstPage() {
+        val fresh = candidate("fresh")
+        val (updated, pages) = acceptDiscoveryRows(listOf(fresh), listOf((1..50).map { item(it) }), emptyList())
+        assertEquals((1..40).map { item(it).id.toString() }, updated.single().itemIds)
+        assertEquals(listOf((1..12).map { item(it) }), pages)
+    }
+
+    @Test
+    fun savedRowKeepsItsFullIdListWhenOnlyTheFirstPageArrives() {
+        val saved = candidate("saved", (1..40).toList())
+        val (updated, pages) = acceptDiscoveryRows(listOf(saved), listOf((1..12).map { item(it) }), emptyList())
+        assertEquals(saved.itemIds, updated.single().itemIds)
+        assertFalse(updated.single().dropped)
+        assertEquals(listOf((1..12).map { item(it) }), pages)
+    }
+
+    @Test
+    fun overlapIsJudgedOnFirstPagesOnly() {
+        val earlier = (1..40).map { item(it) }
+        val sharesTail = (101..112).map { item(it) } + (13..40).map { item(it) }
+        val sharesHead = (1..12).map { item(it) } + (101..128).map { item(it) }
+        val (updated, pages) = acceptDiscoveryRows(
+            listOf(candidate("tail"), candidate("head")),
+            listOf(sharesTail, sharesHead),
+            listOf(earlier)
+        )
+        assertEquals(listOf(false, true), updated.map { it.dropped })
+        assertEquals(listOf((101..112).map { item(it) }, emptyList()), pages)
     }
 }

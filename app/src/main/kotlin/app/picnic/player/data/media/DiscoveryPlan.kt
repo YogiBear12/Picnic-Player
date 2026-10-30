@@ -14,7 +14,7 @@ import org.jellyfin.sdk.model.api.PersonKind
 @Serializable
 internal data class DiscoveryPlan(val date: String, val candidates: List<DiscoveryCandidate>, val version: Int = 0)
 
-internal const val DISCOVERY_PLAN_VERSION = 1
+internal const val DISCOVERY_PLAN_VERSION = 2
 
 @Serializable
 internal enum class DiscoveryKind { TOP_PICKS, BECAUSE_WATCHED, BECAUSE_LIKED, STARRING, DIRECTED_BY, GENRE }
@@ -70,7 +70,8 @@ internal val DISCOVERY_CAPS = mapOf(
 private const val SPARE_FRACTION = 0.3
 private const val TOP_GENRE_COUNT = 3
 private const val PERSON_POOL_SIZE = 3
-private const val ROW_LIMIT = 12
+internal const val DISCOVERY_ROW_CAP = 40
+internal const val DISCOVERY_PAGE_SIZE = 12
 private const val ROW_MINIMUM = 5
 private const val OVERLAP_PERCENT = 75
 private const val PERCENT = 100
@@ -266,7 +267,7 @@ internal fun BaseItemDto.discoveryItemKey(): String {
 }
 
 internal fun rowItems(raw: List<BaseItemDto>, seedId: UUID?, seedKey: String? = null): List<BaseItemDto> = raw
-    .filter { it.id != seedId && (seedKey == null || it.discoveryItemKey() != seedKey) }.distinctBy { it.discoveryItemKey() }.take(ROW_LIMIT)
+    .filter { it.id != seedId && (seedKey == null || it.discoveryItemKey() != seedKey) }.distinctBy { it.discoveryItemKey() }.take(DISCOVERY_ROW_CAP)
     .takeIf { it.size >= ROW_MINIMUM }.orEmpty()
 
 internal fun overlapsEarlier(row: List<BaseItemDto>, earlier: List<List<BaseItemDto>>): Boolean {

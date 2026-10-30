@@ -224,12 +224,12 @@ class DiscoveryPlanTest {
     }
 
     @Test
-    fun rowItemsRemoveSeedKeepFirstCopyAndCapAtTwelve() {
+    fun rowItemsRemoveSeedKeepFirstCopyAndCapAtForty() {
         val first = movie(2, "HD")
         val duplicate = movie(3, "4K", tmdb = 2)
-        val raw = listOf(movie(1), first, duplicate) + (4..20).map { movie(it) }
+        val raw = listOf(movie(1), first, duplicate) + (4..60).map { movie(it) }
         val row = rowItems(raw, id(1))
-        assertEquals(12, row.size)
+        assertEquals(40, row.size)
         assertEquals(first, row.first())
         assertFalse(row.any { it.id == id(1) || it.id == duplicate.id })
     }

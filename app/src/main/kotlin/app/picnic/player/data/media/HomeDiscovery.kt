@@ -97,23 +97,15 @@ internal class HomeDiscovery @Inject constructor(
     ): Pair<DiscoveryPlan, List<List<BaseItemDto>>> {
         val started = SystemClock.elapsedRealtime()
         try {
-            val raw = loader.load(candidates)
-            val accepted = earlier.toMutableList()
-            val rows = candidates.zip(raw).map { (candidate, items) ->
-                rowItems(items, candidate.seedId?.let(UUID::fromString), candidate.seedKey)
-                    .takeUnless { overlapsEarlier(it, accepted) }.orEmpty()
-                    .also { if (it.isNotEmpty()) accepted += it }
-            }
-            val updates = candidates.zip(rows).associate { (candidate, row) ->
-                candidate.key to candidate.copy(itemIds = row.map { it.id.toString() }, dropped = row.isEmpty())
-            }
-            if (candidates.all { updates[it.key] == it }) return plan to rows
+            val (updated, firstPages) = acceptDiscoveryRows(candidates, loader.load(candidates), earlier)
+            val updates = updated.associateBy { it.key }
+            if (candidates.all { updates[it.key] == it }) return plan to firstPages
             val latest = saves.withLock {
                 val current = store.load(scope) ?: plan
                 check(current.date == plan.date && current.version == plan.version) { "Discovery plan changed during fill" }
                 current.copy(candidates = current.candidates.map { updates[it.key] ?: it }).also { store.save(scope, it) }
             }
-            return latest to rows
+            return latest to firstPages
         } finally {
             Log.d(TAG, "fill batch rows=${candidates.size} ${SystemClock.elapsedRealtime() - started}ms")
         }
@@ -153,12 +145,34 @@ internal class HomeDiscovery @Inject constructor(
         const val PLAYED_LIMIT = 120
         const val FAVORITES_LIMIT = 10
         const val TOP_PICKS_LIMIT = 160
-        const val SIMILAR_LIMIT = 24
+        const val SIMILAR_LIMIT = DISCOVERY_ROW_CAP
         const val PERSON_LIMIT = 40
         const val GENRE_LIMIT = 40
         val MIXED_KINDS = listOf(BaseItemKind.MOVIE, BaseItemKind.SERIES)
         val SEED_FIELDS = listOf(ItemFields.GENRES, ItemFields.PROVIDER_IDS)
     }
+}
+
+internal fun acceptDiscoveryRows(
+    candidates: List<DiscoveryCandidate>,
+    raw: List<List<BaseItemDto>>,
+    earlier: List<List<BaseItemDto>>
+): Pair<List<DiscoveryCandidate>, List<List<BaseItemDto>>> {
+    val accepted = earlier.map { it.take(DISCOVERY_PAGE_SIZE) }.toMutableList()
+    val rows = candidates.zip(raw).map { (candidate, items) ->
+        val row = rowItems(items, candidate.seedId?.let(UUID::fromString), candidate.seedKey)
+        val firstPage = row.take(DISCOVERY_PAGE_SIZE)
+        when {
+            row.isEmpty() || overlapsEarlier(firstPage, accepted) -> emptyList()
+            else -> row.also { accepted += firstPage }
+        }
+    }
+    val updated = candidates.zip(rows).map { (candidate, row) ->
+        // A saved row arrives as its first page only, so its full id list stays as saved.
+        val ids = candidate.itemIds?.takeIf { row.isNotEmpty() } ?: row.map { it.id.toString() }
+        candidate.copy(itemIds = ids, dropped = row.isEmpty())
+    }
+    return updated to rows.map { it.take(DISCOVERY_PAGE_SIZE) }
 }
 
 internal fun restoreDiscoveryOrder(ids: List<String>, items: List<BaseItemDto>): List<BaseItemDto> {
@@ -174,7 +188,7 @@ internal fun sampleDiscoveryItems(items: List<BaseItemDto>, random: Random): Lis
     val fresh = sample(unwatched)
     val familiar = sample(watched)
     return (fresh.take(DISCOVERY_UNWATCHED_TARGET) + familiar + fresh.drop(DISCOVERY_UNWATCHED_TARGET))
-        .take(DISCOVERY_SAMPLE_SIZE).shuffled(random)
+        .take(DISCOVERY_ROW_CAP).shuffled(random)
 }
 
 internal class DiscoveryItemLoader(
@@ -185,7 +199,7 @@ internal class DiscoveryItemLoader(
     private val awaitPublication: suspend () -> Unit = {}
 ) {
     private val gate = Semaphore(DISCOVERY_QUERY_CONCURRENCY)
-    private val pages = candidates.filterNot { it.dropped }.flatMap { it.itemIds.orEmpty() }.distinct()
+    private val pages = candidates.filterNot { it.dropped }.flatMap { it.firstPageIds() }.distinct()
         .chunked(ITEM_FETCH_CHUNK).flatMap { ids ->
             val page = scope.async {
                 retryDiscovery { gate.withPermit { fetchSaved(ids.map(UUID::fromString)) } }
@@ -199,8 +213,9 @@ internal class DiscoveryItemLoader(
                 when {
                     candidate.dropped -> emptyList()
                     candidate.itemIds != null -> {
-                        val items = candidate.itemIds.map { pages.getValue(it) }.distinct().awaitAll().flatten()
-                        restoreDiscoveryOrder(candidate.itemIds, items)
+                        val ids = candidate.firstPageIds()
+                        val items = ids.map { pages.getValue(it) }.distinct().awaitAll().flatten()
+                        restoreDiscoveryOrder(ids, items)
                     }
                     else -> retryDiscovery { gate.withPermit { query(candidate) } }
                 }
@@ -208,6 +223,8 @@ internal class DiscoveryItemLoader(
         }.awaitAll().also { awaitPublication() }
     }
 }
+
+private fun DiscoveryCandidate.firstPageIds(): List<String> = itemIds.orEmpty().take(DISCOVERY_PAGE_SIZE)
 
 internal suspend fun <T> retryDiscovery(block: suspend () -> T): T {
     for (delayMs in DISCOVERY_RETRY_DELAYS) {
@@ -228,8 +245,7 @@ private fun DiscoveryType.kinds(): List<BaseItemKind> = when (this) {
     DiscoveryType.MIXED -> listOf(BaseItemKind.MOVIE, BaseItemKind.SERIES)
 }
 
-private const val DISCOVERY_SAMPLE_SIZE = 12
-private const val DISCOVERY_UNWATCHED_TARGET = 9
+private const val DISCOVERY_UNWATCHED_TARGET = 30
 private const val DISCOVERY_RATED_POOL = 60
 private const val DISCOVERY_QUERY_CONCURRENCY = 2
 private val DISCOVERY_RETRY_DELAYS = listOf(1_000L, 3_000L)

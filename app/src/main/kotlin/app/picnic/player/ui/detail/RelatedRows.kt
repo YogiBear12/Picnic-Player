@@ -77,7 +77,7 @@ internal fun rowsInDisplayOrder(rows: List<RelatedRow>): List<RelatedRow> {
 
 internal data class RelatedPage(val items: List<BaseItemDto>, val endReached: Boolean)
 
-internal class RowCursor(var next: Int = 0, var ids: List<UUID>? = null)
+internal class RowCursor(var next: Int = 0, var ids: List<UUID>? = null, val pageSize: Int = RELATED_PAGE_SIZE)
 
 internal suspend fun loadOrderedPage(
     cursor: RowCursor,
@@ -86,7 +86,7 @@ internal suspend fun loadOrderedPage(
 ): RelatedPage {
     val ids = cursor.ids ?: fetchIds().distinct().also { cursor.ids = it }
     val startIndex = cursor.next
-    val slice = ids.drop(startIndex).take(RELATED_PAGE_SIZE)
+    val slice = ids.drop(startIndex).take(cursor.pageSize)
     val byId = fetchItems(slice).associateBy { it.id }
     val items = slice.mapNotNull { byId[it] }
     check(slice.isEmpty() || items.isNotEmpty()) { "Ordered page hydration returned no items" }

@@ -186,6 +186,17 @@ class RelatedRowsTest {
     }
 
     @Test
+    fun orderedPageHonorsAPageSizeAndResumesFromASeededCursor() = runTest {
+        val items = List(40) { item() }
+        val cursor = RowCursor(12, items.map { it.id }, pageSize = 12)
+        val page = loadOrderedPage(cursor, { error("Seeded ids are not refetched") }, { ids -> items.filter { it.id in ids } })
+
+        assertEquals(items.subList(12, 24), page.items)
+        assertEquals(24, cursor.next)
+        assertFalse(page.endReached)
+    }
+
+    @Test
     fun orderedPagesFetchIdsOnceSliceInOrderAndEndAtLastSlice() = runTest {
         for (total in listOf(0, 7, RELATED_PAGE_SIZE * 2, RELATED_PAGE_SIZE * 2 + 3, RELATED_ID_CAP)) {
             val ranked = List(total) { item() }

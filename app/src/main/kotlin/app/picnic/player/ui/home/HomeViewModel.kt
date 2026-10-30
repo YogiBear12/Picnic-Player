@@ -10,6 +10,7 @@ import app.picnic.player.data.auth.UserSession
 import app.picnic.player.data.jellyfin.isAuthFailure
 import app.picnic.player.data.jellyfin.serverErrorMessage
 import app.picnic.player.data.media.DISCOVERY_FIELDS
+import app.picnic.player.data.media.DISCOVERY_PAGE_SIZE
 import app.picnic.player.data.media.DiscoveryCandidate
 import app.picnic.player.data.media.DiscoveryPlan
 import app.picnic.player.data.media.HiddenResumeStore
@@ -36,6 +37,9 @@ import app.picnic.player.data.settings.SettingsStore
 import app.picnic.player.data.tvprovider.TvChannelReceiver
 import app.picnic.player.ui.ambient.AmbientPaletteLoader
 import app.picnic.player.ui.browse.NavRailState
+import app.picnic.player.ui.detail.RowCursor
+import app.picnic.player.ui.detail.loadOrderedPage
+import app.picnic.player.ui.detail.needsNextPage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.time.LocalDate
@@ -62,6 +66,7 @@ import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
@@ -131,6 +136,9 @@ class HomeViewModel @Inject internal constructor(
     private val discoveryShown = mutableListOf<DiscoveryCandidate>()
     private val unpublishedDiscoveryChanges = mutableSetOf<String>()
     private var discoveryPublishIndex = 0
+    private val discoveryCursors = mutableMapOf<String, RowCursor>()
+    private val discoveryPageJobs = mutableMapOf<String, Job>()
+    private val stoppedDiscoveryRows = mutableSetOf<String>()
 
     init {
         load()
@@ -185,6 +193,45 @@ class HomeViewModel @Inject internal constructor(
         }
         focusChangedFlow.tryEmit(Unit)
         requestDiscovery()
+        _state.value.rows.getOrNull(rowIndex)?.let { row -> loadMoreDiscovery(row, row.items.indexOfFirst { it.id == item.id }) }
+    }
+
+    private fun loadMoreDiscovery(row: HomeRow, focusedIndex: Int) {
+        val cursor = discoveryCursors[row.key] ?: return
+        val ids = cursor.ids ?: return
+        val endReached = cursor.next >= ids.size || row.key in stoppedDiscoveryRows
+        if (!needsNextPage(focusedIndex, row.items.size, endReached, row.key in discoveryPageJobs)) return
+        val job = viewModelScope.launch(start = CoroutineStart.LAZY) {
+            try {
+                val page = loadOrderedPage(cursor, { ids }, { mediaRepository.itemsOrThrow(it, DISCOVERY_FIELDS) })
+                appendDiscoveryPage(row.key, page.items)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Exception) {
+                stoppedDiscoveryRows += row.key
+                Log.w(TAG, "Discovery page failed for ${row.key}", failure)
+            } finally {
+                discoveryPageJobs.remove(row.key, coroutineContext.job)
+            }
+        }
+        discoveryPageJobs[row.key] = job
+        job.start()
+    }
+
+    private fun appendDiscoveryPage(key: String, page: List<BaseItemDto>) {
+        _state.update { current ->
+            discoveryRows = discoveryRows.map { row -> if (row.key == key) row.copy(items = row.items + page) else row }
+            current.withRows(mainRows)
+        }
+        val appended = discoveryRows.filter { it.key == key }
+        viewModelScope.launch { resolveSeasonCounts(appended) }
+    }
+
+    private fun resetDiscoveryPaging() {
+        discoveryPageJobs.values.forEach { it.cancel() }
+        discoveryPageJobs.clear()
+        discoveryCursors.clear()
+        stoppedDiscoveryRows.clear()
     }
 
     private suspend fun resolveSeasonCounts(rows: List<HomeRow>) {
@@ -317,7 +364,7 @@ class HomeViewModel @Inject internal constructor(
                 emptyList()
             } else {
                 pendingDiscoveryCandidates(discoveryPlan?.candidates.orEmpty().drop(discoveryPublishIndex), discoveryShown)
-                    .map { PendingDiscoveryRow("discovery-" + it.key, it.title) }
+                    .map { PendingDiscoveryRow(it.rowKey, it.title) }
             },
             focusedItemId = focusedId,
             focusedRowIndex = focusedIndex,
@@ -351,6 +398,7 @@ class HomeViewModel @Inject internal constructor(
                     nextDiscoveryPlan = null
                     discoveryPlan = fresh
                     discoveryRows = emptyList()
+                    resetDiscoveryPaging()
                     discoveryShown.clear()
                     discoveryPublishIndex = 0
                     _state.update { it.withRows(mainRows) }
@@ -390,10 +438,12 @@ class HomeViewModel @Inject internal constructor(
                 filled
             }
             discoveryPublishIndex += batch.size
+            val savedIds = discoveryPlan?.candidates.orEmpty().associate { it.key to it.itemIds.orEmpty() }
             val added = eligible.zip(rows).mapNotNull { (candidate, items) ->
                 if (items.isEmpty()) return@mapNotNull null
                 discoveryShown += candidate
-                HomeRow(candidate.title, items, continueWatching = false, key = "discovery-" + candidate.key)
+                discoveryCursors[candidate.rowKey] = RowCursor(DISCOVERY_PAGE_SIZE, savedIds[candidate.key].orEmpty().map(UUID::fromString), DISCOVERY_PAGE_SIZE)
+                HomeRow(candidate.title, items, continueWatching = false, key = candidate.rowKey)
             }
             discoveryRows = discoveryRows + added
             _state.update { it.withRows(mainRows) }
@@ -451,3 +501,5 @@ class HomeViewModel @Inject internal constructor(
         const val SEASON_COUNT_CONCURRENCY = 6
     }
 }
+
+private val DiscoveryCandidate.rowKey: String get() = "discovery-$key"
