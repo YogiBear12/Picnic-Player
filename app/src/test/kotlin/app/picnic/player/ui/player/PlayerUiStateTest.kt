@@ -1,10 +1,15 @@
 package app.picnic.player.ui.player
 
+import app.picnic.player.data.auth.ServerConnection
+import app.picnic.player.data.auth.UserSession
 import app.picnic.player.data.playback.NextUpPhase
 import app.picnic.player.data.playback.PlayMethodKind
 import app.picnic.player.data.playback.quality.QualityOption
 import app.picnic.player.data.playback.quality.QualityRung
 import app.picnic.player.playback.SleepMode
+import java.util.UUID
+import org.jellyfin.sdk.model.api.BaseItemDto
+import org.jellyfin.sdk.model.api.BaseItemKind
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
@@ -41,7 +46,15 @@ class PlayerUiStateTest {
         assertEquals(QualityOption.Original, PlayerUiState(streamRung = QualityRung.P1080_6).activeQuality)
     }
 
-    private val next = NextUpItem("next", "Next", "S1:E2", "", "", null, null)
+    private val next = NextUpItem(
+        id = "next",
+        logoName = "Next",
+        episodeLine = "S1 E2 · Next",
+        meta = "",
+        overview = "",
+        backdropUrl = null,
+        logoUrl = null
+    )
     private val outroNextUp = PlayerUiState(nextUp = next, nextUpPhase = NextUpPhase.OUTRO)
 
     @Test
@@ -83,4 +96,34 @@ class PlayerUiStateTest {
     fun keepWatchingWithoutPendingNextUp_resumesTheCurrentItem() {
         assertNull(PlayerUiState(nextUp = next).queuedNextUp)
     }
+
+    @Test
+    fun anEpisodeShowsTheSeriesLogoNameAndItsEpisodeLine() {
+        val episode = BaseItemDto(
+            id = UUID.randomUUID(),
+            type = BaseItemKind.EPISODE,
+            name = "Phantom of Falsehood",
+            seriesName = "91 Days",
+            parentIndexNumber = 1,
+            indexNumber = 2
+        )
+        val item = buildNextUpItem(session, episode)
+        assertEquals("91 Days", item.logoName)
+        assertEquals("S1 E2 · Phantom of Falsehood", item.episodeLine)
+    }
+
+    @Test
+    fun aMovieShowsItsOwnNameAsTheLogoAndNoEpisodeLine() {
+        val movie = BaseItemDto(id = UUID.randomUUID(), type = BaseItemKind.MOVIE, name = "Knapsack Kid")
+        val item = buildNextUpItem(session, movie)
+        assertEquals("Knapsack Kid", item.logoName)
+        assertNull(item.episodeLine)
+    }
+
+    private val session = UserSession(
+        server = ServerConnection(id = "s", baseUrl = "https://example.test", name = "test"),
+        userId = "00000000-0000-0000-0000-0000000000bb",
+        username = "tester",
+        accessToken = "token"
+    )
 }

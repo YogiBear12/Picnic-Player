@@ -138,7 +138,7 @@ class PlayerChrome(private val scrub: PlayerScrub) {
         this.segmentActive = segmentActive
         skipPillDismissed = when {
             !segmentActive -> false
-            osdVisible || panel != Panel.NONE -> true
+            osdVisible || panel != Panel.NONE || overlay == PlayerOverlay.NEXT_UP -> true
             else -> !enteredAtStart
         }
     }
@@ -163,6 +163,7 @@ class PlayerChrome(private val scrub: PlayerScrub) {
         // Still Watching has just paused playback itself; ending the scrub normally would resume behind it.
         if (next == PlayerOverlay.STILL_WATCHING) scrub.abandon()
         if (next != null) clearOverlays()
+        if (next == PlayerOverlay.NEXT_UP) skipPillDismissed = true
     }
 
     fun onPipModeChanged(inPip: Boolean) {

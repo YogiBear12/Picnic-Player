@@ -1,21 +1,17 @@
 package app.picnic.player.ui.player
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -24,30 +20,42 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
-import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
+import app.picnic.player.ui.browse.BrowseHeroSummaryLineHeight
+import app.picnic.player.ui.browse.HeroInfoTopGap
+import app.picnic.player.ui.browse.HeroSummaryTopGap
+import app.picnic.player.ui.browse.HeroTitleTopGap
+import app.picnic.player.ui.browse.browseLayoutMetrics
 import app.picnic.player.ui.common.FocusSeed
-import app.picnic.player.ui.common.flatSurfaceBorder
+import app.picnic.player.ui.common.LogoOrFallback
 import app.picnic.player.ui.common.focusSeed
 import app.picnic.player.ui.common.rememberFocusSeed
-import coil3.compose.AsyncImage
+import app.picnic.player.ui.common.requestFocusWhenAttached
+import app.picnic.player.ui.theme.PicnicColors
 import kotlinx.coroutines.delay
 
-private val CardBackground = Color(0xC0181E24)
+private val NextUpActionGap = 12.dp
+private val NextUpColumnGap = 32.dp
+private val NextUpButtonFill = Color(0xC0181E24)
+private const val NextUpDetailsExtraWidth = 88f
 
 @Composable
 fun NextUpOverlay(
@@ -55,12 +63,13 @@ fun NextUpOverlay(
     countdownSeconds: Int,
     onAutoplay: () -> Unit,
     onPlayNext: () -> Unit,
+    inOutro: Boolean,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
     active: Boolean = true
 ) {
     var secondsLeft by remember(item) { mutableIntStateOf(countdownSeconds) }
-    val thumbFocus = rememberFocusSeed(key = item, enabled = active)
+    val nextFocus = rememberFocusSeed(key = item, enabled = active)
 
     LaunchedEffect(item, active) {
         if (!active) return@LaunchedEffect
@@ -72,7 +81,7 @@ fun NextUpOverlay(
         onAutoplay()
     }
 
-    Box(
+    BoxWithConstraints(
         modifier = modifier
             .fillMaxSize()
             .onPreviewKeyEvent { event ->
@@ -84,151 +93,162 @@ fun NextUpOverlay(
                 }
             }
     ) {
-        NextUpCard(
-            item = item,
-            secondsLeft = secondsLeft,
-            thumbFocus = thumbFocus,
-            onPlayNext = onPlayNext,
-            onBack = onBack,
+        val metrics = browseLayoutMetrics(maxWidth, maxHeight)
+        Row(
             modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(end = 56.dp, bottom = 56.dp)
+                .fillMaxWidth()
+                .align(Alignment.BottomStart)
+                .padding(start = NextUpPlayerInset, end = NextUpPlayerInset, bottom = NextUpPlayerInset),
+            horizontalArrangement = Arrangement.spacedBy(NextUpColumnGap),
+            verticalAlignment = Alignment.Bottom
+        ) {
+            Box(Modifier.weight(1f)) {
+                NextUpDetails(
+                    item,
+                    metrics.logoHeight,
+                    Modifier.width(metrics.heroContentWidth + metrics.sx(NextUpDetailsExtraWidth))
+                )
+            }
+            NextUpActions(
+                secondsLeft = secondsLeft,
+                nextFocus = nextFocus,
+                active = active,
+                inOutro = inOutro,
+                onPlayNext = onPlayNext,
+                onBack = onBack
+            )
+        }
+    }
+}
+
+@Composable
+private fun NextUpDetails(item: NextUpItem, logoHeight: Dp, modifier: Modifier = Modifier) {
+    Column(modifier = modifier) {
+        LogoOrFallback(
+            url = item.logoUrl,
+            contentDescription = item.logoName,
+            alignment = Alignment.CenterStart,
+            label = "next up logo item='${item.logoName}'",
+            modifier = Modifier.height(logoHeight).fillMaxWidth()
+        ) {
+            Box(Modifier.height(logoHeight).fillMaxWidth(), contentAlignment = Alignment.BottomStart) {
+                Text(
+                    text = item.logoName,
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.headlineLarge,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+        if (item.meta.isNotEmpty()) {
+            Text(
+                text = item.meta,
+                color = PicnicColors.TextTertiary,
+                style = MaterialTheme.typography.bodySmall,
+                lineHeight = 16.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = HeroInfoTopGap)
+            )
+        }
+        item.episodeLine?.let { episodeLine ->
+            Text(
+                text = episodeLine,
+                color = Color.White,
+                fontWeight = FontWeight.SemiBold,
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = HeroTitleTopGap)
+            )
+        }
+        if (item.overview.isNotEmpty()) {
+            Text(
+                text = item.overview,
+                color = PicnicColors.TextSecondary,
+                style = MaterialTheme.typography.bodyMedium,
+                lineHeight = BrowseHeroSummaryLineHeight,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = HeroSummaryTopGap)
+            )
+        }
+    }
+}
+
+@Composable
+private fun NextUpActions(
+    secondsLeft: Int,
+    nextFocus: FocusSeed,
+    active: Boolean,
+    inOutro: Boolean,
+    onPlayNext: () -> Unit,
+    onBack: () -> Unit
+) {
+    val secondaryFocus = remember { FocusRequester() }
+    LaunchedEffect(inOutro, active) {
+        if (!inOutro && active) nextFocus.requester.requestFocusWhenAttached()
+    }
+    Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text(
+            text = if (secondsLeft > 0) "Playing in $secondsLeft second${if (secondsLeft == 1) "" else "s"}" else "",
+            style = MaterialTheme.typography.bodySmall,
+            color = Color.White.copy(alpha = 0.85f)
+        )
+        Row(Modifier.width(IntrinsicSize.Max), horizontalArrangement = Arrangement.spacedBy(NextUpActionGap)) {
+            NextUpButton(
+                label = if (inOutro) "Watch Credits" else "Back",
+                onClick = onBack,
+                modifier = Modifier
+                    .weight(1f)
+                    .focusRequester(secondaryFocus)
+                    .focusProperties {
+                        canFocus = active
+                        up = FocusRequester.Cancel
+                        down = FocusRequester.Cancel
+                        left = FocusRequester.Cancel
+                    }
+            )
+            NextUpButton(
+                label = "Play Next",
+                onClick = onPlayNext,
+                modifier = Modifier
+                    .weight(1f)
+                    .focusSeed(nextFocus)
+                    .focusProperties {
+                        up = FocusRequester.Cancel
+                        down = FocusRequester.Cancel
+                        right = FocusRequester.Cancel
+                        left = secondaryFocus
+                    }
+            )
+        }
+    }
+}
+
+@Composable
+private fun NextUpButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Surface(
+        onClick = onClick,
+        modifier = modifier,
+        shape = ClickableSurfaceDefaults.shape(shape = CircleShape),
+        colors = ClickableSurfaceDefaults.colors(
+            containerColor = NextUpButtonFill,
+            contentColor = Color.White,
+            focusedContainerColor = Color.White,
+            focusedContentColor = Color.Black,
+            pressedContainerColor = Color.White,
+            pressedContentColor = Color.Black
+        ),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1f)
+    ) {
+        Text(
+            text = label,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp),
+            style = MaterialTheme.typography.titleMedium,
+            textAlign = TextAlign.Center
         )
     }
 }
-
-@Composable
-private fun NextUpCard(
-    item: NextUpItem,
-    secondsLeft: Int,
-    thumbFocus: FocusSeed,
-    onPlayNext: () -> Unit,
-    onBack: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Column(
-        modifier = modifier.widthIn(max = 520.dp),
-        horizontalAlignment = Alignment.End,
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        if (secondsLeft > 0) {
-            Text(
-                text = "Up next in $secondsLeft second${if (secondsLeft == 1) "" else "s"}",
-                style = MaterialTheme.typography.bodyMedium,
-                color = Color.White.copy(alpha = 0.85f)
-            )
-        }
-
-        Row(
-            modifier = Modifier
-                .clip(RoundedCornerShape(12.dp))
-                .background(CardBackground)
-                .padding(12.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Text(
-                    text = item.title,
-                    style = MaterialTheme.typography.titleLarge,
-                    color = Color.White,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                val metaLine = listOf(item.seasonEpisode, item.meta)
-                    .filter { it.isNotEmpty() }
-                    .joinToString(" • ")
-                if (metaLine.isNotEmpty()) {
-                    Text(
-                        text = metaLine,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = Color.White.copy(alpha = 0.7f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-                if (item.overview.isNotEmpty()) {
-                    Spacer(Modifier.height(2.dp))
-                    Text(
-                        text = item.overview,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color.White.copy(alpha = 0.6f),
-                        maxLines = 3,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-            }
-
-            NextUpThumbnail(
-                thumbUrl = item.thumbUrl,
-                onPlayNext = onPlayNext,
-                onBack = onBack,
-                focusSeed = thumbFocus,
-                modifier = Modifier.size(width = 160.dp, height = 90.dp)
-            )
-        }
-    }
-}
-
-@Composable
-private fun NextUpThumbnail(
-    thumbUrl: String?,
-    onPlayNext: () -> Unit,
-    onBack: () -> Unit,
-    focusSeed: FocusSeed,
-    modifier: Modifier = Modifier
-) {
-    Surface(
-        onClick = onPlayNext,
-        modifier = modifier
-            .focusSeed(focusSeed)
-            .onKeyEvent { event ->
-                if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
-                when (event.key) {
-                    Key.DirectionLeft, Key.DirectionRight,
-                    Key.DirectionUp, Key.DirectionDown -> true
-                    else -> false
-                }
-            },
-        shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(8.dp)),
-        scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
-        colors = ClickableSurfaceDefaults.colors(
-            containerColor = NextUpCardFill,
-            focusedContainerColor = NextUpCardFocusedFill,
-            pressedContainerColor = NextUpCardFocusedFill
-        ),
-        border = flatSurfaceBorder()
-    ) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            if (!thumbUrl.isNullOrEmpty()) {
-                AsyncImage(
-                    model = thumbUrl,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                )
-            }
-
-            Box(
-                modifier = Modifier
-                    .size(44.dp)
-                    .clip(CircleShape)
-                    .background(Color.Black.copy(alpha = 0.6f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.PlayArrow,
-                    contentDescription = "Play next",
-                    tint = Color.White,
-                    modifier = Modifier.size(28.dp)
-                )
-            }
-        }
-    }
-}
-
-private val NextUpCardFill = Color(0xFF111820)
-private val NextUpCardFocusedFill = Color.White.copy(alpha = 0.15f).compositeOver(NextUpCardFill)

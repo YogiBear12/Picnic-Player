@@ -45,9 +45,9 @@ internal val BrowseHeroSummaryLineHeight = 20.sp
 
 private val EpisodeTitleLineHeight = 16.dp
 
-private val HeroInfoTopGap = 14.dp
-private val HeroTitleTopGap = 4.dp
-private val HeroSummaryTopGap = 6.dp
+internal val HeroInfoTopGap = 14.dp
+internal val HeroTitleTopGap = 4.dp
+internal val HeroSummaryTopGap = 6.dp
 private val HeroRailTopGap = 10.dp
 private val HeroGenresTopGap = 10.dp
 private val HeroGenresLineHeight = 16.dp

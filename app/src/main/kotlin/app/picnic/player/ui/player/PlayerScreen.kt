@@ -460,6 +460,7 @@ fun PlayerScreen(
                     countdownSeconds = settings.nextUpCountdownSeconds,
                     onAutoplay = viewModel::onNextUpExpired,
                     onPlayNext = viewModel::playNext,
+                    inOutro = state.nextUpPhase != NextUpPhase.ENDED,
                     onBack = onNextUpBack,
                     active = !stillWatching
                 )

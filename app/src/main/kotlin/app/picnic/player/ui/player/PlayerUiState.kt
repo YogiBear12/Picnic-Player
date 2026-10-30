@@ -45,12 +45,12 @@ data class ChapterMark(
 
 data class NextUpItem(
     val id: String,
-    val title: String,
-    val seasonEpisode: String,
+    val logoName: String,
+    val episodeLine: String?,
     val meta: String,
     val overview: String,
     val backdropUrl: String?,
-    val thumbUrl: String?
+    val logoUrl: String?
 )
 
 data class PlayerUiState(
@@ -116,9 +116,11 @@ data class PlayerUiState(
 enum class NextUpExpiry { IGNORE, PAUSE_FOR_SLEEP, AUTOPLAY }
 
 internal fun buildNextUpItem(session: UserSession, item: BaseItemDto): NextUpItem {
+    val isEpisode = item.type == BaseItemKind.EPISODE
     val seasonNum = item.parentIndexNumber
     val epNum = item.indexNumber
     val seasonEpisode = if (seasonNum != null && epNum != null) "S$seasonNum E$epNum" else ""
+    val episodeLine = listOf(seasonEpisode, item.name.orEmpty()).filter { it.isNotEmpty() }.joinToString(" · ")
 
     val metaParts = mutableListOf<String>()
     item.premiereDate?.let { date ->
@@ -133,11 +135,11 @@ internal fun buildNextUpItem(session: UserSession, item: BaseItemDto): NextUpIte
 
     return NextUpItem(
         id = item.id.toString(),
-        title = item.name.orEmpty(),
-        seasonEpisode = seasonEpisode,
+        logoName = (if (isEpisode) item.seriesName else null) ?: item.name.orEmpty(),
+        episodeLine = episodeLine.takeIf { isEpisode && it.isNotEmpty() },
         meta = metaParts.joinToString(" • "),
         overview = item.overview.orEmpty(),
         backdropUrl = JellyfinImages.backdrop(session, item),
-        thumbUrl = JellyfinImages.thumb(session, item)
+        logoUrl = JellyfinImages.logo(session, item)
     )
 }

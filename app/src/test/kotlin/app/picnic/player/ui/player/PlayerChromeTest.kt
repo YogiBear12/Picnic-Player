@@ -71,6 +71,23 @@ class PlayerChromeTest {
     }
 
     @Test
+    fun leavingNextUpForTheOutroKeepsThePillDown() {
+        chrome.onSegmentChanged(segmentActive = true, enteredAtStart = true)
+        chrome.onOverlayChanged(PlayerOverlay.NEXT_UP)
+        chrome.onOverlayChanged(null)
+        assertFalse(chrome.skipPillShowing)
+        assertTrue(chrome.skipInOsd)
+    }
+
+    @Test
+    fun anOutroEnteredUnderNextUpKeepsThePillDown() {
+        chrome.onOverlayChanged(PlayerOverlay.NEXT_UP)
+        chrome.onSegmentChanged(segmentActive = true, enteredAtStart = true)
+        chrome.onOverlayChanged(null)
+        assertFalse(chrome.skipPillShowing)
+    }
+
+    @Test
     fun aNewSegmentGetsAFreshPill() {
         chrome.onSegmentChanged(segmentActive = true, enteredAtStart = true)
         chrome.dismissSkipPill()

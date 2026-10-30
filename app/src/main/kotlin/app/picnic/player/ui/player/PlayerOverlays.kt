@@ -32,8 +32,11 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -45,6 +48,8 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import app.picnic.player.data.playback.TrickplayFrame
+import app.picnic.player.ui.ambient.bakeGradient
+import app.picnic.player.ui.ambient.drawBakedGradient
 import app.picnic.player.ui.player.osd.FrameCaption
 import app.picnic.player.ui.player.osd.OsdHorizontalPadding
 import app.picnic.player.ui.player.osd.SubtitleDelayHud
@@ -78,8 +83,43 @@ fun BoxScope.NextUpScrim(backdropUrl: String?, visible: Boolean) {
                     modifier = Modifier.fillMaxSize()
                 )
             }
-            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.4f)))
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .drawBehind {
+                        drawBakedGradient(nextUpSideScrim)
+                        drawBakedGradient(nextUpBottomScrim)
+                    }
+            )
         }
+    }
+}
+
+private const val SCRIM_BITMAP_W = 480
+private const val SCRIM_BITMAP_H = 270
+
+private val nextUpSideScrim: ImageBitmap by lazy {
+    bakeGradient(SCRIM_BITMAP_W, SCRIM_BITMAP_H) {
+        drawRect(
+            Brush.horizontalGradient(
+                0f to Color.Black.copy(alpha = 0.8f),
+                0.4f to Color.Black.copy(alpha = 0.55f),
+                0.65f to Color.Black.copy(alpha = 0.1f),
+                0.8f to Color.Transparent
+            )
+        )
+    }
+}
+
+private val nextUpBottomScrim: ImageBitmap by lazy {
+    bakeGradient(SCRIM_BITMAP_W, SCRIM_BITMAP_H) {
+        drawRect(
+            Brush.verticalGradient(
+                0.5f to Color.Transparent,
+                0.72f to Color.Black.copy(alpha = 0.5f),
+                1f to Color.Black.copy(alpha = 0.85f)
+            )
+        )
     }
 }
 
