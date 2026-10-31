@@ -61,6 +61,14 @@ class WebSocketManager @Inject constructor(
 
     private suspend fun serveSession(session: UserSession) {
         val socket = sessionSocketFactory.open(session)
+        try {
+            serveSocket(session, socket)
+        } finally {
+            socket.close()
+        }
+    }
+
+    private suspend fun serveSocket(session: UserSession, socket: SessionSocket) {
         runCatching { socket.registerCapabilities() }
             .onFailure { Log.w(TAG, "postCapabilities failed for ${session.username}", it) }
         coroutineScope {

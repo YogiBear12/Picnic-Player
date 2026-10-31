@@ -95,6 +95,11 @@ class WebSocketManagerTest {
         override suspend fun registerCapabilities() {
             capabilitiesRegistered++
         }
+
+        var closed = false
+        override fun close() {
+            closed = true
+        }
     }
 
     private class FakeSessionSocketFactory : SessionSocketFactory {
@@ -292,6 +297,7 @@ class WebSocketManagerTest {
         delay(SETTLE_MS)
 
         assertTrue(h.received.isEmpty())
+        assertTrue(socket.closed)
         h.stopCollecting()
     }
 
@@ -305,6 +311,7 @@ class WebSocketManagerTest {
 
         assertEquals(2, h.factory.sockets.size)
         assertEquals(1, h.factory.sockets.last().capabilitiesRegistered)
+        assertEquals(listOf(true, false), h.factory.sockets.map { it.closed })
         h.stopCollecting()
     }
 

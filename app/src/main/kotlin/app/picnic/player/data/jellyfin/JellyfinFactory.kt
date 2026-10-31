@@ -45,9 +45,8 @@ class JellyfinFactory @Inject constructor(
             // The SDK's default factory builds a KtorClient, but the Android SDK ships
             // the OkHttp engine (jellyfin-api-okhttp) — Ktor isn't on the classpath, so
             // the default throws NoClassDefFoundError on every request. Wire OkHttp explicitly,
-            // both sharing the one client so neither builds its own SSLContext.
+            // on the one shared client so it does not build its own SSLContext.
             apiClientFactory = OkHttpFactory(client)
-            socketConnectionFactory = OkHttpFactory(client)
         }
     }
 
