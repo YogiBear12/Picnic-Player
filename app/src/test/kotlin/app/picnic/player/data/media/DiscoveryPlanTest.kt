@@ -67,7 +67,7 @@ class DiscoveryPlanTest {
     @Test
     fun candidatesIncludeProportionalSparesBeyondDisplayedCaps() {
         val candidates = buildDiscoveryPlan(fullInputs(), Random(42)).candidates
-        assertEquals(28, candidates.size)
+        assertEquals(30, candidates.size)
         assertEquals(candidates.size, candidates.map { it.key }.distinct().size)
         assertTrue(candidates.count { it.kind == DiscoveryKind.BECAUSE_WATCHED } > 4)
         for (type in DiscoveryType.entries) {
@@ -75,17 +75,22 @@ class DiscoveryPlanTest {
             assertTrue(candidates.count { it.kind == DiscoveryKind.GENRE && it.type == type } > cap)
         }
         assertEquals(3, candidates.count { it.kind == DiscoveryKind.TOP_PICKS })
+        assertEquals(
+            setOf("Top rated movies", "Top rated shows"),
+            candidates.filter { it.kind == DiscoveryKind.TOP_RATED }.map { it.title }.toSet()
+        )
     }
 
     @Test
     fun shouldShowEnforcesEveryCapAndCombinedSeedTypes() {
-        assertEquals(DISCOVERY_TARGET, DISCOVERY_CAPS.values.sum())
+        assertEquals(DISCOVERY_TARGET, DISCOVERY_CAPS.filterKeys { it.first != DiscoveryKind.TOP_RATED }.values.sum())
+        assertEquals(2, DISCOVERY_CAPS.filterKeys { it.first == DiscoveryKind.TOP_RATED }.values.sum())
         for ((bucket, cap) in DISCOVERY_CAPS) {
             val (kind, type) = bucket
             val row = when {
                 kind == DiscoveryKind.STARRING && type == DiscoveryType.TV -> candidate(kind, seedType = DiscoveryType.TV)
                 kind == DiscoveryKind.STARRING -> candidate(DiscoveryKind.DIRECTED_BY, seedType = DiscoveryType.TV)
-                kind == DiscoveryKind.GENRE || kind == DiscoveryKind.TOP_PICKS -> candidate(kind, type)
+                kind == DiscoveryKind.GENRE || kind == DiscoveryKind.TOP_PICKS || kind == DiscoveryKind.TOP_RATED -> candidate(kind, type)
                 else -> candidate(kind)
             }
             assertTrue(shouldShow(row, List(cap - 1) { row }))
@@ -158,7 +163,7 @@ class DiscoveryPlanTest {
         val inputs = fullInputs().copy(played = emptyList(), favorites = emptyList(), people = emptyMap())
         val rows = buildDiscoveryPlan(inputs, Random(2)).candidates
         assertEquals(DiscoveryKind.TOP_PICKS, rows.first().kind)
-        assertTrue(rows.drop(1).all { it.kind == DiscoveryKind.GENRE || it.kind == DiscoveryKind.TOP_PICKS })
+        assertTrue(rows.drop(1).all { it.kind in setOf(DiscoveryKind.GENRE, DiscoveryKind.TOP_PICKS, DiscoveryKind.TOP_RATED) })
     }
 
     @Test
@@ -219,7 +224,7 @@ class DiscoveryPlanTest {
 
     @Test
     fun emptyHistoryAndFavoritesProduceNoSeedRows() {
-        assertTrue(buildDiscoveryPlan(DiscoveryInputs("2026-10-24", emptyList()), Random(1)).candidates.isEmpty())
+        assertTrue(buildDiscoveryPlan(DiscoveryInputs("2026-10-24", emptyList()), Random(1)).candidates.all { it.kind == DiscoveryKind.TOP_RATED })
         assertFalse(buildDiscoveryPlan(fullInputs().copy(favorites = emptyList()), Random(1)).candidates.any { it.kind == DiscoveryKind.BECAUSE_LIKED })
     }
 
@@ -361,5 +366,63 @@ class DiscoveryPlanTest {
         assertEquals(listOf(spare, genre), nextDiscoveryBatch(candidates.drop(1), shown, limit = 4))
         val afterSuccess = nextDiscoveryBatch(candidates.drop(1), shown + first, limit = 4)
         assertEquals(listOf(genre), afterSuccess.filter { shouldShow(it, shown + first) })
+    }
+
+    private fun libraryInputs(kind: BaseItemKind): DiscoveryInputs {
+        val full = fullInputs()
+        val genres = full.availableGenres.getValue(kind) + "Reality" + "Anime"
+        return if (kind == BaseItemKind.MOVIE) {
+            full.copy(played = full.played.filter { it.type == BaseItemKind.MOVIE }, availableGenres = mapOf(kind to genres))
+        } else {
+            full.copy(
+                played = full.played.filter { it.type == BaseItemKind.EPISODE },
+                favorites = emptyList(),
+                availableGenres = mapOf(kind to genres)
+            )
+        }
+    }
+
+    @Test
+    fun movieLibraryPinsItsPicksAndBuildsOnlyMovieRows() {
+        val candidates = buildDiscoveryPlan(libraryInputs(BaseItemKind.MOVIE), Random(3), MOVIE_LIBRARY_DISCOVERY).candidates
+        assertEquals("Movies we think you'll like", candidates.first().title)
+        assertTrue(candidates.none { it.type == DiscoveryType.TV })
+        assertTrue(candidates.none { it.kind == DiscoveryKind.GENRE && it.type == DiscoveryType.MIXED })
+        assertEquals(listOf("Top rated"), candidates.filter { it.kind == DiscoveryKind.TOP_RATED }.map { it.title })
+        assertTrue(candidates.any { it.kind == DiscoveryKind.DIRECTED_BY })
+        val titles = candidates.filter { it.kind == DiscoveryKind.GENRE }.map { it.title }
+        assertTrue(titles.isNotEmpty() && titles.none { it.endsWith(" movies") })
+    }
+
+    @Test
+    fun tvLibraryHasNoDirectorsAndUntypedGenreTitles() {
+        val candidates = buildDiscoveryPlan(libraryInputs(BaseItemKind.SERIES), Random(4), TV_LIBRARY_DISCOVERY).candidates
+        assertEquals("Shows we think you'll like", candidates.first().title)
+        assertTrue(candidates.none { it.kind == DiscoveryKind.DIRECTED_BY })
+        assertTrue(candidates.any { it.kind == DiscoveryKind.STARRING })
+        val genres = candidates.filter { it.kind == DiscoveryKind.GENRE }
+        assertTrue(genres.size > LIBRARY_GENRE_ROWS)
+        assertTrue(genres.none { it.title.endsWith(" TV") || it.title.endsWith(" shows") })
+        val noHistory = libraryInputs(BaseItemKind.SERIES).copy(played = emptyList())
+        val allTitles = (1..60).flatMap { seed ->
+            buildDiscoveryPlan(noHistory, Random(seed), TV_LIBRARY_DISCOVERY).candidates.map { it.title }
+        }.toSet()
+        assertTrue("Reality" in allTitles && "Anime" in allTitles && "Dramas" in allTitles)
+    }
+
+    @Test
+    fun libraryProfilesShowAboutSixteenRows() {
+        for (profile in listOf(MOVIE_LIBRARY_DISCOVERY, TV_LIBRARY_DISCOVERY)) {
+            assertEquals(16, profile.target)
+            assertEquals(LIBRARY_GENRE_ROWS, profile.caps.getValue(DiscoveryKind.GENRE to profile.types.single()))
+        }
+        assertEquals(HOME_DISCOVERY, DiscoveryScope.HOME.profile)
+        assertEquals(HOME_DISCOVERY, DiscoveryScope(id(1), listOf(BaseItemKind.MOVIE, BaseItemKind.SERIES)).profile)
+        assertEquals(TV_LIBRARY_DISCOVERY, DiscoveryScope(id(1), listOf(BaseItemKind.SERIES)).profile)
+        assertEquals(MOVIE_LIBRARY_DISCOVERY, DiscoveryScope(id(1), listOf(BaseItemKind.MOVIE)).profile)
+    }
+
+    private companion object {
+        const val LIBRARY_GENRE_ROWS = 6
     }
 }

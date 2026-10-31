@@ -1,25 +1,41 @@
 package app.picnic.player.ui.library
 
+import android.os.SystemClock
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.picnic.player.data.auth.AuthRepository
 import app.picnic.player.data.auth.UserSession
 import app.picnic.player.data.jellyfin.isAuthFailure
+import app.picnic.player.data.media.DISCOVERY_FIELDS
+import app.picnic.player.data.media.DISCOVERY_PAGE_SIZE
+import app.picnic.player.data.media.DISCOVERY_ROW_CAP
+import app.picnic.player.data.media.DiscoveryScope
+import app.picnic.player.data.media.HiddenResumeStore
+import app.picnic.player.data.media.HomeContent
+import app.picnic.player.data.media.HomeDiscovery
 import app.picnic.player.data.media.HomeRow
 import app.picnic.player.data.media.LibraryChangeBus
 import app.picnic.player.data.media.MediaRepository
 import app.picnic.player.data.media.batches
-import app.picnic.player.data.media.chooseWatchSeeds
 import app.picnic.player.data.media.fetchHeroPrefetch
 import app.picnic.player.data.media.planHeroStreamPrefetch
-import app.picnic.player.data.media.seedId
-import app.picnic.player.data.media.seedName
 import app.picnic.player.data.media.seriesNeedingSeasonCount
 import app.picnic.player.data.media.withSeriesFallback
 import app.picnic.player.ui.ambient.AmbientPaletteLoader
+import app.picnic.player.ui.browse.BrowseDest
+import app.picnic.player.ui.common.BrowseRowFocus
+import app.picnic.player.ui.common.DiscoveryFeed
+import app.picnic.player.ui.common.PendingDiscoveryRow
+import app.picnic.player.ui.common.RowCursor
+import app.picnic.player.ui.common.RowPager
+import app.picnic.player.ui.common.loadOrderedPage
+import app.picnic.player.ui.common.retarget
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.util.UUID
 import javax.inject.Inject
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.channels.BufferOverflow
@@ -29,6 +45,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
@@ -38,9 +55,11 @@ import org.jellyfin.sdk.model.api.BaseItemKind
 import org.jellyfin.sdk.model.api.MediaStream
 
 @HiltViewModel
-class ForYouViewModel @Inject constructor(
+class ForYouViewModel @Inject internal constructor(
     private val authRepository: AuthRepository,
     private val mediaRepository: MediaRepository,
+    private val homeDiscovery: HomeDiscovery,
+    private val hiddenResumeStore: HiddenResumeStore,
     private val changeBus: LibraryChangeBus,
     val ambientLoader: AmbientPaletteLoader
 ) : ViewModel() {
@@ -48,6 +67,7 @@ class ForYouViewModel @Inject constructor(
         val loading: Boolean = true,
         val session: UserSession? = null,
         val rows: List<HomeRow> = emptyList(),
+        val pendingDiscoveryRows: List<PendingDiscoveryRow> = emptyList(),
         val error: String? = null,
         val sessionExpiredServerId: String? = null,
         val focusedRowIndex: Int = 0,
@@ -62,9 +82,12 @@ class ForYouViewModel @Inject constructor(
     private val _state = MutableStateFlow(UiState())
     val state = _state.asStateFlow()
 
-    private var bound = false
-    private var libraryId: UUID? = null
-    private var kinds: List<BaseItemKind> = emptyList()
+    private var library: BrowseDest.Library? = null
+    private var loadJob: Job? = null
+    private var fixedRows: List<HomeRow> = emptyList()
+    private var feed: DiscoveryFeed? = null
+    private val fixedPager = RowPager(viewModelScope, ::appendFixedPage)
+    private val fixedSettled = MutableStateFlow(false)
 
     private val focusChangedFlow = MutableSharedFlow<Unit>(
         extraBufferCapacity = 1,
@@ -76,31 +99,26 @@ class ForYouViewModel @Inject constructor(
             focusChangedFlow.debounce(200).collectLatest { prefetchStreamsAhead() }
         }
         viewModelScope.launch {
-            changeBus.batches().collect { batch -> patchCards(batch.itemIds) }
+            changeBus.batches().collect { batch ->
+                val feed = feed ?: return@collect
+                feed.markChanged(batch.itemIds)
+                refresh(batch.itemIds)
+                feed.patch(batch.itemIds)
+            }
         }
     }
 
-    private suspend fun patchCards(changedIds: Set<String>) {
-        val fresh = mediaRepository.refreshChanged(_state.value.rows.flatMap { it.items }, changedIds)
-        if (fresh.isEmpty()) return
-        _state.update { state ->
-            state.copy(rows = state.rows.map { row -> row.copy(items = row.items.map { fresh[it.id] ?: it }) })
+    fun bind(library: BrowseDest.Library) {
+        if (feed == null) {
+            this.library = library
+            feed = newFeed(DiscoveryScope(library.id, library.kinds))
         }
-    }
-
-    fun bind(libraryId: UUID, kinds: List<BaseItemKind>) {
-        if (bound) return
-        bound = true
-        this.libraryId = libraryId
-        this.kinds = kinds
-        load(libraryId, kinds)
+        load()
     }
 
     fun retry() {
-        val libraryId = libraryId ?: return
-        bound = true
-        _state.update { it.copy(loading = true) }
-        load(libraryId, kinds)
+        _state.update { it.copy(loading = true, error = null) }
+        load()
     }
 
     fun focusedItem(state: UiState = _state.value): BaseItemDto? {
@@ -115,6 +133,8 @@ class ForYouViewModel @Inject constructor(
         return rows.firstOrNull()?.items?.firstOrNull()?.withSeriesFallback(state.seriesItems, state.seasonLeads)
     }
 
+    fun focusedRow(state: UiState = _state.value): HomeRow? = state.rows.getOrNull(state.focusedRowIndex)
+
     fun onBrowseItemFocused(rowIndex: Int, item: BaseItemDto) {
         _state.update {
             it.copy(
@@ -124,80 +144,156 @@ class ForYouViewModel @Inject constructor(
             )
         }
         focusChangedFlow.tryEmit(Unit)
+        _state.value.session?.let { feed?.request(it) }
+        _state.value.rows.getOrNull(rowIndex)?.let { row ->
+            feed?.onFocused(row, item)
+            fixedPager.onFocused(row.key, row.items.indexOfFirst { it.id == item.id }, row.items.size)
+        }
     }
 
     fun consumeSessionExpired() {
         _state.update { it.copy(sessionExpiredServerId = null) }
     }
 
-    private fun load(libraryId: UUID, kinds: List<BaseItemKind>) {
+    private fun newFeed(target: DiscoveryScope): DiscoveryFeed = DiscoveryFeed(
+        scope = viewModelScope,
+        discovery = homeDiscovery,
+        mediaRepository = mediaRepository,
+        target = target,
+        focusedInFeed = { _state.value.focusedRowIndex >= fixedRows.size && feed?.rows.orEmpty().isNotEmpty() },
+        awaitHostRows = { fixedSettled.first { it } },
+        onChanged = { _state.update { it.withRows(fixedRows) } },
+        onRowsPublished = { added ->
+            focusChangedFlow.tryEmit(Unit)
+            viewModelScope.launch { resolveSeasonCounts(added) }
+        },
+        onPageAppended = { appended -> viewModelScope.launch { resolveSeasonCounts(appended) } }
+    )
+
+    private fun load() {
+        val library = library ?: return
+        loadJob?.cancel()
+        loadJob = viewModelScope.launch { withSession { session -> publishFixedRows(library, session) } }
+    }
+
+    // A change refresh patches Recently released in place, so its pages past the first stay loaded.
+    private fun refresh(changedIds: Set<String>) {
+        val library = library ?: return
         viewModelScope.launch {
-            val session = authRepository.activeSession()
-            if (session == null) {
-                bound = false
-                _state.update { it.copy(loading = false, error = "No active session") }
-                return@launch
-            }
-            try {
-                val pool = mediaRepository.recentlyWatched(libraryId, kinds, SEED_POOL_SIZE)
-                val rows = becauseYouWatchedRows(kinds, chooseWatchSeeds(pool))
-                publishRows(session, rows)
-                focusChangedFlow.tryEmit(Unit)
-                resolveSeasonCounts(rows)
-            } catch (e: Exception) {
-                if (e.isAuthFailure()) {
-                    authRepository.expireStoredSession(session.server.id, session.userId)
-                    _state.update {
-                        it.copy(loading = true, session = null, sessionExpiredServerId = session.server.id)
-                    }
-                } else {
-                    bound = false
-                    _state.update { it.copy(loading = false, error = "Could not load suggestions") }
+            withSession {
+                coroutineScope {
+                    val shown = releasedRows().flatMap { it.items }
+                    val fresh = async { softly(emptyMap()) { mediaRepository.refreshChanged(shown, changedIds, DISCOVERY_FIELDS) } }
+                    val top = topRows(library)
+                    val byId = fresh.await()
+                    val released = releasedRows().map { row -> row.copy(items = row.items.map { byId[it.id] ?: it }) }
+                    _state.update { it.withRows(top + released) }
                 }
             }
         }
     }
 
-    private fun publishRows(session: UserSession, rows: List<HomeRow>) {
-        _state.update {
-            it.copy(loading = false, session = session, error = null, rows = rows)
+    private suspend fun withSession(block: suspend (UserSession) -> Unit) {
+        val session = authRepository.activeSession()
+        if (session == null) {
+            _state.update { it.copy(loading = false, error = "No active session") }
+            return
         }
-    }
-
-    private suspend fun becauseYouWatchedRows(
-        kinds: List<BaseItemKind>,
-        seeds: List<BaseItemDto>
-    ): List<HomeRow> {
-        val rows = mutableListOf<HomeRow>()
-        for (batch in seeds.chunked(MAX_BECAUSE_ROWS)) {
-            if (rows.size >= MAX_BECAUSE_ROWS) break
-            coroutineScope {
-                batch.map { seed -> seed to async { becauseYouWatchedItems(seed, kinds) } }
-                    .forEach { (seed, pending) ->
-                        val items = pending.await()
-                        if (items.isEmpty() || rows.size >= MAX_BECAUSE_ROWS) return@forEach
-                        rows += HomeRow(
-                            title = "Because you watched ${seed.seedName.orEmpty()}",
-                            items = items,
-                            continueWatching = false,
-                            key = "because-${seed.seedId}"
-                        )
-                    }
+        try {
+            block(session)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            if (e.isAuthFailure()) {
+                authRepository.expireStoredSession(session.server.id, session.userId)
+                _state.update {
+                    it.copy(loading = true, session = null, sessionExpiredServerId = session.server.id)
+                }
+            } else if (_state.value.rows.isEmpty()) {
+                _state.update { it.copy(loading = false, error = "Could not load suggestions") }
             }
         }
-        return rows
     }
 
-    private suspend fun becauseYouWatchedItems(
-        seed: BaseItemDto,
-        kinds: List<BaseItemKind>
-    ): List<BaseItemDto> {
-        val similar = runCatching { mediaRepository.similarItems(seed.seedId) }
-            .getOrDefault(emptyList())
-        val items = similar
-            .filter { it.type in kinds && it.id != seed.seedId }
-            .take(ROW_ITEM_LIMIT)
-        return if (items.size < MIN_ROW_ITEMS) emptyList() else items
+    // Rows reveal top-down: the slow Recently released row lands before any discovery row below it.
+    private suspend fun publishFixedRows(library: BrowseDest.Library, session: UserSession) = coroutineScope {
+        val started = SystemClock.elapsedRealtime()
+        val released = async { releasedFirstPage(library) }
+        val top = topRows(library)
+        _state.update { it.copy(loading = false, session = session).withRows(top + releasedRows()) }
+        feed?.resume()
+        feed?.request(session)
+        focusChangedFlow.tryEmit(Unit)
+        launch { resolveSeasonCounts(top) }
+        val (ids, firstPage) = released.await()
+        fixedPager.clear()
+        fixedPager.add(RELEASED_KEY, RowCursor(DISCOVERY_PAGE_SIZE, next = DISCOVERY_PAGE_SIZE, ids = ids)) { cursor ->
+            loadOrderedPage(cursor, { ids }) { mediaRepository.itemsOrThrow(it, DISCOVERY_FIELDS) }
+        }
+        val releasedRow = listOf(HomeRow("Recently released", firstPage, continueWatching = false, key = RELEASED_KEY))
+            .filter { it.items.isNotEmpty() }
+        _state.update { it.withRows(fixedRows.filter { row -> row.key != RELEASED_KEY } + releasedRow) }
+        fixedSettled.value = true
+        Log.d(TAG, "fixed rows ${SystemClock.elapsedRealtime() - started}ms")
+        resolveSeasonCounts(releasedRow)
+    }
+
+    private suspend fun topRows(library: BrowseDest.Library): List<HomeRow> = coroutineScope {
+        val resume = async { softly(emptyList()) { mediaRepository.resumeItems(parentId = library.id) } }
+        val nextUp = async {
+            if (BaseItemKind.SERIES in library.kinds) softly(emptyList()) { mediaRepository.nextUp(parentId = library.id) } else emptyList()
+        }
+        val latest = async { softly(emptyList()) { mediaRepository.latestInLibrary(library.id) } }
+        val continueWatching = HomeContent.continueWatchingItems(
+            resume.await(),
+            nextUp.await(),
+            hiddenResumeStore.snapshot(),
+            mediaRepository.queuedEpisodeDates(nextUp.await())
+        )
+        listOf(
+            HomeRow("Continue watching", continueWatching, continueWatching = true, key = CONTINUE_KEY),
+            HomeRow("Recently added", latest.await(), continueWatching = false, key = ADDED_KEY)
+        ).filter { it.items.isNotEmpty() }
+    }
+
+    private suspend fun releasedFirstPage(library: BrowseDest.Library): Pair<List<UUID>, List<BaseItemDto>> {
+        val ids = softly(emptyList()) { mediaRepository.recentlyReleasedIds(library.id, library.kinds, DISCOVERY_ROW_CAP) }
+        val pageIds = ids.take(DISCOVERY_PAGE_SIZE)
+        val byId = softly(emptyList()) { mediaRepository.itemsOrThrow(pageIds, DISCOVERY_FIELDS) }.associateBy { it.id }
+        return ids to pageIds.mapNotNull(byId::get)
+    }
+
+    private fun releasedRows(): List<HomeRow> = fixedRows.filter { it.key == RELEASED_KEY }
+
+    // One failed row must not blank the tab, but a rejected token must reach the session handler.
+    private suspend fun <T> softly(fallback: T, block: suspend () -> T): T = try {
+        block()
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        if (e.isAuthFailure()) throw e
+        fallback
+    }
+
+    private fun appendFixedPage(key: String, page: List<BaseItemDto>) {
+        if (page.isEmpty()) return
+        fixedRows = fixedRows.map { row -> if (row.key == key) row.copy(items = row.items + page) else row }
+        _state.update { it.withRows(fixedRows) }
+        viewModelScope.launch { resolveSeasonCounts(fixedRows.filter { it.key == key }) }
+    }
+
+    private fun UiState.withRows(freshFixedRows: List<HomeRow>): UiState {
+        fixedRows = freshFixedRows
+        val feed = feed
+        val combined = fixedRows + if (loading) emptyList() else feed?.rows.orEmpty()
+        val focus = BrowseRowFocus(focusedRowIndex, focusedItemId, rowFocusedItemIds).retarget(rows, combined)
+        return copy(
+            rows = combined,
+            pendingDiscoveryRows = if (loading) emptyList() else feed?.pending.orEmpty(),
+            focusedItemId = focus.itemId,
+            focusedRowIndex = focus.rowIndex,
+            rowFocusedItemIds = focus.rowItemIds
+        )
     }
 
     private suspend fun prefetchStreamsAhead() {
@@ -242,11 +338,10 @@ class ForYouViewModel @Inject constructor(
     }
 
     private companion object {
-        const val SEED_POOL_SIZE = 120
-        const val MAX_BECAUSE_ROWS = 10
-        const val ROW_ITEM_LIMIT = 12
-
-        const val MIN_ROW_ITEMS = 3
+        const val TAG = "ForYouViewModel"
         const val STREAM_PREFETCH_CONCURRENCY = 4
+        const val CONTINUE_KEY = "continue-watching"
+        const val ADDED_KEY = "recently-added"
+        const val RELEASED_KEY = "recently-released"
     }
 }

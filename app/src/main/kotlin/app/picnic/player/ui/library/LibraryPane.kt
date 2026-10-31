@@ -42,6 +42,7 @@ import app.picnic.player.ui.browse.BrowseLayoutMetrics
 import app.picnic.player.ui.browse.DeclarePaneEntry
 import app.picnic.player.ui.browse.ImmersiveBrowseScaffold
 import app.picnic.player.ui.browse.PaneEntryScope
+import app.picnic.player.ui.browse.SkeletonRow
 import app.picnic.player.ui.browse.rememberHomeBrowseFocus
 import app.picnic.player.ui.browse.untitledSkeletonRows
 import app.picnic.player.ui.common.LoadFailedState
@@ -258,7 +259,7 @@ private fun ForYouTabContent(
     onContentFocusSeeded: () -> Unit,
     onItem: (BaseItemDto, String?) -> Unit
 ) {
-    LaunchedEffect(dest) { viewModel.bind(dest.id, dest.kinds) }
+    LaunchedEffect(dest) { viewModel.bind(dest) }
     val focus = rememberHomeBrowseFocus(
         rowCount = state.rows.size,
         focusedRowIndex = state.focusedRowIndex,
@@ -280,7 +281,7 @@ private fun ForYouTabContent(
                 upExitFocus = tabFocus
             )
         }
-        !state.loading && state.rows.isEmpty() ->
+        !state.loading && state.rows.isEmpty() && state.pendingDiscoveryRows.isEmpty() ->
             Box(Modifier.fillMaxSize(), Alignment.Center) {
                 Text(ForYouEmptyMessage)
             }
@@ -291,7 +292,7 @@ private fun ForYouTabContent(
             focusedRowIndex = state.focusedRowIndex,
             focusedItemId = state.focusedItemId,
             rowFocusedItemIds = state.rowFocusedItemIds,
-            focusedRowContinueWatching = false,
+            focusedRowContinueWatching = viewModel.focusedRow(state)?.continueWatching == true,
             seasonCounts = state.seasonCounts,
             heroStreams = state.heroStreams,
             focus = focus,
@@ -304,7 +305,11 @@ private fun ForYouTabContent(
             onItem = onItem,
             horizontalInset = horizontalInset,
             metrics = metrics,
-            skeletonRows = if (state.loading && state.rows.isEmpty()) ForYouSkeletonRows else emptyList()
+            skeletonRows = when {
+                state.loading && state.rows.isEmpty() -> ForYouSkeletonRows
+                state.loading -> emptyList()
+                else -> state.pendingDiscoveryRows.map { SkeletonRow(it.key, it.title, landscape = false) }
+            }
         )
     }
 }

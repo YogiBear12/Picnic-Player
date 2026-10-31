@@ -4,7 +4,9 @@ import android.util.Log
 import app.picnic.player.BuildConfig
 import app.picnic.player.data.auth.UserSession
 import app.picnic.player.data.jellyfin.withApiKey
+import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.LocalTime
 import java.util.Locale
 import java.util.UUID
 import javax.inject.Inject
@@ -75,8 +77,9 @@ class MediaRepository @Inject constructor(
         api().userApi.getCurrentUser().content.policy?.enableVideoPlaybackTranscoding ?: true
     }
 
-    suspend fun resumeItems(limit: Int = LATEST_ROW_LIMIT): List<BaseItemDto> = onIo {
+    suspend fun resumeItems(limit: Int = LATEST_ROW_LIMIT, parentId: UUID? = null): List<BaseItemDto> = onIo {
         api().libraryApi.getResumeItems(
+            parentId = parentId,
             limit = limit,
             includeItemTypes = PLAYABLE_KINDS,
             // Redundant with the kinds, but without it the server takes ~10 s instead of ~0.5 s.
@@ -87,8 +90,9 @@ class MediaRepository @Inject constructor(
         ).content.items.orEmpty()
     }
 
-    suspend fun nextUp(limit: Int = LATEST_ROW_LIMIT): List<BaseItemDto> = onIo {
+    suspend fun nextUp(limit: Int = LATEST_ROW_LIMIT, parentId: UUID? = null): List<BaseItemDto> = onIo {
         api().showApi.getNextUp(
+            parentId = parentId,
             limit = limit,
             fields = CONTINUE_FIELDS,
             enableImageTypes = IMAGE_TYPES,
@@ -313,10 +317,12 @@ class MediaRepository @Inject constructor(
         startIndex: Int? = null,
         limit: Int? = null,
         fields: List<ItemFields> = PERSON_ITEM_FIELDS,
-        sortBy: List<ItemSortBy> = listOf(ItemSortBy.PREMIERE_DATE, ItemSortBy.PRODUCTION_YEAR, ItemSortBy.SORT_NAME)
+        sortBy: List<ItemSortBy> = listOf(ItemSortBy.PREMIERE_DATE, ItemSortBy.PRODUCTION_YEAR, ItemSortBy.SORT_NAME),
+        parentId: UUID? = null
     ): List<BaseItemDto> = onIo {
         api().libraryApi.getItems(
             userId = session().userUuid,
+            parentId = parentId,
             personIds = listOf(personId),
             personTypes = personType?.let { listOf(it.serialName) },
             excludeItemIds = excludeId?.let { listOf(it) },
@@ -715,6 +721,49 @@ class MediaRepository @Inject constructor(
         ).content.totalRecordCount ?: 0
     }
 
+    suspend fun recentlyReleasedIds(libraryId: UUID, kinds: List<BaseItemKind>, limit: Int): List<UUID> = coroutineScope {
+        val cutoff = LocalDate.now().atTime(LocalTime.MAX)
+        val movies = async {
+            if (BaseItemKind.MOVIE in kinds) releasedPage(libraryId, BaseItemKind.MOVIE, cutoff, 0, limit) else emptyList()
+        }
+        val series = async { if (BaseItemKind.SERIES in kinds) releasedSeries(libraryId, cutoff, limit) else emptyList() }
+        releaseOrder(movies.await() + series.await(), limit)
+    }
+
+    private suspend fun releasedSeries(libraryId: UUID, cutoff: LocalDateTime, limit: Int): List<BaseItemDto> {
+        val episodes = mutableListOf<BaseItemDto>()
+        while (episodes.size < RELEASED_EPISODE_SCAN) {
+            val page = releasedPage(libraryId, BaseItemKind.EPISODE, cutoff, episodes.size, RELEASED_EPISODE_PAGE)
+            episodes += page
+            if (page.size < RELEASED_EPISODE_PAGE || episodes.mapNotNull { it.seriesId }.distinct().size >= limit) break
+        }
+        return episodes
+    }
+
+    private suspend fun releasedPage(
+        libraryId: UUID,
+        kind: BaseItemKind,
+        cutoff: LocalDateTime,
+        startIndex: Int,
+        limit: Int
+    ): List<BaseItemDto> = onIo {
+        api().libraryApi.getItems(
+            userId = session().userUuid,
+            parentId = libraryId,
+            recursive = true,
+            includeItemTypes = listOf(kind),
+            maxPremiereDate = cutoff,
+            sortBy = listOf(ItemSortBy.PREMIERE_DATE),
+            sortOrder = listOf(SortOrder.DESCENDING),
+            startIndex = startIndex,
+            limit = limit,
+            fields = emptyList(),
+            imageTypeLimit = 0,
+            enableUserData = false,
+            enableTotalRecordCount = false
+        ).content.items.orEmpty()
+    }
+
     suspend fun recentlyWatched(
         libraryId: UUID?,
         kinds: List<BaseItemKind>,
@@ -741,14 +790,18 @@ class MediaRepository @Inject constructor(
         kinds: List<BaseItemKind>,
         sortBy: ItemSortBy,
         limit: Int,
-        isFavorite: Boolean? = null
+        isFavorite: Boolean? = null,
+        parentId: UUID? = null,
+        minCommunityRating: Double? = null
     ): List<BaseItemDto> = onIo {
         api().libraryApi.getItems(
             userId = session().userUuid,
+            parentId = parentId,
             recursive = true,
             genres = genres.takeIf { it.isNotEmpty() },
             includeItemTypes = kinds,
             isFavorite = isFavorite,
+            minCommunityRating = minCommunityRating,
             sortBy = listOf(sortBy),
             sortOrder = listOf(SortOrder.DESCENDING),
             limit = limit,
@@ -848,6 +901,8 @@ class MediaRepository @Inject constructor(
 
     private companion object {
         const val LATEST_ROW_LIMIT = 25
+        const val RELEASED_EPISODE_PAGE = 200
+        const val RELEASED_EPISODE_SCAN = 1_000
 
         const val SEARCH_ROW_LIMIT = 24
 
@@ -862,3 +917,11 @@ class MediaRepository @Inject constructor(
 }
 
 internal const val ITEM_FETCH_CHUNK = 100
+
+/** Newest first; an episode stands for its series, so a show sorts by its newest episode. */
+internal fun releaseOrder(items: List<BaseItemDto>, limit: Int): List<UUID> = items
+    .mapNotNull { item -> item.premiereDate?.let { date -> (if (item.type == BaseItemKind.EPISODE) item.seriesId else item.id)?.to(date) } }
+    .sortedByDescending { it.second }
+    .map { it.first }
+    .distinct()
+    .take(limit)

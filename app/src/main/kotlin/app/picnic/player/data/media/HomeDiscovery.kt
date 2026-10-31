@@ -5,6 +5,7 @@ import android.util.Log
 import app.picnic.player.data.auth.UserScope
 import java.time.LocalDate
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.random.Random
@@ -30,20 +31,22 @@ internal class HomeDiscovery @Inject constructor(
     private val store: DiscoveryStore
 ) {
     private val saves = Mutex()
+    private val folderInLibrary = ConcurrentHashMap<Pair<UUID, UUID>, Boolean>()
 
-    suspend fun plan(scope: UserScope, userId: UUID, today: LocalDate): DiscoveryPlan {
+    suspend fun plan(scope: UserScope, userId: UUID, today: LocalDate, target: DiscoveryScope = DiscoveryScope.HOME): DiscoveryPlan {
         val started = SystemClock.elapsedRealtime()
         var action = "build"
         try {
             return saves.withLock {
-                val stored = store.load(scope)
+                val stored = store.load(scope, target.libraryId)
                 if (stored?.date == today.toString() && stored.version == DISCOVERY_PLAN_VERSION) {
                     action = "load"
                     stored
                 } else {
-                    val inputs = inputs(today)
-                    val built = buildDiscoveryPlan(inputs, Random(userId.hashCode() xor today.toEpochDay().toInt()))
-                    store.save(scope, built)
+                    val inputs = inputs(today, target)
+                    val seed = userId.hashCode() xor today.toEpochDay().toInt() xor (target.libraryId?.hashCode() ?: 0)
+                    val built = buildDiscoveryPlan(inputs, Random(seed), target.profile)
+                    store.save(scope, built, target.libraryId)
                     built
                 }
             }
@@ -57,34 +60,48 @@ internal class HomeDiscovery @Inject constructor(
         }
     }
 
-    private suspend fun inputs(today: LocalDate): DiscoveryInputs = coroutineScope {
+    private suspend fun inputs(today: LocalDate, target: DiscoveryScope): DiscoveryInputs = coroutineScope {
         val played = async {
-            mediaRepository.recentlyWatched(null, MIXED_KINDS, PLAYED_LIMIT, SEED_FIELDS)
+            mediaRepository.recentlyWatched(target.libraryId, target.kinds, PLAYED_LIMIT, SEED_FIELDS)
         }
         val favorites = async {
-            mediaRepository.discoveryItems(emptyList(), MIXED_KINDS, ItemSortBy.RANDOM, FAVORITES_LIMIT, isFavorite = true)
+            mediaRepository.discoveryItems(
+                emptyList(),
+                target.kinds,
+                ItemSortBy.RANDOM,
+                FAVORITES_LIMIT,
+                isFavorite = true,
+                parentId = target.libraryId
+            )
         }
         val metadata = async {
             val ids = played.await().map { it.seedId }.distinct()
             mediaRepository.itemsOrThrow(ids, SEED_FIELDS + ItemFields.PEOPLE).associateBy { it.id }
         }
-        val movieGenres = async { mediaRepository.genres(kinds = listOf(BaseItemKind.MOVIE)).mapNotNull { it.name }.toSet() }
-        val tvGenres = async { mediaRepository.genres(kinds = listOf(BaseItemKind.SERIES)).mapNotNull { it.name }.toSet() }
+        val genres = target.kinds.associateWith { kind ->
+            async { mediaRepository.genres(target.libraryId, listOf(kind)).mapNotNull { it.name }.toSet() }
+        }
         DiscoveryInputs(
             date = today.toString(),
             played = played.await(),
             series = metadata.await().filterValues { it.type == BaseItemKind.SERIES },
             favorites = favorites.await(),
             people = metadata.await().mapValues { it.value.people.orEmpty() },
-            availableGenres = mapOf(BaseItemKind.MOVIE to movieGenres.await(), BaseItemKind.SERIES to tvGenres.await())
+            availableGenres = genres.mapValues { it.value.await() }
         )
     }
 
-    fun loader(scope: CoroutineScope, plan: DiscoveryPlan, candidates: List<DiscoveryCandidate>, awaitPublication: suspend () -> Unit): DiscoveryItemLoader = DiscoveryItemLoader(
+    fun loader(
+        scope: CoroutineScope,
+        plan: DiscoveryPlan,
+        candidates: List<DiscoveryCandidate>,
+        target: DiscoveryScope,
+        awaitPublication: suspend () -> Unit
+    ): DiscoveryItemLoader = DiscoveryItemLoader(
         scope,
         candidates,
         fetchSaved = { mediaRepository.itemsOrThrow(it, DISCOVERY_FIELDS) },
-        query = { query(plan, it) },
+        query = { query(plan, it, target) },
         awaitPublication = awaitPublication
     )
 
@@ -93,7 +110,8 @@ internal class HomeDiscovery @Inject constructor(
         plan: DiscoveryPlan,
         candidates: List<DiscoveryCandidate>,
         earlier: List<List<BaseItemDto>>,
-        loader: DiscoveryItemLoader
+        loader: DiscoveryItemLoader,
+        target: DiscoveryScope
     ): Pair<DiscoveryPlan, List<List<BaseItemDto>>> {
         val started = SystemClock.elapsedRealtime()
         try {
@@ -101,9 +119,9 @@ internal class HomeDiscovery @Inject constructor(
             val updates = updated.associateBy { it.key }
             if (candidates.all { updates[it.key] == it }) return plan to firstPages
             val latest = saves.withLock {
-                val current = store.load(scope) ?: plan
+                val current = store.load(scope, target.libraryId) ?: plan
                 check(current.date == plan.date && current.version == plan.version) { "Discovery plan changed during fill" }
-                current.copy(candidates = current.candidates.map { updates[it.key] ?: it }).also { store.save(scope, it) }
+                current.copy(candidates = current.candidates.map { updates[it.key] ?: it }).also { store.save(scope, it, target.libraryId) }
             }
             return latest to firstPages
         } finally {
@@ -111,32 +129,53 @@ internal class HomeDiscovery @Inject constructor(
         }
     }
 
-    private suspend fun query(plan: DiscoveryPlan, candidate: DiscoveryCandidate): List<BaseItemDto> {
+    private suspend fun query(plan: DiscoveryPlan, candidate: DiscoveryCandidate, target: DiscoveryScope): List<BaseItemDto> {
         val random = Random((plan.date + candidate.key).hashCode())
+        val library = target.libraryId
         return when (candidate.kind) {
             DiscoveryKind.TOP_PICKS -> sampleDiscoveryItems(
-                mediaRepository.discoveryItems(candidate.genres, candidate.type.kinds(), ItemSortBy.RANDOM, TOP_PICKS_LIMIT),
+                mediaRepository.discoveryItems(candidate.genres, candidate.type.kinds(), ItemSortBy.RANDOM, TOP_PICKS_LIMIT, parentId = library),
                 random
             )
-            DiscoveryKind.BECAUSE_WATCHED, DiscoveryKind.BECAUSE_LIKED -> mediaRepository.similarItems(
-                UUID.fromString(requireNotNull(candidate.seedId)),
-                limit = SIMILAR_LIMIT,
-                fields = DISCOVERY_FIELDS
+            DiscoveryKind.TOP_RATED -> mediaRepository.discoveryItems(
+                emptyList(),
+                candidate.type.kinds(),
+                ItemSortBy.RANDOM,
+                DISCOVERY_ROW_CAP,
+                parentId = library,
+                minCommunityRating = TOP_RATED_MINIMUM
             )
+            DiscoveryKind.BECAUSE_WATCHED, DiscoveryKind.BECAUSE_LIKED -> {
+                val similar = mediaRepository.similarItems(
+                    UUID.fromString(requireNotNull(candidate.seedId)),
+                    limit = SIMILAR_LIMIT,
+                    fields = if (library == null) DISCOVERY_FIELDS else DISCOVERY_FIELDS + ItemFields.PARENT_ID
+                )
+                if (library == null) similar else inLibrary(similar, library)
+            }
             DiscoveryKind.STARRING, DiscoveryKind.DIRECTED_BY -> mediaRepository.getItemsByPerson(
                 personId = UUID.fromString(requireNotNull(candidate.personId)),
-                types = MIXED_KINDS,
+                types = target.kinds,
                 personType = if (candidate.kind == DiscoveryKind.STARRING) PersonKind.ACTOR else PersonKind.DIRECTOR,
                 limit = PERSON_LIMIT,
                 fields = DISCOVERY_FIELDS,
-                sortBy = listOf(ItemSortBy.RANDOM)
+                sortBy = listOf(ItemSortBy.RANDOM),
+                parentId = library
             ).shuffled(random)
             DiscoveryKind.GENRE -> mediaRepository.discoveryItems(
                 candidate.genres,
                 candidate.type.kinds(),
                 ItemSortBy.RANDOM,
-                GENRE_LIMIT
+                GENRE_LIMIT,
+                parentId = library
             )
+        }
+    }
+
+    // The similar endpoint has no library filter, and /Items ignores parentId when ids are given.
+    private suspend fun inLibrary(items: List<BaseItemDto>, libraryId: UUID): List<BaseItemDto> = keepInLibrary(items, libraryId) { folder, member ->
+        folderInLibrary.getOrPut(folder to libraryId) {
+            mediaRepository.folderAncestors(member).any { it.id == libraryId }
         }
     }
 
@@ -148,7 +187,7 @@ internal class HomeDiscovery @Inject constructor(
         const val SIMILAR_LIMIT = DISCOVERY_ROW_CAP
         const val PERSON_LIMIT = 40
         const val GENRE_LIMIT = 40
-        val MIXED_KINDS = listOf(BaseItemKind.MOVIE, BaseItemKind.SERIES)
+        const val TOP_RATED_MINIMUM = 8.0
         val SEED_FIELDS = listOf(ItemFields.GENRES, ItemFields.PROVIDER_IDS)
     }
 }
@@ -173,6 +212,17 @@ internal fun acceptDiscoveryRows(
         candidate.copy(itemIds = ids, dropped = row.isEmpty())
     }
     return updated to rows.map { it.take(DISCOVERY_PAGE_SIZE) }
+}
+
+/** Items without a parent folder are dropped: their library cannot be proven. */
+internal suspend fun keepInLibrary(
+    items: List<BaseItemDto>,
+    libraryId: UUID,
+    folderInLibrary: suspend (folderId: UUID, memberId: UUID) -> Boolean
+): List<BaseItemDto> {
+    val kept = items.filter { it.parentId != null }.groupBy { requireNotNull(it.parentId) }
+        .filter { (folder, members) -> folder == libraryId || folderInLibrary(folder, members.first().id) }.keys
+    return items.filter { it.parentId in kept }
 }
 
 internal fun restoreDiscoveryOrder(ids: List<String>, items: List<BaseItemDto>): List<BaseItemDto> {

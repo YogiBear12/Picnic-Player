@@ -14,10 +14,10 @@ import org.jellyfin.sdk.model.api.PersonKind
 @Serializable
 internal data class DiscoveryPlan(val date: String, val candidates: List<DiscoveryCandidate>, val version: Int = 0)
 
-internal const val DISCOVERY_PLAN_VERSION = 2
+internal const val DISCOVERY_PLAN_VERSION = 3
 
 @Serializable
-internal enum class DiscoveryKind { TOP_PICKS, BECAUSE_WATCHED, BECAUSE_LIKED, STARRING, DIRECTED_BY, GENRE }
+internal enum class DiscoveryKind { TOP_PICKS, BECAUSE_WATCHED, BECAUSE_LIKED, STARRING, DIRECTED_BY, GENRE, TOP_RATED }
 
 @Serializable
 internal data class DiscoveryCandidate(
@@ -52,6 +52,10 @@ private const val MIXED_GENRE_CAP = 5
 private const val WATCHED_CAP = 4
 private const val LIKED_CAP = 1
 private const val TYPED_GENRE_CAP = 2
+private const val TOP_RATED_CAP = 1
+private const val LIBRARY_DISCOVERY_TARGET = 16
+private const val LIBRARY_PEOPLE_CAP = 4
+private const val LIBRARY_GENRE_CAP = 6
 
 // Person cap keys use the seed bucket; person rows themselves always contain mixed items.
 internal val DISCOVERY_CAPS = mapOf(
@@ -64,8 +68,53 @@ internal val DISCOVERY_CAPS = mapOf(
     (DiscoveryKind.BECAUSE_WATCHED to DiscoveryType.MIXED) to WATCHED_CAP,
     (DiscoveryKind.BECAUSE_LIKED to DiscoveryType.MIXED) to LIKED_CAP,
     (DiscoveryKind.GENRE to DiscoveryType.MOVIE) to TYPED_GENRE_CAP,
-    (DiscoveryKind.GENRE to DiscoveryType.TV) to TYPED_GENRE_CAP
+    (DiscoveryKind.GENRE to DiscoveryType.TV) to TYPED_GENRE_CAP,
+    (DiscoveryKind.TOP_RATED to DiscoveryType.MOVIE) to TOP_RATED_CAP,
+    (DiscoveryKind.TOP_RATED to DiscoveryType.TV) to TOP_RATED_CAP
 )
+
+internal data class DiscoveryProfile(
+    val types: List<DiscoveryType>,
+    val caps: Map<Pair<DiscoveryKind, DiscoveryType>, Int>,
+    val target: Int,
+    val untypedTitles: Boolean
+) {
+    val pinnedPicks: DiscoveryType get() = types.singleOrNull() ?: DiscoveryType.MIXED
+}
+
+internal val HOME_DISCOVERY = DiscoveryProfile(DiscoveryType.entries, DISCOVERY_CAPS, DISCOVERY_TARGET, untypedTitles = false)
+
+private fun libraryDiscovery(type: DiscoveryType) = DiscoveryProfile(
+    types = listOf(type),
+    caps = mapOf(
+        (DiscoveryKind.TOP_PICKS to type) to TOP_PICKS_CAP,
+        (DiscoveryKind.TOP_RATED to type) to TOP_RATED_CAP,
+        (DiscoveryKind.BECAUSE_WATCHED to DiscoveryType.MIXED) to WATCHED_CAP,
+        (DiscoveryKind.BECAUSE_LIKED to DiscoveryType.MIXED) to LIKED_CAP,
+        // TV seeds only feed Starring; movie seeds feed Starring and Directed by.
+        (DiscoveryKind.STARRING to if (type == DiscoveryType.TV) DiscoveryType.TV else DiscoveryType.MIXED) to LIBRARY_PEOPLE_CAP,
+        (DiscoveryKind.GENRE to type) to LIBRARY_GENRE_CAP
+    ),
+    target = LIBRARY_DISCOVERY_TARGET,
+    untypedTitles = true
+)
+
+internal val MOVIE_LIBRARY_DISCOVERY = libraryDiscovery(DiscoveryType.MOVIE)
+internal val TV_LIBRARY_DISCOVERY = libraryDiscovery(DiscoveryType.TV)
+
+// A library holding both movies and series is planned with Home's profile.
+internal data class DiscoveryScope(val libraryId: UUID?, val kinds: List<BaseItemKind>) {
+    val profile: DiscoveryProfile
+        get() = when {
+            libraryId == null || (BaseItemKind.MOVIE in kinds && BaseItemKind.SERIES in kinds) -> HOME_DISCOVERY
+            BaseItemKind.SERIES in kinds -> TV_LIBRARY_DISCOVERY
+            else -> MOVIE_LIBRARY_DISCOVERY
+        }
+
+    companion object {
+        val HOME = DiscoveryScope(null, listOf(BaseItemKind.MOVIE, BaseItemKind.SERIES))
+    }
+}
 
 private const val SPARE_FRACTION = 0.3
 private const val TOP_GENRE_COUNT = 3
@@ -80,20 +129,29 @@ private fun DiscoveryCandidate.capKey(): Pair<DiscoveryKind, DiscoveryType> = wh
     DiscoveryKind.STARRING, DiscoveryKind.DIRECTED_BY ->
         DiscoveryKind.STARRING to
             if (kind == DiscoveryKind.STARRING && seedType == DiscoveryType.TV) DiscoveryType.TV else DiscoveryType.MIXED
-    DiscoveryKind.GENRE, DiscoveryKind.TOP_PICKS -> kind to type
+    DiscoveryKind.GENRE, DiscoveryKind.TOP_PICKS, DiscoveryKind.TOP_RATED -> kind to type
     else -> kind to DiscoveryType.MIXED
 }
 
-internal fun shouldShow(candidate: DiscoveryCandidate, shown: List<DiscoveryCandidate>): Boolean = !candidate.dropped &&
-    shown.size < DISCOVERY_TARGET &&
-    shown.count { it.capKey() == candidate.capKey() } < DISCOVERY_CAPS.getValue(candidate.capKey())
+internal fun shouldShow(
+    candidate: DiscoveryCandidate,
+    shown: List<DiscoveryCandidate>,
+    profile: DiscoveryProfile = HOME_DISCOVERY
+): Boolean = !candidate.dropped &&
+    shown.size < profile.target &&
+    shown.count { it.capKey() == candidate.capKey() } < (profile.caps[candidate.capKey()] ?: 0)
 
-internal fun nextDiscoveryBatch(candidates: List<DiscoveryCandidate>, shown: List<DiscoveryCandidate>, limit: Int): List<DiscoveryCandidate> {
+internal fun nextDiscoveryBatch(
+    candidates: List<DiscoveryCandidate>,
+    shown: List<DiscoveryCandidate>,
+    limit: Int,
+    profile: DiscoveryProfile = HOME_DISCOVERY
+): List<DiscoveryCandidate> {
     val reserved = shown.toMutableList()
     return candidates.take(limit).takeWhile { candidate ->
-        if (!shouldShow(candidate, shown)) {
+        if (!shouldShow(candidate, shown, profile)) {
             true
-        } else if (shouldShow(candidate, reserved)) {
+        } else if (shouldShow(candidate, reserved, profile)) {
             reserved += candidate
             true
         } else {
@@ -102,17 +160,21 @@ internal fun nextDiscoveryBatch(candidates: List<DiscoveryCandidate>, shown: Lis
     }
 }
 
-internal fun pendingDiscoveryCandidates(candidates: List<DiscoveryCandidate>, shown: List<DiscoveryCandidate>): List<DiscoveryCandidate> {
+internal fun pendingDiscoveryCandidates(
+    candidates: List<DiscoveryCandidate>,
+    shown: List<DiscoveryCandidate>,
+    profile: DiscoveryProfile = HOME_DISCOVERY
+): List<DiscoveryCandidate> {
     val accepted = shown.toMutableList()
-    return candidates.filter { candidate -> shouldShow(candidate, accepted).also { if (it) accepted += candidate } }
+    return candidates.filter { candidate -> shouldShow(candidate, accepted, profile).also { if (it) accepted += candidate } }
 }
 
-internal fun buildDiscoveryPlan(inputs: DiscoveryInputs, random: Random): DiscoveryPlan {
+internal fun buildDiscoveryPlan(inputs: DiscoveryInputs, random: Random, profile: DiscoveryProfile = HOME_DISCOVERY): DiscoveryPlan {
     val groups = genreGroups(inputs.availableGenres)
     val history = inputs.played.filter { it.type == BaseItemKind.MOVIE || it.type == BaseItemKind.EPISODE }
     val seeds = uniqueSeeds(history, inputs.series)
     val candidates = mutableListOf<DiscoveryCandidate>()
-    val budgets = candidateBudgets()
+    val budgets = candidateBudgets(profile)
     val seedWeights = seeds.mapIndexed { index, seed -> seed.seedId to seeds.size - index }.toMap()
     fun seedWeight(seed: BaseItemDto): Int = seedWeights[seed.seedId] ?: 1
     fun genreWeight(group: DiscoveryGenreGroup, type: DiscoveryType): Int = seeds.sumOf { item ->
@@ -127,7 +189,7 @@ internal fun buildDiscoveryPlan(inputs: DiscoveryInputs, random: Random): Discov
             0
         }
     }
-    for (type in DiscoveryType.entries) {
+    for (type in profile.types) {
         val eligible = if (type == DiscoveryType.MIXED) groups.values.flatten().distinctBy { it.name } else groups.getValue(type)
         val preferred = eligible.filter { genreWeight(it, type) > 0 }.ifEmpty { eligible }
         val topGenres = preferred.sortedByDescending { genreWeight(it, type) }
@@ -140,8 +202,16 @@ internal fun buildDiscoveryPlan(inputs: DiscoveryInputs, random: Random): Discov
         }
         candidates += DiscoveryCandidate("top-picks:${type.name}", DiscoveryKind.TOP_PICKS, type, title, genres = topGenres)
     }
+    for (type in profile.types.filter { it != DiscoveryType.MIXED }) {
+        val title = when {
+            profile.untypedTitles -> "Top rated"
+            type == DiscoveryType.MOVIE -> "Top rated movies"
+            else -> "Top rated shows"
+        }
+        candidates += DiscoveryCandidate("top-rated:${type.name}", DiscoveryKind.TOP_RATED, type, title)
+    }
     fun addSimilar(pool: List<BaseItemDto>, kind: DiscoveryKind, prefix: String) {
-        val limit = budgets.getValue(kind to DiscoveryType.MIXED)
+        val limit = budgets[kind to DiscoveryType.MIXED] ?: 0
         weightedOrder(pool, random, ::seedWeight)
             .take(limit).forEach { seed ->
                 candidates += DiscoveryCandidate(
@@ -160,7 +230,7 @@ internal fun buildDiscoveryPlan(inputs: DiscoveryInputs, random: Random): Discov
     val usedPeople = mutableSetOf<UUID>()
     fun addPeople(tvStarring: Boolean) {
         val bucket = DiscoveryKind.STARRING to if (tvStarring) DiscoveryType.TV else DiscoveryType.MIXED
-        var remaining = budgets.getValue(bucket)
+        var remaining = budgets[bucket] ?: 0
         val eligible = seeds.filter { !tvStarring || it.discoveryType() == DiscoveryType.TV }
         for (seed in weightedOrder(eligible, random, ::seedWeight)) {
             val kinds = if (tvStarring) listOf(PersonKind.ACTOR) else listOf(PersonKind.ACTOR, PersonKind.DIRECTOR).shuffled(random)
@@ -188,26 +258,26 @@ internal fun buildDiscoveryPlan(inputs: DiscoveryInputs, random: Random): Discov
     }
     addPeople(tvStarring = true)
     addPeople(tvStarring = false)
-    for (type in DiscoveryType.entries) {
+    for (type in profile.types) {
         weightedOrder(groups.getValue(type), random) { genreWeight(it, type) }
-            .take(budgets.getValue(DiscoveryKind.GENRE to type)).forEach { group ->
+            .take(budgets[DiscoveryKind.GENRE to type] ?: 0).forEach { group ->
                 candidates += DiscoveryCandidate(
                     "genre:${type.name}:${group.name}",
                     DiscoveryKind.GENRE,
                     type,
-                    requireNotNull(group.title(type)),
+                    if (profile.untypedTitles) group.mixedTitle ?: group.name else requireNotNull(group.title(type)),
                     genres = group.genres
                 )
             }
     }
-    val (top, rest) = candidates.partition { it.kind == DiscoveryKind.TOP_PICKS && it.type == DiscoveryType.MIXED }
+    val (top, rest) = candidates.partition { it.kind == DiscoveryKind.TOP_PICKS && it.type == profile.pinnedPicks }
     return DiscoveryPlan(inputs.date, top + shuffleRows(rest, random), DISCOVERY_PLAN_VERSION)
 }
 
-private fun candidateBudgets(): Map<Pair<DiscoveryKind, DiscoveryType>, Int> {
-    val budgets = DISCOVERY_CAPS.toMutableMap()
-    val extra = ceil(DISCOVERY_TARGET * SPARE_FRACTION).toInt()
-    val eligible = DISCOVERY_CAPS.filterKeys { it.first != DiscoveryKind.TOP_PICKS }
+private fun candidateBudgets(profile: DiscoveryProfile): Map<Pair<DiscoveryKind, DiscoveryType>, Int> {
+    val budgets = profile.caps.toMutableMap()
+    val extra = ceil(profile.target * SPARE_FRACTION).toInt()
+    val eligible = profile.caps.filterKeys { it.first != DiscoveryKind.TOP_PICKS && it.first != DiscoveryKind.TOP_RATED }
     val additions = eligible.mapValues { (_, cap) -> (cap * SPARE_FRACTION).toInt() }
     for ((key, count) in additions) budgets[key] = budgets.getValue(key) + count
     eligible.keys.sortedByDescending { eligible.getValue(it) * SPARE_FRACTION - additions.getValue(it) }

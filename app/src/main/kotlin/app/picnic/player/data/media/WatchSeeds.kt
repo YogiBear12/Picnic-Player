@@ -11,7 +11,3 @@ internal val BaseItemDto.seedName: String? get() = seriesName ?: name
 internal fun watchHistoryKinds(kinds: List<BaseItemKind>): List<BaseItemKind> = kinds.map {
     if (it == BaseItemKind.SERIES) BaseItemKind.EPISODE else it
 }
-
-internal fun chooseWatchSeeds(pool: List<BaseItemDto>): List<BaseItemDto> = pool
-    .shuffled()
-    .distinctBy { it.seedId }
