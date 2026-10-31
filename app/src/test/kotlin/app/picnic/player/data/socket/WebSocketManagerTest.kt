@@ -6,6 +6,12 @@ import app.picnic.player.data.media.LibraryChange
 import app.picnic.player.data.media.LibraryChangeBus
 import app.picnic.player.data.playback.PlayerCommand
 import app.picnic.player.data.playback.PlayerCommandBus
+import app.picnic.player.data.syncplay.SyncCommand
+import app.picnic.player.data.syncplay.SyncPlaySession
+import app.picnic.player.data.syncplay.SyncQueue
+import java.time.Instant
+import java.time.LocalDateTime
+import java.time.ZoneId
 import java.util.UUID
 import kotlin.reflect.KClass
 import kotlinx.coroutines.CoroutineScope
@@ -22,16 +28,29 @@ import org.jellyfin.sdk.api.sockets.SocketApiState
 import org.jellyfin.sdk.model.api.GeneralCommand
 import org.jellyfin.sdk.model.api.GeneralCommandMessage
 import org.jellyfin.sdk.model.api.GeneralCommandType
+import org.jellyfin.sdk.model.api.GroupInfoDto
+import org.jellyfin.sdk.model.api.GroupRepeatMode
+import org.jellyfin.sdk.model.api.GroupShuffleMode
+import org.jellyfin.sdk.model.api.GroupStateType
 import org.jellyfin.sdk.model.api.LibraryChangedMessage
 import org.jellyfin.sdk.model.api.LibraryUpdateInfo
 import org.jellyfin.sdk.model.api.OutboundWebSocketMessage
 import org.jellyfin.sdk.model.api.PlayCommand
 import org.jellyfin.sdk.model.api.PlayMessage
+import org.jellyfin.sdk.model.api.PlayQueueUpdate
+import org.jellyfin.sdk.model.api.PlayQueueUpdateReason
 import org.jellyfin.sdk.model.api.PlayRequest
 import org.jellyfin.sdk.model.api.PlaystateCommand
 import org.jellyfin.sdk.model.api.PlaystateMessage
 import org.jellyfin.sdk.model.api.PlaystateRequest
+import org.jellyfin.sdk.model.api.SendCommand
+import org.jellyfin.sdk.model.api.SendCommandType
 import org.jellyfin.sdk.model.api.ServerShuttingDownMessage
+import org.jellyfin.sdk.model.api.SyncPlayCommandMessage
+import org.jellyfin.sdk.model.api.SyncPlayGroupJoinedUpdate
+import org.jellyfin.sdk.model.api.SyncPlayGroupUpdateMessage
+import org.jellyfin.sdk.model.api.SyncPlayPlayQueueUpdate
+import org.jellyfin.sdk.model.api.SyncPlayQueueItem
 import org.jellyfin.sdk.model.api.UserDataChangeInfo
 import org.jellyfin.sdk.model.api.UserDataChangedMessage
 import org.jellyfin.sdk.model.api.UserItemDataDto
@@ -58,6 +77,7 @@ class WebSocketManagerTest {
         val playMessages = MutableSharedFlow<PlayMessage>(extraBufferCapacity = 16)
         val generalMessages = MutableSharedFlow<GeneralCommandMessage>(extraBufferCapacity = 16)
         val shutdownMessages = MutableSharedFlow<ServerShuttingDownMessage>(extraBufferCapacity = 16)
+        val allMessages = MutableSharedFlow<OutboundWebSocketMessage>(extraBufferCapacity = 16)
         var capabilitiesRegistered = 0
 
         @Suppress("UNCHECKED_CAST")
@@ -68,6 +88,7 @@ class WebSocketManagerTest {
             PlayMessage::class -> playMessages as Flow<T>
             GeneralCommandMessage::class -> generalMessages as Flow<T>
             ServerShuttingDownMessage::class -> shutdownMessages as Flow<T>
+            OutboundWebSocketMessage::class -> allMessages as Flow<T>
             else -> emptyFlow()
         }
 
@@ -94,11 +115,13 @@ class WebSocketManagerTest {
         val playerBus = PlayerCommandBus()
         val messageBus = ServerMessageBus()
         val remoteBus = RemoteControlBus()
+        val syncPlay = SyncPlaySession()
 
         val received = mutableListOf<LibraryChange>()
         val playerCommands = mutableListOf<PlayerCommand>()
         val notices = mutableListOf<ServerNotice>()
         val remoteActions = mutableListOf<RemoteControlAction>()
+        val syncCommands = mutableListOf<SyncCommand>()
         private val collectJobs = mutableListOf<Job>()
 
         val manager = WebSocketManager(
@@ -109,6 +132,7 @@ class WebSocketManagerTest {
             playerBus,
             messageBus,
             remoteBus,
+            syncPlay,
             Dispatchers.Unconfined
         )
 
@@ -117,6 +141,7 @@ class WebSocketManagerTest {
             collectJobs += scope.launch(Dispatchers.Unconfined) { playerBus.commands.collect { playerCommands += it } }
             collectJobs += scope.launch(Dispatchers.Unconfined) { messageBus.messages.collect { notices += it } }
             collectJobs += scope.launch(Dispatchers.Unconfined) { remoteBus.actions.collect { remoteActions += it } }
+            collectJobs += scope.launch(Dispatchers.Unconfined) { syncPlay.commands.collect { syncCommands += it } }
             manager.start()
         }
 
@@ -299,6 +324,52 @@ class WebSocketManagerTest {
         h.factory.sockets.single().libraryMessages.emit(libraryMessage(itemsAdded = listOf("b")))
         delay(SETTLE_MS)
         assertEquals(listOf(LibraryChange.LibraryContentChanged), h.received)
+        h.stopCollecting()
+    }
+
+    @Test
+    fun syncPlayQueueThenCommand_reachTheSessionInArrivalOrder() = runBlocking {
+        val h = Harness()
+        h.startCollecting(this)
+        h.activeSession.value = session(UUID.randomUUID().toString())
+        val socket = h.factory.sockets.single()
+        val groupId = UUID.randomUUID()
+        val movieId = UUID.randomUUID()
+        val entryId = UUID.randomUUID()
+        val now = Instant.parse("2026-10-31T10:00:00Z")
+        val local = LocalDateTime.ofInstant(now, ZoneId.systemDefault())
+
+        socket.allMessages.emit(
+            SyncPlayGroupUpdateMessage(
+                SyncPlayGroupJoinedUpdate(groupId, GroupInfoDto(groupId, "Movie night", GroupStateType.IDLE, listOf("user"), local)),
+                UUID.randomUUID()
+            )
+        )
+        socket.allMessages.emit(
+            SyncPlayGroupUpdateMessage(
+                SyncPlayPlayQueueUpdate(
+                    groupId,
+                    PlayQueueUpdate(
+                        PlayQueueUpdateReason.NEW_PLAYLIST,
+                        local,
+                        listOf(SyncPlayQueueItem(movieId, entryId)),
+                        0,
+                        0L,
+                        false,
+                        GroupShuffleMode.SORTED,
+                        GroupRepeatMode.REPEAT_NONE
+                    )
+                ),
+                UUID.randomUUID()
+            )
+        )
+        socket.allMessages.emit(
+            SyncPlayCommandMessage(SendCommand(groupId, entryId, local, 0L, SendCommandType.PAUSE, local), UUID.randomUUID())
+        )
+        delay(SETTLE_MS)
+
+        assertEquals(SyncQueue(movieId, entryId, 0L), h.syncPlay.group.value?.queue)
+        assertEquals(listOf(SyncCommand(SendCommandType.PAUSE, now.toEpochMilli(), 0L)), h.syncCommands)
         h.stopCollecting()
     }
 

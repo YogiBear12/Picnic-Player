@@ -7,6 +7,7 @@ import app.picnic.player.data.media.LibraryChangeBus
 import app.picnic.player.data.playback.PlayerCommand
 import app.picnic.player.data.playback.PlayerCommandBus
 import app.picnic.player.data.playback.ticksToMs
+import app.picnic.player.data.syncplay.SyncPlaySession
 import app.picnic.player.di.IoDispatcher
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
@@ -22,6 +23,7 @@ import org.jellyfin.sdk.api.sockets.SocketApiState
 import org.jellyfin.sdk.model.api.GeneralCommandMessage
 import org.jellyfin.sdk.model.api.GeneralCommandType
 import org.jellyfin.sdk.model.api.LibraryChangedMessage
+import org.jellyfin.sdk.model.api.OutboundWebSocketMessage
 import org.jellyfin.sdk.model.api.PlayCommand
 import org.jellyfin.sdk.model.api.PlayMessage
 import org.jellyfin.sdk.model.api.PlaystateCommand
@@ -29,6 +31,8 @@ import org.jellyfin.sdk.model.api.PlaystateMessage
 import org.jellyfin.sdk.model.api.RestartRequiredMessage
 import org.jellyfin.sdk.model.api.ServerRestartingMessage
 import org.jellyfin.sdk.model.api.ServerShuttingDownMessage
+import org.jellyfin.sdk.model.api.SyncPlayCommandMessage
+import org.jellyfin.sdk.model.api.SyncPlayGroupUpdateMessage
 import org.jellyfin.sdk.model.api.UserDataChangedMessage
 
 @Singleton
@@ -40,6 +44,7 @@ class WebSocketManager @Inject constructor(
     private val playerCommandBus: PlayerCommandBus,
     private val serverMessageBus: ServerMessageBus,
     private val remoteControlBus: RemoteControlBus,
+    private val syncPlaySession: SyncPlaySession,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) {
     private val scope = CoroutineScope(SupervisorJob() + ioDispatcher)
@@ -69,6 +74,7 @@ class WebSocketManager @Inject constructor(
                     launch { fanOutPlay(socket) }
                     launch { fanOutGeneralCommands(socket) }
                     launch { fanOutServerLifecycle(socket) }
+                    launch { fanOutSyncPlay(socket) }
                 }
             }
         }
@@ -170,6 +176,24 @@ class WebSocketManager @Inject constructor(
                 GeneralCommandType.PAGE_DOWN -> dispatchKey(RemoteKey.PAGE_DOWN)
 
                 else -> Log.d(TAG, "Ignoring unsupported GeneralCommand ${command.name}")
+            }
+        }
+    }
+
+    // One collector for both types, in arrival order: a command is matched against the queue that
+    // the update just before it set, so splitting them across collectors could drop it as stale.
+    private suspend fun fanOutSyncPlay(socket: SessionSocket) {
+        socket.messages(OutboundWebSocketMessage::class).collect { message ->
+            when (message) {
+                is SyncPlayGroupUpdateMessage -> {
+                    Log.d(TAG, "SyncPlay update ${message.data.type} group=${message.data.groupId}")
+                    syncPlaySession.onGroupUpdate(message.data)
+                }
+                is SyncPlayCommandMessage -> message.data?.let { command ->
+                    Log.d(TAG, "SyncPlay command ${command.command} entry=${command.playlistItemId}")
+                    syncPlaySession.onCommand(command)
+                }
+                else -> Unit
             }
         }
     }
