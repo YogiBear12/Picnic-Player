@@ -10,7 +10,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.media3.common.Player
 
 @Stable
 class PlayerScrub {
@@ -51,19 +50,19 @@ class PlayerScrub {
         active = false
     }
 
-    internal fun syncPlayback(player: Player) {
+    internal fun syncPlayback(transport: PlayerTransport) {
         if (active) {
-            resumeWhenDone = player.playWhenReady
-            player.pause()
+            resumeWhenDone = transport.playWhenReady
+            transport.pause()
         } else if (resumeWhenDone) {
-            player.play()
+            transport.play()
         }
     }
 }
 
 @Composable
-fun rememberPlayerScrub(player: Player): PlayerScrub {
+fun rememberPlayerScrub(transport: PlayerTransport): PlayerScrub {
     val scrub = remember { PlayerScrub() }
-    LaunchedEffect(scrub.active) { scrub.syncPlayback(player) }
+    LaunchedEffect(scrub.active) { scrub.syncPlayback(transport) }
     return scrub
 }

@@ -50,7 +50,8 @@ private val PipAspectRange = 0.4185f..2.39f
 @Stable
 class PipController internal constructor(
     private val activity: ComponentActivity?,
-    private val player: Player
+    private val player: Player,
+    private val transport: PlayerTransport
 ) {
     var inPipMode by mutableStateOf(activity?.isInPictureInPictureMode ?: false)
         internal set
@@ -115,7 +116,7 @@ class PipController internal constructor(
 
     internal fun handleBroadcast(intent: Intent?) {
         when (intent?.action) {
-            action(ACTION_PLAY_PAUSE) -> if (player.isPlaying) player.pause() else player.play()
+            action(ACTION_PLAY_PAUSE) -> if (player.isPlaying) transport.pause() else transport.play()
             action(ACTION_MUTE) -> toggleMute()
         }
     }
@@ -178,11 +179,12 @@ class PipController internal constructor(
 @Composable
 fun rememberPipController(
     player: Player,
+    transport: PlayerTransport,
     autoEnterEnabled: Boolean,
     isPlaying: Boolean
 ): PipController {
     val activity = LocalActivity.current as? ComponentActivity
-    val controller = remember(activity, player) { PipController(activity, player) }
+    val controller = remember(activity, player, transport) { PipController(activity, player, transport) }
     SideEffect { controller.autoEnterEnabled = autoEnterEnabled }
 
     DisposableEffect(controller) {

@@ -29,6 +29,7 @@ private const val MIN_DELAY_MS = 2000L
 @Composable
 fun DisplayModeManager(
     player: Player,
+    transport: PlayerTransport,
     matchRefreshRate: Boolean,
     matchResolution: Boolean,
     jellyfinHints: VideoDisplayHints? = null
@@ -36,7 +37,7 @@ fun DisplayModeManager(
     val activity = LocalActivity.current ?: return
     val displayManager = remember(activity) { activity.getSystemService(Context.DISPLAY_SERVICE) as DisplayManager }
 
-    DisposableEffect(player, matchRefreshRate, matchResolution, jellyfinHints) {
+    DisposableEffect(player, transport, matchRefreshRate, matchResolution, jellyfinHints) {
         if (!matchRefreshRate && !matchResolution) {
             activity.window.attributes = activity.window.attributes.apply { preferredDisplayModeId = 0 }
             return@DisposableEffect onDispose {}
@@ -75,9 +76,9 @@ fun DisplayModeManager(
                 override fun onDisplayChanged(displayId: Int) {
                     if (displayId == display.displayId && !isSeamless) {
                         if (player.isPlaying) {
-                            player.pause()
+                            transport.hold()
                             Handler(Looper.getMainLooper()).postDelayed({
-                                player.play()
+                                transport.endHold()
                             }, MIN_DELAY_MS)
                         }
                     }

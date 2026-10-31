@@ -143,6 +143,8 @@ class PlayerViewModel @Inject constructor(
 
     val player: ExoPlayer get() = engine.player
 
+    val transport = PlayerTransport(engine.player)
+
     val settings: StateFlow<PlaybackSettings> =
         settingsStore.settings.stateIn(viewModelScope, SharingStarted.Eagerly, PlaybackSettings())
 
@@ -192,7 +194,7 @@ class PlayerViewModel @Inject constructor(
     private val streamTarget = object : StreamTarget {
         override val positionMs: Long get() = player.currentPosition
 
-        override fun stop() = player.stop()
+        override fun stop() = transport.stop()
 
         override fun load(stream: StreamInfo, resumeMs: Long) {
             PlaybackDiagnostics.logStream(stream)
@@ -200,12 +202,11 @@ class PlayerViewModel @Inject constructor(
             player.trackSelectionParameters =
                 player.trackSelectionParameters.withPreferredVideoMimeTypes(stream.mediaStreams)
             lastTickPositionMs = null
-            player.setMediaItem(mediaItemFor(stream), resumeMs)
-            player.prepare()
+            transport.load(mediaItemFor(stream), resumeMs)
         }
 
         override fun resume(playing: Boolean) {
-            player.playWhenReady = playing
+            transport.restore(playing)
         }
     }
 
@@ -369,7 +370,7 @@ class PlayerViewModel @Inject constructor(
         }
         viewModelScope.launch {
             sessionController.sleepExpired.collect {
-                player.playWhenReady = false
+                transport.pause()
                 _state.update { it.copy(stillWatching = true) }
             }
         }
@@ -394,11 +395,11 @@ class PlayerViewModel @Inject constructor(
         sessionController.onInteraction()
         when (command) {
             PlayerCommand.Stop -> {
-                player.pause()
+                transport.pause()
                 _navEvents.tryEmit(PlayerNavEvent.Exit)
             }
-            PlayerCommand.Pause -> player.pause()
-            PlayerCommand.Unpause -> player.play()
+            PlayerCommand.Pause -> transport.pause()
+            PlayerCommand.Unpause -> transport.play()
             PlayerCommand.PlayPause -> playPause()
             is PlayerCommand.Seek -> seekTo(command.positionMs)
             PlayerCommand.Rewind -> seekBy(-settings.value.skipBackwardSeconds * 1000L)
@@ -499,13 +500,11 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
-    fun playPause() {
-        player.playWhenReady = !player.playWhenReady
-    }
+    fun playPause() = transport.togglePlayPause()
 
     fun seekTo(positionMs: Long) {
         lastTickPositionMs = null
-        player.seekTo(positionMs.coerceAtLeast(0))
+        transport.seekTo(positionMs.coerceAtLeast(0))
     }
 
     fun seekBy(deltaMs: Long): Long {
@@ -808,7 +807,7 @@ class PlayerViewModel @Inject constructor(
         decision.markSkippedId?.let { autoSkipped += it }
         if (decision.setOutroNextUpShown) outroNextUpShown = true
         if (decision.pauseForSleep) {
-            player.playWhenReady = false
+            transport.pause()
             sessionController.cancelSleep()
         }
 
@@ -850,13 +849,13 @@ class PlayerViewModel @Inject constructor(
     }
 
     // Not seekTo: a segment skip keeps the crossing history, so skipping onto the outro start still counts as playback reaching it.
-    private fun skipSegmentTo(positionMs: Long) = player.seekTo(positionMs)
+    private fun skipSegmentTo(positionMs: Long) = transport.seekTo(positionMs)
 
     fun nextItemId(): String? = _state.value.nextUp?.id
 
     fun clearStillWatching(resume: Boolean) {
         _state.update { it.copy(stillWatching = false) }
-        if (resume) player.playWhenReady = true
+        if (resume) transport.play()
     }
 
     fun dismissNextUp() {
@@ -878,7 +877,7 @@ class PlayerViewModel @Inject constructor(
             sessionController.onItemAutoplayed()
             sessionController.shouldAskStillWatching(settings.value.passoutProtection)
         }
-        if (askStillWatching) player.playWhenReady = false
+        if (askStillWatching) transport.pause()
         _state.update { it.completedByNextUpExpiry(askStillWatching) }
         if (!askStillWatching) playNext()
     }

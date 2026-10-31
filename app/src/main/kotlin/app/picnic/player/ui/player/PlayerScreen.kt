@@ -79,7 +79,7 @@ fun PlayerScreen(
     SilentNavigationSounds()
 
     val pulse = rememberPlayerPulse()
-    val scrub = rememberPlayerScrub(viewModel.player)
+    val scrub = rememberPlayerScrub(viewModel.transport)
     val chrome = rememberPlayerChrome(
         osdHideSeconds = settings.osdHideSeconds,
         scrub = scrub,
@@ -95,6 +95,7 @@ fun PlayerScreen(
 
     val pipState = rememberPipController(
         player = viewModel.player,
+        transport = viewModel.transport,
         autoEnterEnabled = settings.pictureInPicture && viewModel.pictureInPictureSupported,
         isPlaying = state.isPlaying
     )
@@ -118,6 +119,7 @@ fun PlayerScreen(
     }
     DisplayModeManager(
         player = viewModel.player,
+        transport = viewModel.transport,
         matchRefreshRate = settings.matchRefreshRate,
         matchResolution = settings.matchResolution,
         jellyfinHints = jellyfinDisplayHints

@@ -134,26 +134,26 @@ class PlayerChromeTest {
         val player = FakePlayer(playWhenReady = true)
         chrome.reveal()
         scrub.scrubBy(10_000, fromMs = 0, durationMs = 100_000)
-        scrub.syncPlayback(player.proxy)
+        scrub.syncPlayback(player.transport)
         assertFalse(player.playWhenReady)
 
         chrome.onBack()
-        scrub.syncPlayback(player.proxy)
+        scrub.syncPlayback(player.transport)
         assertTrue(player.playWhenReady)
 
         chrome.reveal()
         scrub.scrubBy(10_000, fromMs = 0, durationMs = 100_000)
-        scrub.syncPlayback(player.proxy)
+        scrub.syncPlayback(player.transport)
         chrome.onOverlayChanged(PlayerOverlay.NEXT_UP)
-        scrub.syncPlayback(player.proxy)
+        scrub.syncPlayback(player.transport)
         assertTrue(player.playWhenReady)
 
         chrome.onOverlayChanged(null)
         chrome.reveal()
         scrub.scrubBy(10_000, fromMs = 0, durationMs = 100_000)
-        scrub.syncPlayback(player.proxy)
+        scrub.syncPlayback(player.transport)
         chrome.onOverlayChanged(PlayerOverlay.STILL_WATCHING)
-        scrub.syncPlayback(player.proxy)
+        scrub.syncPlayback(player.transport)
         assertFalse(player.playWhenReady)
     }
 
@@ -166,6 +166,7 @@ class PlayerChromeTest {
                 else -> error("unexpected ${method.name}")
             }
         } as Player
+        val transport = PlayerTransport(proxy)
     }
 
     @Test
