@@ -792,13 +792,17 @@ class MediaRepository @Inject constructor(
         limit: Int,
         isFavorite: Boolean? = null,
         parentId: UUID? = null,
-        minCommunityRating: Double? = null
+        minCommunityRating: Double? = null,
+        years: List<Int>? = null,
+        studioIds: List<UUID>? = null
     ): List<BaseItemDto> = onIo {
         api().libraryApi.getItems(
             userId = session().userUuid,
             parentId = parentId,
             recursive = true,
             genres = genres.takeIf { it.isNotEmpty() },
+            years = years,
+            studioIds = studioIds,
             includeItemTypes = kinds,
             isFavorite = isFavorite,
             minCommunityRating = minCommunityRating,

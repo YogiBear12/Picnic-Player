@@ -8,6 +8,7 @@ import kotlinx.serialization.json.Json
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
 import org.jellyfin.sdk.model.api.BaseItemPerson
+import org.jellyfin.sdk.model.api.NameGuidPair
 import org.jellyfin.sdk.model.api.PersonKind
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -17,13 +18,23 @@ import org.junit.Test
 class DiscoveryPlanTest {
     private fun id(number: Int) = UUID(0, number.toLong())
 
-    private fun movie(number: Int, name: String = "Movie $number", tmdb: Int? = number, genres: List<String> = listOf("Drama")) = BaseItemDto(
+    private fun studio(number: Int) = NameGuidPair(name = "Studio $number", id = id(5000 + number))
+
+    private fun movie(
+        number: Int,
+        name: String = "Movie $number",
+        tmdb: Int? = number,
+        genres: List<String> = listOf("Drama"),
+        year: Int = 2000,
+        studios: List<NameGuidPair>? = null
+    ) = BaseItemDto(
         id = id(number),
         name = name,
         type = BaseItemKind.MOVIE,
-        productionYear = 2000,
+        productionYear = year,
         providerIds = tmdb?.let { mapOf("Tmdb" to it.toString()) },
-        genres = genres
+        genres = genres,
+        studios = studios
     )
 
     private fun episode(number: Int, series: Int, name: String = "Series $series") = BaseItemDto(
@@ -36,14 +47,16 @@ class DiscoveryPlanTest {
 
     private fun fullInputs(): DiscoveryInputs {
         val genres = listOf("Action", "Fantasy", "Family", "Horror", "History", "Romance", "Animation", "Documentary", "Comedy", "Drama", "Mystery", "Western")
-        val movies = (1..20).map { movie(it, genres = listOf(genres[it % genres.size])) }
+        val movies = (1..20).map { movie(it, genres = listOf(genres[it % genres.size]), studios = listOf(studio(it % 8))) }
         val episodes = (1..20).map { episode(100 + it, 200 + it) }
         val series = (1..20).associate { number ->
             id(200 + number) to BaseItemDto(
                 id = id(200 + number),
                 type = BaseItemKind.SERIES,
                 genres = listOf(genres[number % genres.size]),
-                providerIds = mapOf("Tmdb" to (200 + number).toString())
+                providerIds = mapOf("Tmdb" to (200 + number).toString()),
+                productionYear = 1980 + number,
+                studios = listOf(studio(8 + number % 4))
             )
         }
         val people = (movies + episodes).associate { seed ->
@@ -67,7 +80,7 @@ class DiscoveryPlanTest {
     @Test
     fun candidatesIncludeProportionalSparesBeyondDisplayedCaps() {
         val candidates = buildDiscoveryPlan(fullInputs(), Random(42)).candidates
-        assertEquals(30, candidates.size)
+        assertEquals(42, candidates.size)
         assertEquals(candidates.size, candidates.map { it.key }.distinct().size)
         assertTrue(candidates.count { it.kind == DiscoveryKind.BECAUSE_WATCHED } > 4)
         for (type in DiscoveryType.entries) {
@@ -83,15 +96,15 @@ class DiscoveryPlanTest {
 
     @Test
     fun shouldShowEnforcesEveryCapAndCombinedSeedTypes() {
-        assertEquals(DISCOVERY_TARGET, DISCOVERY_CAPS.filterKeys { it.first != DiscoveryKind.TOP_RATED }.values.sum())
+        assertTrue(DISCOVERY_CAPS.values.sum() > DISCOVERY_TARGET)
         assertEquals(2, DISCOVERY_CAPS.filterKeys { it.first == DiscoveryKind.TOP_RATED }.values.sum())
         for ((bucket, cap) in DISCOVERY_CAPS) {
             val (kind, type) = bucket
             val row = when {
                 kind == DiscoveryKind.STARRING && type == DiscoveryType.TV -> candidate(kind, seedType = DiscoveryType.TV)
                 kind == DiscoveryKind.STARRING -> candidate(DiscoveryKind.DIRECTED_BY, seedType = DiscoveryType.TV)
-                kind == DiscoveryKind.GENRE || kind == DiscoveryKind.TOP_PICKS || kind == DiscoveryKind.TOP_RATED -> candidate(kind, type)
-                else -> candidate(kind)
+                kind == DiscoveryKind.BECAUSE_WATCHED || kind == DiscoveryKind.BECAUSE_LIKED || kind == DiscoveryKind.WATCH_AGAIN -> candidate(kind)
+                else -> candidate(kind, type)
             }
             assertTrue(shouldShow(row, List(cap - 1) { row }))
             assertFalse(shouldShow(row, List(cap) { row }))
@@ -118,14 +131,11 @@ class DiscoveryPlanTest {
         buildDiscoveryPlan(fullInputs(), Random(42)).candidates.forEach { if (shouldShow(it, shown)) shown += it }
         assertEquals(DISCOVERY_TARGET, shown.size)
         assertEquals(2, shown.count { it.kind == DiscoveryKind.STARRING && it.seedType == DiscoveryType.TV })
-        for (type in DiscoveryType.entries) {
-            assertTrue(shown.count { it.kind == DiscoveryKind.GENRE && it.type == type } >= 2)
-        }
         assertTrue(shown.filter { it.personId != null }.all { it.type == DiscoveryType.MIXED })
     }
 
     @Test
-    fun genreGuaranteeSurvivesStronglySkewedHistory() {
+    fun genreCandidatesSurviveStronglySkewedHistory() {
         val inputs = fullInputs().copy(played = (1..100).map { movie(it, genres = listOf("Drama")) })
         val rows = buildDiscoveryPlan(inputs, Random(9)).candidates
         for (type in DiscoveryType.entries) {
@@ -147,23 +157,31 @@ class DiscoveryPlanTest {
         assertEquals(listOf("Comedy", "Drama"), top.genres)
     }
 
-    private fun orderKind(row: DiscoveryCandidate) = if (row.kind == DiscoveryKind.DIRECTED_BY) DiscoveryKind.STARRING else row.kind
-
     @Test
     fun shuffledRowsNeverRepeatKindsWhenAvoidable() {
         for (seed in 0..40) {
             val rows = buildDiscoveryPlan(fullInputs(), Random(seed)).candidates
             assertEquals(DiscoveryKind.TOP_PICKS, rows.first().kind)
-            assertTrue(rows.drop(1).zipWithNext().all { (left, right) -> orderKind(left) != orderKind(right) })
+            assertTrue(rows.zipWithNext().all { (left, right) -> left.orderKind() != right.orderKind() })
         }
     }
 
     @Test
     fun unavoidableNeighborsAreKeptToMinimum() {
         val inputs = fullInputs().copy(played = emptyList(), favorites = emptyList(), people = emptyMap())
+        for (seed in 0..40) {
+            val shuffled = buildDiscoveryPlan(inputs, Random(seed)).candidates.drop(1)
+            val largest = shuffled.groupingBy { it.orderKind() }.eachCount().values.max()
+            val repeats = shuffled.zipWithNext().count { (left, right) -> left.orderKind() == right.orderKind() }
+            assertEquals(maxOf(0, largest - (shuffled.size - largest) - 1), repeats)
+        }
         val rows = buildDiscoveryPlan(inputs, Random(2)).candidates
         assertEquals(DiscoveryKind.TOP_PICKS, rows.first().kind)
-        assertTrue(rows.drop(1).all { it.kind in setOf(DiscoveryKind.GENRE, DiscoveryKind.TOP_PICKS, DiscoveryKind.TOP_RATED) })
+        assertTrue(
+            rows.drop(1).all {
+                it.kind in setOf(DiscoveryKind.GENRE, DiscoveryKind.TOP_PICKS, DiscoveryKind.TOP_RATED, DiscoveryKind.CRITIC, DiscoveryKind.DECADE)
+            }
+        )
     }
 
     @Test
@@ -224,7 +242,8 @@ class DiscoveryPlanTest {
 
     @Test
     fun emptyHistoryAndFavoritesProduceNoSeedRows() {
-        assertTrue(buildDiscoveryPlan(DiscoveryInputs("2026-10-24", emptyList()), Random(1)).candidates.all { it.kind == DiscoveryKind.TOP_RATED })
+        val historyFree = setOf(DiscoveryKind.TOP_RATED, DiscoveryKind.CRITIC, DiscoveryKind.DECADE)
+        assertTrue(buildDiscoveryPlan(DiscoveryInputs("2026-10-24", emptyList()), Random(1)).candidates.all { it.kind in historyFree })
         assertFalse(buildDiscoveryPlan(fullInputs().copy(favorites = emptyList()), Random(1)).candidates.any { it.kind == DiscoveryKind.BECAUSE_LIKED })
     }
 
@@ -305,8 +324,8 @@ class DiscoveryPlanTest {
         assertEquals(DiscoveryType.MIXED, rows.first().type)
         assertEquals(listOf("Comedy"), rows.single { it.type == DiscoveryType.MOVIE }.genres)
         assertEquals(listOf("Drama"), rows.single { it.type == DiscoveryType.TV }.genres)
-        assertEquals("Movies we think you'll like", rows.single { it.type == DiscoveryType.MOVIE }.title)
-        assertEquals("Shows we think you'll like", rows.single { it.type == DiscoveryType.TV }.title)
+        assertEquals("Movies you might like", rows.single { it.type == DiscoveryType.MOVIE }.title)
+        assertEquals("TV shows you might like", rows.single { it.type == DiscoveryType.TV }.title)
         assertEquals(DISCOVERY_PLAN_VERSION, buildDiscoveryPlan(inputs, Random(42)).version)
     }
 
@@ -385,7 +404,7 @@ class DiscoveryPlanTest {
     @Test
     fun movieLibraryPinsItsPicksAndBuildsOnlyMovieRows() {
         val candidates = buildDiscoveryPlan(libraryInputs(BaseItemKind.MOVIE), Random(3), MOVIE_LIBRARY_DISCOVERY).candidates
-        assertEquals("Movies we think you'll like", candidates.first().title)
+        assertEquals("Movies you might like", candidates.first().title)
         assertTrue(candidates.none { it.type == DiscoveryType.TV })
         assertTrue(candidates.none { it.kind == DiscoveryKind.GENRE && it.type == DiscoveryType.MIXED })
         assertEquals(listOf("Top rated"), candidates.filter { it.kind == DiscoveryKind.TOP_RATED }.map { it.title })
@@ -397,7 +416,7 @@ class DiscoveryPlanTest {
     @Test
     fun tvLibraryHasNoDirectorsAndUntypedGenreTitles() {
         val candidates = buildDiscoveryPlan(libraryInputs(BaseItemKind.SERIES), Random(4), TV_LIBRARY_DISCOVERY).candidates
-        assertEquals("Shows we think you'll like", candidates.first().title)
+        assertEquals("TV shows you might like", candidates.first().title)
         assertTrue(candidates.none { it.kind == DiscoveryKind.DIRECTED_BY })
         assertTrue(candidates.any { it.kind == DiscoveryKind.STARRING })
         val genres = candidates.filter { it.kind == DiscoveryKind.GENRE }
@@ -411,9 +430,10 @@ class DiscoveryPlanTest {
     }
 
     @Test
-    fun libraryProfilesShowAboutSixteenRows() {
+    fun libraryProfilesShowAboutTwentyFourRowsWithRoomForDrops() {
         for (profile in listOf(MOVIE_LIBRARY_DISCOVERY, TV_LIBRARY_DISCOVERY)) {
-            assertEquals(16, profile.target)
+            assertEquals(24, profile.target)
+            assertTrue(profile.caps.values.sum() > profile.target)
             assertEquals(LIBRARY_GENRE_ROWS, profile.caps.getValue(DiscoveryKind.GENRE to profile.types.single()))
         }
         assertEquals(HOME_DISCOVERY, DiscoveryScope.HOME.profile)
@@ -422,7 +442,88 @@ class DiscoveryPlanTest {
         assertEquals(MOVIE_LIBRARY_DISCOVERY, DiscoveryScope(id(1), listOf(BaseItemKind.MOVIE)).profile)
     }
 
+    @Test
+    fun catalogRowsUseSharedTitlesAndHistoryOnHome() {
+        val rows = buildDiscoveryPlan(fullInputs(), Random(5)).candidates
+        val decades = rows.filter { it.kind == DiscoveryKind.DECADE }
+        assertTrue(decades.isNotEmpty() && decades.all { it.type == DiscoveryType.MIXED && it.title.startsWith("Made in the ") })
+        val studios = rows.filter { it.kind == DiscoveryKind.STUDIO }
+        assertTrue(studios.isNotEmpty() && studios.all { it.type == DiscoveryType.MIXED && it.title.startsWith("Best of Studio ") })
+        assertEquals(listOf("Critically acclaimed movies"), rows.filter { it.kind == DiscoveryKind.CRITIC }.map { it.title })
+        assertEquals(DiscoveryType.MOVIE, rows.single { it.kind == DiscoveryKind.CRITIC }.type)
+    }
+
+    @Test
+    fun decadeTitlesSwitchToFourDigitsFromTwoThousand() {
+        val titles = (0..40).flatMap { seed ->
+            buildDiscoveryPlan(DiscoveryInputs("2026-10-24", emptyList()), Random(seed)).candidates.filter { it.kind == DiscoveryKind.DECADE }.map { it.title }
+        }.toSet()
+        assertTrue("Made in the 80s" in titles && "Made in the 50s" in titles)
+        assertTrue("Made in the 2010s" in titles && "Made in the 2020s" in titles)
+        assertFalse("Made in the 2030s" in titles || "Made in the 1980s" in titles)
+    }
+
+    @Test
+    fun decadesAndStudiosFollowWatchHistory() {
+        val heavy = studio(99)
+        val played = (1..30).map { movie(it, year = 1985, studios = listOf(heavy)) } +
+            (31..50).map { movie(it, year = 2015, studios = listOf(studio(it))) }
+        var eighties = 0
+        var heavyPicked = 0
+        for (seed in 0..40) {
+            val rows = buildDiscoveryPlan(DiscoveryInputs("2026-10-24", played), Random(seed)).candidates
+            if (rows.any { it.kind == DiscoveryKind.DECADE && it.decade == 1980 }) eighties++
+            if (rows.any { it.kind == DiscoveryKind.STUDIO && it.studioId == heavy.id.toString() }) heavyPicked++
+        }
+        assertEquals(41, eighties)
+        assertEquals(41, heavyPicked)
+    }
+
+    @Test
+    fun watchAgainHoldsHistorySeedsWithSeriesForEpisodes() {
+        val played = listOf(movie(1), episode(2, 30), episode(3, 30), episode(4, 40))
+        val row = buildDiscoveryPlan(DiscoveryInputs("2026-10-24", played), Random(1)).candidates.single { it.kind == DiscoveryKind.WATCH_AGAIN }
+        assertEquals("Watch again", row.title)
+        assertEquals(setOf(id(1), id(30), id(40)).map { it.toString() }.toSet(), requireNotNull(row.itemIds).toSet())
+        val many = (1..60).map { movie(it) }
+        val capped = buildDiscoveryPlan(DiscoveryInputs("2026-10-24", many), Random(1)).candidates.single { it.kind == DiscoveryKind.WATCH_AGAIN }
+        assertEquals(DISCOVERY_ROW_CAP, capped.itemIds?.size)
+    }
+
+    @Test
+    fun criticRowsOnlyWhereMoviesAre() {
+        val tv = buildDiscoveryPlan(libraryInputs(BaseItemKind.SERIES), Random(4), TV_LIBRARY_DISCOVERY).candidates
+        assertTrue(tv.none { it.kind == DiscoveryKind.CRITIC })
+        assertTrue(tv.filter { it.kind == DiscoveryKind.DECADE || it.kind == DiscoveryKind.STUDIO }.all { it.type == DiscoveryType.TV })
+        val movies = buildDiscoveryPlan(libraryInputs(BaseItemKind.MOVIE), Random(3), MOVIE_LIBRARY_DISCOVERY).candidates
+        assertEquals(1, movies.count { it.kind == DiscoveryKind.CRITIC })
+    }
+
+    @Test
+    fun criticAndTopRatedNeverSitSideBySide() {
+        for (seed in 0..40) {
+            val rows = buildDiscoveryPlan(fullInputs(), Random(seed)).candidates.drop(1)
+            assertTrue(
+                rows.zipWithNext().none { (left, right) ->
+                    setOf(left.kind, right.kind).all { it == DiscoveryKind.CRITIC || it == DiscoveryKind.TOP_RATED }
+                }
+            )
+        }
+    }
+
+    @Test
+    fun heavierGroupsClaimEarlierSlots() {
+        var watchedAhead = 0
+        for (seed in 0..40) {
+            val rows = buildDiscoveryPlan(fullInputs(), Random(seed)).candidates
+            val firstWatched = rows.indexOfFirst { it.kind == DiscoveryKind.BECAUSE_WATCHED }
+            val firstWatchAgain = rows.indexOfFirst { it.kind == DiscoveryKind.WATCH_AGAIN }
+            if (firstWatched < firstWatchAgain) watchedAhead++
+        }
+        assertTrue(watchedAhead > 25)
+    }
+
     private companion object {
-        const val LIBRARY_GENRE_ROWS = 6
+        const val LIBRARY_GENRE_ROWS = 8
     }
 }

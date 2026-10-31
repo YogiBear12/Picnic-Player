@@ -15,7 +15,7 @@ class DiscoveryGenresTest {
             "Kids and family" to listOf("Kids", "Family"),
             "Horror and thriller" to listOf("Horror", "Thriller", "Suspense"),
             "War and history" to listOf("War", "History", "War & Politics"),
-            "News and talk" to listOf("News", "Talk"),
+            "News and talk" to listOf("News", "Talk", "Talk Show", "Talk-Show"),
             "Soap operas and romance" to listOf("Soap", "Romance")
         )
         for ((name, genres) in merged) {
@@ -69,11 +69,18 @@ class DiscoveryGenresTest {
         assertEquals("Sports", sports.name)
         assertEquals(listOf("Sports"), sports.genres)
         assertEquals("Sports movies", sports.title(DiscoveryType.MOVIE))
-        assertEquals("Sports TV", sports.title(DiscoveryType.TV))
+        assertEquals("Sports TV shows", sports.title(DiscoveryType.TV))
         assertNull(sports.title(DiscoveryType.MIXED))
         assertEquals(listOf("Sports", "Music"), groups.getValue(DiscoveryType.TV).map { it.name })
-        assertEquals("Music TV", groups.getValue(DiscoveryType.TV).last().title(DiscoveryType.TV))
+        assertEquals("Music TV shows", groups.getValue(DiscoveryType.TV).last().title(DiscoveryType.TV))
         assertTrue(groups.getValue(DiscoveryType.MIXED).isEmpty())
+    }
+
+    @Test
+    fun showGenreSpellingsJoinTheirGroupsWithoutDoubledWords() {
+        val tv = genreGroups(mapOf(BaseItemKind.SERIES to setOf("Talk Show", "Talk-Show", "Game Show", "Game-Show", "Reality", "Mini-Series", "Miniseries")))
+            .getValue(DiscoveryType.TV)
+        assertEquals(listOf("News and talk shows", "Game shows", "Reality TV shows", "Miniseries"), tv.map { it.title(DiscoveryType.TV) })
     }
 
     @Test
@@ -85,24 +92,26 @@ class DiscoveryGenresTest {
     @Test
     fun everyTableTitleMatchesThePlan() {
         val expected = listOf(
-            listOf("Action and adventure", "Action and adventure movies", "Action and adventure TV", "Action and adventure"),
-            listOf("Sci-fi and fantasy", "Sci-fi and fantasy movies", "Sci-fi and fantasy TV", "Sci-fi and fantasy"),
-            listOf("Kids and family", "Kids and family movies", "Kids and family TV", "Kids and family"),
-            listOf("Horror and thriller", "Horror and thriller movies", "Horror and thriller TV", "Horror and thrillers"),
-            listOf("War and history", "War and history movies", "War and politics TV", "War and history"),
+            listOf("Action and adventure", "Action and adventure movies", "Action and adventure TV shows", "Action and adventure"),
+            listOf("Sci-fi and fantasy", "Sci-fi and fantasy movies", "Sci-fi and fantasy TV shows", "Sci-fi and fantasy"),
+            listOf("Kids and family", "Kids and family movies", "Kids and family TV shows", "Kids and family"),
+            listOf("Horror and thriller", "Horror and thriller movies", "Horror and thriller TV shows", "Horror and thrillers"),
+            listOf("War and history", "War and history movies", "War and politics TV shows", "War and history"),
             listOf("News and talk", null, "News and talk shows", null),
-            listOf("Soap operas and romance", "Romance movies", "Soap operas and romance TV", "Romance"),
-            listOf("Animation", "Animated movies", "Animated TV", "Animation"),
-            listOf("Documentary", "Documentaries", "Documentary TV", "Documentaries"),
-            listOf("Comedy", "Comedy movies", "Comedy TV", "Comedies"),
-            listOf("Drama", "Drama movies", "Drama TV", "Dramas"),
-            listOf("Mystery", "Mystery movies", "Mystery TV", "Mysteries"),
-            listOf("Western", "Western movies", "Western TV", "Westerns"),
-            listOf("Reality", null, "Reality TV", null)
+            listOf("Game shows", null, "Game shows", null),
+            listOf("Soap operas and romance", "Romance movies", "Soap operas and romance TV shows", "Romance"),
+            listOf("Animation", "Animated movies", "Animated TV shows", "Animation"),
+            listOf("Documentary", "Documentaries", "Documentary TV shows", "Documentaries"),
+            listOf("Comedy", "Comedy movies", "Comedy TV shows", "Comedies"),
+            listOf("Drama", "Drama movies", "Drama TV shows", "Dramas"),
+            listOf("Mystery", "Mystery movies", "Mystery TV shows", "Mysteries"),
+            listOf("Western", "Western movies", "Western TV shows", "Westerns"),
+            listOf("Reality", null, "Reality TV shows", null),
+            listOf("Miniseries", null, "Miniseries", null)
         )
         val genres = setOf(
             "Action", "Science Fiction", "Kids", "Horror", "War", "News", "Soap",
-            "Animation", "Documentary", "Comedy", "Drama", "Mystery", "Western", "Reality"
+            "Animation", "Documentary", "Comedy", "Drama", "Mystery", "Western", "Reality", "Game Show", "Mini-Series"
         )
         val groups = genreGroups(mapOf(BaseItemKind.MOVIE to genres, BaseItemKind.SERIES to genres))
         val allGroups = groups.getValue(DiscoveryType.TV)

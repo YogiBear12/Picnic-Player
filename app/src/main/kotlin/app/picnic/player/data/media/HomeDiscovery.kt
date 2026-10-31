@@ -169,6 +169,34 @@ internal class HomeDiscovery @Inject constructor(
                 GENRE_LIMIT,
                 parentId = library
             )
+            DiscoveryKind.DECADE -> {
+                val decade = requireNotNull(candidate.decade)
+                mediaRepository.discoveryItems(
+                    emptyList(),
+                    candidate.type.kinds(),
+                    ItemSortBy.RANDOM,
+                    GENRE_LIMIT,
+                    parentId = library,
+                    years = (decade until decade + DECADE_YEARS).toList()
+                )
+            }
+            DiscoveryKind.STUDIO -> mediaRepository.discoveryItems(
+                emptyList(),
+                candidate.type.kinds(),
+                ItemSortBy.COMMUNITY_RATING,
+                STUDIO_POOL,
+                parentId = library,
+                studioIds = listOf(UUID.fromString(requireNotNull(candidate.studioId)))
+            ).shuffled(random)
+            // The server ignores minCriticRating, so the best-rated pool is fetched and filtered here.
+            DiscoveryKind.CRITIC -> mediaRepository.discoveryItems(
+                emptyList(),
+                candidate.type.kinds(),
+                ItemSortBy.CRITIC_RATING,
+                CRITIC_POOL,
+                parentId = library
+            ).filter { (it.criticRating ?: 0f) >= CRITIC_MINIMUM }.shuffled(random)
+            DiscoveryKind.WATCH_AGAIN -> error("Watch again is built with its item ids")
         }
     }
 
@@ -188,7 +216,10 @@ internal class HomeDiscovery @Inject constructor(
         const val PERSON_LIMIT = 40
         const val GENRE_LIMIT = 40
         const val TOP_RATED_MINIMUM = 8.0
-        val SEED_FIELDS = listOf(ItemFields.GENRES, ItemFields.PROVIDER_IDS)
+        const val STUDIO_POOL = 60
+        const val CRITIC_POOL = 300
+        const val CRITIC_MINIMUM = 80f
+        val SEED_FIELDS = listOf(ItemFields.GENRES, ItemFields.PROVIDER_IDS, ItemFields.STUDIOS)
     }
 }
 
