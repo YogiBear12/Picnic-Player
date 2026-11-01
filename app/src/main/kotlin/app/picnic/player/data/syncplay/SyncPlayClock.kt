@@ -6,6 +6,8 @@ import java.time.ZoneId
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.math.abs
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import org.jellyfin.sdk.api.client.extensions.systemApi
 
 data class ClockSample(val sentMs: Long, val serverReceivedMs: Long, val serverSentMs: Long, val receivedMs: Long) {
@@ -18,19 +20,29 @@ fun bestOffsetMs(samples: List<ClockSample>): Long = samples.minBy { it.roundTri
 
 @Singleton
 class SyncPlayClock @Inject constructor(private val api: SessionApi) {
+    private val recent = ArrayDeque<ClockSample>()
+    private val synced = MutableStateFlow(false)
+
     @Volatile private var offsetMs = 0L
 
-    // shortcut: one sync per call, no periodic resync; a TV clock drifts well under 100 ms over a film. Resync on a timer if rooms run for hours.
-    suspend fun sync() {
+    suspend fun sample(): ClockSample {
         val system = api.client().systemApi
-        val samples = List(SAMPLES) {
-            api.onIo {
-                val sent = System.currentTimeMillis()
-                val utc = system.getUtcTime().content
-                ClockSample(sent, utc.requestReceptionTime.epochMsNear(sent), utc.responseTransmissionTime.epochMsNear(sent), System.currentTimeMillis())
-            }
+        val sample = api.onIo {
+            val sent = System.currentTimeMillis()
+            val utc = system.getUtcTime().content
+            ClockSample(sent, utc.requestReceptionTime.epochMsNear(sent), utc.responseTransmissionTime.epochMsNear(sent), System.currentTimeMillis())
         }
-        offsetMs = bestOffsetMs(samples)
+        synchronized(recent) {
+            recent.addLast(sample)
+            if (recent.size > WINDOW) recent.removeFirst()
+            offsetMs = bestOffsetMs(recent)
+        }
+        synced.value = true
+        return sample
+    }
+
+    suspend fun awaitSynced() {
+        synced.first { it }
     }
 
     fun serverNowMs(): Long = System.currentTimeMillis() + offsetMs
@@ -38,7 +50,7 @@ class SyncPlayClock @Inject constructor(private val api: SessionApi) {
     fun toLocalMs(serverMs: Long): Long = serverMs - offsetMs
 
     private companion object {
-        const val SAMPLES = 3
+        const val WINDOW = 8
     }
 }
 

@@ -87,6 +87,12 @@ class AppNavigationViewModel @Inject constructor() : ViewModel() {
 
     private fun playVideo(item: BaseItemDto) = push(PlayerKey(item.id.toString(), startTicks = item.resumeTicks()))
 
+    // A room member who joined from the room list has no Details below the player, so the end of the film opens them.
+    fun finishToDetails(itemId: String) {
+        val below = backStack.getOrNull(backStack.lastIndex - 1)
+        if (below is DetailKey && below.itemId == itemId) pop() else replaceTop(DetailKey(itemId))
+    }
+
     fun replaceTop(key: NavKey) {
         if (backStack.isNotEmpty()) {
             backStack[backStack.lastIndex] = key

@@ -380,6 +380,27 @@ class WebSocketManagerTest {
         h.stopCollecting()
     }
 
+    @Test
+    fun inPictureInPicture_syncPlayStillArrives() = runBlocking {
+        val h = Harness(foreground = false)
+        h.foreground.isVisible.value = true
+        h.startCollecting(this)
+        h.activeSession.value = session(UUID.randomUUID().toString())
+        val groupId = UUID.randomUUID()
+        val local = LocalDateTime.ofInstant(Instant.parse("2026-10-31T10:00:00Z"), ZoneId.systemDefault())
+
+        h.factory.sockets.single().allMessages.emit(
+            SyncPlayGroupUpdateMessage(
+                SyncPlayGroupJoinedUpdate(groupId, GroupInfoDto(groupId, "Movie night", GroupStateType.IDLE, listOf("user"), local)),
+                UUID.randomUUID()
+            )
+        )
+        delay(SETTLE_MS)
+
+        assertEquals(groupId, h.syncPlay.group.value?.id)
+        h.stopCollecting()
+    }
+
     // --- Slice 2: PlayState → PlayerCommandBus ------------------------------------------------
 
     @Test

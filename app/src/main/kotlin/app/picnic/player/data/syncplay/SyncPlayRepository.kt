@@ -7,9 +7,13 @@ import java.time.ZoneId
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.time.Duration.Companion.seconds
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import org.jellyfin.sdk.api.client.extensions.syncPlayApi
 import org.jellyfin.sdk.api.client.extensions.userApi
 import org.jellyfin.sdk.api.operations.SyncPlayApi
@@ -17,6 +21,7 @@ import org.jellyfin.sdk.model.api.BufferRequestDto
 import org.jellyfin.sdk.model.api.GroupInfoDto
 import org.jellyfin.sdk.model.api.JoinGroupRequestDto
 import org.jellyfin.sdk.model.api.NewGroupRequestDto
+import org.jellyfin.sdk.model.api.PingRequestDto
 import org.jellyfin.sdk.model.api.PlayRequestDto
 import org.jellyfin.sdk.model.api.ReadyRequestDto
 import org.jellyfin.sdk.model.api.SeekRequestDto
@@ -25,8 +30,9 @@ import org.jellyfin.sdk.model.api.SyncPlayUserAccessType
 @Singleton
 class SyncPlayRepository @Inject constructor(
     private val api: SessionApi,
-    private val clock: SyncPlayClock
-) {
+    private val clock: SyncPlayClock,
+    private val session: SyncPlaySession
+) : SyncPlayRoomApi {
     private suspend fun <T> call(block: suspend SyncPlayApi.() -> T): T = api.onIo { api.client().syncPlayApi.block() }
 
     private val _access = MutableStateFlow(SyncPlayUserAccessType.NONE)
@@ -40,40 +46,69 @@ class SyncPlayRepository @Inject constructor(
 
     suspend fun groups(): List<GroupInfoDto> = call { syncPlayGetGroups().content }
 
-    suspend fun create(name: String): GroupInfoDto = call { syncPlayCreateGroup(NewGroupRequestDto(name)).content }
+    // Leave is launched undispatched after a screen closes, so it holds this lock before the next join can ask.
+    private val membership = Mutex()
 
-    suspend fun join(groupId: UUID) {
-        call { syncPlayJoinGroup(JoinGroupRequestDto(groupId)) }
+    suspend fun create(name: String): GroupInfoDto = membership.withLock { call { syncPlayCreateGroup(NewGroupRequestDto(name)).content } }
+
+    override suspend fun join(groupId: UUID) {
+        membership.withLock { call { syncPlayJoinGroup(JoinGroupRequestDto(groupId)) } }
     }
 
-    suspend fun leave() {
-        call { syncPlayLeaveGroup() }
+    /** Forgets the room at once, so a quick re-join of the same room cannot be confirmed by the old state. */
+    override suspend fun leave() {
+        membership.withLock {
+            session.onLeft()
+            call { syncPlayLeaveGroup() }
+        }
     }
 
     suspend fun setNewQueue(itemId: UUID, startTicks: Long) {
         call { syncPlaySetNewQueue(PlayRequestDto(listOf(itemId), 0, startTicks)) }
     }
 
-    suspend fun pause() {
+    override suspend fun pause() {
         call { syncPlayPause() }
     }
 
-    suspend fun unpause() {
+    override suspend fun unpause() {
         call { syncPlayUnpause() }
     }
 
-    suspend fun seek(positionTicks: Long) {
+    override suspend fun seek(positionTicks: Long) {
         call { syncPlaySeek(SeekRequestDto(positionTicks)) }
     }
 
-    suspend fun buffering(positionTicks: Long, isPlaying: Boolean, playlistItemId: UUID) {
+    override suspend fun buffering(positionTicks: Long, isPlaying: Boolean, playlistItemId: UUID) {
         call { syncPlayBuffering(BufferRequestDto(serverNow(), positionTicks, isPlaying, playlistItemId)) }
     }
 
-    suspend fun ready(positionTicks: Long, isPlaying: Boolean, playlistItemId: UUID) {
+    override suspend fun ready(positionTicks: Long, isPlaying: Boolean, playlistItemId: UUID) {
         call { syncPlayReady(ReadyRequestDto(serverNow(), positionTicks, isPlaying, playlistItemId)) }
     }
 
+    // A quick fix on entry, then a slow resync; the server schedules each `When` from the members' pings.
+    override suspend fun keepClockInSync(): Nothing {
+        var taken = 0
+        while (true) {
+            runCatching { clock.sample() }.onSuccess { sample ->
+                taken++
+                runCatching { call { syncPlayPing(PingRequestDto(sample.roundTripMs / 2)) } }
+            }
+            delay(if (taken < ENTRY_SAMPLES) ENTRY_SPACING else RESYNC_SPACING)
+        }
+    }
+
+    override suspend fun awaitClockSynced() = clock.awaitSynced()
+
+    override fun toLocalMs(serverMs: Long): Long = clock.toLocalMs(serverMs)
+
     // The server reads `When` on its own clock; the SDK writes a LocalDateTime in the device's zone.
     private fun serverNow(): LocalDateTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(clock.serverNowMs()), ZoneId.systemDefault())
+
+    private companion object {
+        const val ENTRY_SAMPLES = 3
+        val ENTRY_SPACING = 1.seconds
+        val RESYNC_SPACING = 60.seconds
+    }
 }

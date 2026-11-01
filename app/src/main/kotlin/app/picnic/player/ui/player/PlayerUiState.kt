@@ -89,6 +89,7 @@ data class PlayerUiState(
     val videoOutput: VideoOutput? = null,
     val estimatedBitrate: Long? = null,
     val notice: String? = null,
+    val inRoom: Boolean = false,
     val qualityOptions: List<QualityOption> = emptyList(),
     val streamRung: QualityRung? = null,
     val tracks: List<TrackSupport> = emptyList(),

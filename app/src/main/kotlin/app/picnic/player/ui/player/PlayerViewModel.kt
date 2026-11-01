@@ -137,6 +137,7 @@ class PlayerViewModel @Inject constructor(
     private val appForegroundState: app.picnic.player.data.socket.AppForegroundState,
     playerCommandBus: PlayerCommandBus,
     themeMusicPlayer: ThemeMusicPlayer,
+    private val syncPlayFactory: SyncPlayPlayback.Factory,
     @ApplicationScope private val appScope: CoroutineScope
 ) : ViewModel() {
     private val engine = engineFactory.create()
@@ -164,6 +165,7 @@ class PlayerViewModel @Inject constructor(
     private val latchedBars = CueLatchedBars()
     private var loaded = false
     private var leftFromOutroNextUp = false
+    private var room: SyncPlayPlayback? = null
 
     private val viewingJob = SupervisorJob(viewModelScope.coroutineContext[Job])
     private val viewingScope = CoroutineScope(viewModelScope.coroutineContext + viewingJob)
@@ -395,7 +397,7 @@ class PlayerViewModel @Inject constructor(
         sessionController.onInteraction()
         when (command) {
             PlayerCommand.Stop -> {
-                transport.pause()
+                transport.stop()
                 _navEvents.tryEmit(PlayerNavEvent.Exit)
             }
             PlayerCommand.Pause -> transport.pause()
@@ -437,7 +439,8 @@ class PlayerViewModel @Inject constructor(
         itemIdString: String,
         startTicks: Long?,
         mediaSourceId: String? = null,
-        queue: ItemQueue? = null
+        queue: ItemQueue? = null,
+        syncGroupId: String? = null
     ) {
         if (loaded) return
         loaded = true
@@ -445,6 +448,7 @@ class PlayerViewModel @Inject constructor(
         itemId = id
         this.queue = queue
         outroNextUpShown = false
+        syncGroupId?.let { joinRoom(UUID.fromString(it)) }
         viewingScope.launch {
             val activeSession = authRepository.activeSession()
             if (activeSession == null) {
@@ -498,6 +502,23 @@ class PlayerViewModel @Inject constructor(
             startTicker()
             startProgressReports()
         }
+    }
+
+    private fun joinRoom(groupId: UUID) {
+        val playback = syncPlayFactory.create(
+            groupId = groupId,
+            player = player,
+            transport = transport,
+            parentScope = viewingScope,
+            onNotice = { notice -> _state.update { it.copy(notice = notice) } },
+            onLeft = {
+                room = null
+                _state.update { it.copy(inRoom = false, notice = "You left the Watch Together room") }
+            }
+        )
+        room = playback
+        _state.update { it.copy(inRoom = true) }
+        playback.start()
     }
 
     fun playPause() = transport.togglePlayPause()
@@ -902,6 +923,7 @@ class PlayerViewModel @Inject constructor(
         val positionTicks = stopReportPositionMs(player.currentPosition, player.duration, leftFromOutroNextUp).msToTicks()
         player.removeListener(listener)
         engine.release()
+        room?.leave()
         if (s != null && info != null && id != null) {
             appScope.launch {
                 runCatching { playbackRepository.reportStopped(s, info, id, positionTicks, series) }

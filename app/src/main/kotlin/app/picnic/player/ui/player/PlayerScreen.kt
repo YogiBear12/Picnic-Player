@@ -65,13 +65,15 @@ fun PlayerScreen(
     startTicks: Long?,
     mediaSourceId: String? = null,
     queue: ItemQueue? = null,
+    syncGroupId: String? = null,
     onExit: () -> Unit,
+    onFinished: () -> Unit = onExit,
     onPlayNext: (nextItemId: String) -> Unit = {},
     viewModel: PlayerViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val settings by viewModel.settings.collectAsStateWithLifecycle()
-    LaunchedEffect(itemId) { viewModel.load(itemId, startTicks, mediaSourceId, queue) }
+    LaunchedEffect(itemId) { viewModel.load(itemId, startTicks, mediaSourceId, queue, syncGroupId) }
 
     val view = LocalView.current
     SideEffect { view.keepScreenOn = state.isPlaying }
@@ -152,9 +154,9 @@ fun PlayerScreen(
     val nowPlayingItem = state.nowPlayingItem
     val issueReporter = rememberIssueReporter(nowPlayingItem)
 
-    fun exitPlayer() {
+    fun exitPlayer(navigate: () -> Unit = onExit) {
         viewModel.endViewing()
-        onExit()
+        navigate()
     }
 
     LaunchedEffect(Unit) {
@@ -191,7 +193,7 @@ fun PlayerScreen(
     val nextUpActive = state.nextUpPhase != NextUpPhase.NONE
     LaunchedEffect(nextUpActive) {
         if (nextUpActive && state.nextUp == null) {
-            exitPlayer()
+            exitPlayer(onFinished)
         }
     }
 

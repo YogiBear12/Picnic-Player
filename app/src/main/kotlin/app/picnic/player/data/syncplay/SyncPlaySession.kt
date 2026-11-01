@@ -10,7 +10,9 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.withTimeoutOrNull
 import org.jellyfin.sdk.model.api.GroupInfoDto
 import org.jellyfin.sdk.model.api.GroupStateType
 import org.jellyfin.sdk.model.api.GroupUpdate
@@ -85,11 +87,34 @@ class SyncPlaySession @Inject constructor() {
     )
     val commands: SharedFlow<SyncCommand> = _commands.asSharedFlow()
 
+    private val _reconnects = MutableSharedFlow<Unit>(extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+
+    /** The socket came back after a drop; the server removed us from the room when it closed. */
+    val reconnects: SharedFlow<Unit> = _reconnects.asSharedFlow()
+
+    fun onReconnected() {
+        _reconnects.tryEmit(Unit)
+    }
+
+    /** A join or create request can return before the socket's GroupJoined, and the lobby needs the group. */
+    suspend fun awaitJoined(groupId: UUID): Boolean = withTimeoutOrNull(SERVER_CONFIRM_TIMEOUT_MS) { group.first { it?.id == groupId } } != null
+
+    /** After a re-join the server clears the queue and then restores it, so wait for the restored one. */
+    suspend fun awaitQueue(groupId: UUID): SyncQueue? = withTimeoutOrNull(SERVER_CONFIRM_TIMEOUT_MS) { group.first { it?.id == groupId && it.queue != null } }?.queue
+
+    fun onLeft() {
+        _group.value = null
+    }
+
     fun onGroupUpdate(update: GroupUpdate) = _group.update { reduceGroup(it, update) }
 
     fun onGroupInfo(info: GroupInfoDto) = _group.update { applyGroupInfo(it, info) }
 
     fun onCommand(command: SendCommand) {
         acceptCommand(_group.value, command, System.currentTimeMillis())?.let(_commands::tryEmit)
+    }
+
+    private companion object {
+        const val SERVER_CONFIRM_TIMEOUT_MS = 10_000L
     }
 }

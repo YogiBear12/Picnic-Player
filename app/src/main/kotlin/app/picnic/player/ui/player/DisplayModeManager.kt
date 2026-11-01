@@ -75,12 +75,10 @@ fun DisplayModeManager(
                 override fun onDisplayRemoved(displayId: Int) {}
                 override fun onDisplayChanged(displayId: Int) {
                     if (displayId == display.displayId && !isSeamless) {
-                        if (player.isPlaying) {
-                            transport.hold()
-                            Handler(Looper.getMainLooper()).postDelayed({
-                                transport.endHold()
-                            }, MIN_DELAY_MS)
-                        }
+                        transport.hold()
+                        Handler(Looper.getMainLooper()).postDelayed({
+                            transport.endHold()
+                        }, MIN_DELAY_MS)
                     }
                 }
             }

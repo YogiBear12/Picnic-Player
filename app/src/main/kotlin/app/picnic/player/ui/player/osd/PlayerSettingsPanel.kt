@@ -194,6 +194,7 @@ fun PlayerSettingsPanel(
             playbackSpeed = state.playbackSpeed,
             sleep = state.sleep,
             isEpisode = state.isEpisode,
+            inRoom = state.inRoom,
             showStatsForNerds = state.showStatsForNerds,
             pipSupported = pipSupported,
             onNavigate = { page = it },
@@ -288,6 +289,7 @@ private fun mainRows(
     playbackSpeed: Float,
     sleep: SleepTimerState,
     isEpisode: Boolean,
+    inRoom: Boolean,
     showStatsForNerds: Boolean,
     pipSupported: Boolean,
     onNavigate: (Page) -> Unit,
@@ -320,8 +322,11 @@ private fun mainRows(
             if (audioBoost == AudioBoost.OFF && nightMode == NightMode.OFF) "Off" else "On"
         ) { onNavigate(Page.AUDIO) }
     )
-    add(PanelRow.Nav(RowKey.SPEED, "Playback speed", formatSpeed(playbackSpeed)) { onNavigate(Page.SPEED) })
-    add(PanelRow.Nav(RowKey.SLEEP, "Sleep timer", sleepSummary(sleep, isEpisode)) { onNavigate(Page.SLEEP) })
+    // In a room both would act on everyone: a speed change desyncs the members, and a sleep pause pauses them all.
+    if (!inRoom) {
+        add(PanelRow.Nav(RowKey.SPEED, "Playback speed", formatSpeed(playbackSpeed)) { onNavigate(Page.SPEED) })
+        add(PanelRow.Nav(RowKey.SLEEP, "Sleep timer", sleepSummary(sleep, isEpisode)) { onNavigate(Page.SLEEP) })
+    }
     add(
         PanelRow.Nav(
             RowKey.PLAYBACK_INFO,

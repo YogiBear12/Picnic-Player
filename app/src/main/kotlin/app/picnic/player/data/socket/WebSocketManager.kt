@@ -18,6 +18,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
 import org.jellyfin.sdk.api.sockets.SocketApiState
 import org.jellyfin.sdk.model.api.GeneralCommandMessage
@@ -73,6 +75,9 @@ class WebSocketManager @Inject constructor(
             .onFailure { Log.w(TAG, "postCapabilities failed for ${session.username}", it) }
         coroutineScope {
             launch { logConnectionState(socket) }
+            launch { signalReconnects(socket) }
+            // A room's player keeps playing in Picture-in-Picture, which is visible but not resumed.
+            launch { foreground.isVisible.collectLatest { visible -> if (visible) fanOutSyncPlay(socket) } }
             foreground.isResumed.collectLatest { resumed ->
                 if (!resumed) return@collectLatest
                 coroutineScope {
@@ -82,7 +87,6 @@ class WebSocketManager @Inject constructor(
                     launch { fanOutPlay(socket) }
                     launch { fanOutGeneralCommands(socket) }
                     launch { fanOutServerLifecycle(socket) }
-                    launch { fanOutSyncPlay(socket) }
                 }
             }
         }
@@ -225,6 +229,10 @@ class WebSocketManager @Inject constructor(
                 serverMessageBus.emit(ServerNotice(text = "Server restart required to apply changes"))
             }
         }
+    }
+
+    private suspend fun signalReconnects(socket: SessionSocket) {
+        socket.state.filter { it == SocketApiState.Connected }.drop(1).collect { syncPlaySession.onReconnected() }
     }
 
     private suspend fun logConnectionState(socket: SessionSocket) {
