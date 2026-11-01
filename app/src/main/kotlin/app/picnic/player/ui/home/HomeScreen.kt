@@ -6,6 +6,7 @@ import app.picnic.player.data.media.FolderContext
 import app.picnic.player.data.media.PersonalLibrary
 import app.picnic.player.ui.browse.BrowseDest
 import app.picnic.player.ui.browse.BrowseShellHost
+import java.util.UUID
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.NameGuidPair
 
@@ -17,6 +18,7 @@ fun HomeScreen(
     onLibraryGenre: (NameGuidPair, BrowseDest.Library) -> Unit,
     onCollection: (BaseItemDto) -> Unit,
     onPlaylist: (BaseItemDto) -> Unit,
+    onWatchTogetherRoom: (UUID) -> Unit,
     onPerson: (BaseItemDto) -> Unit,
     onPersonalItem: (PersonalLibrary, BaseItemDto, FolderContext?) -> Unit,
     onSessionExpired: (String) -> Unit,
@@ -31,6 +33,7 @@ fun HomeScreen(
     onLibraryGenre = onLibraryGenre,
     onCollection = onCollection,
     onPlaylist = onPlaylist,
+    onWatchTogetherRoom = onWatchTogetherRoom,
     onPerson = onPerson,
     onPersonalItem = onPersonalItem,
     onSessionExpired = onSessionExpired,

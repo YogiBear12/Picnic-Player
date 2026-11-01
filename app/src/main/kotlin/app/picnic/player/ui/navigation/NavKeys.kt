@@ -44,8 +44,12 @@ data class PlayerKey(
     val itemId: String,
     val startTicks: Long? = null,
     val mediaSourceId: String? = null,
-    val queue: ItemQueue? = null
+    val queue: ItemQueue? = null,
+    val syncGroupId: String? = null
 ) : NavKey
+
+@Serializable
+data class LobbyKey(val groupId: String) : NavKey
 
 @Serializable
 data class EpisodesKey(

@@ -3,20 +3,26 @@ package app.picnic.player.ui.watchtogether
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.picnic.player.data.syncplay.SyncPlayRepository
+import app.picnic.player.data.syncplay.SyncPlaySession
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.util.UUID
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import org.jellyfin.sdk.model.api.GroupInfoDto
 
 @HiltViewModel
 class WatchTogetherPaneViewModel @Inject constructor(
-    private val syncPlayRepository: SyncPlayRepository
+    private val syncPlayRepository: SyncPlayRepository,
+    private val syncPlaySession: SyncPlaySession
 ) : ViewModel() {
     data class UiState(
         val loading: Boolean = true,
@@ -30,6 +36,9 @@ class WatchTogetherPaneViewModel @Inject constructor(
     val state = _state.asStateFlow()
 
     private var work: Job? = null
+
+    private val _joined = Channel<UUID>(Channel.BUFFERED)
+    val joined = _joined.receiveAsFlow()
 
     fun load() {
         work?.cancel()
@@ -48,7 +57,9 @@ class WatchTogetherPaneViewModel @Inject constructor(
         work = viewModelScope.launch {
             try {
                 syncPlayRepository.join(room.groupId)
-                refresh()
+                checkNotNull(withTimeoutOrNull(JOIN_CONFIRM_TIMEOUT_MS) { syncPlaySession.group.first { it?.id == room.groupId } })
+                _state.update { it.copy(joining = null) }
+                _joined.send(room.groupId)
             } catch (e: CancellationException) {
                 throw e
             } catch (_: Exception) {
@@ -68,5 +79,9 @@ class WatchTogetherPaneViewModel @Inject constructor(
         } catch (_: Exception) {
             _state.update { UiState(loading = false, error = "Couldn't load rooms") }
         }
+    }
+
+    private companion object {
+        const val JOIN_CONFIRM_TIMEOUT_MS = 10_000L
     }
 }

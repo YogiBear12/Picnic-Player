@@ -61,6 +61,7 @@ import app.picnic.player.ui.seerr.SeerrCardContextMenu
 import app.picnic.player.ui.settings.SettingsScreen
 import app.picnic.player.ui.startup.StartupScreen
 import app.picnic.player.ui.theme.TvBrowseMotion
+import app.picnic.player.ui.watchtogether.LobbyScreen
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
 
@@ -266,6 +267,7 @@ fun PicnicNavHost(
                                     PlaylistKey(playlist.id.toString(), playlist.name)
                                 )
                             },
+                            onWatchTogetherRoom = { groupId -> navViewModel.push(LobbyKey(groupId.toString())) },
                             onPerson = { person ->
                                 navViewModel.push(PersonKey(jellyfinPersonId = person.id.toString()))
                             },
@@ -371,6 +373,15 @@ fun PicnicNavHost(
                             onPlayNext = { nextId ->
                                 navViewModel.replaceTop(PlayerKey(nextId, queue = key.queue?.advanced()))
                             }
+                        )
+                    }
+                    entry<LobbyKey> { key ->
+                        LobbyScreen(
+                            groupId = key.groupId,
+                            onStart = { itemId, ticks ->
+                                navViewModel.replaceTop(PlayerKey(itemId.toString(), ticks, syncGroupId = key.groupId))
+                            },
+                            onBack = { navViewModel.pop() }
                         )
                     }
                     entry<EpisodesKey> { key ->

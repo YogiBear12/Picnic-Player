@@ -17,6 +17,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -39,6 +40,7 @@ import app.picnic.player.ui.common.rememberOneShotFocus
 import app.picnic.player.ui.common.rememberRetrySeed
 import app.picnic.player.ui.common.requestFocusWhenVisible
 import app.picnic.player.ui.theme.PicnicColors
+import java.util.UUID
 import org.jellyfin.sdk.model.api.GroupInfoDto
 
 @Composable
@@ -46,9 +48,12 @@ internal fun WatchTogetherPane(
     horizontalInset: Dp,
     seedContentFocus: Boolean,
     onContentFocusSeeded: () -> Unit,
+    onJoined: (UUID) -> Unit,
     viewModel: WatchTogetherPaneViewModel = hiltViewModel()
 ) {
     LaunchedEffect(Unit) { viewModel.load() }
+    val joined by rememberUpdatedState(onJoined)
+    LaunchedEffect(viewModel) { viewModel.joined.collect { joined(it) } }
     val state by viewModel.state.collectAsStateWithLifecycle()
     val rowFocus = rememberKeyedFocusRequesters()
     var focusedKey by remember { mutableStateOf<String?>(null) }
