@@ -2,6 +2,7 @@ package app.picnic.player.ui.watchtogether
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import app.picnic.player.data.auth.AuthRepository
 import app.picnic.player.data.media.MediaRepository
 import app.picnic.player.data.syncplay.SyncGroup
 import app.picnic.player.data.syncplay.SyncPlayRepository
@@ -20,6 +21,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
@@ -35,6 +37,7 @@ class LobbyViewModel @AssistedInject constructor(
     private val session: SyncPlaySession,
     private val syncPlayRepository: SyncPlayRepository,
     private val mediaRepository: MediaRepository,
+    authRepository: AuthRepository,
     @ApplicationScope private val appScope: CoroutineScope,
     @Assisted groupId: String
 ) : ViewModel() {
@@ -56,6 +59,12 @@ class LobbyViewModel @AssistedInject constructor(
     private val _item = MutableStateFlow<BaseItemDto?>(null)
     val item = _item.asStateFlow()
 
+    private val pictures = MutableStateFlow<Map<String, String>>(emptyMap())
+
+    val people: StateFlow<LobbyPeople?> = combine(group, pictures) { group, pictures ->
+        group?.let { lobbyPeople(it.participants, authRepository.activeSessionFlow.value?.username.orEmpty(), pictures) }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
     private val _closed = Channel<Unit>(Channel.CONFLATED)
     val closed = _closed.receiveAsFlow()
 
@@ -63,6 +72,7 @@ class LobbyViewModel @AssistedInject constructor(
     val starts: Flow<Start> = _starts.receiveAsFlow()
 
     init {
+        viewModelScope.launch { runCatching { syncPlayRepository.memberPictures() }.onSuccess { pictures.value = it } }
         // Subscribed before our Ready goes out: in a playing room the server answers it with Unpause at once.
         viewModelScope.launch {
             session.commands
@@ -108,4 +118,21 @@ class LobbyViewModel @AssistedInject constructor(
         leaving = true
         appScope.launch { runCatching { syncPlayRepository.leave() } }
     }
+}
+
+data class LobbyMember(val name: String, val pictureUrl: String?)
+
+data class LobbyPeople(val members: List<LobbyMember>, val line: String)
+
+internal fun lobbyPeople(participants: List<String>, you: String, pictures: Map<String, String>): LobbyPeople {
+    val youIndex = participants.indexOfFirst { it.equals(you, ignoreCase = true) }
+    val others = participants.filterIndexed { index, _ -> index != youIndex }
+    val ordered = listOfNotNull(participants.getOrNull(youIndex)) + others
+    val line = when (others.size) {
+        0 -> "Just you"
+        1 -> "You and ${others[0]}"
+        2 -> "You, ${others[0]} and ${others[1]}"
+        else -> "You and ${others.size} others"
+    }
+    return LobbyPeople(ordered.map { LobbyMember(it, pictures[it.lowercase()]) }, line)
 }

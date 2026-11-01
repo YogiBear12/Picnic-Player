@@ -1,5 +1,6 @@
 package app.picnic.player.data.syncplay
 
+import app.picnic.player.data.jellyfin.JellyfinImages
 import app.picnic.player.data.media.SessionApi
 import java.time.Instant
 import java.time.LocalDateTime
@@ -45,6 +46,19 @@ class SyncPlayRepository @Inject constructor(
     }.also { _access.value = it }
 
     suspend fun groups(): List<GroupInfoDto> = call { syncPlayGetGroups().content }
+
+    /**
+     * Picture URLs keyed by lowercased user name: a group names its members but carries no ids, and
+     * the server lets any user list the others.
+     */
+    suspend fun memberPictures(): Map<String, String> = api.onIo {
+        val baseUrl = api.session().server.baseUrl
+        api.client().userApi.getUsers().content
+            .filter { it.primaryImageTag != null }
+            .associate { user ->
+                user.name.orEmpty().lowercase() to JellyfinImages.userPrimary(baseUrl, user.id.toString(), user.primaryImageTag)
+            }
+    }
 
     // Leave is launched undispatched after a screen closes, so it holds this lock before the next join can ask.
     private val membership = Mutex()
