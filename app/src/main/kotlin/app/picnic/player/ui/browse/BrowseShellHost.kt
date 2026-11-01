@@ -52,6 +52,7 @@ import app.picnic.player.ui.playlist.PlaylistsPane
 import app.picnic.player.ui.search.SearchPane
 import app.picnic.player.ui.search.SearchViewModel
 import app.picnic.player.ui.theme.PicnicColors
+import app.picnic.player.ui.watchtogether.WatchTogetherPane
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.NameGuidPair
 
@@ -319,7 +320,11 @@ fun BrowseShellHost(
                                     onContentFocusSeeded = onPaneSeeded,
                                     onPlaylist = onPlaylist
                                 )
-                                BrowseDest.WatchTogether -> Unit
+                                BrowseDest.WatchTogether -> WatchTogetherPane(
+                                    horizontalInset = paneInset,
+                                    seedContentFocus = seedPaneFocus,
+                                    onContentFocusSeeded = onPaneSeeded
+                                )
                                 is BrowseDest.Library -> {
                                     val personal = dest.personalLibrary
                                     if (personal != null) {
