@@ -7,6 +7,9 @@ import java.time.ZoneId
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import org.jellyfin.sdk.api.client.extensions.syncPlayApi
 import org.jellyfin.sdk.api.client.extensions.userApi
 import org.jellyfin.sdk.api.operations.SyncPlayApi
@@ -26,9 +29,14 @@ class SyncPlayRepository @Inject constructor(
 ) {
     private suspend fun <T> call(block: suspend SyncPlayApi.() -> T): T = api.onIo { api.client().syncPlayApi.block() }
 
+    private val _access = MutableStateFlow(SyncPlayUserAccessType.NONE)
+
+    /** The current user's access as of the last [access] read; Home refreshes it on every load. */
+    val currentAccess: StateFlow<SyncPlayUserAccessType> = _access.asStateFlow()
+
     suspend fun access(): SyncPlayUserAccessType = api.onIo {
         api.client().userApi.getCurrentUser().content.policy?.syncPlayAccess ?: SyncPlayUserAccessType.NONE
-    }
+    }.also { _access.value = it }
 
     suspend fun groups(): List<GroupInfoDto> = call { syncPlayGetGroups().content }
 

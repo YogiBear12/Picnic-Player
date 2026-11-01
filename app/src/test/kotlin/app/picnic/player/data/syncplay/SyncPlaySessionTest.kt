@@ -14,8 +14,10 @@ import org.jellyfin.sdk.model.api.PlayQueueUpdateReason
 import org.jellyfin.sdk.model.api.PlaybackRequestType
 import org.jellyfin.sdk.model.api.SendCommand
 import org.jellyfin.sdk.model.api.SendCommandType
+import org.jellyfin.sdk.model.api.SyncPlayGroupDoesNotExistUpdate
 import org.jellyfin.sdk.model.api.SyncPlayGroupJoinedUpdate
 import org.jellyfin.sdk.model.api.SyncPlayGroupLeftUpdate
+import org.jellyfin.sdk.model.api.SyncPlayLibraryAccessDeniedUpdate
 import org.jellyfin.sdk.model.api.SyncPlayNotInGroupUpdate
 import org.jellyfin.sdk.model.api.SyncPlayPlayQueueUpdate
 import org.jellyfin.sdk.model.api.SyncPlayQueueItem
@@ -108,5 +110,22 @@ class SyncPlaySessionTest {
         assertNull(acceptCommand(group, command(UUID.randomUUID()), now.toEpochMilli()))
         assertNull(acceptCommand(group, command(entryId, group = UUID.randomUUID()), now.toEpochMilli()))
         assertNull(acceptCommand(joined(), command(entryId), now.toEpochMilli()))
+    }
+
+    @Test
+    fun groupInfoRefreshesStateAndMembersOfTheJoinedGroupOnly() {
+        val group = joined()
+        val info = GroupInfoDto(groupId, "Movie night", GroupStateType.PAUSED, listOf("knuckles", "dale"), local(now))
+        val refreshed = applyGroupInfo(group, info)!!
+        assertEquals(GroupStateType.PAUSED, refreshed.state)
+        assertEquals(listOf("knuckles", "dale"), refreshed.participants)
+        assertEquals(group, applyGroupInfo(group, info.copy(groupId = UUID.randomUUID())))
+        assertNull(applyGroupInfo(null, info))
+    }
+
+    @Test
+    fun errorRepliesWithAnEmptyGroupIdEndTheGroup() {
+        assertNull(reduceGroup(joined(), SyncPlayGroupDoesNotExistUpdate(UUID(0, 0), "")))
+        assertNull(reduceGroup(joined(), SyncPlayLibraryAccessDeniedUpdate(UUID(0, 0), "")))
     }
 }

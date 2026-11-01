@@ -24,6 +24,8 @@ import app.picnic.player.ui.playlist.AddToPlaylistPanel
 import app.picnic.player.ui.seerr.ReportIssuePanel
 import app.picnic.player.ui.seerr.SeasonRequestPanel
 import app.picnic.player.ui.seerr.rememberIssueReporter
+import app.picnic.player.ui.watchtogether.rememberWatchTogether
+import app.picnic.player.ui.watchtogether.watchTogetherAction
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
 
@@ -117,6 +119,7 @@ fun OverflowMenuDialog(
     val menuFocus = rememberContextMenuFocus()
     val versionFocus = rememberContextMenuFocus()
     val reportTarget = rememberIssueReporter(item)
+    val watchTogether = rememberWatchTogether(item)
     val mediaSources = item.mediaSources.orEmpty()
     val hasVersions = mediaSources.size > 1
     val isFavorite = item.userData?.isFavorite ?: false
@@ -134,6 +137,9 @@ fun OverflowMenuDialog(
 
     val mainItems = buildList {
         addAll(extraActions)
+        if (watchTogether != null) {
+            add(watchTogetherAction(item, watchTogether, onDismiss))
+        }
         if (requestMore != null) {
             add(
                 ContextMenuAction(

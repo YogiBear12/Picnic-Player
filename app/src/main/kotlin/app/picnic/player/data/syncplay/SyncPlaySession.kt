@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import org.jellyfin.sdk.model.api.GroupInfoDto
 import org.jellyfin.sdk.model.api.GroupStateType
 import org.jellyfin.sdk.model.api.GroupUpdate
 import org.jellyfin.sdk.model.api.SendCommand
@@ -44,10 +45,11 @@ fun reduceGroup(group: SyncGroup?, update: GroupUpdate): SyncGroup? {
         val info = update.data
         return SyncGroup(info.groupId, info.groupName, info.state, info.participants)
     }
-    if (update is SyncPlayNotInGroupUpdate) return null
+    // These answer our own requests and arrive with an empty group id, so they are not matched by id.
+    if (update is SyncPlayNotInGroupUpdate || update is SyncPlayGroupDoesNotExistUpdate || update is SyncPlayLibraryAccessDeniedUpdate) return null
     if (group == null || update.groupId != group.id) return group
     return when (update) {
-        is SyncPlayGroupLeftUpdate, is SyncPlayGroupDoesNotExistUpdate, is SyncPlayLibraryAccessDeniedUpdate -> null
+        is SyncPlayGroupLeftUpdate -> null
         is SyncPlayStateUpdate -> group.copy(state = update.data.state)
         // shortcut: the server lists each user once, so a user's second session leaving drops their name too. Count sessions if that shows up.
         is SyncPlayUserJoinedUpdate -> if (update.data in group.participants) group else group.copy(participants = group.participants + update.data)
@@ -60,6 +62,9 @@ fun reduceGroup(group: SyncGroup?, update: GroupUpdate): SyncGroup? {
         else -> group
     }
 }
+
+// The server sends no state update when a lone member's Ready settles the room, so the list is read after one.
+fun applyGroupInfo(group: SyncGroup?, info: GroupInfoDto): SyncGroup? = if (group?.id == info.groupId) group.copy(state = info.state, participants = info.participants) else group
 
 // The server also sends commands with a zero playlist item id (the creator gets a Stop on create) and
 // commands for a queue entry this client has moved past; neither applies to what is playing.
@@ -81,6 +86,8 @@ class SyncPlaySession @Inject constructor() {
     val commands: SharedFlow<SyncCommand> = _commands.asSharedFlow()
 
     fun onGroupUpdate(update: GroupUpdate) = _group.update { reduceGroup(it, update) }
+
+    fun onGroupInfo(info: GroupInfoDto) = _group.update { applyGroupInfo(it, info) }
 
     fun onCommand(command: SendCommand) {
         acceptCommand(_group.value, command, System.currentTimeMillis())?.let(_commands::tryEmit)

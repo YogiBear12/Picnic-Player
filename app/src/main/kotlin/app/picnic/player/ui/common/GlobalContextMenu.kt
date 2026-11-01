@@ -21,6 +21,8 @@ import androidx.compose.runtime.setValue
 import app.picnic.player.ui.playlist.AddToPlaylistPanel
 import app.picnic.player.ui.seerr.ReportIssuePanel
 import app.picnic.player.ui.seerr.rememberIssueReporter
+import app.picnic.player.ui.watchtogether.rememberWatchTogether
+import app.picnic.player.ui.watchtogether.watchTogetherAction
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
 
@@ -42,6 +44,7 @@ fun GlobalContextMenuDialog(
     var panel by remember { mutableStateOf<GlobalMenuPanel?>(null) }
     val menuFocus = rememberContextMenuFocus()
     val reportTarget = rememberIssueReporter(item)
+    val watchTogether = rememberWatchTogether(item)
 
     val actions = buildList {
         if (item.type in PlayableKinds) {
@@ -69,6 +72,10 @@ fun GlobalContextMenuDialog(
                     }
                 )
             }
+        }
+
+        if (watchTogether != null) {
+            add(watchTogetherAction(item, watchTogether, onDismiss))
         }
 
         add(

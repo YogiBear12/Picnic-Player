@@ -70,7 +70,10 @@ class LobbyViewModel @AssistedInject constructor(
         viewModelScope.launch {
             group.mapNotNull { it?.queue }.distinctUntilChanged().collect { queue ->
                 // A member counts as loading until it reports Ready, and the server holds the room for it.
-                runCatching { syncPlayRepository.ready(queue.startTicks, false, queue.playlistItemId) }
+                runCatching {
+                    syncPlayRepository.ready(queue.startTicks, false, queue.playlistItemId)
+                    syncPlayRepository.groups().firstOrNull { it.groupId == id }?.let(session::onGroupInfo)
+                }
                 if (_item.value?.id != queue.itemId) {
                     _item.value = try {
                         mediaRepository.item(queue.itemId)
@@ -86,6 +89,12 @@ class LobbyViewModel @AssistedInject constructor(
 
     fun play() {
         viewModelScope.launch { runCatching { syncPlayRepository.unpause() } }
+    }
+
+    /** A new queue at 0 starts by itself once every member reports Ready for it, which each lobby does. */
+    fun playFromStart() {
+        val queue = group.value?.queue ?: return
+        viewModelScope.launch { runCatching { syncPlayRepository.setNewQueue(queue.itemId, 0L) } }
     }
 
     /** Runs on the app scope: the lobby is popped at once and its own scope goes with it. */

@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Replay
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -40,10 +41,12 @@ import app.picnic.player.ui.browse.browseLayoutMetrics
 import app.picnic.player.ui.common.ActionButtonRow
 import app.picnic.player.ui.common.LocalImageUrls
 import app.picnic.player.ui.common.PageAction
+import app.picnic.player.ui.common.PlayFromStartLabel
 import app.picnic.player.ui.common.panelGlass
 import app.picnic.player.ui.common.rememberIdentityBrush
 import app.picnic.player.ui.common.rememberRowFocusState
 import app.picnic.player.ui.common.requestFocusWhenAttached
+import app.picnic.player.ui.common.resumeLabel
 import app.picnic.player.ui.detail.DetailBackdrop
 import app.picnic.player.ui.theme.PicnicColors
 import java.util.UUID
@@ -88,11 +91,17 @@ fun LobbyScreen(
             Column(Modifier.weight(3f)) {
                 BrowseHero(item = item, logoHeight = metrics.logoHeight, continueWatching = false, seasonCount = null)
                 Spacer(Modifier.height(metrics.heroGap))
+                val resumeTicks = group?.queue?.startTicks?.takeIf { it > 0 }
                 ActionButtonRow(
-                    actions = listOf(
-                        PageAction("Play", Icons.Filled.PlayArrow, viewModel::play),
-                        PageAction("Leave", Icons.AutoMirrored.Filled.ExitToApp, leave)
-                    ),
+                    actions = buildList {
+                        if (resumeTicks != null) {
+                            add(PageAction(resumeLabel(resumeTicks), Icons.Filled.PlayArrow, viewModel::play))
+                            add(PageAction(PlayFromStartLabel, Icons.Filled.Replay, viewModel::playFromStart))
+                        } else {
+                            add(PageAction("Play", Icons.Filled.PlayArrow, viewModel::play))
+                        }
+                        add(PageAction("Leave", Icons.AutoMirrored.Filled.ExitToApp, leave))
+                    },
                     focus = buttons,
                     onFocused = {}
                 )

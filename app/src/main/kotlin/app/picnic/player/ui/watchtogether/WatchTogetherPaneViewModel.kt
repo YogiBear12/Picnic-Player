@@ -63,6 +63,8 @@ class WatchTogetherPaneViewModel @Inject constructor(
             } catch (e: CancellationException) {
                 throw e
             } catch (_: Exception) {
+                // The server may have made us a member before the failure; leaving outside a room is harmless.
+                runCatching { syncPlayRepository.leave() }
                 _state.update {
                     it.copy(loading = false, joining = null, failedJoin = room, error = "Couldn't join ${room.groupName.orEmpty()}")
                 }

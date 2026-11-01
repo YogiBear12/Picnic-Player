@@ -13,6 +13,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -62,6 +63,8 @@ import app.picnic.player.ui.settings.SettingsScreen
 import app.picnic.player.ui.startup.StartupScreen
 import app.picnic.player.ui.theme.TvBrowseMotion
 import app.picnic.player.ui.watchtogether.LobbyScreen
+import app.picnic.player.ui.watchtogether.LocalWatchTogether
+import app.picnic.player.ui.watchtogether.WatchTogetherStarter
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
 
@@ -138,11 +141,16 @@ fun PicnicNavHost(
     val imageUrls by imageUrlsViewModel.imageUrls.collectAsStateWithLifecycle()
 
     val issueReporter: IssueReportViewModel = hiltViewModel()
+    val watchTogether: WatchTogetherStarter = hiltViewModel()
+    LaunchedEffect(watchTogether) {
+        watchTogether.opened.collect { groupId -> navViewModel.push(LobbyKey(groupId.toString())) }
+    }
 
     CompositionLocalProvider(
         LocalContextMenuHandler provides contextMenuHandler,
         LocalSeerrCardMenu provides seerrCardMenu,
         LocalIssueReporter provides issueReporter,
+        LocalWatchTogether provides watchTogether,
         LocalImageUrls provides imageUrls,
         LocalNavDim provides navDim,
         LocalCardClick provides cardClick
