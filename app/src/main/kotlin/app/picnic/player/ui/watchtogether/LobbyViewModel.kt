@@ -59,11 +59,17 @@ class LobbyViewModel @AssistedInject constructor(
     private val _closed = Channel<Unit>(Channel.CONFLATED)
     val closed = _closed.receiveAsFlow()
 
-    val starts: Flow<Start> = session.commands
-        .filter { it.type == SendCommandType.UNPAUSE }
-        .mapNotNull { command -> group.value?.queue?.let { Start(it.itemId, command.positionTicks ?: it.startTicks) } }
+    private val _starts = Channel<Start>(Channel.CONFLATED)
+    val starts: Flow<Start> = _starts.receiveAsFlow()
 
     init {
+        // Subscribed before our Ready goes out: in a playing room the server answers it with Unpause at once.
+        viewModelScope.launch {
+            session.commands
+                .filter { it.type == SendCommandType.UNPAUSE }
+                .mapNotNull { command -> group.value?.queue?.let { Start(it.itemId, command.positionTicks ?: it.startTicks) } }
+                .collect(_starts::send)
+        }
         viewModelScope.launch {
             group.collect { if (it == null && !leaving) _closed.send(Unit) }
         }
