@@ -24,6 +24,10 @@ sealed interface BrowseDest {
         override val key = "playlists"
     }
 
+    data object WatchTogether : BrowseDest {
+        override val key = "watch_together"
+    }
+
     data class Library(
         val id: UUID,
         val title: String,

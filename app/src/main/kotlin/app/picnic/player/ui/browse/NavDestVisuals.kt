@@ -11,6 +11,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
 import androidx.compose.material.icons.automirrored.outlined.PlaylistPlay
 import androidx.compose.material.icons.filled.Explore
+import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
@@ -19,6 +20,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material.icons.outlined.Explore
+import androidx.compose.material.icons.outlined.Groups
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Movie
 import androidx.compose.material.icons.outlined.Search
@@ -84,10 +86,11 @@ internal fun navLabelFor(dest: BrowseDest): String = when (dest) {
     BrowseDest.Home -> "Home"
     BrowseDest.Discover -> "Discover"
     BrowseDest.Playlists -> "Playlists"
+    BrowseDest.WatchTogether -> "Watch Together"
     is BrowseDest.Library -> dest.title
 }
 
-internal fun BrowseDest.isCustomizable(): Boolean = this is BrowseDest.Library || this == BrowseDest.Discover || this == BrowseDest.Playlists
+internal fun BrowseDest.isCustomizable(): Boolean = this !is BrowseDest.Search && this != BrowseDest.Home
 
 /** Filled first, outlined second. */
 internal fun iconsFor(dest: BrowseDest): Pair<ImageVector, ImageVector> = when (dest) {
@@ -95,6 +98,7 @@ internal fun iconsFor(dest: BrowseDest): Pair<ImageVector, ImageVector> = when (
     BrowseDest.Home -> Icons.Filled.Home to Icons.Outlined.Home
     BrowseDest.Discover -> Icons.Filled.Explore to Icons.Outlined.Explore
     BrowseDest.Playlists -> Icons.AutoMirrored.Filled.PlaylistPlay to Icons.AutoMirrored.Outlined.PlaylistPlay
+    BrowseDest.WatchTogether -> Icons.Filled.Groups to Icons.Outlined.Groups
     is BrowseDest.Library -> when {
         dest.kinds == listOf(BaseItemKind.MOVIE) -> Icons.Filled.Movie to Icons.Outlined.Movie
         dest.kinds == listOf(BaseItemKind.SERIES) -> Icons.Filled.Tv to Icons.Outlined.Tv

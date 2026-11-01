@@ -3,6 +3,7 @@ package app.picnic.player.data.media
 import app.picnic.player.data.auth.UserScope
 import app.picnic.player.data.auth.UserSession
 import app.picnic.player.data.seerr.SeerrRepository
+import app.picnic.player.data.syncplay.SyncPlayRepository
 import app.picnic.player.di.ApplicationScope
 import app.picnic.player.ui.browse.BrowseDest
 import app.picnic.player.ui.browse.NavRailState
@@ -24,6 +25,7 @@ import kotlinx.coroutines.launch
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
 import org.jellyfin.sdk.model.api.CollectionType
+import org.jellyfin.sdk.model.api.SyncPlayUserAccessType
 
 data class HomeResult(
     val session: UserSession,
@@ -43,6 +45,7 @@ data class HomeLoad(
 class HomeContentLoader @Inject constructor(
     private val mediaRepository: MediaRepository,
     private val seerrRepository: SeerrRepository,
+    private val syncPlayRepository: SyncPlayRepository,
     private val navRail: NavRailState,
     private val hiddenResumeStore: HiddenResumeStore,
     @ApplicationScope private val appScope: CoroutineScope
@@ -83,7 +86,10 @@ class HomeContentLoader @Inject constructor(
     }
 
     suspend fun fetch(session: UserSession, progress: MutableStateFlow<HomeLoad>? = null): HomeResult {
-        val views = mediaRepository.userViews()
+        val (views, syncPlayAccess) = coroutineScope {
+            val access = async { runCatching { syncPlayRepository.access() }.getOrDefault(SyncPlayUserAccessType.NONE) }
+            mediaRepository.userViews() to access.await()
+        }
         val playlistsAvailable = views.any { it.collectionType == CollectionType.PLAYLISTS }
         val libraries = views.mapNotNull { view ->
             val kinds = when (view.collectionType) {
@@ -95,7 +101,11 @@ class HomeContentLoader @Inject constructor(
             }
             BrowseDest.Library(view.id, view.name.orEmpty(), kinds, view.collectionType)
         }
-        navRail.publish(session, libraries, playlistsAvailable)
+        val serverDests = setOfNotNull(
+            BrowseDest.Playlists.takeIf { playlistsAvailable },
+            BrowseDest.WatchTogether.takeIf { syncPlayAccess != SyncPlayUserAccessType.NONE }
+        )
+        navRail.publish(session, libraries, serverDests)
         val slots = HomeContent.homeSlots(views)
         progress?.update { it.copy(slots = slots) }
         val slotByLibrary = slots.associateBy { it.libraryId }

@@ -319,6 +319,7 @@ fun BrowseShellHost(
                                     onContentFocusSeeded = onPaneSeeded,
                                     onPlaylist = onPlaylist
                                 )
+                                BrowseDest.WatchTogether -> Unit
                                 is BrowseDest.Library -> {
                                     val personal = dest.personalLibrary
                                     if (personal != null) {

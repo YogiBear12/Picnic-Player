@@ -5,8 +5,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.picnic.player.data.auth.AuthRepository
 import app.picnic.player.data.auth.UserSession
-import app.picnic.player.data.nav.NAV_ID_DISCOVER
-import app.picnic.player.data.nav.NAV_ID_PLAYLISTS
 import app.picnic.player.data.nav.NavLayout
 import app.picnic.player.data.nav.NavLayoutResolver
 import app.picnic.player.data.nav.NavLayoutStore
@@ -89,7 +87,7 @@ class NavRailState @Inject constructor(
 
     @Volatile private var discoverAvailable: Boolean = false
 
-    @Volatile private var playlistsAvailable: Boolean = false
+    @Volatile private var lastServerDests: Set<BrowseDest> = emptySet()
 
     @Volatile private var customById: Map<String, BrowseDest> = emptyMap()
 
@@ -143,33 +141,31 @@ class NavRailState @Inject constructor(
         }
     }
 
-    suspend fun publish(session: UserSession, libraries: List<BrowseDest.Library>, playlistsAvailable: Boolean) = publishLock.withLock { resolveAndApply(session, libraries, playlistsAvailable) { true } }
+    /** Discover never comes in [serverDests]: it follows the Seerr link, which this class watches itself. */
+    suspend fun publish(session: UserSession, libraries: List<BrowseDest.Library>, serverDests: Set<BrowseDest>) = publishLock.withLock { resolveAndApply(session, libraries, serverDests) { true } }
 
     /** A clear or user switch during the layout read wins; the stale republish is dropped. */
     private suspend fun republish() = publishLock.withLock {
         val session = _session.value ?: return@withLock
-        resolveAndApply(session, lastLibraries, playlistsAvailable) { _session.value == session }
+        resolveAndApply(session, lastLibraries, lastServerDests) { _session.value == session }
     }
 
     private suspend fun resolveAndApply(
         session: UserSession,
         libraries: List<BrowseDest.Library>,
-        playlistsAvailable: Boolean,
+        serverDests: Set<BrowseDest>,
         stillCurrent: () -> Boolean
     ) {
         val discoverAvailable = seerrRepository.state.value.linkState == SeerrLinkState.Linked
-        val availableIds = buildList {
-            addAll(libraries.map { it.key })
-            if (playlistsAvailable) add(NAV_ID_PLAYLISTS)
-            if (discoverAvailable) add(NAV_ID_DISCOVER)
-        }
-        val layout = navLayoutStore.resolve(session.server.id, session.userId, availableIds)
+        val optional = OPTIONAL_DESTS.filter { it in serverDests || (it == BrowseDest.Discover && discoverAvailable) }
+        val available = libraries + optional
+        val layout = navLayoutStore.resolve(session.server.id, session.userId, available.map { it.key })
         if (!stillCurrent()) return
         _session.value = session
         lastLibraries = libraries
         this.discoverAvailable = discoverAvailable
-        this.playlistsAvailable = playlistsAvailable
-        customById = buildCustomMap(libraries, discoverAvailable, playlistsAvailable)
+        lastServerDests = serverDests
+        customById = available.associateBy { it.key }
         _layout.value = layout
         resolveDestinations()
         _layoutEpoch.update { it + 1 }
@@ -242,7 +238,7 @@ class NavRailState @Inject constructor(
         _session.value = null
         lastLibraries = emptyList()
         discoverAvailable = false
-        playlistsAvailable = false
+        lastServerDests = emptySet()
         customById = emptyMap()
         pinnedDests = emptyList()
         unpinnedDests = emptyList()
@@ -288,16 +284,6 @@ class NavRailState @Inject constructor(
             publishFocus(pageFocusTarget(page, _moreVisible.value, _selectedKey.value))
         }
     }
-
-    private fun buildCustomMap(
-        libraries: List<BrowseDest.Library>,
-        discoverAvailable: Boolean,
-        playlistsAvailable: Boolean
-    ): Map<String, BrowseDest> = buildMap {
-        libraries.forEach { put(it.key, it) }
-        if (playlistsAvailable) put(BrowseDest.Playlists.key, BrowseDest.Playlists)
-        if (discoverAvailable) put(BrowseDest.Discover.key, BrowseDest.Discover)
-    }
 }
 
 @HiltViewModel
@@ -330,3 +316,6 @@ class NavRailViewModel @Inject constructor(
         viewModelScope.launch { rail.updateLayout { NavLayoutResolver.move(it, key, delta, rail::isShown) } }
     }
 }
+
+/** Optional destinations in their first-appearance order: a newcomer is added at the end of its page. */
+private val OPTIONAL_DESTS = listOf(BrowseDest.Playlists, BrowseDest.Discover, BrowseDest.WatchTogether)
