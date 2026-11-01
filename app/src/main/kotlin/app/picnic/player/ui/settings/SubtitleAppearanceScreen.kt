@@ -3,8 +3,6 @@
 package app.picnic.player.ui.settings
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -25,7 +23,6 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -36,9 +33,6 @@ import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -65,13 +59,10 @@ import app.picnic.player.playback.subtitleBottomPaddingFraction
 import app.picnic.player.ui.common.PanelRowMetrics
 import app.picnic.player.ui.common.PanelWidth
 import app.picnic.player.ui.common.PicnicListRow
+import app.picnic.player.ui.common.ServerBrandingImage
 import app.picnic.player.ui.common.panelGlass
 import app.picnic.player.ui.common.rowPrimaryColor
 import app.picnic.player.ui.theme.PicnicColors
-import coil3.compose.AsyncImage
-import coil3.compose.AsyncImagePainter
-import coil3.request.CachePolicy
-import coil3.request.ImageRequest
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.SharingStarted
@@ -108,31 +99,7 @@ private const val ScopeAspect = 2.39f
 @Composable
 private fun SubtitleBackground(splashUrl: String?, modifier: Modifier = Modifier) {
     Box(modifier) {
-        if (splashUrl != null) {
-            var loaded by remember(splashUrl) { mutableStateOf(false) }
-            val imageAlpha by animateFloatAsState(
-                targetValue = if (loaded) 1f else 0f,
-                animationSpec = tween(600),
-                label = "splashFade"
-            )
-            val context = LocalContext.current
-            val request = remember(splashUrl) {
-                ImageRequest.Builder(context)
-                    .data(splashUrl)
-                    .memoryCachePolicy(CachePolicy.DISABLED)
-                    .diskCachePolicy(CachePolicy.DISABLED)
-                    .build()
-            }
-            AsyncImage(
-                model = request,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                onState = { state -> if (state is AsyncImagePainter.State.Success) loaded = true },
-                modifier = Modifier
-                    .fillMaxSize()
-                    .graphicsLayer { alpha = imageAlpha }
-            )
-        }
+        if (splashUrl != null) ServerBrandingImage(splashUrl)
 
         Box(
             Modifier

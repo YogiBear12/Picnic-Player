@@ -22,12 +22,10 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeoutOrNull
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
 import org.jellyfin.sdk.model.api.SyncPlayUserAccessType
@@ -54,10 +52,10 @@ class WatchTogetherStarter @Inject constructor(
         viewModelScope.launch {
             try {
                 val username = authRepository.activeSession()?.username.orEmpty()
-                val group = syncPlayRepository.create("$username's group · ${movie.name.orEmpty()}")
+                val group = syncPlayRepository.create(username + WATCH_PARTY_SUFFIX)
                 syncPlayRepository.setNewQueue(movie.id, startTicks)
                 syncPlayRepository.pause()
-                checkNotNull(withTimeoutOrNull(JOIN_CONFIRM_TIMEOUT_MS) { syncPlaySession.group.first { it?.id == group.groupId } })
+                check(syncPlaySession.awaitJoined(group.groupId))
                 _opened.send(group.groupId)
             } catch (e: CancellationException) {
                 throw e
@@ -66,10 +64,6 @@ class WatchTogetherStarter @Inject constructor(
                 serverMessageBus.emit(ServerNotice(text = "Couldn't start a Watch Together room"))
             }
         }
-    }
-
-    private companion object {
-        const val JOIN_CONFIRM_TIMEOUT_MS = 10_000L
     }
 }
 

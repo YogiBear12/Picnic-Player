@@ -71,6 +71,7 @@ import app.picnic.player.ui.common.PanelRowMetrics
 import app.picnic.player.ui.common.PanelRowSpacing
 import app.picnic.player.ui.common.PanelWidth
 import app.picnic.player.ui.common.PicnicListRow
+import app.picnic.player.ui.common.UserAvatar
 import app.picnic.player.ui.common.panelGlass
 import app.picnic.player.ui.common.rememberReorderBringIntoView
 import app.picnic.player.ui.common.requestFocusWhenAttached
@@ -269,7 +270,7 @@ private fun FloatingNavBody(
                         label = chrome.session.username,
                         onActivate = actions.onSwapUser,
                         modifier = Modifier.lockedDuringReorder(chrome.reorderKey),
-                        leading = { NavAvatar(chrome.session, chrome.avatarUrl, PanelAvatarSize) }
+                        leading = { UserAvatar(chrome.session.username, chrome.avatarUrl, PanelAvatarSize) }
                     )
 
                     FloatingNavDestRows(fixed, chrome, actions, onOpenActions)
@@ -340,7 +341,7 @@ private fun NavDock(
     ) {
         navDockSlots(selected).forEach { slot ->
             when (slot) {
-                NavDockSlot.Avatar -> NavAvatar(session, avatarUrl, DockAvatarSize)
+                NavDockSlot.Avatar -> UserAvatar(session.username, avatarUrl, DockAvatarSize)
                 NavDockSlot.Menu -> Icon(
                     imageVector = Icons.Outlined.MoreHoriz,
                     contentDescription = null,

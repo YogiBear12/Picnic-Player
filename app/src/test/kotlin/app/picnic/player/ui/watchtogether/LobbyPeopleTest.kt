@@ -20,4 +20,11 @@ class LobbyPeopleTest {
         val people = lobbyPeople(listOf("Dale", "Testerino"), you = "testerino", pictures = mapOf("dale" to "d.jpg"))
         assertEquals(listOf(LobbyMember("Testerino", null), LobbyMember("Dale", "d.jpg")), people.members)
     }
+
+    @Test
+    fun webDefaultRoomNameReadsAsWatchParty() {
+        assertEquals("Dale's watch party", watchPartyName("Dale's group"))
+        assertEquals("Dale's watch party", watchPartyName("Dale's watch party"))
+        assertEquals("Movie night", watchPartyName("Movie night"))
+    }
 }

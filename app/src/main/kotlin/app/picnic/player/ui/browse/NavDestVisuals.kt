@@ -3,7 +3,6 @@ package app.picnic.player.ui.browse
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -28,8 +27,6 @@ import androidx.compose.material.icons.outlined.Tv
 import androidx.compose.material.icons.outlined.VideoLibrary
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -38,25 +35,16 @@ import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusEnterExitScope
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Icon
-import androidx.tv.material3.MaterialTheme
-import androidx.tv.material3.Text
-import app.picnic.player.data.auth.UserSession
-import app.picnic.player.ui.common.rememberIdentityBrush
 import app.picnic.player.ui.theme.PicnicColors
-import coil3.compose.AsyncImage
-import coil3.compose.AsyncImagePainter
 import org.jellyfin.sdk.model.api.BaseItemKind
 
 internal sealed interface NavDockSlot {
@@ -114,34 +102,6 @@ internal fun UpdateBadgeDot(modifier: Modifier = Modifier) {
             .clip(CircleShape)
             .background(PicnicColors.Cyan)
     )
-}
-
-@Composable
-internal fun NavAvatar(session: UserSession, imageUrl: String?, size: Dp) {
-    var avatarFailed by remember(session.userId) { mutableStateOf(false) }
-    Box(
-        Modifier
-            .size(size)
-            .clip(CircleShape)
-            .background(rememberIdentityBrush(session.username.ifBlank { "?" })),
-        contentAlignment = Alignment.Center
-    ) {
-        if (avatarFailed) {
-            Text(
-                session.username.firstOrNull()?.uppercase() ?: "?",
-                color = Color.White,
-                fontWeight = FontWeight.Bold,
-                style = MaterialTheme.typography.labelMedium
-            )
-        }
-        AsyncImage(
-            model = imageUrl,
-            contentDescription = session.username,
-            contentScale = ContentScale.Crop,
-            onState = { avatarFailed = it is AsyncImagePainter.State.Error },
-            modifier = Modifier.fillMaxSize().clip(CircleShape)
-        )
-    }
 }
 
 /**

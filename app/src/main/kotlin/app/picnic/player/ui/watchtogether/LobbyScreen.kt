@@ -20,18 +20,15 @@ import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -46,15 +43,14 @@ import app.picnic.player.ui.common.ActionButtonRow
 import app.picnic.player.ui.common.LocalImageUrls
 import app.picnic.player.ui.common.PageAction
 import app.picnic.player.ui.common.PlayFromStartLabel
-import app.picnic.player.ui.common.rememberIdentityBrush
+import app.picnic.player.ui.common.ServerBrandingImage
+import app.picnic.player.ui.common.UserAvatar
 import app.picnic.player.ui.common.rememberRowFocusState
 import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.common.resumeLabel
 import app.picnic.player.ui.detail.DetailBackdrop
 import app.picnic.player.ui.detail.RESTING_ACTIONS_BOTTOM
 import app.picnic.player.ui.theme.PicnicColors
-import coil3.compose.AsyncImage
-import coil3.compose.AsyncImagePainter
 import java.util.UUID
 
 @Composable
@@ -72,6 +68,7 @@ fun LobbyScreen(
     val back by rememberUpdatedState(onBack)
     LaunchedEffect(viewModel) { viewModel.starts.collect { start(it.itemId, it.positionTicks) } }
     LaunchedEffect(viewModel) { viewModel.closed.collect { back() } }
+    DisposableEffect(viewModel) { onDispose(viewModel::onScreenGone) }
     val leave = {
         viewModel.leave()
         onBack()
@@ -89,9 +86,14 @@ fun LobbyScreen(
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val metrics = browseLayoutMetrics(maxWidth, maxHeight)
         // With no movie queued there is no art, and DetailBackdrop would paint the app's ocean wash over.
-        if (queue != null) DetailBackdrop(frame, Modifier.fillMaxSize())
+        if (queue != null) {
+            DetailBackdrop(frame, Modifier.fillMaxSize())
+        } else {
+            viewModel.brandingUrl?.let { ServerBrandingImage(it) }
+            Box(Modifier.fillMaxSize().background(BrandingScrim))
+        }
         group?.let {
-            RoomHeader(it.name, Modifier.padding(start = metrics.hInset, top = metrics.sy(HEADER_TOP)))
+            RoomHeader(watchPartyName(it.name), Modifier.padding(start = metrics.hInset, top = metrics.sy(HEADER_TOP)))
         }
         Column(
             Modifier
@@ -144,14 +146,20 @@ private const val HEADER_TOP = 27f
 private const val SHOWN_AVATARS = 3
 private const val NoMovieNotice = "Waiting for someone to pick a movie"
 private val AvatarSize = 36.dp
+private val BrandingScrim = Brush.horizontalGradient(
+    0f to PicnicColors.Background.copy(alpha = 0.9f),
+    0.45f to PicnicColors.Background.copy(alpha = 0.6f),
+    1f to PicnicColors.Background.copy(alpha = 0.35f)
+)
 private val AvatarOverlap = 10.dp
+private val AvatarRing = 2.dp
 
 @Composable
 private fun RoomHeader(name: String, modifier: Modifier = Modifier) {
     Text(
-        "Watch Together · $name",
-        style = MaterialTheme.typography.labelLarge,
-        color = PicnicColors.OnDarkMuted,
+        name,
+        style = MaterialTheme.typography.headlineMedium,
+        color = PicnicColors.OnDark,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
         modifier = modifier
@@ -162,10 +170,19 @@ private fun RoomHeader(name: String, modifier: Modifier = Modifier) {
 private fun PeopleLine(people: LobbyPeople, state: String, modifier: Modifier = Modifier) {
     Row(modifier, verticalAlignment = Alignment.CenterVertically) {
         Row(horizontalArrangement = Arrangement.spacedBy(-AvatarOverlap)) {
-            people.members.take(SHOWN_AVATARS).forEach { MemberAvatar(it) }
+            people.members.take(SHOWN_AVATARS).forEach {
+                UserAvatar(it.name, it.pictureUrl, AvatarSize, modifier = Modifier.border(AvatarRing, PicnicColors.Background, CircleShape))
+            }
             val hidden = people.members.size - SHOWN_AVATARS
             if (hidden > 0) {
-                AvatarCircle(Modifier.background(PicnicColors.SurfaceVariant)) {
+                Box(
+                    Modifier
+                        .size(AvatarSize)
+                        .border(AvatarRing, PicnicColors.Background, CircleShape)
+                        .clip(CircleShape)
+                        .background(PicnicColors.SurfaceVariant),
+                    contentAlignment = Alignment.Center
+                ) {
                     Text("+$hidden", color = PicnicColors.OnDark, style = MaterialTheme.typography.labelMedium)
                 }
             }
@@ -174,40 +191,4 @@ private fun PeopleLine(people: LobbyPeople, state: String, modifier: Modifier = 
         Text(people.line, style = MaterialTheme.typography.bodyLarge, color = PicnicColors.OnDark, maxLines = 1)
         Text(" · $state", style = MaterialTheme.typography.bodyLarge, color = PicnicColors.OnDarkMuted, maxLines = 1)
     }
-}
-
-@Composable
-private fun MemberAvatar(member: LobbyMember) {
-    var pictureFailed by remember(member.pictureUrl) { mutableStateOf(false) }
-    AvatarCircle(Modifier.background(rememberIdentityBrush(member.name.ifBlank { "?" }))) {
-        if (member.pictureUrl == null || pictureFailed) {
-            Text(
-                member.name.firstOrNull()?.uppercase() ?: "?",
-                color = Color.White,
-                fontWeight = FontWeight.Bold,
-                style = MaterialTheme.typography.labelMedium
-            )
-        }
-        if (member.pictureUrl != null) {
-            AsyncImage(
-                model = member.pictureUrl,
-                contentDescription = member.name,
-                contentScale = ContentScale.Crop,
-                onState = { pictureFailed = it is AsyncImagePainter.State.Error },
-                modifier = Modifier.fillMaxSize()
-            )
-        }
-    }
-}
-
-@Composable
-private fun AvatarCircle(fill: Modifier, content: @Composable () -> Unit) {
-    Box(
-        Modifier
-            .size(AvatarSize)
-            .border(2.dp, PicnicColors.Background, CircleShape)
-            .clip(CircleShape)
-            .then(fill),
-        contentAlignment = Alignment.Center
-    ) { content() }
 }

@@ -128,7 +128,7 @@ private fun RoomRow(room: GroupInfoDto, joining: Boolean, onJoin: () -> Unit, mo
     GlassRow(onClick = onJoin, modifier = modifier.fillMaxWidth()) {
         Column(Modifier.padding(horizontal = 24.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
-                room.groupName.orEmpty(),
+                watchPartyName(room.groupName.orEmpty()),
                 style = MaterialTheme.typography.titleMedium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis

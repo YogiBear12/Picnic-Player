@@ -16,13 +16,11 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
@@ -44,7 +42,6 @@ import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInParent
@@ -67,15 +64,13 @@ import app.picnic.player.ui.common.LocalContextMenuHandler
 import app.picnic.player.ui.common.LocalImageUrls
 import app.picnic.player.ui.common.RowFocusState
 import app.picnic.player.ui.common.SkeletonCardRow
-import app.picnic.player.ui.common.rememberIdentityBrush
+import app.picnic.player.ui.common.UserAvatar
 import app.picnic.player.ui.common.rememberRowFocusState
 import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.grid.GridCardSkeleton
 import app.picnic.player.ui.grid.MediaGridCard
 import app.picnic.player.ui.grid.gridCellSlot
 import app.picnic.player.ui.theme.PicnicColors
-import coil3.compose.AsyncImage
-import coil3.compose.AsyncImagePainter
 import kotlin.math.roundToInt
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
@@ -275,7 +270,15 @@ internal fun AccountSettingsPanel(
                             horizontalArrangement = Arrangement.spacedBy(20.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            ProfileAvatar(name = username, imageUrl = avatarUrl)
+                            UserAvatar(
+                                name = username,
+                                imageUrl = avatarUrl,
+                                size = ProfileAvatarSize,
+                                initialStyle = MaterialTheme.typography.headlineMedium.copy(
+                                    color = PicnicColors.OnDark,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            )
                             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                                 Text(
                                     username,
@@ -622,32 +625,4 @@ private fun WatchCountBadge(count: Int?, label: String) {
     }
 }
 
-@Composable
-private fun ProfileAvatar(name: String, imageUrl: String?) {
-    var avatarFailed by remember(imageUrl) { mutableStateOf(false) }
-    Box(
-        modifier = Modifier
-            .size(96.dp)
-            .clip(CircleShape)
-            .background(rememberIdentityBrush(name.ifBlank { "?" })),
-        contentAlignment = Alignment.Center
-    ) {
-        if (imageUrl == null || avatarFailed) {
-            Text(
-                name.firstOrNull()?.uppercase().orEmpty(),
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = PicnicColors.OnDark
-            )
-        }
-        if (imageUrl != null) {
-            AsyncImage(
-                model = imageUrl,
-                contentDescription = name,
-                contentScale = ContentScale.Crop,
-                onState = { avatarFailed = it is AsyncImagePainter.State.Error },
-                modifier = Modifier.fillMaxSize()
-            )
-        }
-    }
-}
+private val ProfileAvatarSize = 96.dp

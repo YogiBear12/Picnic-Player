@@ -12,11 +12,9 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeoutOrNull
 import org.jellyfin.sdk.model.api.GroupInfoDto
 
 @HiltViewModel
@@ -57,7 +55,7 @@ class WatchTogetherPaneViewModel @Inject constructor(
         work = viewModelScope.launch {
             try {
                 syncPlayRepository.join(room.groupId)
-                checkNotNull(withTimeoutOrNull(JOIN_CONFIRM_TIMEOUT_MS) { syncPlaySession.group.first { it?.id == room.groupId } })
+                check(syncPlaySession.awaitJoined(room.groupId))
                 _state.update { it.copy(joining = null) }
                 _joined.send(room.groupId)
             } catch (e: CancellationException) {
@@ -66,7 +64,7 @@ class WatchTogetherPaneViewModel @Inject constructor(
                 // The server may have made us a member before the failure; leaving outside a room is harmless.
                 runCatching { syncPlayRepository.leave() }
                 _state.update {
-                    it.copy(loading = false, joining = null, failedJoin = room, error = "Couldn't join ${room.groupName.orEmpty()}")
+                    it.copy(loading = false, joining = null, failedJoin = room, error = "Couldn't join ${watchPartyName(room.groupName.orEmpty())}")
                 }
             }
         }
@@ -81,9 +79,5 @@ class WatchTogetherPaneViewModel @Inject constructor(
         } catch (_: Exception) {
             _state.update { UiState(loading = false, error = "Couldn't load rooms") }
         }
-    }
-
-    private companion object {
-        const val JOIN_CONFIRM_TIMEOUT_MS = 10_000L
     }
 }
