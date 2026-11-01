@@ -119,4 +119,41 @@ class NavLayoutResolverTest {
         val moved = NavLayoutResolver.move(start, "b", -1) { it != NAV_ID_DISCOVER }
         assertEquals(listOf("b", NAV_ID_DISCOVER, "a"), moved.pinnedIds)
     }
+
+    @Test
+    fun firstRun_putsWatchTogetherInMore() {
+        val layout = NavLayoutResolver.reconcile(listOf("lib:a", NAV_ID_WATCH_TOGETHER, NAV_ID_DISCOVER), saved = null)
+        assertEquals(listOf("lib:a", NAV_ID_DISCOVER), layout.pinnedIds)
+        assertEquals(listOf(NAV_ID_WATCH_TOGETHER), layout.unpinnedIds)
+    }
+
+    @Test
+    fun firstRun_legacyDiscoverOff_putsBothInMore() {
+        val layout = NavLayoutResolver.reconcile(listOf("lib:a", NAV_ID_WATCH_TOGETHER), saved = null, legacyDiscoverPinned = false)
+        assertEquals(listOf("lib:a"), layout.pinnedIds)
+        assertEquals(listOf(NAV_ID_DISCOVER, NAV_ID_WATCH_TOGETHER), layout.unpinnedIds)
+    }
+
+    @Test
+    fun newWatchTogether_goesToEndOfMore() {
+        val saved = NavLayout(pinnedIds = listOf("lib:a"), unpinnedIds = listOf(NAV_ID_DISCOVER))
+        val layout = NavLayoutResolver.reconcile(listOf("lib:a", "lib:b", NAV_ID_WATCH_TOGETHER, NAV_ID_DISCOVER), saved)
+        assertEquals(listOf("lib:a", "lib:b"), layout.pinnedIds)
+        assertEquals(listOf(NAV_ID_DISCOVER, NAV_ID_WATCH_TOGETHER), layout.unpinnedIds)
+    }
+
+    @Test
+    fun pinnedWatchTogether_staysPinned() {
+        val saved = NavLayout(pinnedIds = listOf("lib:a", NAV_ID_WATCH_TOGETHER))
+        val layout = NavLayoutResolver.reconcile(listOf("lib:a", NAV_ID_WATCH_TOGETHER), saved)
+        assertEquals(saved, layout)
+    }
+
+    @Test
+    fun pinnedWatchTogether_keepsItsPin_afterLosingAccess() {
+        val saved = NavLayout(pinnedIds = listOf(NAV_ID_WATCH_TOGETHER, "lib:a"))
+        val without = NavLayoutResolver.reconcile(listOf("lib:a"), saved)
+        val back = NavLayoutResolver.reconcile(listOf("lib:a", NAV_ID_WATCH_TOGETHER), without)
+        assertEquals(saved, back)
+    }
 }

@@ -8,6 +8,9 @@ const val NAV_ID_DISCOVER = "discover"
 /** Stable id for the Playlists destination in persisted nav layouts. */
 const val NAV_ID_PLAYLISTS = "playlists"
 
+/** Stable id for the Watch Together destination in persisted nav layouts. */
+const val NAV_ID_WATCH_TOGETHER = "watch_together"
+
 /**
  * Per-user sidebar layout: customizable destinations split into pinned (page 1)
  * and unpinned (More / page 2), each in user order.
@@ -25,7 +28,8 @@ data class NavLayout(
  *
  * - Keeps saved ids that are unavailable right now, in place, so an id that returns (Discover
  *   linking late, a library coming back) keeps its position and pin state. Display filters them.
- * - New ids are pinned at the end of the pinned list (so users notice new libraries).
+ * - New ids are pinned at the end of the pinned list (so users notice new libraries), except
+ *   Watch Together, which always starts on the More page, first layout included.
  * - On first layout ([saved] null): all libraries pinned in [availableIds] order;
  *   Discover respects [legacyDiscoverPinned] (migrated Show Discover pref). An unpinned Discover
  *   is saved even before Seerr links, because the legacy pref is deleted after this first run.
@@ -40,20 +44,18 @@ object NavLayoutResolver {
         val available = availableIds.distinct()
 
         if (saved == null) {
-            val pinned = available.filter { id ->
-                if (id == NAV_ID_DISCOVER) legacyDiscoverPinned else true
-            }
-            val unpinned = if (legacyDiscoverPinned) emptyList() else listOf(NAV_ID_DISCOVER)
-            return NavLayout(pinnedIds = pinned, unpinnedIds = unpinned)
+            val unpinned = listOfNotNull(NAV_ID_DISCOVER.takeUnless { legacyDiscoverPinned }) +
+                available.filter { it == NAV_ID_WATCH_TOGETHER }
+            return NavLayout(pinnedIds = available.filterNot { it in unpinned }, unpinnedIds = unpinned)
         }
 
         val pinned = saved.pinnedIds.distinct()
         val unpinned = saved.unpinnedIds.filter { it !in pinned }.distinct()
         val known = (pinned + unpinned).toSet()
-        val newcomers = available.filterNot { it in known }
+        val (newUnpinned, newPinned) = available.filterNot { it in known }.partition { it == NAV_ID_WATCH_TOGETHER }
         return NavLayout(
-            pinnedIds = pinned + newcomers,
-            unpinnedIds = unpinned
+            pinnedIds = pinned + newPinned,
+            unpinnedIds = unpinned + newUnpinned
         )
     }
 
