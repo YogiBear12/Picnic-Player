@@ -513,7 +513,7 @@ class PlayerViewModel @Inject constructor(
             onNotice = { notice -> _state.update { it.copy(notice = notice) } },
             onLeft = {
                 room = null
-                _state.update { it.copy(inRoom = false, notice = "You left the Watch Together room") }
+                _state.update { it.copy(inRoom = false, notice = "You left the watch party") }
             }
         )
         room = playback

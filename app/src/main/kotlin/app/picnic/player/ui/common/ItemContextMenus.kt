@@ -137,9 +137,6 @@ fun OverflowMenuDialog(
 
     val mainItems = buildList {
         addAll(extraActions)
-        if (watchTogether != null) {
-            add(watchTogetherAction(item, watchTogether, onDismiss))
-        }
         if (requestMore != null) {
             add(
                 ContextMenuAction(
@@ -184,6 +181,9 @@ fun OverflowMenuDialog(
                     onClick = { panel = OverflowPanel.REPORT }
                 )
             )
+        }
+        if (watchTogether != null) {
+            add(watchTogetherAction(item, watchTogether, onDismiss))
         }
         if (item.type == BaseItemKind.MOVIE || item.type == BaseItemKind.EPISODE) {
             add(

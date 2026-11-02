@@ -74,7 +74,7 @@ internal fun navLabelFor(dest: BrowseDest): String = when (dest) {
     BrowseDest.Home -> "Home"
     BrowseDest.Discover -> "Discover"
     BrowseDest.Playlists -> "Playlists"
-    BrowseDest.WatchTogether -> "Watch Together"
+    BrowseDest.WatchTogether -> "Watch party"
     is BrowseDest.Library -> dest.title
 }
 

@@ -61,7 +61,7 @@ class WatchTogetherStarter @Inject constructor(
                 throw e
             } catch (_: Exception) {
                 runCatching { syncPlayRepository.leave() }
-                serverMessageBus.emit(ServerNotice(text = "Couldn't start a Watch Together room"))
+                serverMessageBus.emit(ServerNotice(text = "Couldn't start a watch party"))
             }
         }
     }
@@ -80,4 +80,4 @@ fun watchTogetherAction(item: BaseItemDto, starter: WatchTogetherStarter, onDone
     onDone()
 }
 
-private const val WatchTogetherLabel = "Watch together"
+private const val WatchTogetherLabel = "Start a watch party"

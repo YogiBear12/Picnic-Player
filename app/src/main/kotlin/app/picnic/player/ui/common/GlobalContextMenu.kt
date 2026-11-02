@@ -74,10 +74,6 @@ fun GlobalContextMenuDialog(
             }
         }
 
-        if (watchTogether != null) {
-            add(watchTogetherAction(item, watchTogether, onDismiss))
-        }
-
         add(
             ContextMenuAction(
                 if (played) "Mark unwatched" else "Mark watched",
@@ -128,6 +124,10 @@ fun GlobalContextMenuDialog(
 
         if (reportTarget != null) {
             add(ContextMenuAction("Report an issue", Icons.Default.ReportProblem) { panel = GlobalMenuPanel.REPORT })
+        }
+
+        if (watchTogether != null) {
+            add(watchTogetherAction(item, watchTogether, onDismiss))
         }
 
         if (item.type == BaseItemKind.MOVIE || item.type == BaseItemKind.EPISODE) {
