@@ -51,6 +51,8 @@ import org.jellyfin.sdk.model.api.SyncPlayGroupJoinedUpdate
 import org.jellyfin.sdk.model.api.SyncPlayGroupUpdateMessage
 import org.jellyfin.sdk.model.api.SyncPlayPlayQueueUpdate
 import org.jellyfin.sdk.model.api.SyncPlayQueueItem
+import org.jellyfin.sdk.model.api.SyncPlayUserJoinedUpdate
+import org.jellyfin.sdk.model.api.SyncPlayUserLeftUpdate
 import org.jellyfin.sdk.model.api.UserDataChangeInfo
 import org.jellyfin.sdk.model.api.UserDataChangedMessage
 import org.jellyfin.sdk.model.api.UserItemDataDto
@@ -118,13 +120,13 @@ class WebSocketManagerTest {
         val foreground = FakeForegroundState(foreground)
         val bus = LibraryChangeBus()
         val playerBus = PlayerCommandBus()
-        val messageBus = ServerMessageBus()
+        val messageBus = NoticeBus()
         val remoteBus = RemoteControlBus()
         val syncPlay = SyncPlaySession()
 
         val received = mutableListOf<LibraryChange>()
         val playerCommands = mutableListOf<PlayerCommand>()
-        val notices = mutableListOf<ServerNotice>()
+        val notices = mutableListOf<Notice>()
         val remoteActions = mutableListOf<RemoteControlAction>()
         val syncCommands = mutableListOf<SyncCommand>()
         private val collectJobs = mutableListOf<Job>()
@@ -381,6 +383,30 @@ class WebSocketManagerTest {
     }
 
     @Test
+    fun syncPlayMembersJoiningAndLeavingOurGroup_showNotices() = runBlocking {
+        val h = Harness()
+        h.startCollecting(this)
+        h.activeSession.value = session(UUID.randomUUID().toString())
+        val socket = h.factory.sockets.single()
+        val groupId = UUID.randomUUID()
+        val local = LocalDateTime.ofInstant(Instant.parse("2026-10-31T10:00:00Z"), ZoneId.systemDefault())
+
+        socket.allMessages.emit(
+            SyncPlayGroupUpdateMessage(
+                SyncPlayGroupJoinedUpdate(groupId, GroupInfoDto(groupId, "Movie night", GroupStateType.IDLE, listOf("user"), local)),
+                UUID.randomUUID()
+            )
+        )
+        socket.allMessages.emit(SyncPlayGroupUpdateMessage(SyncPlayUserJoinedUpdate(groupId, "dale"), UUID.randomUUID()))
+        socket.allMessages.emit(SyncPlayGroupUpdateMessage(SyncPlayUserJoinedUpdate(UUID.randomUUID(), "stranger"), UUID.randomUUID()))
+        socket.allMessages.emit(SyncPlayGroupUpdateMessage(SyncPlayUserLeftUpdate(groupId, "dale"), UUID.randomUUID()))
+        delay(SETTLE_MS)
+
+        assertEquals(listOf(Notice(text = "dale has joined"), Notice(text = "dale has left")), h.notices)
+        h.stopCollecting()
+    }
+
+    @Test
     fun inPictureInPicture_syncPlayStillArrives() = runBlocking {
         val h = Harness(foreground = false)
         h.foreground.isVisible.value = true
@@ -539,7 +565,7 @@ class WebSocketManagerTest {
     }
 
     @Test
-    fun displayMessageAndSendString_emitServerNotices() = runBlocking {
+    fun displayMessageAndSendString_emitNotices() = runBlocking {
         val h = Harness()
         h.startCollecting(this)
         h.activeSession.value = session(UUID.randomUUID().toString())
@@ -558,8 +584,8 @@ class WebSocketManagerTest {
 
         assertEquals(
             listOf(
-                ServerNotice(text = "Dinner is ready", header = "Hi"),
-                ServerNotice(text = "hello")
+                Notice(text = "Dinner is ready", header = "Hi"),
+                Notice(text = "hello")
             ),
             h.notices
         )

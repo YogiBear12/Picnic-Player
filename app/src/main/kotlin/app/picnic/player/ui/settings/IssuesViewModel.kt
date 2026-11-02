@@ -5,8 +5,8 @@ import androidx.lifecycle.viewModelScope
 import app.picnic.player.data.seerr.SeerrIssue
 import app.picnic.player.data.seerr.SeerrIssueDisplay
 import app.picnic.player.data.seerr.SeerrRepository
-import app.picnic.player.data.socket.ServerMessageBus
-import app.picnic.player.data.socket.ServerNotice
+import app.picnic.player.data.socket.Notice
+import app.picnic.player.data.socket.NoticeBus
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -18,7 +18,7 @@ import kotlinx.coroutines.launch
 @HiltViewModel
 class IssuesViewModel @Inject constructor(
     private val seerrRepository: SeerrRepository,
-    private val serverMessageBus: ServerMessageBus
+    private val noticeBus: NoticeBus
 ) : ViewModel() {
     data class UiState(
         val loading: Boolean = true,
@@ -76,7 +76,7 @@ class IssuesViewModel @Inject constructor(
                 )
             }
             if (updated == null) {
-                serverMessageBus.emit(ServerNotice(text = "Could not post comment"))
+                noticeBus.emit(Notice(text = "Could not post comment"))
             } else {
                 refresh()
             }
@@ -112,7 +112,7 @@ class IssuesViewModel @Inject constructor(
                 )
             }
             if (result.isFailure) {
-                serverMessageBus.emit(ServerNotice(text = "Could not update issue"))
+                noticeBus.emit(Notice(text = "Could not update issue"))
             } else {
                 refresh()
             }

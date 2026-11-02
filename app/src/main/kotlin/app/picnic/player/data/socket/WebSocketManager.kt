@@ -8,6 +8,7 @@ import app.picnic.player.data.playback.PlayerCommand
 import app.picnic.player.data.playback.PlayerCommandBus
 import app.picnic.player.data.playback.ticksToMs
 import app.picnic.player.data.syncplay.SyncPlaySession
+import app.picnic.player.data.syncplay.groupNotice
 import app.picnic.player.di.IoDispatcher
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
@@ -44,7 +45,7 @@ class WebSocketManager @Inject constructor(
     private val foreground: AppForegroundState,
     private val libraryChangeBus: LibraryChangeBus,
     private val playerCommandBus: PlayerCommandBus,
-    private val serverMessageBus: ServerMessageBus,
+    private val noticeBus: NoticeBus,
     private val remoteControlBus: RemoteControlBus,
     private val syncPlaySession: SyncPlaySession,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher
@@ -166,12 +167,12 @@ class WebSocketManager @Inject constructor(
                 GeneralCommandType.DISPLAY_MESSAGE -> {
                     val text = args.arg(ARG_TEXT)
                     if (!text.isNullOrBlank()) {
-                        serverMessageBus.emit(ServerNotice(text = text, header = args.arg(ARG_HEADER)))
+                        noticeBus.emit(Notice(text = text, header = args.arg(ARG_HEADER)))
                     }
                 }
                 GeneralCommandType.SEND_STRING ->
                     args.arg(ARG_STRING)?.takeIf { it.isNotBlank() }
-                        ?.let { serverMessageBus.emit(ServerNotice(text = it)) }
+                        ?.let { noticeBus.emit(Notice(text = it)) }
 
                 GeneralCommandType.DISPLAY_CONTENT ->
                     args.arg(ARG_ITEM_ID)?.let { remoteControlBus.emit(RemoteControlAction.ShowItem(it)) }
@@ -200,6 +201,7 @@ class WebSocketManager @Inject constructor(
                 is SyncPlayGroupUpdateMessage -> {
                     Log.d(TAG, "SyncPlay update ${message.data.type} group=${message.data.groupId}")
                     syncPlaySession.onGroupUpdate(message.data)
+                    groupNotice(syncPlaySession.group.value, message.data)?.let(noticeBus::emit)
                 }
                 is SyncPlayCommandMessage -> message.data?.let { command ->
                     Log.d(TAG, "SyncPlay command ${command.command} entry=${command.playlistItemId}")
@@ -215,18 +217,18 @@ class WebSocketManager @Inject constructor(
     private suspend fun fanOutServerLifecycle(socket: SessionSocket) = coroutineScope {
         launch {
             socket.messages(ServerRestartingMessage::class).collect {
-                serverMessageBus.emit(ServerNotice(text = "Server is restarting…"))
+                noticeBus.emit(Notice(text = "Server is restarting…"))
             }
         }
         launch {
             socket.messages(ServerShuttingDownMessage::class).collect {
                 playerCommandBus.emit(PlayerCommand.Pause)
-                serverMessageBus.emit(ServerNotice(text = "Server is shutting down"))
+                noticeBus.emit(Notice(text = "Server is shutting down"))
             }
         }
         launch {
             socket.messages(RestartRequiredMessage::class).collect {
-                serverMessageBus.emit(ServerNotice(text = "Server restart required to apply changes"))
+                noticeBus.emit(Notice(text = "Server restart required to apply changes"))
             }
         }
     }

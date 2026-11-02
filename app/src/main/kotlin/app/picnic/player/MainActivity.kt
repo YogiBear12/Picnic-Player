@@ -20,10 +20,11 @@ import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation3.runtime.NavKey
 import app.picnic.player.data.playback.msToTicks
 import app.picnic.player.data.settings.SettingsStore
+import app.picnic.player.data.socket.Notice
+import app.picnic.player.data.socket.NoticeBus
 import app.picnic.player.data.socket.RemoteControlAction
 import app.picnic.player.data.socket.RemoteControlBus
 import app.picnic.player.data.socket.RemoteKey
-import app.picnic.player.data.socket.ServerMessageBus
 import app.picnic.player.playback.LocalThemeMusicPlayer
 import app.picnic.player.playback.ThemeMusicPlayer
 import app.picnic.player.ui.ambient.AmbientPaletteLoader
@@ -32,7 +33,7 @@ import app.picnic.player.ui.ambient.LocalAmbientBackgrounds
 import app.picnic.player.ui.ambient.LocalAmbientPaletteLoader
 import app.picnic.player.ui.ambient.LocalAmbientPrewarmer
 import app.picnic.player.ui.ambient.LocalPulseFocusGlow
-import app.picnic.player.ui.common.ServerNoticeHost
+import app.picnic.player.ui.common.NoticeHost
 import app.picnic.player.ui.navigation.AppNavigationViewModel
 import app.picnic.player.ui.navigation.BrowseKey
 import app.picnic.player.ui.navigation.DetailKey
@@ -60,7 +61,7 @@ class MainActivity : ComponentActivity() {
 
     @Inject lateinit var themeMusicPlayer: ThemeMusicPlayer
 
-    @Inject lateinit var serverMessageBus: ServerMessageBus
+    @Inject lateinit var noticeBus: NoticeBus
 
     @Inject lateinit var remoteControlBus: RemoteControlBus
 
@@ -73,7 +74,7 @@ class MainActivity : ComponentActivity() {
 
         lifecycleScope.launch {
             updateRepository.bootCleanup()
-            runCatching { updateRepository.check() }
+            runCatching { updateRepository.check() }.getOrNull()?.let { noticeBus.emit(Notice(text = "Update available")) }
         }
 
         WindowCompat.setDecorFitsSystemWindows(window, false)
@@ -94,7 +95,7 @@ class MainActivity : ComponentActivity() {
                 ) {
                     Box {
                         PicnicNavHost()
-                        ServerNoticeHost(notices = serverMessageBus.messages)
+                        NoticeHost(notices = noticeBus.messages)
                     }
                 }
             }

@@ -19,8 +19,8 @@ import app.picnic.player.data.seerr.canRequestMoreSeasons
 import app.picnic.player.data.seerr.seasonsForTvRequest
 import app.picnic.player.data.seerr.tmdbIdFromProviderIds
 import app.picnic.player.data.settings.SettingsStore
-import app.picnic.player.data.socket.ServerMessageBus
-import app.picnic.player.data.socket.ServerNotice
+import app.picnic.player.data.socket.Notice
+import app.picnic.player.data.socket.NoticeBus
 import app.picnic.player.ui.common.RowCursor
 import app.picnic.player.ui.common.RowPage
 import app.picnic.player.ui.common.RowPager
@@ -52,7 +52,7 @@ class DetailViewModel @AssistedInject constructor(
     private val changeBus: LibraryChangeBus,
     private val settingsStore: SettingsStore,
     private val seerrRepository: SeerrRepository,
-    private val serverMessageBus: ServerMessageBus,
+    private val noticeBus: NoticeBus,
     @Assisted private val itemId: String
 ) : ViewModel() {
     @AssistedFactory
@@ -300,7 +300,7 @@ class DetailViewModel @AssistedInject constructor(
                 val payload = seasonsForTvRequest(seasons, active)
                 seerrRepository.requestTv(tmdbId, payload, active?.id)
             }.onSuccess {
-                serverMessageBus.emit(ServerNotice(text = "Request submitted"))
+                noticeBus.emit(Notice(text = "Request submitted"))
                 state.value.item?.let { loadRequestMoreState(it) }
             }.onFailure {
                 _state.update {

@@ -3,10 +3,6 @@ package app.picnic.player.data.update
 import android.content.Context
 import android.content.Intent
 import androidx.core.content.FileProvider
-import androidx.datastore.core.DataStore
-import androidx.datastore.preferences.core.Preferences
-import androidx.datastore.preferences.core.edit
-import androidx.datastore.preferences.core.longPreferencesKey
 import app.picnic.player.BuildConfig
 import app.picnic.player.di.IoDispatcher
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -18,7 +14,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
@@ -33,7 +28,6 @@ data class DownloadProgress(val bytesDownloaded: Long, val totalBytes: Long) {
 class UpdateRepository @Inject constructor(
     @ApplicationContext private val context: Context,
     private val releaseSource: ReleaseSource,
-    private val dataStore: DataStore<Preferences>,
     @IoDispatcher private val io: CoroutineDispatcher
 ) {
     private val _updateAvailable = MutableStateFlow<UpdateRelease?>(null)
@@ -46,15 +40,10 @@ class UpdateRepository @Inject constructor(
 
     private fun installedVersion(): UpdateVersion? = UpdateVersion.parse(BuildConfig.VERSION_NAME)
 
-    suspend fun check(force: Boolean = false): UpdateRelease? {
+    suspend fun check(): UpdateRelease? {
         if (!enabled) return null
         val installed = installedVersion() ?: return null
-        if (!force) {
-            val last = dataStore.data.first()[LAST_CHECK_MS] ?: 0L
-            if (System.currentTimeMillis() - last < CHECK_INTERVAL_MS) return _updateAvailable.value
-        }
         val latest = withContext(io) { releaseSource.latestRelease() } ?: return null
-        dataStore.edit { it[LAST_CHECK_MS] = System.currentTimeMillis() }
         val newer = latest.takeIf { it.version > installed }
         _updateAvailable.value = newer
         return newer
@@ -122,8 +111,6 @@ class UpdateRepository @Inject constructor(
     private fun apkFile(version: UpdateVersion): File = File(updatesDir, "$APK_PREFIX$version.apk")
 
     private companion object {
-        val LAST_CHECK_MS = longPreferencesKey("update.lastCheckMs")
-        const val CHECK_INTERVAL_MS = 60 * 60 * 1000L
         const val APK_MIME_TYPE = "application/vnd.android.package-archive"
         const val APK_PREFIX = "picnic-"
     }

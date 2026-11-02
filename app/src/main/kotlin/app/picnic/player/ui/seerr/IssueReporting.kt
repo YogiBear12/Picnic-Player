@@ -14,8 +14,8 @@ import app.picnic.player.data.seerr.SeerrRepository
 import app.picnic.player.data.seerr.canCreateSeerrIssue
 import app.picnic.player.data.seerr.seerrIssueSeasons
 import app.picnic.player.data.seerr.tmdbIdFromProviderIds
-import app.picnic.player.data.socket.ServerMessageBus
-import app.picnic.player.data.socket.ServerNotice
+import app.picnic.player.data.socket.Notice
+import app.picnic.player.data.socket.NoticeBus
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -57,7 +57,7 @@ private fun issueSubjectOrNull(item: BaseItemDto): String? = when (item.type) {
 class IssueReportViewModel @Inject constructor(
     private val seerrRepository: SeerrRepository,
     private val mediaRepository: MediaRepository,
-    private val serverMessageBus: ServerMessageBus
+    private val noticeBus: NoticeBus
 ) : ViewModel() {
     private val seasonCache = ConcurrentHashMap<UUID, List<SeerrIssueSeason>>()
 
@@ -93,7 +93,7 @@ class IssueReportViewModel @Inject constructor(
                     problemEpisode = episode
                 )
             }.fold({ "Issue reported" }, { "Could not report issue" })
-            serverMessageBus.emit(ServerNotice(text = notice))
+            noticeBus.emit(Notice(text = notice))
         }
     }
 }

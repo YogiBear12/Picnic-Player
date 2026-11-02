@@ -27,28 +27,26 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
-import app.picnic.player.data.socket.ServerNotice
+import app.picnic.player.data.socket.Notice
 import app.picnic.player.ui.theme.PicnicColors
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.Flow
 
-private const val NOTICE_VISIBLE_MS = 5_000L
+private const val NOTICE_VISIBLE_MS = 2_000L
 
 private val NoticeGlassFill = PicnicColors.GlassFill
 private val NoticeCornerRadius = 12.dp
 
 @Composable
-fun ServerNoticeHost(
-    notices: SharedFlow<ServerNotice>,
+fun NoticeHost(
+    notices: Flow<Notice>,
     modifier: Modifier = Modifier
 ) {
-    var current by remember { mutableStateOf<ServerNotice?>(null) }
+    var current by remember { mutableStateOf<Notice?>(null) }
 
     androidx.compose.runtime.LaunchedEffect(Unit) {
-        notices.collect { current = it }
-    }
-    androidx.compose.runtime.LaunchedEffect(current) {
-        if (current != null) {
+        notices.collect {
+            current = it
             delay(NOTICE_VISIBLE_MS)
             current = null
         }

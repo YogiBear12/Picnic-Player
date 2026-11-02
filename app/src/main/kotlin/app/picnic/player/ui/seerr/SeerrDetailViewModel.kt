@@ -25,8 +25,8 @@ import app.picnic.player.data.seerr.seasonsForTvRequest
 import app.picnic.player.data.seerr.shouldOpenJellyfinDetail
 import app.picnic.player.data.seerr.toCatalogItem
 import app.picnic.player.data.settings.SettingsStore
-import app.picnic.player.data.socket.ServerMessageBus
-import app.picnic.player.data.socket.ServerNotice
+import app.picnic.player.data.socket.Notice
+import app.picnic.player.data.socket.NoticeBus
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
@@ -75,7 +75,7 @@ data class SeerrActionRow(
 class SeerrDetailViewModel @AssistedInject constructor(
     private val seerrRepository: SeerrRepository,
     private val settingsStore: SettingsStore,
-    private val serverMessageBus: ServerMessageBus,
+    private val noticeBus: NoticeBus,
     @Assisted private val tmdbId: Int,
     @Assisted private val mediaType: SeerrMediaType
 ) : ViewModel() {
@@ -273,7 +273,7 @@ class SeerrDetailViewModel @AssistedInject constructor(
             }
             return
         }
-        serverMessageBus.emit(ServerNotice(text = successNotice))
+        noticeBus.emit(Notice(text = successNotice))
         val refreshOk = loadDetail(showLoading = false)
         _state.update {
             it.copy(

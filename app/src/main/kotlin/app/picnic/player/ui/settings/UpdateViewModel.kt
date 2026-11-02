@@ -46,7 +46,7 @@ class UpdateViewModel @Inject constructor(
         if (_phase.value is Phase.Checking || _phase.value is Phase.Downloading) return
         _phase.value = Phase.Checking
         viewModelScope.launch {
-            runCatching { repository.check(force = true) }
+            runCatching { repository.check() }
                 .onSuccess { release ->
                     _phase.value = if (release != null) Phase.Available(release) else Phase.UpToDate
                 }

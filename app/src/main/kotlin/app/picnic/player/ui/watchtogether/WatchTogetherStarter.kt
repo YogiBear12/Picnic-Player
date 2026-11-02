@@ -9,8 +9,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import app.picnic.player.data.auth.AuthRepository
-import app.picnic.player.data.socket.ServerMessageBus
-import app.picnic.player.data.socket.ServerNotice
+import app.picnic.player.data.socket.Notice
+import app.picnic.player.data.socket.NoticeBus
 import app.picnic.player.data.syncplay.SyncPlayRepository
 import app.picnic.player.data.syncplay.SyncPlaySession
 import app.picnic.player.ui.common.ContextMenuAction
@@ -39,7 +39,7 @@ class WatchTogetherStarter @Inject constructor(
     private val authRepository: AuthRepository,
     private val syncPlayRepository: SyncPlayRepository,
     private val syncPlaySession: SyncPlaySession,
-    private val serverMessageBus: ServerMessageBus
+    private val noticeBus: NoticeBus
 ) : ViewModel() {
     val canCreate: StateFlow<Boolean> = syncPlayRepository.currentAccess
         .map { it == SyncPlayUserAccessType.CREATE_AND_JOIN_GROUPS }
@@ -61,7 +61,7 @@ class WatchTogetherStarter @Inject constructor(
                 throw e
             } catch (_: Exception) {
                 runCatching { syncPlayRepository.leave() }
-                serverMessageBus.emit(ServerNotice(text = "Couldn't start a watch party"))
+                noticeBus.emit(Notice(text = "Couldn't start a watch party"))
             }
         }
     }

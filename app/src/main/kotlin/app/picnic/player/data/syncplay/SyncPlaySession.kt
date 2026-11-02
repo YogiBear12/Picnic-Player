@@ -1,5 +1,6 @@
 package app.picnic.player.data.syncplay
 
+import app.picnic.player.data.socket.Notice
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -62,6 +63,15 @@ fun reduceGroup(group: SyncGroup?, update: GroupUpdate): SyncGroup? {
             group.copy(queue = item?.let { SyncQueue(it.itemId, it.playlistItemId, queue.startPositionTicks) })
         }
         else -> group
+    }
+}
+
+fun groupNotice(group: SyncGroup?, update: GroupUpdate): Notice? {
+    if (group == null || update.groupId != group.id) return null
+    return when (update) {
+        is SyncPlayUserJoinedUpdate -> Notice(text = "${update.data} has joined")
+        is SyncPlayUserLeftUpdate -> Notice(text = "${update.data} has left")
+        else -> null
     }
 }
 
