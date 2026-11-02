@@ -235,6 +235,7 @@ fun BrowseShellHost(
                     onSelect = { dest -> rail.select(dest) },
                     onOpenMore = { rail.openMorePage() },
                     onBackFromMore = { rail.openPrimaryPage() },
+                    onPanelExitedSideways = rail::panelExitedSideways,
                     onSwapUser = onSwapUser,
                     onSettings = {
                         rail.requestSettingsReturn()

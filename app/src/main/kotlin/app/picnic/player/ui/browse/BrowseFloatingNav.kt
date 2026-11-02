@@ -111,6 +111,7 @@ internal class NavChromeActions(
     val onSelect: (BrowseDest) -> Unit,
     val onOpenMore: () -> Unit,
     val onBackFromMore: () -> Unit,
+    val onPanelExitedSideways: () -> Unit,
     val onSwapUser: () -> Unit,
     val onSettings: () -> Unit,
     val onChromeFocusedChange: (Boolean) -> Unit,
@@ -192,7 +193,6 @@ private fun FloatingNavBody(
         onDispose { actions.onChromeFocusedChange(false) }
     }
 
-    val onPrimaryPage = chrome.panelPage == NavPanelPage.Primary
     val libraryScroll = rememberLibraryScroll(panelFocused, chrome.selectedDest)
 
     val openProgress by animateFloatAsState(
@@ -250,8 +250,8 @@ private fun FloatingNavBody(
                 .navReorderKeys(chrome.reorderKey, actions.onMoveReorder, actions.onExitReorder)
                 .onKeyEvent { event ->
                     val sideways = event.key == Key.DirectionLeft || event.key == Key.DirectionRight
-                    if (sideways && event.type == KeyEventType.KeyDown && onPrimaryPage) {
-                        actions.paneEntryFocus().requestFocus()
+                    if (sideways && event.type == KeyEventType.KeyDown && actions.paneEntryFocus().requestFocus(FocusDirection.Enter)) {
+                        actions.onPanelExitedSideways()
                     }
                     sideways
                 }

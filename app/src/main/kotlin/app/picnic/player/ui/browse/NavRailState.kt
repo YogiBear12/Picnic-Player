@@ -202,6 +202,14 @@ class NavRailState @Inject constructor(
         showPage()
     }
 
+    /** Focus already left the panel, so the page resets without the focus request [showPage] would publish. */
+    fun panelExitedSideways() {
+        if (_panelPage.value != NavPanelPage.More || unpinnedDests.any { it.key == _selectedKey.value }) return
+        _panelPage.value = NavPanelPage.Primary
+        lastPublishedPage = NavPanelPage.Primary
+        showPage()
+    }
+
     fun enterReorder(key: String) {
         _reorderKey.value = key
         publishFocus(ChromeFocusTarget.Row(key))
