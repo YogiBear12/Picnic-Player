@@ -166,6 +166,7 @@ class PlayerViewModel @Inject constructor(
     private var loaded = false
     private var leftFromOutroNextUp = false
     private var room: SyncPlayPlayback? = null
+    private var roomHandedOff = false
 
     private val viewingJob = SupervisorJob(viewModelScope.coroutineContext[Job])
     private val viewingScope = CoroutineScope(viewModelScope.coroutineContext + viewingJob)
@@ -514,6 +515,15 @@ class PlayerViewModel @Inject constructor(
             onLeft = {
                 room = null
                 _state.update { it.copy(inRoom = false, notice = "You left the watch party") }
+            },
+            onItemChanged = { next ->
+                roomHandedOff = true
+                handOffTo(next.toString())
+            },
+            onQueueReset = {
+                roomHandedOff = true
+                markLeftFromOutro()
+                _navEvents.tryEmit(PlayerNavEvent.ToLobby)
             }
         )
         room = playback
@@ -733,6 +743,7 @@ class PlayerViewModel @Inject constructor(
     }
 
     private suspend fun nextInQueue(id: UUID, item: BaseItemDto): BaseItemDto? {
+        room?.let { return it.nextItemId?.let { next -> mediaRepository.item(next) } }
         val playing = queue
         val parentId = playing?.id
             ?: return if (item.type == BaseItemKind.EPISODE) mediaRepository.nextEpisode(id) else null
@@ -896,7 +907,7 @@ class PlayerViewModel @Inject constructor(
             true
         } else {
             sessionController.onItemAutoplayed()
-            sessionController.shouldAskStillWatching(settings.value.passoutProtection)
+            room == null && sessionController.shouldAskStillWatching(settings.value.passoutProtection)
         }
         if (askStillWatching) transport.pause()
         _state.update { it.completedByNextUpExpiry(askStillWatching) }
@@ -904,10 +915,25 @@ class PlayerViewModel @Inject constructor(
     }
 
     fun playNext() {
+        room?.let { return it.requestNext() }
         val next = nextItemId() ?: return
-        leftFromOutroNextUp = leftFromOutroNextUp || _state.value.nextUpPhase == NextUpPhase.OUTRO
+        handOffTo(next)
+    }
+
+    private fun handOffTo(next: String) {
+        markLeftFromOutro()
         sessionController.handOffToNextItem()
         _navEvents.tryEmit(PlayerNavEvent.PlayNext(next))
+    }
+
+    private fun markLeftFromOutro() {
+        leftFromOutroNextUp = leftFromOutroNextUp || _state.value.nextUpPhase == NextUpPhase.OUTRO
+    }
+
+    // The file ended with no Next Up card; in a room the card may still be loading, and only the room's queue knows the last file.
+    fun finishWithoutNextUp() {
+        val playing = room ?: return run { _navEvents.tryEmit(PlayerNavEvent.Exit) }
+        if (playing.nextItemId == null) playing.finishQueue() else playing.requestNext()
     }
 
     fun endPlayback() {
@@ -923,7 +949,7 @@ class PlayerViewModel @Inject constructor(
         val positionTicks = stopReportPositionMs(player.currentPosition, player.duration, leftFromOutroNextUp).msToTicks()
         player.removeListener(listener)
         engine.release()
-        room?.leave()
+        if (!roomHandedOff) room?.leave()
         if (s != null && info != null && id != null) {
             appScope.launch {
                 runCatching { playbackRepository.reportStopped(s, info, id, positionTicks, series) }

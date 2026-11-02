@@ -25,6 +25,8 @@ sealed interface PlayerNavEvent {
     data object Exit : PlayerNavEvent
 
     data class PlayNext(val itemId: String) : PlayerNavEvent
+
+    data object ToLobby : PlayerNavEvent
 }
 
 data class TrackOption(

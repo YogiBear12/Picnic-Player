@@ -22,6 +22,7 @@ import org.jellyfin.sdk.model.api.BufferRequestDto
 import org.jellyfin.sdk.model.api.GroupInfoDto
 import org.jellyfin.sdk.model.api.JoinGroupRequestDto
 import org.jellyfin.sdk.model.api.NewGroupRequestDto
+import org.jellyfin.sdk.model.api.NextItemRequestDto
 import org.jellyfin.sdk.model.api.PingRequestDto
 import org.jellyfin.sdk.model.api.PlayRequestDto
 import org.jellyfin.sdk.model.api.ReadyRequestDto
@@ -77,8 +78,12 @@ class SyncPlayRepository @Inject constructor(
         }
     }
 
-    suspend fun setNewQueue(itemId: UUID, startTicks: Long) {
-        call { syncPlaySetNewQueue(PlayRequestDto(listOf(itemId), 0, startTicks)) }
+    override suspend fun setNewQueue(itemIds: List<UUID>, startTicks: Long) {
+        call { syncPlaySetNewQueue(PlayRequestDto(itemIds, 0, startTicks)) }
+    }
+
+    override suspend fun nextItem(playlistItemId: UUID) {
+        call { syncPlayNextItem(NextItemRequestDto(playlistItemId)) }
     }
 
     override suspend fun pause() {

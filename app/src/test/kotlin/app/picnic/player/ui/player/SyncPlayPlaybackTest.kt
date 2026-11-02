@@ -8,6 +8,7 @@ import app.picnic.player.data.syncplay.SyncPlaySession
 import java.lang.reflect.Proxy
 import java.time.LocalDateTime
 import java.util.UUID
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
@@ -53,6 +54,50 @@ class SyncPlayPlaybackTest {
         assertFalse(isRedundant(seek, last = seek, playWhenReady = true, positionMs = 60_000))
         val unpause = seek.copy(type = SendCommandType.UNPAUSE)
         assertFalse(isRedundant(unpause, last = unpause, playWhenReady = false, positionMs = 0))
+    }
+
+    @Test
+    fun theRoomMovingToAnotherEntryHandsThePlayerThatItem() = room {
+        val next = UUID.randomUUID()
+        session.onGroupUpdate(queueUpdate(PlayQueueUpdateReason.NEXT_ITEM, SyncPlayQueueItem(next, UUID.randomUUID())))
+        runCurrent()
+        assertEquals(listOf("item $next"), moves)
+    }
+
+    @Test
+    fun aNewQueueSendsThePlayerToTheLobby() = room {
+        session.onGroupUpdate(queueUpdate(PlayQueueUpdateReason.NEW_PLAYLIST, SyncPlayQueueItem(UUID.randomUUID(), UUID.randomUUID())))
+        runCurrent()
+        assertEquals(listOf("reset"), moves)
+    }
+
+    @Test
+    fun aRejoinThatRestoresTheSameEntryKeepsThePlayer() = room {
+        session.onGroupUpdate(SyncPlayGroupJoinedUpdate(groupId, GroupInfoDto(groupId, "Room", GroupStateType.PLAYING, listOf("me"), LocalDateTime.now())))
+        session.onGroupUpdate(queueUpdate(PlayQueueUpdateReason.NEW_PLAYLIST, SyncPlayQueueItem(UUID.randomUUID(), entryId)))
+        runCurrent()
+        assertEquals(emptyList<String>(), moves)
+    }
+
+    @Test
+    fun finishingTheQueueRequeuesItPaused() = room {
+        playback.finishQueue()
+        runCurrent()
+        assertEquals(listOf("setNewQueue 1", "pause"), server.calls)
+    }
+
+    @Test
+    fun theResetsOwnEchoGoesToTheLobbyOnlyOnceThePauseIsSent() = room {
+        val pause = CompletableDeferred<Unit>()
+        server.pauseGate = pause
+        playback.finishQueue()
+        session.onGroupUpdate(queueUpdate(PlayQueueUpdateReason.NEW_PLAYLIST, SyncPlayQueueItem(UUID.randomUUID(), UUID.randomUUID())))
+        runCurrent()
+        assertEquals(emptyList<String>(), moves)
+        pause.complete(Unit)
+        runCurrent()
+        assertEquals(listOf("setNewQueue 1", "pause"), server.calls)
+        assertEquals(listOf("reset"), moves)
     }
 
     @Test
@@ -152,7 +197,15 @@ class SyncPlayPlaybackTest {
     private val groupId = UUID.randomUUID()
     private val entryId = UUID.randomUUID()
 
-    private class Room(val fake: FakePlayer, val transport: PlayerTransport, val session: SyncPlaySession, val server: FakeServer, private val test: TestScope) {
+    private class Room(
+        val fake: FakePlayer,
+        val transport: PlayerTransport,
+        val session: SyncPlaySession,
+        val server: FakeServer,
+        val moves: List<String>,
+        val playback: SyncPlayPlayback,
+        private val test: TestScope
+    ) {
         fun advanceTimeBy(ms: Long) = test.advanceTimeBy(ms)
 
         fun runCurrent() = test.runCurrent()
@@ -163,40 +216,41 @@ class SyncPlayPlaybackTest {
         val session = SyncPlaySession()
         val now = LocalDateTime.now()
         session.onGroupUpdate(SyncPlayGroupJoinedUpdate(groupId, GroupInfoDto(groupId, "Room", GroupStateType.PLAYING, listOf("me"), now)))
-        session.onGroupUpdate(
-            SyncPlayPlayQueueUpdate(
-                groupId,
-                PlayQueueUpdate(
-                    PlayQueueUpdateReason.NEW_PLAYLIST,
-                    now,
-                    listOf(SyncPlayQueueItem(UUID.randomUUID(), entryId)),
-                    0,
-                    0L,
-                    false,
-                    GroupShuffleMode.SORTED,
-                    GroupRepeatMode.REPEAT_NONE
-                )
-            )
-        )
+        session.onGroupUpdate(queueUpdate(PlayQueueUpdateReason.NEW_PLAYLIST, SyncPlayQueueItem(UUID.randomUUID(), entryId)))
         val fake = FakePlayer()
         val transport = PlayerTransport(fake.player)
         val server = FakeServer()
-        SyncPlayPlayback(groupId, fake.player, transport, backgroundScope, {}, {}, session, server, backgroundScope).start()
+        val moves = mutableListOf<String>()
+        val playback = SyncPlayPlayback(groupId, fake.player, transport, backgroundScope, {}, {}, { moves += "item $it" }, { moves += "reset" }, session, server, backgroundScope)
+        playback.start()
         runCurrent()
         assertEquals(listOf("buffering 0", "ready 0 false"), server.calls)
         server.calls.clear()
-        block(Room(fake, transport, session, server, this))
+        block(Room(fake, transport, session, server, moves, playback, this))
     }
+
+    private fun queueUpdate(reason: PlayQueueUpdateReason, entry: SyncPlayQueueItem) = SyncPlayPlayQueueUpdate(
+        groupId,
+        PlayQueueUpdate(reason, LocalDateTime.now(), listOf(entry), 0, 0L, false, GroupShuffleMode.SORTED, GroupRepeatMode.REPEAT_NONE)
+    )
 
     private class FakeServer : SyncPlayRoomApi {
         val calls = mutableListOf<String>()
+        var pauseGate: CompletableDeferred<Unit>? = null
         override suspend fun join(groupId: UUID) {
             calls += "join"
         }
         override suspend fun leave() {
             calls += "leave"
         }
+        override suspend fun setNewQueue(itemIds: List<UUID>, startTicks: Long) {
+            calls += "setNewQueue ${itemIds.size}"
+        }
+        override suspend fun nextItem(playlistItemId: UUID) {
+            calls += "nextItem"
+        }
         override suspend fun pause() {
+            pauseGate?.await()
             calls += "pause"
         }
         override suspend fun unpause() {

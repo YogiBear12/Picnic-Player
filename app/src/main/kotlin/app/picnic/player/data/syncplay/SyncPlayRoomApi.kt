@@ -10,6 +10,8 @@ import java.util.UUID
 interface SyncPlayRoomApi {
     suspend fun join(groupId: UUID)
     suspend fun leave()
+    suspend fun setNewQueue(itemIds: List<UUID>, startTicks: Long)
+    suspend fun nextItem(playlistItemId: UUID)
     suspend fun pause()
     suspend fun unpause()
     suspend fun seek(positionTicks: Long)

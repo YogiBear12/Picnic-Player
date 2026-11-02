@@ -62,7 +62,23 @@ class SyncPlaySessionTest {
     fun joinThenQueueThenStateFoldsIntoOneGroup() {
         val group = listOf(queued(), SyncPlayStateUpdate(groupId, GroupStateUpdate(GroupStateType.PAUSED, PlaybackRequestType.PAUSE)))
             .fold(joined()) { g, update -> reduceGroup(g, update)!! }
-        assertEquals(SyncGroup(groupId, "Movie night", GroupStateType.PAUSED, listOf("knuckles"), SyncQueue(movieId, entryId, 1_200_000_000L)), group)
+        assertEquals(SyncGroup(groupId, "Movie night", GroupStateType.PAUSED, listOf("knuckles"), SyncQueue(listOf(SyncPlayQueueItem(movieId, entryId)), 0, 1_200_000_000L, PlayQueueUpdateReason.NEW_PLAYLIST)), group)
+    }
+
+    @Test
+    fun nextItemMovesThePlayingEntryAndKeepsTheList() {
+        val second = SyncPlayQueueItem(UUID.randomUUID(), UUID.randomUUID())
+        val list = listOf(SyncPlayQueueItem(movieId, entryId), second)
+        fun update(index: Int, reason: PlayQueueUpdateReason) = SyncPlayPlayQueueUpdate(
+            groupId,
+            PlayQueueUpdate(reason, local(now), list, index, 0L, false, GroupShuffleMode.SORTED, GroupRepeatMode.REPEAT_NONE)
+        )
+        val first = reduceGroup(joined(), update(0, PlayQueueUpdateReason.NEW_PLAYLIST))!!.queue!!
+        assertEquals(second, first.next)
+        val moved = reduceGroup(joined(), update(1, PlayQueueUpdateReason.NEXT_ITEM))!!.queue!!
+        assertEquals(second.playlistItemId, moved.playlistItemId)
+        assertEquals(PlayQueueUpdateReason.NEXT_ITEM, moved.reason)
+        assertNull(moved.next)
     }
 
     @Test

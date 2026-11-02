@@ -164,7 +164,7 @@ class LobbyViewModel @AssistedInject constructor(
     /** A new queue at 0 starts by itself once every member reports Ready for it, which each lobby does. */
     fun playFromStart() {
         val queue = group.value?.queue ?: return
-        viewModelScope.launch { runCatching { syncPlayRepository.setNewQueue(queue.itemId, 0L) } }
+        viewModelScope.launch { runCatching { syncPlayRepository.setNewQueue(queue.entries.map { it.itemId }, 0L) } }
     }
 
     /** Runs on the app scope: the lobby is popped at once and its own scope goes with it. */

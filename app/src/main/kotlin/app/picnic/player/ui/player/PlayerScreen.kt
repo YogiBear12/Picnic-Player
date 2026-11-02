@@ -67,8 +67,8 @@ fun PlayerScreen(
     queue: ItemQueue? = null,
     syncGroupId: String? = null,
     onExit: () -> Unit,
-    onFinished: () -> Unit = onExit,
     onPlayNext: (nextItemId: String) -> Unit = {},
+    onLobby: () -> Unit = {},
     viewModel: PlayerViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -164,6 +164,7 @@ fun PlayerScreen(
             when (event) {
                 PlayerNavEvent.Exit -> exitPlayer()
                 is PlayerNavEvent.PlayNext -> onPlayNext(event.itemId)
+                PlayerNavEvent.ToLobby -> exitPlayer(onLobby)
             }
         }
     }
@@ -193,7 +194,7 @@ fun PlayerScreen(
     val nextUpActive = state.nextUpPhase != NextUpPhase.NONE
     LaunchedEffect(nextUpActive) {
         if (nextUpActive && state.nextUp == null) {
-            exitPlayer(onFinished)
+            viewModel.finishWithoutNextUp()
         }
     }
 

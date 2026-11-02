@@ -379,10 +379,10 @@ fun PicnicNavHost(
                             queue = key.queue,
                             syncGroupId = key.syncGroupId,
                             onExit = { navViewModel.pop() },
-                            onFinished = { if (key.syncGroupId == null) navViewModel.pop() else navViewModel.finishToDetails(key.itemId) },
                             onPlayNext = { nextId ->
-                                navViewModel.replaceTop(PlayerKey(nextId, queue = key.queue?.advanced()))
-                            }
+                                navViewModel.replaceTop(PlayerKey(nextId, queue = key.queue?.advanced(), syncGroupId = key.syncGroupId))
+                            },
+                            onLobby = { key.syncGroupId?.let { navViewModel.replaceTop(LobbyKey(it)) } }
                         )
                     }
                     entry<LobbyKey> { key ->

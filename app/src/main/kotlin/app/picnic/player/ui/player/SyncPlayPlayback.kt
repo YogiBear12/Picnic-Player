@@ -27,6 +27,7 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import org.jellyfin.sdk.model.api.GroupStateType
+import org.jellyfin.sdk.model.api.PlayQueueUpdateReason
 import org.jellyfin.sdk.model.api.SendCommandType
 
 private const val TAG = "PicnicSyncPlay"
@@ -56,6 +57,8 @@ class SyncPlayPlayback @AssistedInject constructor(
     @Assisted parentScope: CoroutineScope,
     @Assisted private val onNotice: (String) -> Unit,
     @Assisted private val onLeft: () -> Unit,
+    @Assisted private val onItemChanged: (UUID) -> Unit,
+    @Assisted("queueReset") private val onQueueReset: () -> Unit,
     private val session: SyncPlaySession,
     private val server: SyncPlayRoomApi,
     @ApplicationScope private val appScope: CoroutineScope
@@ -68,7 +71,9 @@ class SyncPlayPlayback @AssistedInject constructor(
             transport: PlayerTransport,
             parentScope: CoroutineScope,
             onNotice: (String) -> Unit,
-            onLeft: () -> Unit
+            onLeft: () -> Unit,
+            onItemChanged: (UUID) -> Unit,
+            @Assisted("queueReset") onQueueReset: () -> Unit
         ): SyncPlayPlayback
     }
 
@@ -85,6 +90,8 @@ class SyncPlayPlayback @AssistedInject constructor(
     private var seekSettle: Job? = null
     private var stillWaiting: Job? = null
     private var holding = false
+    private val playing: UUID? = session.group.value?.queue?.playlistItemId
+    private var resetting = false
 
     private val listener = object : Player.Listener {
         override fun onPlaybackStateChanged(playbackState: Int) {
@@ -125,12 +132,47 @@ class SyncPlayPlayback @AssistedInject constructor(
             session.group.first { it?.id != groupId }
             detach()
         }
+        scope.launch { followQueue() }
         // The room is already playing when the player opens; Buffering holds it until this player has loaded.
         scope.launch {
             server.awaitClockSynced()
             reportBuffering()
             if (player.playbackState == Player.STATE_READY) reportReady()
         }
+    }
+
+    val nextItemId: UUID? get() = session.group.value?.queue?.next?.itemId
+
+    // Names the entry this player opened on: the server ignores one it has already left, so two Next Ups can't skip twice.
+    fun requestNext() {
+        val entry = playing ?: return
+        requests.trySend { server.nextItem(entry) }
+    }
+
+    /** Puts the room back on its first file, paused, which is what sends every member to the lobby. */
+    fun finishQueue() {
+        val itemIds = session.group.value?.queue?.entries?.map { it.itemId } ?: return onQueueReset()
+        resetting = true
+        // The lobby's Ready waits for the Pause, or the room could count every member Ready and start file 1 again.
+        appScope.launch {
+            runCatching {
+                server.setNewQueue(itemIds, 0L)
+                server.pause()
+            }
+            onQueueReset()
+        }
+    }
+
+    // A re-join empties the queue before the server restores the same entries, so only a different entry counts.
+    private suspend fun followQueue() {
+        val queue = session.group.first { it?.id == groupId && it.queue != null && it.queue.playlistItemId != playing }?.queue ?: return
+        player.removeListener(listener)
+        when {
+            resetting -> Unit
+            queue.reason == PlayQueueUpdateReason.NEW_PLAYLIST -> onQueueReset()
+            else -> onItemChanged(queue.itemId)
+        }
+        scope.cancel()
     }
 
     override fun play() {

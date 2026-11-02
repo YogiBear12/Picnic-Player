@@ -45,6 +45,8 @@ import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.grid.MediaGridCard
 import app.picnic.player.ui.grid.gridCellSlot
 import app.picnic.player.ui.theme.PicnicColors
+import app.picnic.player.ui.watchtogether.rememberWatchTogether
+import app.picnic.player.ui.watchtogether.watchTogetherAction
 import org.jellyfin.sdk.model.api.BaseItemDto
 
 @Composable
@@ -149,8 +151,10 @@ internal fun PlaylistsPane(
                     )
                 )
             } else {
+                val watchTogether = rememberWatchTogether(playlist)
                 ContextMenuPanel(
-                    actions = listOf(
+                    actions = listOfNotNull(
+                        watchTogether?.let { watchTogetherAction(playlist, it) { menu = null } },
                         ContextMenuAction("Delete playlist", Icons.Default.Delete) {
                             menu = PlaylistMenu(playlist, confirmingDelete = true)
                         }

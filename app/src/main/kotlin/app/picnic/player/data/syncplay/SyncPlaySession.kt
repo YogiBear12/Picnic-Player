@@ -17,6 +17,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 import org.jellyfin.sdk.model.api.GroupInfoDto
 import org.jellyfin.sdk.model.api.GroupStateType
 import org.jellyfin.sdk.model.api.GroupUpdate
+import org.jellyfin.sdk.model.api.PlayQueueUpdateReason
 import org.jellyfin.sdk.model.api.SendCommand
 import org.jellyfin.sdk.model.api.SendCommandType
 import org.jellyfin.sdk.model.api.SyncPlayGroupDoesNotExistUpdate
@@ -25,11 +26,17 @@ import org.jellyfin.sdk.model.api.SyncPlayGroupLeftUpdate
 import org.jellyfin.sdk.model.api.SyncPlayLibraryAccessDeniedUpdate
 import org.jellyfin.sdk.model.api.SyncPlayNotInGroupUpdate
 import org.jellyfin.sdk.model.api.SyncPlayPlayQueueUpdate
+import org.jellyfin.sdk.model.api.SyncPlayQueueItem
 import org.jellyfin.sdk.model.api.SyncPlayStateUpdate
 import org.jellyfin.sdk.model.api.SyncPlayUserJoinedUpdate
 import org.jellyfin.sdk.model.api.SyncPlayUserLeftUpdate
 
-data class SyncQueue(val itemId: UUID, val playlistItemId: UUID, val startTicks: Long)
+/** The room's queue; [index] is always inside [entries]. */
+data class SyncQueue(val entries: List<SyncPlayQueueItem>, val index: Int, val startTicks: Long, val reason: PlayQueueUpdateReason) {
+    val itemId: UUID get() = entries[index].itemId
+    val playlistItemId: UUID get() = entries[index].playlistItemId
+    val next: SyncPlayQueueItem? get() = entries.getOrNull(index + 1)
+}
 
 data class SyncGroup(
     val id: UUID,
@@ -59,8 +66,8 @@ fun reduceGroup(group: SyncGroup?, update: GroupUpdate): SyncGroup? {
         is SyncPlayUserLeftUpdate -> group.copy(participants = group.participants - update.data)
         is SyncPlayPlayQueueUpdate -> {
             val queue = update.data
-            val item = queue.playlist.getOrNull(queue.playingItemIndex)
-            group.copy(queue = item?.let { SyncQueue(it.itemId, it.playlistItemId, queue.startPositionTicks) })
+            val valid = queue.playingItemIndex in queue.playlist.indices
+            group.copy(queue = if (valid) SyncQueue(queue.playlist, queue.playingItemIndex, queue.startPositionTicks, queue.reason) else null)
         }
         else -> group
     }

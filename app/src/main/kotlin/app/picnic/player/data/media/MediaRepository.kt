@@ -414,6 +414,17 @@ class MediaRepository @Inject constructor(
             .groupBy({ it.first }, { it.second })
     }
 
+    suspend fun episodesFrom(seriesId: UUID, episodeId: UUID): List<UUID> = onIo {
+        api().showApi.getEpisodes(
+            seriesId = seriesId,
+            userId = session().userUuid,
+            startItemId = episodeId,
+            isMissing = false,
+            fields = emptyList(),
+            enableImages = false
+        ).content.items.orEmpty().map { it.id }
+    }
+
     suspend fun leadEpisode(seriesId: UUID, seasonId: UUID? = null): BaseItemDto? = onIo {
         runCatching {
             api().showApi.getEpisodes(

@@ -8,7 +8,6 @@ import app.picnic.player.data.playback.PlayerCommand
 import app.picnic.player.data.playback.PlayerCommandBus
 import app.picnic.player.data.syncplay.SyncCommand
 import app.picnic.player.data.syncplay.SyncPlaySession
-import app.picnic.player.data.syncplay.SyncQueue
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -377,7 +376,7 @@ class WebSocketManagerTest {
         )
         delay(SETTLE_MS)
 
-        assertEquals(SyncQueue(movieId, entryId, 0L), h.syncPlay.group.value?.queue)
+        assertEquals(entryId, h.syncPlay.group.value?.queue?.playlistItemId)
         assertEquals(listOf(SyncCommand(SendCommandType.PAUSE, now.toEpochMilli(), 0L)), h.syncCommands)
         h.stopCollecting()
     }
