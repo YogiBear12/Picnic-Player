@@ -15,6 +15,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -28,16 +29,23 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import app.picnic.player.ui.browse.DeclarePaneEntry
+import app.picnic.player.ui.common.ActionButton
 import app.picnic.player.ui.common.CenteredMessage
 import app.picnic.player.ui.common.GlassRow
 import app.picnic.player.ui.common.LoadFailedState
+import app.picnic.player.ui.common.LoadingFocusTarget
 import app.picnic.player.ui.common.rememberKeyedFocusRequesters
+import app.picnic.player.ui.common.rememberLoadingFocusHolder
 import app.picnic.player.ui.common.rememberOneShotFocus
 import app.picnic.player.ui.common.rememberRetrySeed
+import app.picnic.player.ui.common.requestFocusWhenAttached
 import app.picnic.player.ui.common.requestFocusWhenVisible
 import app.picnic.player.ui.theme.PicnicColors
 import java.util.UUID
@@ -51,72 +59,111 @@ internal fun WatchTogetherPane(
     onJoined: (UUID) -> Unit,
     viewModel: WatchTogetherPaneViewModel = hiltViewModel()
 ) {
-    LaunchedEffect(Unit) { viewModel.load() }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    LaunchedEffect(viewModel, lifecycleOwner) {
+        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) { viewModel.poll() }
+    }
     val joined by rememberUpdatedState(onJoined)
     LaunchedEffect(viewModel) { viewModel.joined.collect { joined(it) } }
-    val state by viewModel.state.collectAsStateWithLifecycle()
+    val latest by viewModel.state.collectAsStateWithLifecycle()
+    var state by remember { mutableStateOf(latest) }
     val rowFocus = rememberKeyedFocusRequesters()
-    var focusedKey by remember { mutableStateOf<String?>(null) }
+    var focusedRoom by remember { mutableStateOf<UUID?>(null) }
+    var focusedSlot by remember { mutableIntStateOf(0) }
+    var paneFocused by remember { mutableStateOf(false) }
+    val park = rememberLoadingFocusHolder()
+    var parking by remember { mutableStateOf(false) }
     val retrySeed = rememberRetrySeed()
     val onSeeded = {
         retrySeed.consume()
         onContentFocusSeeded()
     }
 
-    when {
-        state.loading && state.rooms.isEmpty() -> Box(Modifier.fillMaxSize()) {
-            CircularProgressIndicator(Modifier.align(Alignment.Center), color = PicnicColors.Accent)
+    LaunchedEffect(latest) {
+        if (!paneFocused || !state.dropsFocus(latest, focusedRoom)) {
+            state = latest
+            return@LaunchedEffect
         }
-        state.error != null -> {
-            val retryFocus = rememberOneShotFocus(seedContentFocus || (retrySeed.pending && state.joining == null), onSeeded)
-            DeclarePaneEntry { retryFocus }
-            LoadFailedState(
-                message = state.error.orEmpty(),
-                retryFocus = retryFocus,
-                onRetry = {
-                    retrySeed.arm()
-                    viewModel.retry()
-                },
-                retrying = state.joining != null
-            )
+        parking = true
+        try {
+            park.requester.requestFocusWhenAttached()
+            if (state.content != latest.content) {
+                focusedRoom = null
+                focusedSlot = 0
+            } else {
+                focusedSlot = state.rooms.indexOfFirst { it.groupId == focusedRoom }.coerceAtLeast(0)
+            }
+            retrySeed.arm()
+            state = latest
+        } finally {
+            parking = false
         }
-        state.rooms.isEmpty() -> CenteredMessage(
-            message = "No rooms right now",
-            detail = "Start one from a movie's menu, or from the web."
-        )
-        else -> {
-            val rooms = state.rooms
-            val listState = rememberLazyListState()
-            var listHasFocus by remember { mutableStateOf(false) }
-            DeclarePaneEntry {
-                val keys = rooms.map { it.groupId.toString() }
-                (focusedKey?.takeIf { it in keys } ?: keys.firstOrNull())?.let { rowFocus[it] } ?: FocusRequester.Default
+    }
+
+    Box(Modifier.fillMaxSize().onFocusChanged { paneFocused = it.hasFocus }.focusGroup()) {
+        if (park.holds(parking)) LoadingFocusTarget(park)
+        when (state.content) {
+            PaneContent.Loading -> CircularProgressIndicator(Modifier.align(Alignment.Center), color = PicnicColors.Accent)
+            PaneContent.Error -> {
+                val retryFocus = rememberOneShotFocus(seedContentFocus || (retrySeed.pending && state.joining == null), onSeeded)
+                DeclarePaneEntry { retryFocus }
+                LoadFailedState(
+                    message = state.error.orEmpty(),
+                    retryFocus = retryFocus,
+                    onRetry = {
+                        retrySeed.arm()
+                        viewModel.retry()
+                    },
+                    retrying = state.joining != null
+                )
             }
-            LaunchedEffect(seedContentFocus, retrySeed.pending, rooms, state.joining) {
-                if (!seedContentFocus && !retrySeed.pending || state.joining != null) return@LaunchedEffect
-                val index = rooms.indexOfFirst { it.groupId.toString() == focusedKey }.coerceAtLeast(0)
-                rowFocus[rooms[index].groupId.toString()].requestFocusWhenVisible(listState, index) { listHasFocus }
-                onSeeded()
-            }
-            LazyColumn(
-                state = listState,
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                contentPadding = PaddingValues(start = horizontalInset, end = 40.dp, top = 28.dp, bottom = 16.dp),
-                modifier = Modifier.fillMaxSize().onFocusChanged { listHasFocus = it.hasFocus }.focusGroup()
-            ) {
-                items(rooms, key = { it.groupId.toString() }) { room ->
-                    val key = room.groupId.toString()
-                    RoomRow(
-                        room = room,
-                        joining = state.joining == room.groupId,
-                        onJoin = {
+            PaneContent.Empty -> {
+                val refreshFocus = rememberOneShotFocus(seedContentFocus || retrySeed.pending, onSeeded)
+                DeclarePaneEntry { refreshFocus }
+                CenteredMessage(message = "No watch parties found") {
+                    ActionButton(
+                        label = "Refresh",
+                        onActivate = {
                             retrySeed.arm()
-                            viewModel.join(room)
+                            viewModel.load()
                         },
-                        modifier = Modifier
-                            .focusRequester(rowFocus[key])
-                            .onFocusChanged { if (it.isFocused) focusedKey = key }
+                        focusRequester = refreshFocus
                     )
+                }
+            }
+            PaneContent.Rooms -> {
+                val rooms = state.rooms
+                val listState = rememberLazyListState()
+                var listHasFocus by remember { mutableStateOf(false) }
+                DeclarePaneEntry {
+                    (rooms.firstOrNull { it.groupId == focusedRoom } ?: rooms.firstOrNull())?.let { rowFocus[it.groupId] } ?: FocusRequester.Default
+                }
+                LaunchedEffect(seedContentFocus, retrySeed.pending, rooms, state.joining) {
+                    if (!seedContentFocus && !retrySeed.pending || state.joining != null) return@LaunchedEffect
+                    val index = rooms.indexOfFirst { it.groupId == focusedRoom }
+                        .takeIf { it >= 0 } ?: focusedSlot.coerceIn(0, rooms.lastIndex)
+                    rowFocus[rooms[index].groupId].requestFocusWhenVisible(listState, index) { listHasFocus }
+                    onSeeded()
+                }
+                LazyColumn(
+                    state = listState,
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    contentPadding = PaddingValues(start = horizontalInset, end = 40.dp, top = 28.dp, bottom = 16.dp),
+                    modifier = Modifier.fillMaxSize().onFocusChanged { listHasFocus = it.hasFocus }.focusGroup()
+                ) {
+                    items(rooms, key = { it.groupId }) { room ->
+                        RoomRow(
+                            room = room,
+                            joining = state.joining == room.groupId,
+                            onJoin = {
+                                retrySeed.arm()
+                                viewModel.join(room)
+                            },
+                            modifier = Modifier
+                                .focusRequester(rowFocus[room.groupId])
+                                .onFocusChanged { if (it.isFocused) focusedRoom = room.groupId }
+                        )
+                    }
                 }
             }
         }

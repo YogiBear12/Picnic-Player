@@ -7,9 +7,11 @@ import app.picnic.player.data.syncplay.SyncPlaySession
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.util.UUID
 import javax.inject.Inject
+import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -28,7 +30,26 @@ class WatchTogetherPaneViewModel @Inject constructor(
         val rooms: List<GroupInfoDto> = emptyList(),
         val joining: UUID? = null,
         val failedJoin: GroupInfoDto? = null
-    )
+    ) {
+        /** A join in flight or a failed join's Retry owns the screen; a poll must not replace either. */
+        val pollable: Boolean get() = joining == null && failedJoin == null
+
+        fun withRooms(rooms: List<GroupInfoDto>): UiState = if (pollable) copy(loading = false, error = null, rooms = rooms) else this
+
+        /** Only a fetch the user is waiting on shows the error; a failed background poll keeps what is on screen. */
+        fun withLoadFailure(): UiState = if (loading) copy(loading = false, error = LoadFailedMessage) else this
+
+        internal val content: PaneContent
+            get() = when {
+                loading && rooms.isEmpty() -> PaneContent.Loading
+                error != null -> PaneContent.Error
+                rooms.isEmpty() -> PaneContent.Empty
+                else -> PaneContent.Rooms
+            }
+
+        /** Removing a focused node drops focus to an arbitrary fallback, often the nav panel, so such a swap parks focus first. */
+        internal fun dropsFocus(next: UiState, focusedRoom: UUID?): Boolean = content != next.content || content == PaneContent.Rooms && next.rooms.none { it.groupId == focusedRoom }
+    }
 
     private val _state = MutableStateFlow(UiState())
     val state = _state.asStateFlow()
@@ -42,6 +63,14 @@ class WatchTogetherPaneViewModel @Inject constructor(
         work?.cancel()
         _state.update { it.copy(loading = true, joining = null) }
         work = viewModelScope.launch { refresh() }
+    }
+
+    /** The server pushes no list changes to a user outside a group, so the list is polled. */
+    suspend fun poll() {
+        while (true) {
+            if (_state.value.pollable) refresh()
+            delay(PollInterval)
+        }
     }
 
     fun retry() {
@@ -73,11 +102,16 @@ class WatchTogetherPaneViewModel @Inject constructor(
     private suspend fun refresh() {
         try {
             val rooms = syncPlayRepository.groups()
-            _state.update { UiState(loading = false, rooms = rooms) }
+            _state.update { it.withRooms(rooms) }
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
-            _state.update { UiState(loading = false, error = "Couldn't load rooms") }
+            _state.update { it.withLoadFailure() }
         }
     }
 }
+
+internal enum class PaneContent { Loading, Error, Empty, Rooms }
+
+private val PollInterval = 10.seconds
+private const val LoadFailedMessage = "Couldn't load watch parties"
