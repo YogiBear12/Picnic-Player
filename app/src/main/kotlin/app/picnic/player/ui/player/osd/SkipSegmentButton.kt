@@ -6,6 +6,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
@@ -43,7 +44,8 @@ fun SkipSegmentButton(
             modifier = Modifier
                 .clip(CircleShape)
                 .drawBehind {
-                    drawRect(fill, size = Size(size.width * elapsed(), size.height))
+                    val progress = size.width * elapsed()
+                    drawRect(fill, topLeft = Offset(progress, 0f), size = Size(size.width - progress, size.height))
                 }
                 .padding(horizontal = 24.dp, vertical = 12.dp),
             style = MaterialTheme.typography.titleMedium
