@@ -12,6 +12,7 @@ import app.picnic.player.data.auth.AuthRepository
 import app.picnic.player.data.media.MediaRepository
 import app.picnic.player.data.settings.SettingsStore
 import app.picnic.player.data.settings.ThemeMusicVolume
+import app.picnic.player.data.socket.AppForegroundState
 import app.picnic.player.di.ApplicationScope
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.UUID
@@ -32,7 +33,8 @@ class ThemeMusicPlayer @Inject constructor(
     private val authRepository: AuthRepository,
     private val mediaRepository: MediaRepository,
     private val settingsStore: SettingsStore,
-    @ApplicationScope private val appScope: CoroutineScope
+    @ApplicationScope private val appScope: CoroutineScope,
+    private val foreground: AppForegroundState
 ) {
     private var player: ExoPlayer? = null
 
@@ -47,6 +49,7 @@ class ThemeMusicPlayer @Inject constructor(
 
     fun acquire(ownerId: UUID) {
         appScope.launch(Dispatchers.Main) {
+            if (!foreground.isVisible.value) return@launch
             stopJob?.cancel()
             stopJob = null
             if (ownerId == currentOwnerId) {
@@ -122,7 +125,7 @@ class ThemeMusicPlayer @Inject constructor(
             Log.d(TAG, "no theme available for $ownerId")
             return
         }
-        if (ownerId != currentOwnerId) return
+        if (ownerId != currentOwnerId || !foreground.isVisible.value) return
         Log.d(TAG, "starting theme for $ownerId at $setting ($level)")
         targetVolume = level
         fadeInPending = true
