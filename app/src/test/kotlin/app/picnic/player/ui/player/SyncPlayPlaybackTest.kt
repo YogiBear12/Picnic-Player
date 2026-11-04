@@ -81,7 +81,7 @@ class SyncPlayPlaybackTest {
 
     @Test
     fun finishingTheQueueRequeuesItPaused() = room {
-        playback.finishQueue()
+        playback.finishQueue { moves += "failed" }
         runCurrent()
         assertEquals(listOf("setNewQueue 1", "pause"), server.calls)
     }
@@ -90,7 +90,7 @@ class SyncPlayPlaybackTest {
     fun theResetsOwnEchoGoesToTheLobbyOnlyOnceThePauseIsSent() = room {
         val pause = CompletableDeferred<Unit>()
         server.pauseGate = pause
-        playback.finishQueue()
+        playback.finishQueue { moves += "failed" }
         session.onGroupUpdate(queueUpdate(PlayQueueUpdateReason.NEW_PLAYLIST, SyncPlayQueueItem(UUID.randomUUID(), UUID.randomUUID())))
         runCurrent()
         assertEquals(emptyList<String>(), moves)
@@ -98,6 +98,15 @@ class SyncPlayPlaybackTest {
         runCurrent()
         assertEquals(listOf("setNewQueue 1", "pause"), server.calls)
         assertEquals(listOf("reset"), moves)
+    }
+
+    @Test
+    fun aFailedResetFailsInsteadOfOpeningTheLobby() = room {
+        server.failSetNewQueue = true
+        playback.finishQueue { moves += "failed" }
+        runCurrent()
+        assertEquals(emptyList<String>(), server.calls)
+        assertEquals(listOf("failed"), moves)
     }
 
     @Test
@@ -202,7 +211,7 @@ class SyncPlayPlaybackTest {
         val transport: PlayerTransport,
         val session: SyncPlaySession,
         val server: FakeServer,
-        val moves: List<String>,
+        val moves: MutableList<String>,
         val playback: SyncPlayPlayback,
         private val test: TestScope
     ) {
@@ -237,6 +246,7 @@ class SyncPlayPlaybackTest {
     private class FakeServer : SyncPlayRoomApi {
         val calls = mutableListOf<String>()
         var pauseGate: CompletableDeferred<Unit>? = null
+        var failSetNewQueue = false
         override suspend fun join(groupId: UUID) {
             calls += "join"
         }
@@ -244,6 +254,7 @@ class SyncPlayPlaybackTest {
             calls += "leave"
         }
         override suspend fun setNewQueue(itemIds: List<UUID>, startTicks: Long) {
+            check(!failSetNewQueue)
             calls += "setNewQueue ${itemIds.size}"
         }
         override suspend fun nextItem(playlistItemId: UUID) {

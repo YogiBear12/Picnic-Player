@@ -52,6 +52,8 @@ import app.picnic.player.data.settings.SubtitleAppearanceEditor
 import app.picnic.player.data.settings.SubtitleAppearanceSetting
 import app.picnic.player.data.settings.SubtitleArea
 import app.picnic.player.data.settings.TrackMemoryStore
+import app.picnic.player.data.socket.Notice
+import app.picnic.player.data.socket.NoticeBus
 import app.picnic.player.di.ApplicationScope
 import app.picnic.player.playback.AudioBoost
 import app.picnic.player.playback.AudioRoute
@@ -138,6 +140,7 @@ class PlayerViewModel @Inject constructor(
     playerCommandBus: PlayerCommandBus,
     themeMusicPlayer: ThemeMusicPlayer,
     private val syncPlayFactory: SyncPlayPlayback.Factory,
+    private val noticeBus: NoticeBus,
     @ApplicationScope private val appScope: CoroutineScope
 ) : ViewModel() {
     private val engine = engineFactory.create()
@@ -933,7 +936,13 @@ class PlayerViewModel @Inject constructor(
     // The file ended with no Next Up card; in a room the card may still be loading, and only the room's queue knows the last file.
     fun finishWithoutNextUp() {
         val playing = room ?: return run { _navEvents.tryEmit(PlayerNavEvent.Exit) }
-        if (playing.nextItemId == null) playing.finishQueue() else playing.requestNext()
+        if (playing.nextItemId == null) playing.finishQueue(onFailed = ::leaveAfterFailedReset) else playing.requestNext()
+    }
+
+    // Exit leaves the room, since the player never handed off.
+    private fun leaveAfterFailedReset() {
+        noticeBus.emit(Notice(text = "Failed to return to lobby"))
+        _navEvents.tryEmit(PlayerNavEvent.Exit)
     }
 
     fun endPlayback() {

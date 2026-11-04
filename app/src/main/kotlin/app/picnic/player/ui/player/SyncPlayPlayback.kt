@@ -150,15 +150,15 @@ class SyncPlayPlayback @AssistedInject constructor(
     }
 
     /** Puts the room back on its first file, paused, which is what sends every member to the lobby. */
-    fun finishQueue() {
+    fun finishQueue(onFailed: () -> Unit) {
         val itemIds = session.group.value?.queue?.entries?.map { it.itemId } ?: return onQueueReset()
         resetting = true
         // The lobby's Ready waits for the Pause, or the room could count every member Ready and start file 1 again.
         appScope.launch {
-            runCatching {
-                server.setNewQueue(itemIds, 0L)
-                server.pause()
-            }
+            val reset = runCatching { server.setNewQueue(itemIds, 0L) }.isSuccess
+            // A failed reset leaves the room on this file, where the lobby's Ready would only reopen the player.
+            if (!reset && session.group.value?.queue?.playlistItemId == playing) return@launch onFailed()
+            runCatching { server.pause() }
             onQueueReset()
         }
     }
