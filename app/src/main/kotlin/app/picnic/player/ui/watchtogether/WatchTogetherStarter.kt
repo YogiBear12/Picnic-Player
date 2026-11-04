@@ -85,9 +85,17 @@ class WatchTogetherStarter @Inject constructor(
 
     // Web members expand one episode into it plus every later one and pair their list with ours by position.
     private suspend fun episodeQueue(episode: BaseItemDto) = PartyQueue(
-        episode.seriesId?.let { mediaRepository.episodesFrom(it, episode.id) } ?: listOf(episode.id),
+        episode.seriesId?.let { laterEpisodes(it, episode.id) } ?: listOf(episode.id),
         episode.resumeTicks() ?: 0L
     )
+
+    private suspend fun laterEpisodes(seriesId: UUID, episodeId: UUID): List<UUID> = try {
+        mediaRepository.episodesFrom(seriesId, episodeId)
+    } catch (e: CancellationException) {
+        throw e
+    } catch (_: Exception) {
+        listOf(episodeId)
+    }
 }
 
 private data class PartyQueue(val itemIds: List<UUID>, val startTicks: Long)
