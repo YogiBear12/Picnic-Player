@@ -78,7 +78,7 @@ class WatchTogetherStarter @Inject constructor(
     private suspend fun partyQueue(item: BaseItemDto): PartyQueue = when (item.type) {
         BaseItemKind.EPISODE -> episodeQueue(item)
         BaseItemKind.SERIES -> episodeQueue(checkNotNull(mediaRepository.nextEpisodeForSeries(item.id)))
-        BaseItemKind.PLAYLIST -> PartyQueue(playlistRepository.playlistItems(item.id).map { it.id }, 0L)
+        BaseItemKind.PLAYLIST -> PartyQueue(playlistRepository.playlistItems(item.id).filter { it.mediaType != MediaType.AUDIO }.map { it.id }, 0L)
         BaseItemKind.BOX_SET -> PartyQueue(mediaRepository.collectionQueue(item.id).last().map { it.id }, 0L)
         else -> PartyQueue(listOf(item.id), item.resumeTicks() ?: 0L)
     }
