@@ -378,6 +378,7 @@ fun PicnicNavHost(
                             mediaSourceId = key.mediaSourceId,
                             queue = key.queue,
                             syncGroupId = key.syncGroupId,
+                            playlistItemId = key.playlistItemId,
                             onExit = { navViewModel.pop() },
                             onPlayNext = { nextId, playlistItemId ->
                                 navViewModel.replaceTop(PlayerKey(nextId, queue = key.queue?.advanced(), syncGroupId = key.syncGroupId, playlistItemId = playlistItemId))

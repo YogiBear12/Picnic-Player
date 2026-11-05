@@ -53,6 +53,7 @@ internal fun isRedundant(command: SyncCommand, last: SyncCommand?, playWhenReady
 
 class SyncPlayPlayback @AssistedInject constructor(
     @Assisted private val groupId: UUID,
+    @Assisted("entry") entry: UUID?,
     @Assisted private val player: Player,
     @Assisted private val transport: PlayerTransport,
     @Assisted parentScope: CoroutineScope,
@@ -68,6 +69,7 @@ class SyncPlayPlayback @AssistedInject constructor(
     interface Factory {
         fun create(
             groupId: UUID,
+            @Assisted("entry") entry: UUID?,
             player: Player,
             transport: PlayerTransport,
             parentScope: CoroutineScope,
@@ -91,8 +93,12 @@ class SyncPlayPlayback @AssistedInject constructor(
     private var seekSettle: Job? = null
     private var stillWaiting: Job? = null
     private var holding = false
-    private val playing: UUID? = session.group.value?.queue?.playlistItemId
+
+    // The entry this player was opened for; the room may have moved past it while the player loaded.
+    private val openedEntry: UUID? = entry ?: session.group.value?.queue?.playlistItemId
     private var resetting = false
+    private var handedOff = false
+    private var left = false
 
     private val listener = object : Player.Listener {
         override fun onPlaybackStateChanged(playbackState: Int) {
@@ -146,7 +152,7 @@ class SyncPlayPlayback @AssistedInject constructor(
 
     // Names the entry this player opened on: the server ignores one it has already left, so two Next Ups can't skip twice.
     fun requestNext() {
-        val entry = playing ?: return
+        val entry = openedEntry ?: return
         requests.trySend { server.nextItem(entry) }
     }
 
@@ -158,7 +164,7 @@ class SyncPlayPlayback @AssistedInject constructor(
         appScope.launch {
             val reset = runCatching { server.setNewQueue(itemIds, 0L) }.isSuccess
             // A failed reset leaves the room on this file, where the lobby's Ready would only reopen the player.
-            if (!reset && session.group.value?.queue?.playlistItemId == playing) return@launch onFailed()
+            if (!reset && session.group.value?.queue?.playlistItemId == openedEntry) return@launch onFailed()
             runCatching { server.pause() }
             onQueueReset()
         }
@@ -166,12 +172,12 @@ class SyncPlayPlayback @AssistedInject constructor(
 
     // A re-join empties the queue before the server restores the same entries, so only a different entry counts.
     private suspend fun followQueue() {
-        val queue = session.group.first { it?.id == groupId && it.queue != null && it.queue.playlistItemId != playing }?.queue ?: return
+        val queue = session.group.first { it?.id == groupId && it.queue != null && it.queue.playlistItemId != openedEntry }?.queue ?: return
         player.removeListener(listener)
         when {
             resetting -> Unit
             queue.reason == PlayQueueUpdateReason.NEW_PLAYLIST -> onQueueReset()
-            else -> onItemChanged(queue.entries[queue.index])
+            else -> onItemChanged(queue.current)
         }
         scope.cancel()
     }
@@ -250,7 +256,7 @@ class SyncPlayPlayback @AssistedInject constructor(
 
     private fun reportBuffering() {
         if (reportedBuffering) return
-        val entry = session.group.value?.queue?.playlistItemId ?: return
+        val entry = openedEntry ?: return
         reportedBuffering = true
         val ticks = player.currentPosition.msToTicks()
         Log.d(TAG, "buffering at=${player.currentPosition}")
@@ -261,7 +267,7 @@ class SyncPlayPlayback @AssistedInject constructor(
     private fun reportReady() {
         if (holding) return
         reportedBuffering = false
-        val entry = session.group.value?.queue?.playlistItemId ?: return
+        val entry = openedEntry ?: return
         val ticks = player.currentPosition.msToTicks()
         val playing = player.isPlaying
         Log.d(TAG, "ready at=${player.currentPosition} playing=$playing")
@@ -281,8 +287,17 @@ class SyncPlayPlayback @AssistedInject constructor(
         reportReady()
     }
 
+    // An exit and a hand-off are exclusive: whichever comes first wins.
+    fun claimHandOff(): Boolean {
+        if (left) return false
+        handedOff = true
+        return true
+    }
+
     /** Runs on the app scope: the player is closing and its own scope goes with it. */
     fun leave() {
+        if (handedOff) return
+        left = true
         appScope.launch(start = CoroutineStart.UNDISPATCHED) { runCatching { server.leave() } }
     }
 

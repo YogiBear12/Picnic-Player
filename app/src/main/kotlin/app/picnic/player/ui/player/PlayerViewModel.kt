@@ -86,13 +86,12 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelChildren
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
@@ -102,6 +101,7 @@ import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.last
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
@@ -157,8 +157,9 @@ class PlayerViewModel @Inject constructor(
     private val _state = MutableStateFlow(PlayerUiState())
     val state: StateFlow<PlayerUiState> = _state.asStateFlow()
 
-    private val _navEvents = MutableSharedFlow<PlayerNavEvent>(extraBufferCapacity = 4)
-    val navEvents: SharedFlow<PlayerNavEvent> = _navEvents.asSharedFlow()
+    // Buffered until the screen collects: a party player can hand off from load(), before the screen subscribes.
+    private val _navEvents = Channel<PlayerNavEvent>(Channel.BUFFERED)
+    val navEvents: Flow<PlayerNavEvent> = _navEvents.receiveAsFlow()
 
     private var session: UserSession? = null
     private var stream: StreamInfo? = null
@@ -169,7 +170,6 @@ class PlayerViewModel @Inject constructor(
     private var loaded = false
     private var leftFromOutroNextUp = false
     private var room: SyncPlayPlayback? = null
-    private var roomHandedOff = false
 
     private val viewingJob = SupervisorJob(viewModelScope.coroutineContext[Job])
     private val viewingScope = CoroutineScope(viewModelScope.coroutineContext + viewingJob)
@@ -387,7 +387,7 @@ class PlayerViewModel @Inject constructor(
             appForegroundState.isVisible.collect { visible ->
                 if (!visible && !inPictureInPicture) {
                     endViewing()
-                    _navEvents.tryEmit(PlayerNavEvent.Exit)
+                    _navEvents.trySend(PlayerNavEvent.Exit)
                 }
             }
         }
@@ -402,7 +402,7 @@ class PlayerViewModel @Inject constructor(
         when (command) {
             PlayerCommand.Stop -> {
                 transport.stop()
-                _navEvents.tryEmit(PlayerNavEvent.Exit)
+                _navEvents.trySend(PlayerNavEvent.Exit)
             }
             PlayerCommand.Pause -> transport.pause()
             PlayerCommand.Unpause -> transport.play()
@@ -444,7 +444,8 @@ class PlayerViewModel @Inject constructor(
         startTicks: Long?,
         mediaSourceId: String? = null,
         queue: ItemQueue? = null,
-        syncGroupId: String? = null
+        syncGroupId: String? = null,
+        playlistItemId: String? = null
     ) {
         if (loaded) return
         loaded = true
@@ -452,7 +453,7 @@ class PlayerViewModel @Inject constructor(
         itemId = id
         this.queue = queue
         outroNextUpShown = false
-        syncGroupId?.let { joinRoom(UUID.fromString(it)) }
+        syncGroupId?.let { joinRoom(UUID.fromString(it), playlistItemId?.let(UUID::fromString)) }
         viewingScope.launch {
             val activeSession = authRepository.activeSession()
             if (activeSession == null) {
@@ -508,9 +509,10 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
-    private fun joinRoom(groupId: UUID) {
+    private fun joinRoom(groupId: UUID, entry: UUID?) {
         val playback = syncPlayFactory.create(
             groupId = groupId,
+            entry = entry,
             player = player,
             transport = transport,
             parentScope = viewingScope,
@@ -520,13 +522,11 @@ class PlayerViewModel @Inject constructor(
                 _state.update { it.copy(inRoom = false, notice = "You left the watch party") }
             },
             onItemChanged = { next ->
-                roomHandedOff = true
                 handOffTo(next.itemId.toString(), next.playlistItemId.toString())
             },
             onQueueReset = {
-                roomHandedOff = true
                 markLeftFromOutro()
-                _navEvents.tryEmit(PlayerNavEvent.ToLobby)
+                _navEvents.trySend(PlayerNavEvent.ToLobby)
             }
         )
         room = playback
@@ -926,8 +926,11 @@ class PlayerViewModel @Inject constructor(
     private fun handOffTo(next: String, playlistItemId: String? = null) {
         markLeftFromOutro()
         sessionController.handOffToNextItem()
-        _navEvents.tryEmit(PlayerNavEvent.PlayNext(next, playlistItemId))
+        _navEvents.trySend(PlayerNavEvent.PlayNext(next, playlistItemId))
     }
+
+    // Called before a party hand-off navigates; the room refuses it once this player has left.
+    fun claimHandOff(): Boolean = room?.claimHandOff() ?: true
 
     private fun markLeftFromOutro() {
         leftFromOutroNextUp = leftFromOutroNextUp || _state.value.nextUpPhase == NextUpPhase.OUTRO
@@ -935,14 +938,14 @@ class PlayerViewModel @Inject constructor(
 
     // The file ended with no Next Up card; in a room the card may still be loading, and only the room's queue knows the last file.
     fun finishWithoutNextUp() {
-        val playing = room ?: return run { _navEvents.tryEmit(PlayerNavEvent.Exit) }
+        val playing = room ?: return run { _navEvents.trySend(PlayerNavEvent.Exit) }
         if (playing.nextItemId == null) playing.finishQueue(onFailed = ::leaveAfterFailedReset) else playing.requestNext()
     }
 
     // Exit leaves the room, since the player never handed off.
     private fun leaveAfterFailedReset() {
         noticeBus.emit(Notice(text = "Failed to return to lobby"))
-        _navEvents.tryEmit(PlayerNavEvent.Exit)
+        _navEvents.trySend(PlayerNavEvent.Exit)
     }
 
     fun endPlayback() {
@@ -958,7 +961,7 @@ class PlayerViewModel @Inject constructor(
         val positionTicks = stopReportPositionMs(player.currentPosition, player.duration, leftFromOutroNextUp).msToTicks()
         player.removeListener(listener)
         engine.release()
-        if (!roomHandedOff) room?.leave()
+        room?.leave()
         if (s != null && info != null && id != null) {
             appScope.launch {
                 runCatching { playbackRepository.reportStopped(s, info, id, positionTicks, series) }

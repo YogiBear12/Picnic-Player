@@ -80,6 +80,33 @@ class SyncPlayPlaybackTest {
     }
 
     @Test
+    fun aPlayerOpenedOnAnEntryTheRoomHasLeftHandsOffToTheNewestAtOnce() {
+        val next = UUID.randomUUID()
+        assertEquals(listOf("item $next"), openedLate(PlayQueueUpdateReason.NEXT_ITEM, SyncPlayQueueItem(next, UUID.randomUUID())))
+    }
+
+    @Test
+    fun aPlayerOpenedAfterTheRoomWasResetGoesToTheLobby() {
+        assertEquals(listOf("reset"), openedLate(PlayQueueUpdateReason.NEW_PLAYLIST, SyncPlayQueueItem(UUID.randomUUID(), UUID.randomUUID())))
+    }
+
+    @Test
+    fun anExitBeforeTheHandOffLeavesAndRefusesTheHandOff() = room {
+        playback.leave()
+        runCurrent()
+        assertFalse(playback.claimHandOff())
+        assertEquals(listOf("leave"), server.calls)
+    }
+
+    @Test
+    fun aClaimedHandOffKeepsTheRoomWhenThePlayerCloses() = room {
+        assertTrue(playback.claimHandOff())
+        playback.leave()
+        runCurrent()
+        assertEquals(emptyList<String>(), server.calls)
+    }
+
+    @Test
     fun finishingTheQueueRequeuesItPaused() = room {
         playback.finishQueue { moves += "failed" }
         runCurrent()
@@ -230,12 +257,25 @@ class SyncPlayPlaybackTest {
         val transport = PlayerTransport(fake.player)
         val server = FakeServer()
         val moves = mutableListOf<String>()
-        val playback = SyncPlayPlayback(groupId, fake.player, transport, backgroundScope, {}, {}, { moves += "item ${it.itemId}" }, { moves += "reset" }, session, server, backgroundScope)
+        val playback = SyncPlayPlayback(groupId, entryId, fake.player, transport, backgroundScope, {}, {}, { moves += "item ${it.itemId}" }, { moves += "reset" }, session, server, backgroundScope)
         playback.start()
         runCurrent()
         assertEquals(listOf("buffering 0", "ready 0 false"), server.calls)
         server.calls.clear()
         block(Room(fake, transport, session, server, moves, playback, this))
+    }
+
+    private fun openedLate(reason: PlayQueueUpdateReason, current: SyncPlayQueueItem): List<String> {
+        val moves = mutableListOf<String>()
+        runTest {
+            val session = SyncPlaySession()
+            session.onGroupUpdate(SyncPlayGroupJoinedUpdate(groupId, GroupInfoDto(groupId, "Room", GroupStateType.PLAYING, listOf("me"), LocalDateTime.now())))
+            session.onGroupUpdate(queueUpdate(reason, current))
+            val fake = FakePlayer()
+            SyncPlayPlayback(groupId, entryId, fake.player, PlayerTransport(fake.player), backgroundScope, {}, {}, { moves += "item ${it.itemId}" }, { moves += "reset" }, session, FakeServer(), backgroundScope).start()
+            runCurrent()
+        }
+        return moves
     }
 
     private fun queueUpdate(reason: PlayQueueUpdateReason, entry: SyncPlayQueueItem) = SyncPlayPlayQueueUpdate(

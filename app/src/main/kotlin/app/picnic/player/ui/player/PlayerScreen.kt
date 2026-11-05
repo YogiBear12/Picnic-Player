@@ -66,6 +66,7 @@ fun PlayerScreen(
     mediaSourceId: String? = null,
     queue: ItemQueue? = null,
     syncGroupId: String? = null,
+    playlistItemId: String? = null,
     onExit: () -> Unit,
     onPlayNext: (nextItemId: String, playlistItemId: String?) -> Unit = { _, _ -> },
     onLobby: () -> Unit = {},
@@ -73,7 +74,7 @@ fun PlayerScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val settings by viewModel.settings.collectAsStateWithLifecycle()
-    LaunchedEffect(itemId) { viewModel.load(itemId, startTicks, mediaSourceId, queue, syncGroupId) }
+    LaunchedEffect(itemId) { viewModel.load(itemId, startTicks, mediaSourceId, queue, syncGroupId, playlistItemId) }
 
     val view = LocalView.current
     SideEffect { view.keepScreenOn = state.isPlaying }
@@ -163,8 +164,8 @@ fun PlayerScreen(
         viewModel.navEvents.collect { event ->
             when (event) {
                 PlayerNavEvent.Exit -> exitPlayer()
-                is PlayerNavEvent.PlayNext -> onPlayNext(event.itemId, event.playlistItemId)
-                PlayerNavEvent.ToLobby -> exitPlayer(onLobby)
+                is PlayerNavEvent.PlayNext -> if (viewModel.claimHandOff()) onPlayNext(event.itemId, event.playlistItemId)
+                PlayerNavEvent.ToLobby -> if (viewModel.claimHandOff()) exitPlayer(onLobby)
             }
         }
     }

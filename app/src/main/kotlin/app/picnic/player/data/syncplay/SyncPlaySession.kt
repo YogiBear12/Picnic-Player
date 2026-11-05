@@ -32,8 +32,9 @@ import org.jellyfin.sdk.model.api.SyncPlayUserLeftUpdate
 
 /** The room's queue; [index] is always inside [entries]. */
 data class SyncQueue(val entries: List<SyncPlayQueueItem>, val index: Int, val startTicks: Long, val reason: PlayQueueUpdateReason) {
-    val itemId: UUID get() = entries[index].itemId
-    val playlistItemId: UUID get() = entries[index].playlistItemId
+    val current: SyncPlayQueueItem get() = entries[index]
+    val itemId: UUID get() = current.itemId
+    val playlistItemId: UUID get() = current.playlistItemId
     val next: SyncPlayQueueItem? get() = entries.getOrNull(index + 1)
 }
 
