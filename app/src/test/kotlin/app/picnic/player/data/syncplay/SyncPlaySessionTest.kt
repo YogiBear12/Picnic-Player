@@ -129,17 +129,6 @@ class SyncPlaySessionTest {
     }
 
     @Test
-    fun groupInfoRefreshesStateAndMembersOfTheJoinedGroupOnly() {
-        val group = joined()
-        val info = GroupInfoDto(groupId, "Movie night", GroupStateType.PAUSED, listOf("knuckles", "dale"), local(now))
-        val refreshed = applyGroupInfo(group, info)!!
-        assertEquals(GroupStateType.PAUSED, refreshed.state)
-        assertEquals(listOf("knuckles", "dale"), refreshed.participants)
-        assertEquals(group, applyGroupInfo(group, info.copy(groupId = UUID.randomUUID())))
-        assertNull(applyGroupInfo(null, info))
-    }
-
-    @Test
     fun errorRepliesWithAnEmptyGroupIdEndTheGroup() {
         assertNull(reduceGroup(joined(), SyncPlayGroupDoesNotExistUpdate(UUID(0, 0), "")))
         assertNull(reduceGroup(joined(), SyncPlayLibraryAccessDeniedUpdate(UUID(0, 0), "")))

@@ -151,10 +151,7 @@ class LobbyViewModel @AssistedInject constructor(
 
     // A member counts as loading until it reports Ready, and the server holds the room for it.
     private suspend fun reportReady(queue: SyncQueue) {
-        runCatching {
-            syncPlayRepository.ready(queue.startTicks, false, queue.playlistItemId)
-            syncPlayRepository.groups().firstOrNull { it.groupId == id }?.let(session::onGroupInfo)
-        }
+        runCatching { syncPlayRepository.ready(queue.startTicks, false, queue.playlistItemId) }
     }
 
     fun play() {

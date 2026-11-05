@@ -14,7 +14,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.withTimeoutOrNull
-import org.jellyfin.sdk.model.api.GroupInfoDto
 import org.jellyfin.sdk.model.api.GroupStateType
 import org.jellyfin.sdk.model.api.GroupUpdate
 import org.jellyfin.sdk.model.api.PlayQueueUpdateReason
@@ -82,9 +81,6 @@ fun groupNotice(group: SyncGroup?, update: GroupUpdate): Notice? {
     }
 }
 
-// The server sends no state update when a lone member's Ready settles the room, so the list is read after one.
-fun applyGroupInfo(group: SyncGroup?, info: GroupInfoDto): SyncGroup? = if (group?.id == info.groupId) group.copy(state = info.state, participants = info.participants) else group
-
 // The server also sends commands with a zero playlist item id (the creator gets a Stop on create) and
 // commands for a queue entry this client has moved past; neither applies to what is playing.
 fun acceptCommand(group: SyncGroup?, command: SendCommand, nowMs: Long): SyncCommand? {
@@ -124,8 +120,6 @@ class SyncPlaySession @Inject constructor() {
     }
 
     fun onGroupUpdate(update: GroupUpdate) = _group.update { reduceGroup(it, update) }
-
-    fun onGroupInfo(info: GroupInfoDto) = _group.update { applyGroupInfo(it, info) }
 
     fun onCommand(command: SendCommand) {
         acceptCommand(_group.value, command, System.currentTimeMillis())?.let(_commands::tryEmit)

@@ -132,7 +132,6 @@ fun LobbyScreen(
         people?.let {
             PeopleLine(
                 people = it,
-                state = group?.state?.serialName.orEmpty(),
                 modifier = Modifier
                     .align(Alignment.BottomStart)
                     .height(metrics.sy(RESTING_ACTIONS_BOTTOM))
@@ -167,7 +166,7 @@ private fun RoomHeader(name: String, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun PeopleLine(people: LobbyPeople, state: String, modifier: Modifier = Modifier) {
+private fun PeopleLine(people: LobbyPeople, modifier: Modifier = Modifier) {
     Row(modifier, verticalAlignment = Alignment.CenterVertically) {
         Row(horizontalArrangement = Arrangement.spacedBy(-AvatarOverlap)) {
             people.members.take(SHOWN_AVATARS).forEach {
@@ -189,6 +188,5 @@ private fun PeopleLine(people: LobbyPeople, state: String, modifier: Modifier = 
         }
         Spacer(Modifier.width(12.dp))
         Text(people.line, style = MaterialTheme.typography.bodyLarge, color = PicnicColors.OnDark, maxLines = 1)
-        Text(" · $state", style = MaterialTheme.typography.bodyLarge, color = PicnicColors.OnDarkMuted, maxLines = 1)
     }
 }
