@@ -521,7 +521,7 @@ class PlayerViewModel @Inject constructor(
             },
             onItemChanged = { next ->
                 roomHandedOff = true
-                handOffTo(next.toString())
+                handOffTo(next.itemId.toString(), next.playlistItemId.toString())
             },
             onQueueReset = {
                 roomHandedOff = true
@@ -923,10 +923,10 @@ class PlayerViewModel @Inject constructor(
         handOffTo(next)
     }
 
-    private fun handOffTo(next: String) {
+    private fun handOffTo(next: String, playlistItemId: String? = null) {
         markLeftFromOutro()
         sessionController.handOffToNextItem()
-        _navEvents.tryEmit(PlayerNavEvent.PlayNext(next))
+        _navEvents.tryEmit(PlayerNavEvent.PlayNext(next, playlistItemId))
     }
 
     private fun markLeftFromOutro() {

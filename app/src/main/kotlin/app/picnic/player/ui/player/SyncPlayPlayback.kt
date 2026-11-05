@@ -29,6 +29,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 import org.jellyfin.sdk.model.api.GroupStateType
 import org.jellyfin.sdk.model.api.PlayQueueUpdateReason
 import org.jellyfin.sdk.model.api.SendCommandType
+import org.jellyfin.sdk.model.api.SyncPlayQueueItem
 
 private const val TAG = "PicnicSyncPlay"
 private const val STALL_REPORT_MS = 3_000L
@@ -57,7 +58,7 @@ class SyncPlayPlayback @AssistedInject constructor(
     @Assisted parentScope: CoroutineScope,
     @Assisted private val onNotice: (String) -> Unit,
     @Assisted private val onLeft: () -> Unit,
-    @Assisted private val onItemChanged: (UUID) -> Unit,
+    @Assisted private val onItemChanged: (SyncPlayQueueItem) -> Unit,
     @Assisted("queueReset") private val onQueueReset: () -> Unit,
     private val session: SyncPlaySession,
     private val server: SyncPlayRoomApi,
@@ -72,7 +73,7 @@ class SyncPlayPlayback @AssistedInject constructor(
             parentScope: CoroutineScope,
             onNotice: (String) -> Unit,
             onLeft: () -> Unit,
-            onItemChanged: (UUID) -> Unit,
+            onItemChanged: (SyncPlayQueueItem) -> Unit,
             @Assisted("queueReset") onQueueReset: () -> Unit
         ): SyncPlayPlayback
     }
@@ -170,7 +171,7 @@ class SyncPlayPlayback @AssistedInject constructor(
         when {
             resetting -> Unit
             queue.reason == PlayQueueUpdateReason.NEW_PLAYLIST -> onQueueReset()
-            else -> onItemChanged(queue.itemId)
+            else -> onItemChanged(queue.entries[queue.index])
         }
         scope.cancel()
     }

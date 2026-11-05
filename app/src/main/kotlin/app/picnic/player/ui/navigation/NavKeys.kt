@@ -45,7 +45,8 @@ data class PlayerKey(
     val startTicks: Long? = null,
     val mediaSourceId: String? = null,
     val queue: ItemQueue? = null,
-    val syncGroupId: String? = null
+    val syncGroupId: String? = null,
+    val playlistItemId: String? = null
 ) : NavKey
 
 @Serializable

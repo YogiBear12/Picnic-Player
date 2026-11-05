@@ -55,7 +55,7 @@ class LobbyViewModel @AssistedInject constructor(
         fun create(groupId: String): LobbyViewModel
     }
 
-    data class Start(val itemId: UUID, val positionTicks: Long)
+    data class Start(val itemId: UUID, val playlistItemId: UUID, val positionTicks: Long)
 
     private val id = UUID.fromString(groupId)
 
@@ -95,7 +95,7 @@ class LobbyViewModel @AssistedInject constructor(
         viewModelScope.launch {
             session.commands
                 .filter { it.type == SendCommandType.UNPAUSE }
-                .mapNotNull { command -> group.value?.queue?.let { Start(it.itemId, command.positionTicks ?: it.startTicks) } }
+                .mapNotNull { command -> group.value?.queue?.let { Start(it.itemId, it.playlistItemId, command.positionTicks ?: it.startTicks) } }
                 .collect(_starts::send)
         }
         // After a Seek the server waits for every member's Ready, and a lobby member has nothing to load.

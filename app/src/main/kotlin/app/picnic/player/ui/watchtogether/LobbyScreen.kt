@@ -56,7 +56,7 @@ import java.util.UUID
 @Composable
 fun LobbyScreen(
     groupId: String,
-    onStart: (itemId: UUID, positionTicks: Long) -> Unit,
+    onStart: (itemId: UUID, playlistItemId: UUID, positionTicks: Long) -> Unit,
     onBack: () -> Unit,
     viewModel: LobbyViewModel = hiltViewModel<LobbyViewModel, LobbyViewModel.Factory>(
         creationCallback = { factory -> factory.create(groupId) }
@@ -66,7 +66,7 @@ fun LobbyScreen(
     val item by viewModel.item.collectAsStateWithLifecycle()
     val start by rememberUpdatedState(onStart)
     val back by rememberUpdatedState(onBack)
-    LaunchedEffect(viewModel) { viewModel.starts.collect { start(it.itemId, it.positionTicks) } }
+    LaunchedEffect(viewModel) { viewModel.starts.collect { start(it.itemId, it.playlistItemId, it.positionTicks) } }
     LaunchedEffect(viewModel) { viewModel.closed.collect { back() } }
     DisposableEffect(viewModel) { onDispose(viewModel::onScreenGone) }
     val leave = {

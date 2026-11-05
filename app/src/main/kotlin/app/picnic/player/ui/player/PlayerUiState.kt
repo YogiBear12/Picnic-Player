@@ -24,7 +24,7 @@ import org.jellyfin.sdk.model.api.TranscodingInfo
 sealed interface PlayerNavEvent {
     data object Exit : PlayerNavEvent
 
-    data class PlayNext(val itemId: String) : PlayerNavEvent
+    data class PlayNext(val itemId: String, val playlistItemId: String? = null) : PlayerNavEvent
 
     data object ToLobby : PlayerNavEvent
 }

@@ -379,8 +379,8 @@ fun PicnicNavHost(
                             queue = key.queue,
                             syncGroupId = key.syncGroupId,
                             onExit = { navViewModel.pop() },
-                            onPlayNext = { nextId ->
-                                navViewModel.replaceTop(PlayerKey(nextId, queue = key.queue?.advanced(), syncGroupId = key.syncGroupId))
+                            onPlayNext = { nextId, playlistItemId ->
+                                navViewModel.replaceTop(PlayerKey(nextId, queue = key.queue?.advanced(), syncGroupId = key.syncGroupId, playlistItemId = playlistItemId))
                             },
                             onLobby = { key.syncGroupId?.let { navViewModel.replaceTop(LobbyKey(it)) } }
                         )
@@ -388,8 +388,8 @@ fun PicnicNavHost(
                     entry<LobbyKey> { key ->
                         LobbyScreen(
                             groupId = key.groupId,
-                            onStart = { itemId, ticks ->
-                                navViewModel.replaceTop(PlayerKey(itemId.toString(), ticks, syncGroupId = key.groupId))
+                            onStart = { itemId, playlistItemId, ticks ->
+                                navViewModel.replaceTop(PlayerKey(itemId.toString(), ticks, syncGroupId = key.groupId, playlistItemId = playlistItemId.toString()))
                             },
                             onBack = { navViewModel.pop() }
                         )

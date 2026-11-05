@@ -230,7 +230,7 @@ class SyncPlayPlaybackTest {
         val transport = PlayerTransport(fake.player)
         val server = FakeServer()
         val moves = mutableListOf<String>()
-        val playback = SyncPlayPlayback(groupId, fake.player, transport, backgroundScope, {}, {}, { moves += "item $it" }, { moves += "reset" }, session, server, backgroundScope)
+        val playback = SyncPlayPlayback(groupId, fake.player, transport, backgroundScope, {}, {}, { moves += "item ${it.itemId}" }, { moves += "reset" }, session, server, backgroundScope)
         playback.start()
         runCurrent()
         assertEquals(listOf("buffering 0", "ready 0 false"), server.calls)

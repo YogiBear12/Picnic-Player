@@ -67,7 +67,7 @@ fun PlayerScreen(
     queue: ItemQueue? = null,
     syncGroupId: String? = null,
     onExit: () -> Unit,
-    onPlayNext: (nextItemId: String) -> Unit = {},
+    onPlayNext: (nextItemId: String, playlistItemId: String?) -> Unit = { _, _ -> },
     onLobby: () -> Unit = {},
     viewModel: PlayerViewModel = hiltViewModel()
 ) {
@@ -163,7 +163,7 @@ fun PlayerScreen(
         viewModel.navEvents.collect { event ->
             when (event) {
                 PlayerNavEvent.Exit -> exitPlayer()
-                is PlayerNavEvent.PlayNext -> onPlayNext(event.itemId)
+                is PlayerNavEvent.PlayNext -> onPlayNext(event.itemId, event.playlistItemId)
                 PlayerNavEvent.ToLobby -> exitPlayer(onLobby)
             }
         }
