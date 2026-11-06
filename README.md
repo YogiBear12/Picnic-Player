@@ -4,10 +4,8 @@
 
 <h1 align="center">Picnic Player</h1>
 
-<p align="center"><strong>Native Android TV client for Jellyfin</strong></p>
-
 <p align="center">
-  Picnic Player is a native Jellyfin client built for Android TV. It has been
+  A native Jellyfin client built for Android TV. It has been
   designed to present your media in an immersive and intuitive way, so
   non-technical people can pick it up and begin using it like they would any
   other streaming app.
@@ -27,13 +25,15 @@ AI is used heavily in the development of this client. This is slop.
 - Refresh rate matching and resolution matching
 - Media segments for skipping intros/outros
 - Theme music
-- Seerr integration
+- Seerr integration for discovery, requesting media and reporting issues
+- Built-in updater
 
 ### Plus some extra goodies
 
+- SyncPlay support
 - On the fly conversion of Dolby Vision Profile 7 to Profile 8
 - Picture-in-Picture (on supported devices)
-- Choose your preferred app for opening external trailers
+- Choose your preferred app for opening external trailers (SmartTube, TizenTube, etc)
 
 ## Screenshots
 
@@ -44,8 +44,8 @@ AI is used heavily in the development of this client. This is slop.
       <em>Home</em>
     </td>
     <td align="center">
-      <img src="assets/series-detail.png" alt="Series details" width="480" /><br />
-      <em>Series details</em>
+      <img src="assets/detail.png" alt="Details" width="480" /><br />
+      <em>Details</em>
     </td>
   </tr>
   <tr>
@@ -59,6 +59,11 @@ AI is used heavily in the development of this client. This is slop.
     </td>
   </tr>
 </table>
+
+## Downloading the client
+
+Grab the .apk from the latest release under the releases tab or install via Downloader using the code `6247279`
+
 
 ## Acknowledgements
 
