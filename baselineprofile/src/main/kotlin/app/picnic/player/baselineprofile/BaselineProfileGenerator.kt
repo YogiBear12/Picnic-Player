@@ -68,14 +68,14 @@ class BaselineProfileGenerator {
         device.waitForIdle()
     }
 
-    /** Navigation drawer into a library grid, which exercises paging and grid layout. */
+    /** Nav panel into a library grid, which exercises paging and grid layout. */
     @Test
     fun library() = rule.collect(packageName = PACKAGE) {
         pressHome()
         startActivityAndWait()
         device.waitForIdle()
 
-        // Left off the content area opens the drawer, focused on the current destination (Home).
+        // Left off the content area opens the nav panel, focused on the current destination (Home).
         device.pressDPadLeft()
         device.waitForIdle()
 
@@ -101,7 +101,116 @@ class BaselineProfileGenerator {
         device.waitForIdle()
     }
 
+    /** Home rows below the fold, where the recommendation, genre, decade and top-rated rows live. */
+    @Test
+    fun homeDeepRows() = rule.collect(packageName = PACKAGE) {
+        pressHome()
+        startActivityAndWait()
+        device.waitForIdle()
+
+        repeat(HOME_DEEP_ROWS) {
+            device.pressDPadDown()
+            device.waitForIdle()
+        }
+        repeat(3) {
+            device.pressDPadRight()
+            device.waitForIdle()
+        }
+    }
+
+    /** Series details, then its season rail and episode list. */
+    @Test
+    fun seriesEpisodes() = rule.collect(packageName = PACKAGE) {
+        pressHome()
+        startActivityAndWait()
+        device.waitForIdle()
+
+        // Nav panel: Home -> Anime Movies -> Anime TV -> Movies -> TV Shows.
+        device.pressDPadLeft()
+        device.waitForIdle()
+        repeat(4) {
+            device.pressDPadDown()
+            device.waitForIdle()
+        }
+        device.pressDPadCenter()
+        device.waitForIdle()
+
+        device.pressDPadCenter()
+        device.waitForIdle()
+        repeat(2) {
+            device.pressDPadDown()
+            device.waitForIdle()
+        }
+        repeat(2) {
+            device.pressDPadUp()
+            device.waitForIdle()
+        }
+
+        // The button after Play opens the episode list.
+        device.pressDPadRight()
+        device.waitForIdle()
+        device.pressDPadCenter()
+        device.waitForIdle()
+        repeat(3) {
+            device.pressDPadDown()
+            device.waitForIdle()
+        }
+        device.pressDPadLeft()
+        device.waitForIdle()
+        device.pressBack()
+        device.waitForIdle()
+    }
+
+    /** Search, then playback start, the controls and a trickplay scrub. */
+    @Test
+    fun searchAndPlay() = rule.collect(packageName = PACKAGE) {
+        pressHome()
+        startActivityAndWait()
+        device.waitForIdle()
+
+        // Nav panel: Home -> Search.
+        device.pressDPadLeft()
+        device.waitForIdle()
+        device.pressDPadUp()
+        device.waitForIdle()
+        device.pressDPadCenter()
+        device.waitForIdle()
+
+        device.pressDPadCenter()
+        device.executeShellCommand("input text $SEARCH_QUERY")
+        Thread.sleep(SEARCH_SETTLE_MS)
+        device.pressDPadDown()
+        device.waitForIdle()
+
+        device.pressDPadCenter()
+        device.waitForIdle()
+        device.pressDPadCenter()
+        // Video frames keep the UI busy, so waitForIdle cannot mark playback start.
+        Thread.sleep(PLAYBACK_MS)
+
+        // Center pauses and shows the controls; Right scrubs with a trickplay preview.
+        device.pressDPadCenter()
+        Thread.sleep(OSD_SETTLE_MS)
+        repeat(2) {
+            device.pressDPadRight()
+            Thread.sleep(OSD_SETTLE_MS)
+        }
+        device.pressDPadCenter()
+        Thread.sleep(PLAYBACK_MS)
+        device.pressBack()
+        device.waitForIdle()
+    }
+
     private companion object {
         const val PACKAGE = "app.picnic.player"
+
+        // Fourteen rows down reaches past Top rated on the test server's Home.
+        const val HOME_DEEP_ROWS = 14
+
+        // A title with a DTS track, so playback start also loads the FFmpeg audio decoder.
+        const val SEARCH_QUERY = "butterfly"
+        const val SEARCH_SETTLE_MS = 3_000L
+        const val PLAYBACK_MS = 10_000L
+        const val OSD_SETTLE_MS = 1_000L
     }
 }
